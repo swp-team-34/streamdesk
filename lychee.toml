@@ -1,0 +1,13 @@
+accept = [200, 206, 429]
+exclude = [
+  # Add excluded links only with justification in reports/week2/README.md
+]
+exclude_path = [
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  "vendor"
+]
+max_retries = 3
+timeout = 20
