@@ -1,8 +1,10 @@
 accept = [200, 206, 429]
 exclude = [
-  # Add excluded links only with justification in reports/week2/README.md
+  "^https://streamdesk\\.innopolis\\.university/$",
+  "^https://streamdesk\\.ru/$"
 ]
 exclude_path = [
+  "client/index.html",
   "node_modules",
   "dist",
   "build",

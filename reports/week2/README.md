@@ -41,3 +41,10 @@ StreamDesk is a production workflow management system for broadcast teams.
 ## Coverage
 
 TODO: Add verified coverage information without inventing claims or user-story IDs.
+
+## Excluded Lychee links
+
+- `https://streamdesk.innopolis.university/`
+- `https://streamdesk.ru/`
+
+These URLs timed out from GitHub Actions and require manual browser verification before final submission.
