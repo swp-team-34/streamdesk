@@ -26,7 +26,8 @@ StreamDesk is a production workflow management system for broadcast teams.
 - MVP v0 video: [MVP v0 demonstration (Yandex Disk)](https://disk.yandex.ru/i/h7QVL3-S5v-lFQ)
 - Reviewed PR: [PR #1 — Fix Lychee configuration](https://github.com/swp-team-34/streamdesk/pull/1)
 - Latest successful Lychee run: [Link Check run #27492807498](https://github.com/swp-team-34/streamdesk/actions/runs/27492807498)
-- Customer transcript/notes status: [Published sanitized transcript (Google Docs)](https://docs.google.com/document/d/1opTmPnSNb1SdqJs7CrRaNCzRsaJsl35hst0w7qJqZe8/edit?usp=sharing)
+- Customer transcript: [Customer Meeting Transcript](customer-meeting-transcript.md)
+- Customer meeting summary: [Customer Meeting Summary](customer-meeting-summary.md)
 
 ## Screenshots
 
