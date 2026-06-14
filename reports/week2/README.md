@@ -1,10 +1,6 @@
 # StreamDesk: Week 2
 
-**Responsible:** @AkPh_07, @kk0sta
-
 StreamDesk is a production workflow management system for broadcast teams.
-
-**TODO:** Complete this index with verified Assignment 2 evidence and links.
 
 ## Repository
 
@@ -24,48 +20,31 @@ StreamDesk is a production workflow management system for broadcast teams.
 
 ## Required Links
 
-- Prototype: [Research board SWP](https://www.figma.com/design/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4161-2)
-- MVP v0 deployment: TODO
-- MVP v0 video: TODO
-- Reviewed PR: TODO
-- Latest successful Lychee run: TODO
-- Customer transcript/notes status: TODO
+- Prototype: [StreamDesk interactive prototype (Figma)](https://www.figma.com/proto/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4232-58&p=f&viewport=-268%2C275%2C0.14&t=bogVB4RV92UbpFQp-1&scaling=min-zoom&content-scaling=fixed&page-id=4161%3A2)
+- MVP v0 deployment: [team34.ru](http://team34.ru)
+- MVP v0 video: [MVP v0 demonstration (Yandex Disk)](https://disk.yandex.ru/i/h7QVL3-S5v-lFQ)
+- Reviewed PR: [PR #1 — Fix Lychee configuration](https://github.com/swp-team-34/streamdesk/pull/1)
+- Latest successful Lychee run: [Link Check run #27492807498](https://github.com/swp-team-34/streamdesk/actions/runs/27492807498)
+- Customer transcript/notes status: [Published sanitized transcript (Google Docs)](https://docs.google.com/document/d/1opTmPnSNb1SdqJs7CrRaNCzRsaJsl35hst0w7qJqZe8/edit?usp=sharing)
 
 ## Screenshots
 
-- Protected default branch: TODO (`images/protected-default-branch.png`)
-- Reviewed PR: TODO (`images/reviewed-pr.png`)
-- MVP v0: TODO (`images/mvp-v0.png`)
+### Protected default branch
 
-### Calendar prototype
+![Protected default branch](images/protected-default-branch.png)
 
-The calendar screen represents `US-02` and `US-09`.
+### Reviewed PR
 
-![Calendar prototype showing scheduled tasks](images/prototype-calendar.png)
+![Reviewed PR](images/reviewed-pr.png)
 
-### Task dashboard prototype
+### Prototype
 
-The task dashboard represents `US-05` and `US-10`.
+![Prototype](images/prototype.png)
 
-![Task dashboard prototype showing deadline-prioritized work](images/prototype-dashboard.png)
+### MVP v0
+
+![MVP v0](images/mvp-v0.png)
 
 ## Coverage
 
-The selected graphical prototype represents the initial proposed MVP v1 scope:
-
-- `US-02` — viewing scheduled tasks in a calendar
-- `US-05` — organizing tasks on a dashboard
-- `US-09` — showing concise task information in calendar cells
-- `US-10` — ordering dashboard tasks by deadline urgency
-
-The primary interface artifact is the
-[Research board SWP](https://www.figma.com/design/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4161-2)
-Figma prototype. The prototype link must remain publicly viewable but not
-publicly editable until the course has been graded.
-
-## Excluded Lychee links
-
-- `https://streamdesk.innopolis.university/`
-- `https://streamdesk.ru/`
-
-These URLs timed out from GitHub Actions and require manual browser verification before final submission.
+TODO: Add verified coverage information without inventing claims or user-story IDs.
