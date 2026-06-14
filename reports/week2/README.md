@@ -21,7 +21,7 @@ StreamDesk is a production workflow management system for broadcast teams.
 ## Required Links
 
 - Prototype: [StreamDesk interactive prototype (Figma)](https://www.figma.com/proto/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4232-58&p=f&viewport=-268%2C275%2C0.14&t=bogVB4RV92UbpFQp-1&scaling=min-zoom&content-scaling=fixed&page-id=4161%3A2)
-- MVP v0 deployment: [team34.ru](http://team34.ru)
+- MVP v0 deployment: [team34.ru](https://team34.ru)
 - Run instructions: [Local setup (root README)](../../README.md#локальный-запуск)
 - MVP v0 video: [MVP v0 demonstration (Yandex Disk)](https://disk.yandex.ru/i/h7QVL3-S5v-lFQ)
 - Reviewed PR: [PR #1 — Fix Lychee configuration](https://github.com/swp-team-34/streamdesk/pull/1)
@@ -78,4 +78,4 @@ The following URLs are excluded from automated Lychee link checking because GitH
 | --- | --- |
 | `https://streamdesk.innopolis.university/` | Times out from GitHub Actions; manually verified accessible |
 | `https://streamdesk.ru/` | Times out from GitHub Actions; manually verified accessible |
-| `http://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
+| `https://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
