@@ -1,7 +1,5 @@
 # MVP v0 Report
 
-**Responsible:** @MeeDaniel, @kk0sta
-
 ## MVP v0 Scope
 
 MVP v0 is a deployed web foundation of StreamDesk. It provides a working
