@@ -2,7 +2,8 @@ accept = [200, 206, 429]
 exclude = [
   "^https://streamdesk\\.innopolis\\.university/$",
   "^https://streamdesk\\.ru/$",
-  "^http://team34\\.ru/$"
+  "^http://team34\\.ru/$",
+  "^https://team34\\.ru/$"
 ]
 exclude_path = [
   "client/index.html",
