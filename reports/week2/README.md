@@ -80,3 +80,4 @@ The following URLs are excluded from automated Lychee link checking because GitH
 | `https://streamdesk.innopolis.university/` | Times out from GitHub Actions; manually verified accessible |
 | `https://streamdesk.ru/` | Times out from GitHub Actions; manually verified accessible |
 | `https://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
+| `http://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
