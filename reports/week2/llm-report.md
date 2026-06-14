@@ -1,7 +1,5 @@
 # LLM Usage Report
 
-**Responsible:** @MeeDaniel, @aitovaskar
-
 ## Tools Used
 
 | Tool | Usage |

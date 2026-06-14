@@ -15,6 +15,7 @@ We designed the prototypes of features the customer asked for. The customer was 
 ## Needs clarification
 
 We still need to clarify:
+
 * Design details
 * Task manager special features in the details (it depends on one of the customers that may answer only during the next week)
 * From `US-03`: what is the formula for completion?
