@@ -24,7 +24,7 @@ StreamDesk is a production workflow management system for broadcast teams.
 
 ## Required Links
 
-- Prototype: TODO
+- Prototype: [Research board SWP](https://www.figma.com/design/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4161-2)
 - MVP v0 deployment: TODO
 - MVP v0 video: TODO
 - Reviewed PR: TODO
@@ -40,7 +40,17 @@ StreamDesk is a production workflow management system for broadcast teams.
 
 ## Coverage
 
-TODO: Add verified coverage information without inventing claims or user-story IDs.
+The selected graphical prototype represents the initial proposed MVP v1 scope:
+
+- `US-02` — viewing scheduled tasks in a calendar
+- `US-05` — organizing tasks on a dashboard
+- `US-09` — showing concise task information in calendar cells
+- `US-10` — ordering dashboard tasks by deadline urgency
+
+The primary interface artifact is the
+[Research board SWP](https://www.figma.com/design/zUuBGPcI53VIh2qIOkv1OA/Research-board-SWP?node-id=4161-2)
+Figma prototype. The prototype link must remain publicly viewable but not
+publicly editable until the course has been graded.
 
 ## Excluded Lychee links
 
