@@ -45,6 +45,7 @@ The customer explicitly permitted publication of this sanitized transcript in th
 **[Meeting agenda and user roles]**
 
 **Facilitator:** Alright, look, let's quickly go over the meeting agenda, hopefully we'll finish soon:
+
 - Show User Stories — what our user journeys are.
 - Use the MoSCoW methodology to determine what should be included in MVP version 1.
 - Show our prototypes in Figma that we've sketched out.
