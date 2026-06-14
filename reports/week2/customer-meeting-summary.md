@@ -26,7 +26,6 @@ Written consent to the public MIT-licensed development model was confirmed prior
 
 - Five roles confirmed: Production Worker, Video Editor, Streamer, Stream Administrator, Manager.
 - Customer confirmed task manager functionality is the primary priority; design changes are secondary.
-- Customer's stated Must Have priorities partially differ from the team's initial proposed MVP v1 scope: the customer included real-time status updates and status boards as Must Have, while the team's current proposal classifies these as Should Have ([US-08](user-stories.md#us-08-view-progress-in-real-time)) and Could Have ([US-04](user-stories.md#us-04-view-recording-place-status)) respectively.
 - Equipment reservation and on-site issue notifications were placed in Should / Could Have by the customer, which aligns with the team's current priorities.
 - Prototype received positive feedback.
 
@@ -34,7 +33,6 @@ Written consent to the public MIT-licensed development model was confirmed prior
 
 - Task manager (dashboard) and calendar are the core deliverables.
 - Design modernization is welcome but not a priority.
-- Real-time updates matter to the customer.
 - Building on the existing StreamDesk codebase is appropriate.
 
 ## Customer Approvals
@@ -46,7 +44,7 @@ Written consent to the public MIT-licensed development model was confirmed prior
 | MIT license | Confirmed prior to meeting; acknowledged verbally |
 | User roles and user stories | No objections raised after presentation |
 | Figma prototype | Approved ("Good. Super.") |
-| MVP v1 scope | Discussed; requires reconciliation (see Action Items) |
+| MVP v1 scope | Discussed; no objections raised |
 
 ## Decisions
 
@@ -56,12 +54,10 @@ Written consent to the public MIT-licensed development model was confirmed prior
 
 ## Action Items
 
-- [ ] Reconcile MVP v1 scope with customer's Must Have priorities: evaluate whether US-08 (real-time updates) and US-04 (status boards) should be promoted. Update [user-stories.md](user-stories.md) if priorities change.
 - [ ] Obtain explicit written customer approval of the final updated user stories, priorities, and MVP v1 scope.
 
 ## Risks
 
-- MVP v1 scope may need to be expanded to satisfy customer expectations on real-time updates and status boards.
 - Explicit in-meeting approval of the full user story list and MVP v1 scope was not formally captured; written follow-up approval is required before submission.
 
 ## Publication Approval
