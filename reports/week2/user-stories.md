@@ -170,68 +170,6 @@ so that tasks approaching or exceeding their deadlines are visible first.
 Overdue tasks should be visually distinguishable from upcoming tasks. This
 story is included in the initial proposed MVP v1 scope.
 
-## Acceptance Criteria
-
-### US-01
-
-- A production worker can identify equipment available for reservation.
-- Reserved or unavailable equipment is not displayed as freely available.
-- A successful reservation is associated with the requesting worker.
-
-### US-02
-
-- A manager can view scheduled tasks by date in the calendar.
-- Current and delayed tasks are visually distinguishable.
-- The manager can navigate between relevant calendar periods.
-
-### US-03
-
-- A manager can see a completion indicator for applicable work.
-- The indicator reflects the latest recorded progress.
-- Tasks without progress data are clearly identified.
-
-### US-04
-
-- A production worker can view the current status of each recording place.
-- Available and unavailable recording places are visually distinguishable.
-- An empty state is shown when no recording places are configured.
-
-### US-05
-
-- A manager can open a dashboard containing current tasks.
-- Each item contains enough information to identify the task.
-- The manager can open a task to inspect its details.
-
-### US-06
-
-- A task preview shows equipment requested for that task.
-- Each request includes its current status.
-- An empty state is shown when there are no equipment requests.
-
-### US-07
-
-- A production worker can submit an issue for a production location.
-- The report contains a description of the issue.
-- The system confirms submission or displays an understandable error.
-
-### US-08
-
-- A manager sees progress changes without manually reloading the page.
-- The interface indicates when live updates are unavailable.
-- Incoming updates do not remove existing task information.
-
-### US-09
-
-- A calendar task cell displays the task title.
-- It displays the scheduled time or deadline and current status.
-- The information is readable without opening the full task.
-
-### US-10
-
-- Dashboard tasks are ordered by deadline urgency.
-- Overdue tasks appear before tasks with future deadlines.
-- Tasks with the same deadline use a consistent secondary ordering.
-
 ## Priorities
 
 | ID | Short title | Requirement status | MoSCoW priority |
