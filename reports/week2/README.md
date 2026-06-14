@@ -35,8 +35,19 @@ StreamDesk is a production workflow management system for broadcast teams.
 
 - Protected default branch: TODO (`images/protected-default-branch.png`)
 - Reviewed PR: TODO (`images/reviewed-pr.png`)
-- Prototype: TODO (`images/prototype.png`)
 - MVP v0: TODO (`images/mvp-v0.png`)
+
+### Calendar prototype
+
+The calendar screen represents `US-02` and `US-09`.
+
+![Calendar prototype showing scheduled tasks](images/prototype-calendar.png)
+
+### Task dashboard prototype
+
+The task dashboard represents `US-05` and `US-10`.
+
+![Task dashboard prototype showing deadline-prioritized work](images/prototype-dashboard.png)
 
 ## Coverage
 
