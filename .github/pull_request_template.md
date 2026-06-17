@@ -1,21 +1,102 @@
+## Linked issue
+
+Closes #
+
 ## Summary
+
 Describe the change.
-## Type of change
-- [ ] Documentation
-- [ ] Feature
-- [ ] Fix
-- [ ] Infrastructure
-- [ ] Other
-## Checklist
-- [ ] I tested the change locally.
-- [ ] I updated documentation where needed.
-- [ ] I did not commit secrets, tokens, passwords, or `.env` files.
+
+## Branch naming confirmation
+
+- [ ] Branch follows `<issue-number>-short-description`.
+- [ ] Branch is linked to the issue above.
+
+## PBI type
+
+- [ ] User Story
+- [ ] Other PBI
+- [ ] Course Task
+- [ ] Bug Report
+- [ ] Other:
+
+## Work Status
+
+- [ ] Backlog
+- [ ] Selected for Sprint
+- [ ] In Progress
+- [ ] In Review
+- [ ] Done
+
+## MoSCoW priority, if applicable
+
+- [ ] Must
+- [ ] Should
+- [ ] Could
+- [ ] Won't for this release
+- [ ] Not applicable
+
+## Story Points, if applicable
+
+TODO:
+
+## MVP version, if applicable
+
+TODO:
+
+## Acceptance criteria verification
+
+- [ ] Acceptance criteria are listed in the linked issue.
+- [ ] Each acceptance criterion has been verified.
+- [ ] Any incomplete criterion is documented with a reason.
+
+## Testing/verification evidence
+
+- Commands run:
+- Results:
+- Evidence links or files:
+
+## Screenshots or demo evidence, if applicable
+
+- TODO:
+
+## Changelog
+
+- [ ] `CHANGELOG.md` was updated, or this PR has no user-visible change.
+
+## Definition of Done
+
+- [ ] Scope matches the linked issue.
+- [ ] Documentation was updated where needed.
+- [ ] Tests/checks were run where practical.
+- [ ] No secrets, tokens, passwords, or `.env` files are committed.
 - [ ] Links were checked or intentionally excluded with justification.
+
+## Reviewer checklist
+
+- [ ] The PR is linked to an issue.
+- [ ] Acceptance criteria are clear and verified.
+- [ ] Evidence is sufficient for the change.
+- [ ] Changelog decision is reasonable.
+
+## Merge readiness
+
+- [ ] Required reviews are complete.
+- [ ] Required checks pass.
+- [ ] Merge commit will be used.
+- [ ] Branch can be deleted after merge.
+
 ## Related assignment section
-- [ ] Part 1: Product repository
-- [ ] Part 2: User stories
-- [ ] Part 3: Interface prototype
-- [ ] Part 4: MVP v0
-- [ ] Part 5: Customer review
-- [ ] Part 6: Analysis
-- [ ] Part 7: LLM report
+
+- [ ] Part 1
+- [ ] Part 2
+- [ ] Part 3
+- [ ] Part 4
+- [ ] Part 5
+- [ ] Part 6
+- [ ] Part 7
+- [ ] Part 8
+- [ ] Part 9
+- [ ] Part 10
+- [ ] Part 11
+- [ ] Part 12
+- [ ] Part 13
