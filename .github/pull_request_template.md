@@ -63,7 +63,7 @@ TODO:
 
 - [ ] `CHANGELOG.md` was updated, or this PR has no user-visible change.
 
-## Definition of Done
+## Quality Checklist
 
 - [ ] Scope matches the linked issue.
 - [ ] Documentation was updated where needed.
