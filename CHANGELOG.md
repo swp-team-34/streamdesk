@@ -13,6 +13,7 @@ the release convention.
 ### Added
 
 - Added repository workflow scaffolding for issue templates, PR evidence, and release tracking.
+- Added definition of done.
 
 ### Documentation
 
