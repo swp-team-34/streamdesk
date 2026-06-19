@@ -21,5 +21,5 @@
 ## Removed user stories
 | ID | Short title | Issue |
 | --- | --- | --- |
-| US-011 | Take equipment | - |
-| US-012 | View equipment take requests | - |
+| US-011 | Take equipment | [#36](https://github.com/swp-team-34/streamdesk/issues/36) |
+| US-012 | View equipment take requests | [#37](https://github.com/swp-team-34/streamdesk/issues/37) |
