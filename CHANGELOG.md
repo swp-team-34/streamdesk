@@ -10,10 +10,10 @@ changes are collected under `Unreleased`.
 
 ### Added
 
-- Added repository workflow scaffolding for issue templates, PR evidence, and release tracking. Issue link: `#<issue-number>`.
-- Added definition of done. Issue link: `#<issue-number>`.
+- Added repository workflow scaffolding for issue templates, PR evidence, and release tracking ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).
+- Added definition of done ([#22](https://github.com/swp-team-34/streamdesk/issues/22)).
 
 ### Changed
 
 - Updated Assignment 3 repository workflow compliance files for YAML issue forms, blank issue settings, pull request checklist evidence, changelog categories, and branch naming guidance ([#45](https://github.com/swp-team-34/streamdesk/issues/45)).
-- Documented issue-based backlog, branch, PR, changelog, and release workflows. Issue link: `#<issue-number>`.
+- Documented issue-based backlog, branch, PR, changelog, and release workflows ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).
