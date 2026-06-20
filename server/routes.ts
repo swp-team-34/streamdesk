@@ -527,6 +527,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Number.isNaN(date.getTime()) ? null : date;
   };
 
+  const createKanbanCardHistoryEntry = async (
+    userId: string,
+    cardId: string,
+    action: string,
+    oldValue?: unknown,
+    newValue?: unknown,
+  ) => {
+    try {
+      await storage.createKanbanCardHistory({
+        cardId,
+        userId,
+        action,
+        oldValue: oldValue == null ? null : oldValue,
+        newValue: newValue == null ? null : newValue,
+      });
+    } catch (historyError) {
+      console.warn("[Kanban] Failed to create card history entry:", historyError);
+    }
+  };
+
   const resolveKanbanAssigneeUserId = async (companyId: string, assigneeUserId: unknown) => {
     if (assigneeUserId == null) return { ok: true as const, userId: null };
 
@@ -923,6 +943,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/kanban/boards/:boardId/cards/:cardId/history", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const history = await storage.getKanbanCardHistory(card.id).catch(() => []);
+      res.json(history);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch card history:", error);
+      res.status(500).json({ message: "Не удалось загрузить историю карточки" });
+    }
+  });
+
   app.post("/api/kanban/boards/:boardId/cards", async (req, res) => {
     try {
       const currentUser = req.user as any;
@@ -960,6 +1001,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
       });
+
+      await createKanbanCardHistoryEntry(currentUser.id, card.id, "created", null, card);
 
       res.status(201).json(card);
     } catch (error: any) {
@@ -1019,6 +1062,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updated = await storage.updateKanbanCard(card.id, updateData as any);
       if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+
+      await createKanbanCardHistoryEntry(currentUser.id, updated.id, "updated", card, updated);
 
       res.json(updated);
     } catch (error: any) {
@@ -1080,6 +1125,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const movedCard = await storage.moveKanbanCard(card.id, targetList.id, parsed.position);
       if (!movedCard) return res.status(404).json({ message: "Карточка не найдена" });
+
+      await createKanbanCardHistoryEntry(currentUser.id, movedCard.id, "moved", card, movedCard);
 
       res.json(movedCard);
     } catch (error: any) {

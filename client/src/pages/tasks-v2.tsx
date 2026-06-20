@@ -95,6 +95,16 @@ interface KanbanCardView {
   updatedAt?: string | Date | null;
 }
 
+interface KanbanCardHistoryView {
+  id: string;
+  cardId: string;
+  userId: string;
+  action: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  createdAt?: string | Date | null;
+}
+
 const EMPTY_BOARD_FORM = {
   companyId: "",
   name: "",
@@ -167,6 +177,19 @@ const formatDueDateLabel = (value?: string | Date | null) => {
   if (Number.isNaN(date.getTime())) return null;
 
   return DUE_DATE_FORMATTER.format(date);
+};
+
+const getKanbanHistoryActionLabel = (action: string) => {
+  switch (action) {
+    case "created":
+      return "Создал карточку";
+    case "updated":
+      return "Обновил карточку";
+    case "moved":
+      return "Переместил карточку";
+    default:
+      return action || "Изменил карточку";
+  }
 };
 
 interface KanbanCardMoveInput {
@@ -319,6 +342,17 @@ export default function TasksV2Page() {
     enabled: !!selectedBoardId && !!detailCardId,
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}`);
+      return await res.json();
+    },
+  });
+  const { data: detailCardHistory = [], isLoading: detailCardHistoryLoading } = useQuery<KanbanCardHistoryView[]>({
+    queryKey: ["kanban-card-history", selectedBoardId, detailCardId],
+    enabled: !!selectedBoardId && !!detailCardId,
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/history`,
+      );
       return await res.json();
     },
   });
@@ -723,6 +757,7 @@ export default function TasksV2Page() {
       queryClient.setQueryData(["kanban-card", selectedBoardId, card.id], card);
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
 
       if (editingCardId === card.id) {
         setCardForm({
@@ -1779,6 +1814,39 @@ export default function TasksV2Page() {
                     <p>Создана: {formatDueDateLabel(selectedDetailCard.createdAt) || "Неизвестно"}</p>
                     <p>Обновлена: {formatDueDateLabel(selectedDetailCard.updatedAt) || "Еще не обновлялась"}</p>
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">Activity Log</h3>
+                    {detailCardHistoryLoading && (
+                      <span className="text-xs text-muted-foreground">Обновляем историю...</span>
+                    )}
+                  </div>
+
+                  {detailCardHistory.length === 0 ? (
+                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                      Для этой карточки пока нет записанной истории.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {detailCardHistory.map((entry) => (
+                        <div key={entry.id} className="rounded-lg border bg-muted/20 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-medium">
+                              {userById.get(entry.userId)?.name || entry.userId}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDueDateLabel(entry.createdAt) || "Неизвестное время"}
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {getKanbanHistoryActionLabel(entry.action)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2">

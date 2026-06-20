@@ -6,6 +6,7 @@ import {
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
   computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, chatSessions, chatMessages, repositories,
+  kanbanCardHistory,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -37,6 +38,7 @@ import {
   type KanbanBoardMember, type InsertKanbanBoardMember,
   type KanbanList, type InsertKanbanList,
   type KanbanCard, type InsertKanbanCard,
+  type KanbanCardHistory, type InsertKanbanCardHistory,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -256,6 +258,8 @@ export interface IStorage {
   updateKanbanCard(id: string, card: Partial<KanbanCard>): Promise<KanbanCard | undefined>;
   moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined>;
   deleteKanbanCard(id: string): Promise<boolean>;
+  getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]>;
+  createKanbanCardHistory(history: InsertKanbanCardHistory): Promise<KanbanCardHistory>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -1231,6 +1235,18 @@ export class PostgreSQLStorage implements IStorage {
     return result.length > 0;
   }
 
+  async getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]> {
+    return await db!.select().from(kanbanCardHistory)
+      .where(eq(kanbanCardHistory.cardId, cardId))
+      .orderBy(sql`${kanbanCardHistory.createdAt} DESC`);
+  }
+
+  async createKanbanCardHistory(insertHistory: InsertKanbanCardHistory): Promise<KanbanCardHistory> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCardHistory).values({ ...insertHistory, id }).returning();
+    return result[0];
+  }
+
   // Custom Locations
   async getCustomLocations(): Promise<CustomLocation[]> {
     return await db!.select().from(customLocations).orderBy(customLocations.name);
@@ -1609,6 +1625,7 @@ class StubStorage implements IStorage {
   private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
   private kanbanListsMap = new Map<string, KanbanList>();
   private kanbanCardsMap = new Map<string, KanbanCard>();
+  private kanbanCardHistoryMap = new Map<string, KanbanCardHistory>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -2064,7 +2081,12 @@ class StubStorage implements IStorage {
   }
   async deleteKanbanBoard(id: string): Promise<boolean> {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
-      if (card.boardId === id) this.kanbanCardsMap.delete(cardId);
+      if (card.boardId === id) {
+        this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+          if (history.cardId === cardId) this.kanbanCardHistoryMap.delete(historyId);
+        });
+      }
     });
     Array.from(this.kanbanListsMap.entries()).forEach(([listId, list]) => {
       if (list.boardId === id) this.kanbanListsMap.delete(listId);
@@ -2125,7 +2147,12 @@ class StubStorage implements IStorage {
   }
   async deleteKanbanList(id: string): Promise<boolean> {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
-      if (card.listId === id) this.kanbanCardsMap.delete(cardId);
+      if (card.listId === id) {
+        this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+          if (history.cardId === cardId) this.kanbanCardHistoryMap.delete(historyId);
+        });
+      }
     });
     return this.kanbanListsMap.delete(id);
   }
@@ -2215,7 +2242,21 @@ class StubStorage implements IStorage {
     return movedCard;
   }
   async deleteKanbanCard(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+      if (history.cardId === id) this.kanbanCardHistoryMap.delete(historyId);
+    });
     return this.kanbanCardsMap.delete(id);
+  }
+  async getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]> {
+    return Array.from(this.kanbanCardHistoryMap.values())
+      .filter((history) => history.cardId === cardId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async createKanbanCardHistory(data: InsertKanbanCardHistory): Promise<KanbanCardHistory> {
+    const id = this.uid();
+    const history = { ...data, id, createdAt: this.now() } as KanbanCardHistory;
+    this.kanbanCardHistoryMap.set(id, history);
+    return history;
   }
 
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }

@@ -395,6 +395,16 @@ export const kanbanCards = pgTable("kanban_cards", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const kanbanCardHistory = pgTable("kanban_card_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(),
+  oldValue: jsonb("old_value"),
+  newValue: jsonb("new_value"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -700,6 +710,11 @@ export const insertKanbanCardSchema = createInsertSchema(kanbanCards).omit({
   updatedAt: true,
 });
 
+export const insertKanbanCardHistorySchema = createInsertSchema(kanbanCardHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
   createdAt: true,
@@ -840,6 +855,9 @@ export type InsertKanbanList = z.infer<typeof insertKanbanListSchema>;
 
 export type KanbanCard = typeof kanbanCards.$inferSelect;
 export type InsertKanbanCard = z.infer<typeof insertKanbanCardSchema>;
+
+export type KanbanCardHistory = typeof kanbanCardHistory.$inferSelect;
+export type InsertKanbanCardHistory = z.infer<typeof insertKanbanCardHistorySchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;
