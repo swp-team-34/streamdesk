@@ -390,6 +390,7 @@ export const kanbanCards = pgTable("kanban_cards", {
   priority: text("priority").notNull().default("medium"),
   dueDate: timestamp("due_date"),
   creatorUserId: varchar("creator_user_id").references(() => users.id).notNull(),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -20,8 +20,36 @@ interface CompanySummary {
   name: string;
 }
 
+interface CompanyMembershipSummary {
+  id: string;
+  role: string;
+  status: string;
+}
+
+interface CompanyMemberSummary {
+  id: string;
+  companyId: string;
+  userId: string;
+  role: string;
+  status: string;
+}
+
+interface CompanyWorkspaceItem {
+  company: CompanySummary;
+  membership: CompanyMembershipSummary;
+  members: CompanyMemberSummary[];
+}
+
 interface CompaniesResponse {
-  companies: CompanySummary[];
+  companies: CompanyWorkspaceItem[];
+}
+
+interface UserSummary {
+  id: string;
+  name: string;
+  email?: string | null;
+  username?: string | null;
+  active?: boolean | null;
 }
 
 interface KanbanBoardView {
@@ -61,6 +89,7 @@ interface KanbanCardView {
   priority: KanbanCardPriority;
   dueDate?: string | Date | null;
   creatorUserId: string;
+  assigneeUserId?: string | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -84,6 +113,7 @@ const EMPTY_CARD_FORM = {
   description: "",
   priority: "medium" as KanbanCardPriority,
   dueDate: "",
+  assigneeUserId: "",
 };
 
 const LIST_TYPE_LABELS: Record<KanbanListType, string> = {
@@ -247,6 +277,14 @@ export default function TasksV2Page() {
     },
   });
 
+  const { data: users = [] } = useQuery<UserSummary[]>({
+    queryKey: ["/api/users"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/users");
+      return await res.json();
+    },
+  });
+
   const selectedBoard = useMemo(
     () => boards.find((board) => board.id === selectedBoardId) ?? null,
     [boards, selectedBoardId],
@@ -270,11 +308,35 @@ export default function TasksV2Page() {
     },
   });
 
-  const companies = companiesResponse?.companies ?? [];
+  const companyItems = companiesResponse?.companies ?? [];
+  const companies = companyItems.map((item) => item.company);
   const companyById = useMemo(
     () => new Map(companies.map((company) => [company.id, company])),
     [companies],
   );
+  const userById = useMemo(
+    () => new Map(users.map((user) => [user.id, user])),
+    [users],
+  );
+  const selectedCompanyItem = useMemo(
+    () => companyItems.find((item) => item.company.id === selectedBoard?.companyId) ?? null,
+    [companyItems, selectedBoard?.companyId],
+  );
+  const availableAssignees = useMemo(() => {
+    if (!selectedBoard) return [];
+
+    if (!selectedCompanyItem) {
+      return users.filter((user) => user.active !== false);
+    }
+
+    const activeMemberIds = new Set(
+      selectedCompanyItem.members
+        .filter((member) => member.status === "active")
+        .map((member) => String(member.userId)),
+    );
+
+    return users.filter((user) => activeMemberIds.has(String(user.id)) && user.active !== false);
+  }, [selectedBoard, selectedCompanyItem, users]);
   const cardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
 
@@ -527,6 +589,7 @@ export default function TasksV2Page() {
         description: cardForm.description.trim() || null,
         priority: cardForm.priority,
         dueDate: cardForm.dueDate || null,
+        assigneeUserId: cardForm.assigneeUserId || null,
       };
 
       if (editingCardId) {
@@ -684,6 +747,7 @@ export default function TasksV2Page() {
       description: card.description || "",
       priority: card.priority,
       dueDate: toDateTimeLocalValue(card.dueDate),
+      assigneeUserId: card.assigneeUserId || "",
     });
   };
 
@@ -1077,6 +1141,9 @@ export default function TasksV2Page() {
 
                                     {listCards.map((card, index) => {
                                       const dueDateLabel = formatDueDateLabel(card.dueDate);
+                                      const assigneeName = card.assigneeUserId
+                                        ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId
+                                        : null;
 
                                       return (
                                         <Draggable
@@ -1124,6 +1191,7 @@ export default function TasksV2Page() {
 
                                               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                                 <span>Порядок: {Number(card.position) + 1}</span>
+                                                {assigneeName && <span>Исполнитель: {assigneeName}</span>}
                                                 {dueDateLabel && <span>Срок: {dueDateLabel}</span>}
                                               </div>
 
@@ -1364,18 +1432,46 @@ export default function TasksV2Page() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium" htmlFor="kanban-card-due-date">
-                          Срок
+                        <label className="text-sm font-medium" htmlFor="kanban-card-assignee">
+                          Исполнитель
                         </label>
-                        <Input
-                          id="kanban-card-due-date"
-                          type="datetime-local"
-                          value={cardForm.dueDate}
-                          onChange={(event) => setCardForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                        <select
+                          id="kanban-card-assignee"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={cardForm.assigneeUserId}
+                          onChange={(event) =>
+                            setCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
+                          }
                           disabled={!canEditSelectedBoard || !hasLists || isCardPending}
-                        />
+                        >
+                          <option value="">Без исполнителя</option>
+                          {availableAssignees.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-card-due-date">
+                        Срок
+                      </label>
+                      <Input
+                        id="kanban-card-due-date"
+                        type="datetime-local"
+                        value={cardForm.dueDate}
+                        onChange={(event) => setCardForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                        disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                      />
+                    </div>
+
+                    {availableAssignees.length === 0 && canEditSelectedBoard && (
+                      <p className="text-xs text-muted-foreground">
+                        Для этой доски пока не найдено активных участников компании, поэтому карточки создаются без исполнителя.
+                      </p>
+                    )}
 
                     {canEditSelectedBoard && (
                       <div className="flex flex-wrap gap-2">

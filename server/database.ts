@@ -1166,7 +1166,8 @@ export class PostgreSQLStorage implements IStorage {
         reorderedCards.splice(insertionIndex, 0, currentCard);
 
         let movedCard: KanbanCard | undefined;
-        for (const [index, card] of reorderedCards.entries()) {
+        for (let index = 0; index < reorderedCards.length; index += 1) {
+          const card = reorderedCards[index];
           const updatedCardResult = await tx
             .update(kanbanCards)
             .set({ position: index, updatedAt: new Date() })
@@ -1193,7 +1194,8 @@ export class PostgreSQLStorage implements IStorage {
 
       reorderedTargetCards.splice(insertionIndex, 0, { ...currentCard, listId: targetListId });
 
-      for (const [index, card] of reorderedSourceCards.entries()) {
+      for (let index = 0; index < reorderedSourceCards.length; index += 1) {
+        const card = reorderedSourceCards[index];
         await tx
           .update(kanbanCards)
           .set({ position: index, updatedAt: new Date() })
@@ -1201,7 +1203,8 @@ export class PostgreSQLStorage implements IStorage {
       }
 
       let movedCard: KanbanCard | undefined;
-      for (const [index, card] of reorderedTargetCards.entries()) {
+      for (let index = 0; index < reorderedTargetCards.length; index += 1) {
+        const card = reorderedTargetCards[index];
         const updatedCardResult = await tx
           .update(kanbanCards)
           .set({
@@ -2060,15 +2063,15 @@ class StubStorage implements IStorage {
     return updated;
   }
   async deleteKanbanBoard(id: string): Promise<boolean> {
-    for (const [cardId, card] of this.kanbanCardsMap.entries()) {
+    Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.boardId === id) this.kanbanCardsMap.delete(cardId);
-    }
-    for (const [listId, list] of this.kanbanListsMap.entries()) {
+    });
+    Array.from(this.kanbanListsMap.entries()).forEach(([listId, list]) => {
       if (list.boardId === id) this.kanbanListsMap.delete(listId);
-    }
-    for (const [memberId, member] of this.kanbanBoardMembersMap.entries()) {
+    });
+    Array.from(this.kanbanBoardMembersMap.entries()).forEach(([memberId, member]) => {
       if (member.boardId === id) this.kanbanBoardMembersMap.delete(memberId);
-    }
+    });
     return this.kanbanBoardsMap.delete(id);
   }
   async getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]> {
@@ -2121,9 +2124,9 @@ class StubStorage implements IStorage {
     });
   }
   async deleteKanbanList(id: string): Promise<boolean> {
-    for (const [cardId, card] of this.kanbanCardsMap.entries()) {
+    Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.listId === id) this.kanbanCardsMap.delete(cardId);
-    }
+    });
     return this.kanbanListsMap.delete(id);
   }
 

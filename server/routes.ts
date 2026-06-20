@@ -464,6 +464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     dueDate: z.string().trim().nullable().optional(),
+    assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
   });
 
   const kanbanCardUpdateSchema = z.object({
@@ -472,6 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     dueDate: z.string().trim().nullable().optional(),
+    assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
   });
   const kanbanCardMoveSchema = z.object({
     listId: z.string().trim().min(1, "listId обязателен"),
@@ -523,6 +525,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!normalized) return null;
     const date = new Date(normalized);
     return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const resolveKanbanAssigneeUserId = async (companyId: string, assigneeUserId: unknown) => {
+    if (assigneeUserId == null) return { ok: true as const, userId: null };
+
+    const normalized = String(assigneeUserId).trim();
+    if (!normalized) return { ok: true as const, userId: null };
+
+    const user = await storage.getUser(normalized).catch(() => undefined);
+    if (!user || user.active === false) {
+      return { ok: false as const, message: "Исполнитель не найден или деактивирован" };
+    }
+
+    const membership = await storage.getCompanyMembershipByUser(companyId, normalized).catch(() => undefined);
+    if (!membership || membership.status !== "active") {
+      return { ok: false as const, message: "Исполнитель должен быть активным участником компании доски" };
+    }
+
+    return { ok: true as const, userId: normalized };
   };
 
   const ensureCompanyWorkspaceKey = async (companyId: string) => {
@@ -923,6 +944,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const nextPosition = existingCards.reduce((maxPosition: number, card: any) => {
         return Math.max(maxPosition, Number(card?.position ?? 0));
       }, -1) + 1;
+      const assigneeResolution = await resolveKanbanAssigneeUserId(access.board.companyId, parsed.assigneeUserId);
+      if (!assigneeResolution.ok) {
+        return res.status(400).json({ message: assigneeResolution.message });
+      }
 
       const card = await storage.createKanbanCard({
         boardId: access.board.id,
@@ -932,6 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: parsed.priority,
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
         creatorUserId: currentUser.id,
+        assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
       });
 
@@ -968,6 +994,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
+      if (parsed.assigneeUserId !== undefined) {
+        const assigneeResolution = await resolveKanbanAssigneeUserId(access.board.companyId, parsed.assigneeUserId);
+        if (!assigneeResolution.ok) {
+          return res.status(400).json({ message: assigneeResolution.message });
+        }
+        updateData.assigneeUserId = assigneeResolution.userId;
+      }
 
       if (parsed.listId !== undefined) {
         const targetList = await storage.getKanbanListById(parsed.listId).catch(() => undefined);
