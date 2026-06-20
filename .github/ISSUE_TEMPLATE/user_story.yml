@@ -1,0 +1,139 @@
+name: User Story
+description: Product backlog item written from a user perspective
+title: "US-XXX: "
+labels:
+  - user-story
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for user-facing product backlog items.
+  - type: input
+    id: stable-id
+    attributes:
+      label: Stable user-story ID
+      description: Use a stable ID such as US-001.
+      placeholder: US-XXX
+    validations:
+      required: true
+  - type: input
+    id: persona
+    attributes:
+      label: Persona
+      description: Who receives the value?
+      placeholder: As a production manager
+    validations:
+      required: true
+  - type: input
+    id: action
+    attributes:
+      label: Action
+      description: What does the persona want to do?
+      placeholder: I want to review task progress
+    validations:
+      required: true
+  - type: input
+    id: value
+    attributes:
+      label: Value
+      description: Why does this matter?
+      placeholder: so that I can coordinate the team during an event
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Add context, constraints, assumptions, and open questions.
+      placeholder: Describe the story scope and relevant notes.
+    validations:
+      required: true
+  - type: dropdown
+    id: moscow-priority
+    attributes:
+      label: MoSCoW priority
+      options:
+        - Must
+        - Should
+        - Could
+        - Won't for this release
+    validations:
+      required: true
+  - type: dropdown
+    id: requirement-status
+    attributes:
+      label: Requirement status
+      options:
+        - Draft
+        - Reviewed
+        - Approved
+        - Deferred
+    validations:
+      required: true
+  - type: dropdown
+    id: work-status
+    attributes:
+      label: Work Status
+      options:
+        - Backlog
+        - Selected for Sprint
+        - In Progress
+        - In Review
+        - Done
+    validations:
+      required: true
+  - type: input
+    id: story-points
+    attributes:
+      label: Story Points
+      placeholder: "3"
+    validations:
+      required: true
+  - type: input
+    id: mvp-version
+    attributes:
+      label: MVP version
+      placeholder: MVP v1
+    validations:
+      required: true
+  - type: input
+    id: sprint-milestone
+    attributes:
+      label: Sprint/milestone
+      placeholder: Sprint 1
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Use a checklist that can be verified before merge.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+  - type: input
+    id: implementer
+    attributes:
+      label: Implementer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: input
+    id: reviewer
+    attributes:
+      label: Reviewer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: textarea
+    id: evidence-notes
+    attributes:
+      label: Evidence / deliverable notes
+      description: Link PRs, screenshots, demos, reports, or other verification evidence.
+      placeholder: |
+        - Related requirement:
+        - Related design/prototype:
+        - Related PR:
+        - Verification evidence:
+    validations:
+      required: true

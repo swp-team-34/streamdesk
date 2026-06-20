@@ -1,0 +1,72 @@
+name: Course Task
+description: Assignment or process task for course evidence
+title: "Course task: "
+labels:
+  - course-task
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: Describe the assignment task or process requirement.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-evidence
+    attributes:
+      label: Expected evidence / deliverable
+      placeholder: List the files, links, screenshots, PRs, or reports expected as evidence.
+    validations:
+      required: true
+  - type: input
+    id: assignment-part
+    attributes:
+      label: Assignment part
+      placeholder: Assignment 3, Part 4
+  - type: input
+    id: deadline
+    attributes:
+      label: Deadline
+      placeholder: YYYY-MM-DD
+  - type: dropdown
+    id: work-status
+    attributes:
+      label: Work Status
+      options:
+        - Backlog
+        - Selected for Sprint
+        - In Progress
+        - In Review
+        - Done
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+  - type: input
+    id: implementer
+    attributes:
+      label: Implementer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: input
+    id: reviewer
+    attributes:
+      label: Reviewer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: textarea
+    id: evidence-notes
+    attributes:
+      label: Evidence / deliverable notes
+      placeholder: Link related files, issues, PRs, screenshots, reports, or validation output.
+    validations:
+      required: true
