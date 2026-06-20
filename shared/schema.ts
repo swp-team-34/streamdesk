@@ -3,7 +3,7 @@ import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const KANBAN_BOARD_VISIBILITIES = ["company", "members"] as const;
+export const KANBAN_BOARD_VISIBILITIES = ["personal", "company", "members"] as const;
 export const KANBAN_BOARD_MEMBER_ROLES = ["editor", "viewer"] as const;
 export const KANBAN_LIST_TYPES = ["active", "closed", "archive", "trash"] as const;
 export const KANBAN_CARD_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
@@ -349,11 +349,11 @@ export const projectColumns = pgTable("project_columns", {
 
 export const kanbanBoards = pgTable("kanban_boards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  companyId: varchar("company_id").references(() => companies.id).notNull(),
+  companyId: varchar("company_id").references(() => companies.id),
   projectId: varchar("project_id").references(() => projects.id),
   name: text("name").notNull(),
   description: text("description"),
-  visibility: text("visibility").notNull().default("company"),
+  visibility: text("visibility").notNull().default("personal"),
   createdByUserId: varchar("created_by_user_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

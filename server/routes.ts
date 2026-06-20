@@ -226,6 +226,30 @@ const avatarUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
+const kanbanAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      const uploadDir = path.join(process.cwd(), "uploads", "kanban");
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (error) {
+        console.error("Error creating kanban upload directory:", error);
+      }
+      cb(null, uploadDir);
+    },
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const originalName = file.originalname || "file";
+      const ext = path.extname(originalName);
+      const base = path.basename(originalName, ext).replace(/[^\p{L}0-9_\- ]/gu, "_");
+      cb(null, base + "-" + uniqueSuffix + ext);
+    },
+  }),
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+  },
+});
+
 // Helper function to check IP connectivity
 async function checkIP(ip: string, port: number = 80): Promise<boolean> {
   return new Promise((resolve) => {
@@ -432,18 +456,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const kanbanBoardCreateSchema = z.object({
-    companyId: z.string().trim().min(1, "companyId обязателен"),
+    companyId: z.string().trim().min(1).nullable().optional(),
     projectId: z.string().trim().min(1).nullable().optional(),
     name: z.string().trim().min(1, "Введите название доски").max(120, "Название слишком длинное"),
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
-    visibility: z.enum(["company", "members"]).default("company"),
+    visibility: z.enum(["personal", "company", "members"]).default("personal"),
   });
 
   const kanbanBoardUpdateSchema = z.object({
     projectId: z.string().trim().min(1).nullable().optional(),
     name: z.string().trim().min(1, "Введите название доски").max(120, "Название слишком длинное").optional(),
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
-    visibility: z.enum(["company", "members"]).optional(),
+    visibility: z.enum(["personal", "company", "members"]).optional(),
   });
   const kanbanBoardMemberCreateSchema = z.object({
     userId: z.string().trim().min(1, "userId обязателен"),
@@ -524,13 +548,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const board = await storage.getKanbanBoardById(boardId).catch(() => undefined);
     if (!board) return null;
 
-    const canManage = user?.role === "admin" || await canManageCompany(user, String(board.companyId));
     const membership = user?.id
       ? await storage.getKanbanBoardMember(board.id, user.id).catch(() => undefined)
       : undefined;
+    const isPersonalBoard = !board.companyId;
+    const isCreator = String(board.createdByUserId) === String(user?.id || "");
+    const canManage = isPersonalBoard
+      ? user?.role === "admin" || isCreator
+      : user?.role === "admin" || await canManageCompany(user, String(board.companyId));
 
     if (canManage) {
       return { board, canManage: true, membership };
+    }
+
+    if (isPersonalBoard) {
+      return null;
     }
 
     const companyMembership = user?.id
@@ -590,7 +622,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  const resolveKanbanAssigneeUserId = async (companyId: string, assigneeUserId: unknown) => {
+  const createKanbanNotifications = async (
+    userIds: Array<string | null | undefined>,
+    title: string,
+    message: string,
+  ) => {
+    const uniqueUserIds = Array.from(
+      new Set(userIds.map((userId) => String(userId || "").trim()).filter(Boolean)),
+    );
+
+    for (const userId of uniqueUserIds) {
+      try {
+        await storage.createNotification({
+          userId,
+          title,
+          message,
+          type: "info",
+        });
+      } catch (notifErr) {
+        console.warn("[Kanban] Failed to create notification:", notifErr);
+      }
+    }
+  };
+
+  const resolveKanbanAssigneeUserId = async (board: any, actorUser: any, assigneeUserId: unknown) => {
     if (assigneeUserId == null) return { ok: true as const, userId: null };
 
     const normalized = String(assigneeUserId).trim();
@@ -601,7 +656,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return { ok: false as const, message: "Исполнитель не найден или деактивирован" };
     }
 
-    const membership = await storage.getCompanyMembershipByUser(companyId, normalized).catch(() => undefined);
+    if (!board.companyId) {
+      if (String(normalized) !== String(actorUser?.id || "")) {
+        return { ok: false as const, message: "В личной доске можно назначать задачи только себе" };
+      }
+      return { ok: true as const, userId: normalized };
+    }
+
+    const membership = await storage.getCompanyMembershipByUser(String(board.companyId), normalized).catch(() => undefined);
     if (!membership || membership.status !== "active") {
       return { ok: false as const, message: "Исполнитель должен быть активным участником компании доски" };
     }
@@ -694,9 +756,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-      if (!companyIds.length) return res.json([]);
-
-      const boards = await storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []);
+      const [companyBoards, personalBoards] = await Promise.all([
+        companyIds.length ? storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []) : Promise.resolve([]),
+        storage.getPersonalKanbanBoardsByUserId(currentUser.id).catch(() => []),
+      ]);
+      const boards = [...(personalBoards as any[]), ...(companyBoards as any[])];
       const manageableCompanyIds = new Set<string>();
 
       for (const companyId of companyIds) {
@@ -706,6 +770,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const visibleBoards = (boards as any[]).filter((board) => {
+        if (!board.companyId) return String(board.createdByUserId) === String(currentUser.id);
         if (manageableCompanyIds.has(String(board.companyId))) return true;
         if (board.visibility !== "members") return true;
         return membershipMap.has(String(board.id));
@@ -714,7 +779,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(
         visibleBoards.map((board) =>
           buildKanbanBoardResponse(board, {
-            canManage: manageableCompanyIds.has(String(board.companyId)),
+            canManage: !board.companyId
+              ? String(board.createdByUserId) === String(currentUser.id)
+              : manageableCompanyIds.has(String(board.companyId)),
             membership: membershipMap.get(String(board.id)),
           }),
         ),
@@ -746,24 +813,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
 
       const parsed = kanbanBoardCreateSchema.parse(req.body || {});
-      if (!(await canManageCompany(currentUser, parsed.companyId))) {
+      const normalizedCompanyId = parsed.companyId?.trim() || null;
+      const normalizedVisibility = normalizedCompanyId ? parsed.visibility : "personal";
+
+      if (normalizedCompanyId && !(await canManageCompany(currentUser, normalizedCompanyId))) {
         return res.status(403).json({ message: "Недостаточно прав для создания доски" });
       }
 
       if (parsed.projectId) {
+        if (!normalizedCompanyId) {
+          return res.status(400).json({ message: "Личная доска не может быть связана с проектом компании" });
+        }
         const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
         if (!project) return res.status(404).json({ message: "Проект не найден" });
-        if (String(project.companyId || "") !== String(parsed.companyId)) {
+        if (String(project.companyId || "") !== String(normalizedCompanyId)) {
           return res.status(400).json({ message: "Проект должен принадлежать той же компании" });
         }
       }
 
       const board = await storage.createKanbanBoard({
-        companyId: parsed.companyId,
+        companyId: normalizedCompanyId,
         projectId: parsed.projectId ?? null,
         name: parsed.name,
         description: parsed.description?.trim() || null,
-        visibility: parsed.visibility,
+        visibility: normalizedVisibility,
         createdByUserId: currentUser.id,
       });
 
@@ -796,6 +869,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parsed = kanbanBoardUpdateSchema.parse(req.body || {});
 
       if (parsed.projectId) {
+        if (!access.board.companyId) {
+          return res.status(400).json({ message: "Личную доску нельзя привязать к проекту компании" });
+        }
         const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
         if (!project) return res.status(404).json({ message: "Проект не найден" });
         if (String(project.companyId || "") !== String(access.board.companyId)) {
@@ -806,7 +882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData: Record<string, unknown> = {};
       if (parsed.name !== undefined) updateData.name = parsed.name;
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
-      if (parsed.visibility !== undefined) updateData.visibility = parsed.visibility;
+      if (parsed.visibility !== undefined) updateData.visibility = access.board.companyId ? parsed.visibility : "personal";
       if (parsed.projectId !== undefined) updateData.projectId = parsed.projectId;
 
       const updated = await storage.updateKanbanBoard(access.board.id, updateData as any);
@@ -848,6 +924,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.board.companyId) {
+        const ownerMembership = await storage.getKanbanBoardMember(access.board.id, access.board.createdByUserId).catch(() => undefined);
+        return res.json(ownerMembership ? [ownerMembership] : []);
+      }
 
       const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
       res.json(members);
@@ -864,6 +944,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.board.companyId) {
+        return res.status(400).json({ message: "Личные доски не требуют отдельного управления участниками" });
+      }
       if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
 
       const parsed = kanbanBoardMemberCreateSchema.parse(req.body || {});
@@ -887,6 +970,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         canComment: parsed.role === "editor" ? true : parsed.canComment,
       });
 
+      if (String(parsed.userId) !== String(currentUser.id)) {
+        await createKanbanNotifications(
+          [parsed.userId],
+          "Доступ к доске Kanban",
+          `Вас добавили в доску: ${access.board.name}`,
+        );
+      }
+
       res.status(201).json(created);
     } catch (error: any) {
       if (error?.name === "ZodError") {
@@ -904,6 +995,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.board.companyId) {
+        return res.status(400).json({ message: "Личные доски не требуют отдельного управления участниками" });
+      }
       if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
 
       const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
@@ -941,6 +1035,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.board.companyId) {
+        return res.status(400).json({ message: "Личные доски не требуют отдельного управления участниками" });
+      }
       if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
 
       const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
@@ -1241,6 +1338,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: attachment.fileName,
       });
 
+      await createKanbanNotifications(
+        [card.assigneeUserId, card.creatorUserId].filter(
+          (userId) => String(userId || "") !== String(currentUser.id),
+        ),
+        "Новое вложение в Kanban",
+        `К карточке "${card.title}" добавлен файл: ${attachment.fileName}`,
+      );
+
       res.status(201).json(attachment);
     } catch (error: any) {
       if (error?.name === "ZodError") {
@@ -1321,6 +1426,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         commentId: comment.id,
         content: comment.content.slice(0, 200),
       });
+
+      await createKanbanNotifications(
+        [card.assigneeUserId, card.creatorUserId].filter(
+          (userId) => String(userId || "") !== String(currentUser.id),
+        ),
+        "Новый комментарий в Kanban",
+        `Новый комментарий к карточке: ${card.title}`,
+      );
 
       res.status(201).json(comment);
     } catch (error: any) {
@@ -1486,7 +1599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const nextPosition = existingCards.reduce((maxPosition: number, card: any) => {
         return Math.max(maxPosition, Number(card?.position ?? 0));
       }, -1) + 1;
-      const assigneeResolution = await resolveKanbanAssigneeUserId(access.board.companyId, parsed.assigneeUserId);
+      const assigneeResolution = await resolveKanbanAssigneeUserId(access.board, currentUser, parsed.assigneeUserId);
       if (!assigneeResolution.ok) {
         return res.status(400).json({ message: assigneeResolution.message });
       }
@@ -1510,6 +1623,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.setKanbanCardLabels(card.id, labelResolution.labelIds);
 
       await createKanbanCardHistoryEntry(currentUser.id, card.id, "created", null, card);
+
+      if (card.assigneeUserId && String(card.assigneeUserId) !== String(currentUser.id)) {
+        await createKanbanNotifications(
+          [card.assigneeUserId],
+          "Новая карточка Kanban",
+          `Вам назначена карточка: ${card.title}`,
+        );
+      }
 
       res.status(201).json(await buildKanbanCardResponse(card));
     } catch (error: any) {
@@ -1546,7 +1667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.assigneeUserId !== undefined) {
-        const assigneeResolution = await resolveKanbanAssigneeUserId(access.board.companyId, parsed.assigneeUserId);
+        const assigneeResolution = await resolveKanbanAssigneeUserId(access.board, currentUser, parsed.assigneeUserId);
         if (!assigneeResolution.ok) {
           return res.status(400).json({ message: assigneeResolution.message });
         }
@@ -1595,6 +1716,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await createKanbanCardHistoryEntry(currentUser.id, updated.id, "updated", card, updated);
+
+      if (
+        updated.assigneeUserId &&
+        String(updated.assigneeUserId) !== String(currentUser.id) &&
+        String(updated.assigneeUserId) !== String(card.assigneeUserId || "")
+      ) {
+        await createKanbanNotifications(
+          [updated.assigneeUserId],
+          "Карточка Kanban назначена",
+          `Вам назначена карточка: ${updated.title}`,
+        );
+      }
 
       res.json(await buildKanbanCardResponse(updated));
     } catch (error: any) {
@@ -1994,29 +2127,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   },
 });
 
-const kanbanAttachmentUpload = multer({
-  storage: multer.diskStorage({
-    destination: async (_req, _file, cb) => {
-      const uploadDir = path.join(process.cwd(), "uploads", "kanban");
-      try {
-        await fs.mkdir(uploadDir, { recursive: true });
-      } catch (error) {
-        console.error("Error creating kanban upload directory:", error);
-      }
-      cb(null, uploadDir);
-    },
-    filename: (_req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      const originalName = file.originalname || "file";
-      const ext = path.extname(originalName);
-      const base = path.basename(originalName, ext).replace(/[^\p{L}0-9_\- ]/gu, "_");
-      cb(null, base + "-" + uniqueSuffix + ext);
-    },
-  }),
-  limits: {
-    fileSize: 25 * 1024 * 1024,
-  },
-});
       }
 
       // Все пользователи должны существовать в БД - никаких fallback аккаунтов

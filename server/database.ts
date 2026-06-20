@@ -244,6 +244,7 @@ export interface IStorage {
   // Kanban Boards
   getKanbanBoards(): Promise<KanbanBoard[]>;
   getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]>;
+  getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]>;
   getKanbanBoardById(id: string): Promise<KanbanBoard | undefined>;
   createKanbanBoard(board: InsertKanbanBoard): Promise<KanbanBoard>;
   updateKanbanBoard(id: string, board: Partial<KanbanBoard>): Promise<KanbanBoard | undefined>;
@@ -1038,6 +1039,15 @@ export class PostgreSQLStorage implements IStorage {
     if (!companyIds.length) return [];
     return await db!.select().from(kanbanBoards)
       .where(inArray(kanbanBoards.companyId, companyIds))
+      .orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]> {
+    return await db!.select().from(kanbanBoards)
+      .where(and(
+        isNull(kanbanBoards.companyId),
+        eq(kanbanBoards.createdByUserId, userId),
+      ))
       .orderBy(sql`${kanbanBoards.createdAt} DESC`);
   }
 
@@ -2217,6 +2227,11 @@ class StubStorage implements IStorage {
     const allowed = new Set(companyIds.map(String));
     return (await this.getKanbanBoards()).filter((board) => allowed.has(String(board.companyId)));
   }
+  async getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]> {
+    return (await this.getKanbanBoards()).filter(
+      (board) => !board.companyId && String(board.createdByUserId) === String(userId),
+    );
+  }
   async getKanbanBoardById(id: string): Promise<KanbanBoard | undefined> {
     return this.kanbanBoardsMap.get(id);
   }
@@ -2781,6 +2796,11 @@ export async function initDatabase(): Promise<void> {
       storage = new PostgreSQLStorage();
       isStubStorage = false;
       console.log("✅ Подключение к PostgreSQL успешно.");
+      try {
+        await client`ALTER TABLE kanban_boards ALTER COLUMN company_id DROP NOT NULL`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось ослабить kanban_boards.company_id:", schemaErr);
+      }
       try {
         await db!.select().from(users).limit(0);
       } catch (tableErr: any) {
