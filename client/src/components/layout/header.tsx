@@ -25,6 +25,7 @@ interface HeaderProps {
 const pageTitles: Record<string, string> = {
   "/": "Панель управления",
   "/tasks": "Задачи",
+  "/tasks-v2": "Kanban V2",
   "/tasks/yougile": "Задачи YouGile",
   "/calendar": "Календарь",
   "/maps": "Карты",
@@ -195,4 +196,3 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
     </header>
   );
 }
-

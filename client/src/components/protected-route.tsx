@@ -7,6 +7,7 @@ import { tabPermission } from "@shared/schema";
 const PATH_TO_TAB: Record<string, string> = {
   "/": "dashboard",
   "/tasks": "tasks",
+  "/tasks-v2": "tasks",
   "/calendar": "calendar",
   "/maps": "maps",
   "/room-booking": "room-booking",
@@ -130,4 +131,3 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission, use
 
   return <>{children}</>;
 }
-

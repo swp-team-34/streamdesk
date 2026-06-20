@@ -29,6 +29,7 @@ import crypto from "crypto";
 import session from "express-session";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { z } from "zod";
 import { telegramBot } from "./services/telegram-bot";
 import { hashPassword, verifyPassword, isPasswordHashed } from "./auth";
 import { getTerminalLogs } from "./terminal-log";
@@ -427,6 +428,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .map((membership) => String(membership.companyId));
   };
 
+  const kanbanBoardCreateSchema = z.object({
+    companyId: z.string().trim().min(1, "companyId обязателен"),
+    projectId: z.string().trim().min(1).nullable().optional(),
+    name: z.string().trim().min(1, "Введите название доски").max(120, "Название слишком длинное"),
+    description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
+    visibility: z.enum(["company", "members"]).default("company"),
+  });
+
+  const kanbanBoardUpdateSchema = z.object({
+    projectId: z.string().trim().min(1).nullable().optional(),
+    name: z.string().trim().min(1, "Введите название доски").max(120, "Название слишком длинное").optional(),
+    description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
+    visibility: z.enum(["company", "members"]).optional(),
+  });
+
+  const buildKanbanBoardResponse = (
+    board: any,
+    options: { canManage: boolean; membership?: any },
+  ) => ({
+    ...board,
+    canManage: options.canManage,
+    isMember: Boolean(options.membership),
+    membershipRole: options.membership?.role ?? null,
+  });
+
+  const getKanbanBoardAccess = async (user: any, boardId: string) => {
+    const board = await storage.getKanbanBoardById(boardId).catch(() => undefined);
+    if (!board) return null;
+
+    const canManage = user?.role === "admin" || await canManageCompany(user, String(board.companyId));
+    const membership = user?.id
+      ? await storage.getKanbanBoardMember(board.id, user.id).catch(() => undefined)
+      : undefined;
+
+    if (canManage) {
+      return { board, canManage: true, membership };
+    }
+
+    const companyMembership = user?.id
+      ? await storage.getCompanyMembershipByUser(String(board.companyId), user.id).catch(() => undefined)
+      : undefined;
+
+    const hasCompanyAccess = Boolean(companyMembership && companyMembership.status === "active");
+    const canView = hasCompanyAccess && (board.visibility !== "members" || Boolean(membership));
+
+    if (!canView) return null;
+
+    return { board, canManage: false, membership };
+  };
+
   const ensureCompanyWorkspaceKey = async (companyId: string) => {
     const company = await storage.getCompanyById(companyId).catch(() => undefined);
     if (!company) return "";
@@ -449,6 +500,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const psString = (value: unknown) => String(value ?? "").replace(/'/g, "''");
+
+  // Kanban V2 Boards
+  app.get("/api/kanban/boards", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const memberships = await storage.getKanbanBoardMembershipsByUser(currentUser.id).catch(() => []);
+      const membershipMap = new Map((memberships as any[]).map((member) => [String(member.boardId), member]));
+
+      if (currentUser.role === "admin") {
+        const boards = await storage.getKanbanBoards().catch(() => []);
+        return res.json(
+          (boards as any[]).map((board) =>
+            buildKanbanBoardResponse(board, {
+              canManage: true,
+              membership: membershipMap.get(String(board.id)),
+            }),
+          ),
+        );
+      }
+
+      const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
+      if (!companyIds.length) return res.json([]);
+
+      const boards = await storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []);
+      const manageableCompanyIds = new Set<string>();
+
+      for (const companyId of companyIds) {
+        if (await canManageCompany(currentUser, companyId).catch(() => false)) {
+          manageableCompanyIds.add(String(companyId));
+        }
+      }
+
+      const visibleBoards = (boards as any[]).filter((board) => {
+        if (manageableCompanyIds.has(String(board.companyId))) return true;
+        if (board.visibility !== "members") return true;
+        return membershipMap.has(String(board.id));
+      });
+
+      res.json(
+        visibleBoards.map((board) =>
+          buildKanbanBoardResponse(board, {
+            canManage: manageableCompanyIds.has(String(board.companyId)),
+            membership: membershipMap.get(String(board.id)),
+          }),
+        ),
+      );
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch boards:", error);
+      res.status(500).json({ message: "Не удалось загрузить доски" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.id);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      res.json(buildKanbanBoardResponse(access.board, access));
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch board:", error);
+      res.status(500).json({ message: "Не удалось загрузить доску" });
+    }
+  });
+
+  app.post("/api/kanban/boards", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const parsed = kanbanBoardCreateSchema.parse(req.body || {});
+      if (!(await canManageCompany(currentUser, parsed.companyId))) {
+        return res.status(403).json({ message: "Недостаточно прав для создания доски" });
+      }
+
+      if (parsed.projectId) {
+        const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
+        if (!project) return res.status(404).json({ message: "Проект не найден" });
+        if (String(project.companyId || "") !== String(parsed.companyId)) {
+          return res.status(400).json({ message: "Проект должен принадлежать той же компании" });
+        }
+      }
+
+      const board = await storage.createKanbanBoard({
+        companyId: parsed.companyId,
+        projectId: parsed.projectId ?? null,
+        name: parsed.name,
+        description: parsed.description?.trim() || null,
+        visibility: parsed.visibility,
+        createdByUserId: currentUser.id,
+      });
+
+      const membership = await storage.createKanbanBoardMember({
+        boardId: board.id,
+        userId: currentUser.id,
+        role: "editor",
+        canComment: true,
+      });
+
+      res.status(201).json(buildKanbanBoardResponse(board, { canManage: true, membership }));
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные доски", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create board:", error);
+      res.status(500).json({ message: "Не удалось создать доску" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.id);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для изменения доски" });
+
+      const parsed = kanbanBoardUpdateSchema.parse(req.body || {});
+
+      if (parsed.projectId) {
+        const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
+        if (!project) return res.status(404).json({ message: "Проект не найден" });
+        if (String(project.companyId || "") !== String(access.board.companyId)) {
+          return res.status(400).json({ message: "Проект должен принадлежать той же компании" });
+        }
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (parsed.name !== undefined) updateData.name = parsed.name;
+      if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
+      if (parsed.visibility !== undefined) updateData.visibility = parsed.visibility;
+      if (parsed.projectId !== undefined) updateData.projectId = parsed.projectId;
+
+      const updated = await storage.updateKanbanBoard(access.board.id, updateData as any);
+      if (!updated) return res.status(404).json({ message: "Доска не найдена" });
+
+      res.json(buildKanbanBoardResponse(updated, access));
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные доски", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update board:", error);
+      res.status(500).json({ message: "Не удалось обновить доску" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.id);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для удаления доски" });
+
+      const deleted = await storage.deleteKanbanBoard(access.board.id);
+      if (!deleted) return res.status(404).json({ message: "Доска не найдена" });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete board:", error);
+      res.status(500).json({ message: "Не удалось удалить доску" });
+    }
+  });
 
   const equipmentInventoryPrefix = (type: unknown) => {
     const normalized = String(type || "").trim().toLowerCase();

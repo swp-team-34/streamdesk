@@ -3,6 +3,9 @@ import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const KANBAN_BOARD_VISIBILITIES = ["company", "members"] as const;
+export const KANBAN_BOARD_MEMBER_ROLES = ["editor", "viewer"] as const;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
@@ -342,6 +345,28 @@ export const projectColumns = pgTable("project_columns", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const kanbanBoards = pgTable("kanban_boards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id).notNull(),
+  projectId: varchar("project_id").references(() => projects.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  visibility: text("visibility").notNull().default("company"),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const kanbanBoardMembers = pgTable("kanban_board_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id").references(() => kanbanBoards.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull().default("editor"),
+  canComment: boolean("can_comment").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -623,6 +648,18 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   createdAt: true,
 });
 
+export const insertKanbanBoardSchema = createInsertSchema(kanbanBoards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertKanbanBoardMemberSchema = createInsertSchema(kanbanBoardMembers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
   createdAt: true,
@@ -751,6 +788,12 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 export type ProjectColumn = typeof projectColumns.$inferSelect;
 export type InsertProjectColumn = typeof projectColumns.$inferInsert;
+
+export type KanbanBoard = typeof kanbanBoards.$inferSelect;
+export type InsertKanbanBoard = z.infer<typeof insertKanbanBoardSchema>;
+
+export type KanbanBoardMember = typeof kanbanBoardMembers.$inferSelect;
+export type InsertKanbanBoardMember = z.infer<typeof insertKanbanBoardMemberSchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;

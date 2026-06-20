@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, customLocations, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, customLocations, chatSessions, chatMessages, repositories,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -33,6 +33,8 @@ import {
   type Computer, type InsertComputer,
   type Project, type InsertProject,
   type ProjectColumn, type InsertProjectColumn,
+  type KanbanBoard, type InsertKanbanBoard,
+  type KanbanBoardMember, type InsertKanbanBoardMember,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -227,6 +229,18 @@ export interface IStorage {
   updateProjectColumn(id: string, column: Partial<ProjectColumn>): Promise<ProjectColumn | undefined>;
   deleteProjectColumn(id: string): Promise<boolean>;
   reorderProjectColumns(projectId: string, columnIds: string[]): Promise<void>;
+
+  // Kanban Boards
+  getKanbanBoards(): Promise<KanbanBoard[]>;
+  getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]>;
+  getKanbanBoardById(id: string): Promise<KanbanBoard | undefined>;
+  createKanbanBoard(board: InsertKanbanBoard): Promise<KanbanBoard>;
+  updateKanbanBoard(id: string, board: Partial<KanbanBoard>): Promise<KanbanBoard | undefined>;
+  deleteKanbanBoard(id: string): Promise<boolean>;
+  getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]>;
+  getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]>;
+  getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined>;
+  createKanbanBoardMember(member: InsertKanbanBoardMember): Promise<KanbanBoardMember>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -974,6 +988,70 @@ export class PostgreSQLStorage implements IStorage {
     );
   }
 
+  // Kanban Boards
+  async getKanbanBoards(): Promise<KanbanBoard[]> {
+    return await db!.select().from(kanbanBoards).orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]> {
+    if (!companyIds.length) return [];
+    return await db!.select().from(kanbanBoards)
+      .where(inArray(kanbanBoards.companyId, companyIds))
+      .orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getKanbanBoardById(id: string): Promise<KanbanBoard | undefined> {
+    const result = await db!.select().from(kanbanBoards).where(eq(kanbanBoards.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanBoard(insertBoard: InsertKanbanBoard): Promise<KanbanBoard> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanBoards).values({ ...insertBoard, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanBoard(id: string, boardData: Partial<KanbanBoard>): Promise<KanbanBoard | undefined> {
+    const result = await db!.update(kanbanBoards)
+      .set({ ...boardData, updatedAt: new Date() })
+      .where(eq(kanbanBoards.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanBoard(id: string): Promise<boolean> {
+    await db!.delete(kanbanBoardMembers).where(eq(kanbanBoardMembers.boardId, id));
+    const result = await db!.delete(kanbanBoards)
+      .where(eq(kanbanBoards.id, id))
+      .returning({ id: kanbanBoards.id });
+    return result.length > 0;
+  }
+
+  async getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]> {
+    return await db!.select().from(kanbanBoardMembers)
+      .where(eq(kanbanBoardMembers.boardId, boardId))
+      .orderBy(sql`${kanbanBoardMembers.createdAt} ASC`);
+  }
+
+  async getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]> {
+    return await db!.select().from(kanbanBoardMembers)
+      .where(eq(kanbanBoardMembers.userId, userId))
+      .orderBy(sql`${kanbanBoardMembers.createdAt} ASC`);
+  }
+
+  async getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined> {
+    const result = await db!.select().from(kanbanBoardMembers)
+      .where(and(eq(kanbanBoardMembers.boardId, boardId), eq(kanbanBoardMembers.userId, userId)))
+      .limit(1);
+    return result[0];
+  }
+
+  async createKanbanBoardMember(insertMember: InsertKanbanBoardMember): Promise<KanbanBoardMember> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanBoardMembers).values({ ...insertMember, id }).returning();
+    return result[0];
+  }
+
   // Custom Locations
   async getCustomLocations(): Promise<CustomLocation[]> {
     return await db!.select().from(customLocations).orderBy(customLocations.name);
@@ -1348,6 +1426,8 @@ class StubStorage implements IStorage {
   private connectionSchemaComponents = new Map<string, ConnectionSchemaComponent>();
   private equipment = new Map<string, Equipment>();
   private projects = new Map<string, Project>();
+  private kanbanBoardsMap = new Map<string, KanbanBoard>();
+  private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -1775,6 +1855,55 @@ class StubStorage implements IStorage {
   async updateProjectColumn(): Promise<ProjectColumn | undefined> { return undefined; }
   async deleteProjectColumn(): Promise<boolean> { return true; }
   async reorderProjectColumns(): Promise<void> {}
+
+  async getKanbanBoards(): Promise<KanbanBoard[]> {
+    return Array.from(this.kanbanBoardsMap.values()).sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    );
+  }
+  async getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]> {
+    const allowed = new Set(companyIds.map(String));
+    return (await this.getKanbanBoards()).filter((board) => allowed.has(String(board.companyId)));
+  }
+  async getKanbanBoardById(id: string): Promise<KanbanBoard | undefined> {
+    return this.kanbanBoardsMap.get(id);
+  }
+  async createKanbanBoard(data: InsertKanbanBoard): Promise<KanbanBoard> {
+    const id = this.uid();
+    const board = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanBoard;
+    this.kanbanBoardsMap.set(id, board);
+    return board;
+  }
+  async updateKanbanBoard(id: string, data: Partial<KanbanBoard>): Promise<KanbanBoard | undefined> {
+    const board = this.kanbanBoardsMap.get(id);
+    if (!board) return undefined;
+    const updated = { ...board, ...data, updatedAt: this.now() } as KanbanBoard;
+    this.kanbanBoardsMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanBoard(id: string): Promise<boolean> {
+    for (const [memberId, member] of this.kanbanBoardMembersMap.entries()) {
+      if (member.boardId === id) this.kanbanBoardMembersMap.delete(memberId);
+    }
+    return this.kanbanBoardsMap.delete(id);
+  }
+  async getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]> {
+    return Array.from(this.kanbanBoardMembersMap.values()).filter((member) => member.boardId === boardId);
+  }
+  async getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]> {
+    return Array.from(this.kanbanBoardMembersMap.values()).filter((member) => member.userId === userId);
+  }
+  async getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined> {
+    return Array.from(this.kanbanBoardMembersMap.values()).find(
+      (member) => member.boardId === boardId && member.userId === userId,
+    );
+  }
+  async createKanbanBoardMember(data: InsertKanbanBoardMember): Promise<KanbanBoardMember> {
+    const id = this.uid();
+    const member = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanBoardMember;
+    this.kanbanBoardMembersMap.set(id, member);
+    return member;
+  }
 
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }
   async createCustomLocation(data: InsertCustomLocation): Promise<CustomLocation> {
