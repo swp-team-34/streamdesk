@@ -6,6 +6,7 @@ import { z } from "zod";
 export const KANBAN_BOARD_VISIBILITIES = ["company", "members"] as const;
 export const KANBAN_BOARD_MEMBER_ROLES = ["editor", "viewer"] as const;
 export const KANBAN_LIST_TYPES = ["active", "closed", "archive", "trash"] as const;
+export const KANBAN_CARD_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -379,6 +380,20 @@ export const kanbanLists = pgTable("kanban_lists", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const kanbanCards = pgTable("kanban_cards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id").references(() => kanbanBoards.id).notNull(),
+  listId: varchar("list_id").references(() => kanbanLists.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  position: integer("position").notNull().default(0),
+  priority: text("priority").notNull().default("medium"),
+  dueDate: timestamp("due_date"),
+  creatorUserId: varchar("creator_user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -678,6 +693,12 @@ export const insertKanbanListSchema = createInsertSchema(kanbanLists).omit({
   updatedAt: true,
 });
 
+export const insertKanbanCardSchema = createInsertSchema(kanbanCards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
   createdAt: true,
@@ -815,6 +836,9 @@ export type InsertKanbanBoardMember = z.infer<typeof insertKanbanBoardMemberSche
 
 export type KanbanList = typeof kanbanLists.$inferSelect;
 export type InsertKanbanList = z.infer<typeof insertKanbanListSchema>;
+
+export type KanbanCard = typeof kanbanCards.$inferSelect;
+export type InsertKanbanCard = z.infer<typeof insertKanbanCardSchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;

@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, customLocations, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, chatSessions, chatMessages, repositories,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -36,6 +36,7 @@ import {
   type KanbanBoard, type InsertKanbanBoard,
   type KanbanBoardMember, type InsertKanbanBoardMember,
   type KanbanList, type InsertKanbanList,
+  type KanbanCard, type InsertKanbanCard,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -247,6 +248,12 @@ export interface IStorage {
   createKanbanList(list: InsertKanbanList): Promise<KanbanList>;
   updateKanbanList(id: string, list: Partial<KanbanList>): Promise<KanbanList | undefined>;
   deleteKanbanList(id: string): Promise<boolean>;
+  getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]>;
+  getKanbanCardsByListId(listId: string): Promise<KanbanCard[]>;
+  getKanbanCardById(id: string): Promise<KanbanCard | undefined>;
+  createKanbanCard(card: InsertKanbanCard): Promise<KanbanCard>;
+  updateKanbanCard(id: string, card: Partial<KanbanCard>): Promise<KanbanCard | undefined>;
+  deleteKanbanCard(id: string): Promise<boolean>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -1026,6 +1033,7 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    await db!.delete(kanbanCards).where(eq(kanbanCards.boardId, id));
     await db!.delete(kanbanLists).where(eq(kanbanLists.boardId, id));
     await db!.delete(kanbanBoardMembers).where(eq(kanbanBoardMembers.boardId, id));
     const result = await db!.delete(kanbanBoards)
@@ -1085,9 +1093,48 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanList(id: string): Promise<boolean> {
+    await db!.delete(kanbanCards).where(eq(kanbanCards.listId, id));
     const result = await db!.delete(kanbanLists)
       .where(eq(kanbanLists.id, id))
       .returning({ id: kanbanLists.id });
+    return result.length > 0;
+  }
+
+  async getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]> {
+    return await db!.select().from(kanbanCards)
+      .where(eq(kanbanCards.boardId, boardId))
+      .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+  }
+
+  async getKanbanCardsByListId(listId: string): Promise<KanbanCard[]> {
+    return await db!.select().from(kanbanCards)
+      .where(eq(kanbanCards.listId, listId))
+      .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+  }
+
+  async getKanbanCardById(id: string): Promise<KanbanCard | undefined> {
+    const result = await db!.select().from(kanbanCards).where(eq(kanbanCards.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanCard(insertCard: InsertKanbanCard): Promise<KanbanCard> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCards).values({ ...insertCard, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanCard(id: string, cardData: Partial<KanbanCard>): Promise<KanbanCard | undefined> {
+    const result = await db!.update(kanbanCards)
+      .set({ ...cardData, updatedAt: new Date() })
+      .where(eq(kanbanCards.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanCard(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanCards)
+      .where(eq(kanbanCards.id, id))
+      .returning({ id: kanbanCards.id });
     return result.length > 0;
   }
 
@@ -1468,6 +1515,7 @@ class StubStorage implements IStorage {
   private kanbanBoardsMap = new Map<string, KanbanBoard>();
   private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
   private kanbanListsMap = new Map<string, KanbanList>();
+  private kanbanCardsMap = new Map<string, KanbanCard>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -1922,6 +1970,9 @@ class StubStorage implements IStorage {
     return updated;
   }
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    for (const [cardId, card] of this.kanbanCardsMap.entries()) {
+      if (card.boardId === id) this.kanbanCardsMap.delete(cardId);
+    }
     for (const [listId, list] of this.kanbanListsMap.entries()) {
       if (list.boardId === id) this.kanbanListsMap.delete(listId);
     }
@@ -1969,7 +2020,40 @@ class StubStorage implements IStorage {
     return updated;
   }
   async deleteKanbanList(id: string): Promise<boolean> {
+    for (const [cardId, card] of this.kanbanCardsMap.entries()) {
+      if (card.listId === id) this.kanbanCardsMap.delete(cardId);
+    }
     return this.kanbanListsMap.delete(id);
+  }
+
+  async getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]> {
+    return Array.from(this.kanbanCardsMap.values())
+      .filter((card) => card.boardId === boardId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanCardsByListId(listId: string): Promise<KanbanCard[]> {
+    return Array.from(this.kanbanCardsMap.values())
+      .filter((card) => card.listId === listId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanCardById(id: string): Promise<KanbanCard | undefined> {
+    return this.kanbanCardsMap.get(id);
+  }
+  async createKanbanCard(data: InsertKanbanCard): Promise<KanbanCard> {
+    const id = this.uid();
+    const card = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanCard;
+    this.kanbanCardsMap.set(id, card);
+    return card;
+  }
+  async updateKanbanCard(id: string, data: Partial<KanbanCard>): Promise<KanbanCard | undefined> {
+    const card = this.kanbanCardsMap.get(id);
+    if (!card) return undefined;
+    const updated = { ...card, ...data, updatedAt: this.now() } as KanbanCard;
+    this.kanbanCardsMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanCard(id: string): Promise<boolean> {
+    return this.kanbanCardsMap.delete(id);
   }
 
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }
