@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -145,6 +145,11 @@ interface KanbanCardMoveInput {
   targetPosition: number;
 }
 
+interface KanbanListReorderInput {
+  boardId: string;
+  listIds: string[];
+}
+
 const moveKanbanCards = (
   cards: KanbanCardView[],
   movement: Pick<KanbanCardMoveInput, "cardId" | "targetListId" | "targetPosition">,
@@ -198,6 +203,21 @@ const moveKanbanCards = (
     ...updatedSourceCards,
     ...updatedTargetCards,
   ];
+};
+
+const reorderKanbanLists = (lists: KanbanListView[], listIds: string[]) => {
+  const listMap = new Map(lists.map((list) => [String(list.id), list]));
+
+  return listIds
+    .map((listId, index) => {
+      const list = listMap.get(String(listId));
+      if (!list) return null;
+      return {
+        ...list,
+        position: index,
+      };
+    })
+    .filter((list): list is KanbanListView => Boolean(list));
 };
 
 export default function TasksV2Page() {
@@ -456,6 +476,46 @@ export default function TasksV2Page() {
     },
   });
 
+  const moveListMutation = useMutation({
+    mutationFn: async (movement: KanbanListReorderInput) => {
+      const res = await apiRequest(
+        "POST",
+        `/api/kanban/boards/${movement.boardId}/lists/reorder`,
+        { listIds: movement.listIds },
+      );
+      return await res.json();
+    },
+    onMutate: async (movement) => {
+      await queryClient.cancelQueries({ queryKey: ["kanban-lists", movement.boardId] });
+
+      const previousLists = queryClient.getQueryData<KanbanListView[]>([
+        "kanban-lists",
+        movement.boardId,
+      ]) ?? [];
+
+      queryClient.setQueryData<KanbanListView[]>(
+        ["kanban-lists", movement.boardId],
+        reorderKanbanLists(previousLists, movement.listIds),
+      );
+
+      return { previousLists };
+    },
+    onError: (error: Error, movement, context) => {
+      if (context?.previousLists) {
+        queryClient.setQueryData(["kanban-lists", movement.boardId], context.previousLists);
+      }
+
+      toast({
+        title: "Не удалось изменить порядок списков",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: (_result, _error, movement) => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-lists", movement.boardId] });
+    },
+  });
+
   const saveCardMutation = useMutation({
     mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
@@ -656,8 +716,28 @@ export default function TasksV2Page() {
     });
   };
 
+  const handleShiftList = (listId: string, direction: "up" | "down") => {
+    if (!selectedBoardId || moveListMutation.isPending) return;
+
+    const currentIndex = lists.findIndex((list) => list.id === listId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= lists.length) return;
+
+    const reorderedIds = lists.map((list) => list.id);
+    const [movedId] = reorderedIds.splice(currentIndex, 1);
+    reorderedIds.splice(targetIndex, 0, movedId);
+
+    moveListMutation.mutate({
+      boardId: selectedBoardId,
+      listIds: reorderedIds,
+    });
+  };
+
   const isBoardPending = saveBoardMutation.isPending || deleteBoardMutation.isPending;
-  const isListPending = saveListMutation.isPending || deleteListMutation.isPending;
+  const isListPending =
+    saveListMutation.isPending || deleteListMutation.isPending || moveListMutation.isPending;
   const isCardPending =
     saveCardMutation.isPending || deleteCardMutation.isPending || moveCardMutation.isPending;
   const canEditSelectedBoard = Boolean(selectedBoard?.canEdit);
@@ -917,7 +997,7 @@ export default function TasksV2Page() {
                 ) : (
                   <DragDropContext onDragEnd={handleCardDragEnd}>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {lists.map((list) => {
+                      {lists.map((list, listIndex) => {
                         const listCards = cardsByListId.get(list.id) ?? [];
 
                         return (
@@ -944,6 +1024,28 @@ export default function TasksV2Page() {
                                       </CardDescription>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-2">
+                                      {canEditSelectedBoard && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2"
+                                            onClick={() => handleShiftList(list.id, "up")}
+                                            disabled={isListPending || listIndex === 0}
+                                          >
+                                            <ArrowUp className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2"
+                                            onClick={() => handleShiftList(list.id, "down")}
+                                            disabled={isListPending || listIndex === lists.length - 1}
+                                          >
+                                            <ArrowDown className="h-4 w-4" />
+                                          </Button>
+                                        </>
+                                      )}
                                       <Badge variant="secondary">{listCards.length}</Badge>
                                       <Badge variant={list.type === "active" ? "default" : "outline"}>
                                         {LIST_TYPE_LABELS[list.type]}

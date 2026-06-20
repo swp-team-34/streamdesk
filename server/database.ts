@@ -247,6 +247,7 @@ export interface IStorage {
   getKanbanListById(id: string): Promise<KanbanList | undefined>;
   createKanbanList(list: InsertKanbanList): Promise<KanbanList>;
   updateKanbanList(id: string, list: Partial<KanbanList>): Promise<KanbanList | undefined>;
+  reorderKanbanLists(boardId: string, listIds: string[]): Promise<void>;
   deleteKanbanList(id: string): Promise<boolean>;
   getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]>;
   getKanbanCardsByListId(listId: string): Promise<KanbanCard[]>;
@@ -1091,6 +1092,19 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(kanbanLists.id, id))
       .returning();
     return result[0];
+  }
+
+  async reorderKanbanLists(boardId: string, listIds: string[]): Promise<void> {
+    await Promise.all(
+      listIds.map((listId, index) =>
+        db!.update(kanbanLists)
+          .set({ position: index, updatedAt: new Date() })
+          .where(and(
+            eq(kanbanLists.id, listId),
+            eq(kanbanLists.boardId, boardId),
+          ))
+      )
+    );
   }
 
   async deleteKanbanList(id: string): Promise<boolean> {
@@ -2094,6 +2108,17 @@ class StubStorage implements IStorage {
     const updated = { ...list, ...data, updatedAt: this.now() } as KanbanList;
     this.kanbanListsMap.set(id, updated);
     return updated;
+  }
+  async reorderKanbanLists(boardId: string, listIds: string[]): Promise<void> {
+    listIds.forEach((listId, index) => {
+      const list = this.kanbanListsMap.get(listId);
+      if (!list || String(list.boardId) !== String(boardId)) return;
+      this.kanbanListsMap.set(listId, {
+        ...list,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanList);
+    });
   }
   async deleteKanbanList(id: string): Promise<boolean> {
     for (const [cardId, card] of this.kanbanCardsMap.entries()) {

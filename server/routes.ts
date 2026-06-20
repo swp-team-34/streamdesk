@@ -454,6 +454,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
     type: z.enum(["active", "closed", "archive", "trash"]).optional(),
   });
+  const kanbanListReorderSchema = z.object({
+    listIds: z.array(z.string().trim().min(1)).min(1),
+  });
 
   const kanbanCardCreateSchema = z.object({
     listId: z.string().trim().min(1, "listId обязателен"),
@@ -823,6 +826,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Kanban] Failed to delete list:", error);
       res.status(500).json({ message: "Не удалось удалить список" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/lists/reorder", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения списков" });
+      }
+
+      const parsed = kanbanListReorderSchema.parse(req.body || {});
+      const existingLists = await storage.getKanbanListsByBoardId(access.board.id).catch(() => []);
+      const existingListIds = existingLists.map((list: any) => String(list.id));
+      const requestedListIds = parsed.listIds.map(String);
+
+      if (existingListIds.length !== requestedListIds.length) {
+        return res.status(400).json({ message: "Нужно передать полный список listIds для reorder" });
+      }
+
+      const existingSet = new Set(existingListIds);
+      const requestedSet = new Set(requestedListIds);
+      if (existingSet.size !== requestedSet.size || existingListIds.some((id) => !requestedSet.has(id))) {
+        return res.status(400).json({ message: "listIds содержат лишние или отсутствующие списки" });
+      }
+
+      await storage.reorderKanbanLists(access.board.id, requestedListIds);
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте порядок списков", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to reorder lists:", error);
+      res.status(500).json({ message: "Не удалось изменить порядок списков" });
     }
   });
 
