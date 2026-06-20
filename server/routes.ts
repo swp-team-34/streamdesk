@@ -21,6 +21,7 @@ import {
   insertTaskHistorySchema,
   insertRoleSchema,
   insertKanbanCardCommentSchema,
+  insertKanbanCardAttachmentSchema,
   insertKanbanLabelSchema,
 } from "@shared/schema";
 import multer from "multer";
@@ -1163,6 +1164,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/kanban/boards/:boardId/cards/:cardId/attachments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const attachments = await storage.getKanbanCardAttachments(card.id).catch(() => []);
+      res.json(attachments);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch card attachments:", error);
+      res.status(500).json({ message: "Не удалось загрузить вложения карточки" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/cards/:cardId/attachments", kanbanAttachmentUpload.single("file"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для загрузки файлов" });
+      }
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "Файл не был загружен" });
+      }
+
+      const attachmentData = insertKanbanCardAttachmentSchema.parse({
+        cardId: card.id,
+        uploadedByUserId: currentUser.id,
+        fileName: req.file.originalname || req.file.filename,
+        fileUrl: `/uploads/kanban/${req.file.filename}`,
+        mimeType: req.file.mimetype || null,
+        fileSize: req.file.size || null,
+      });
+
+      const attachment = await storage.createKanbanCardAttachment(attachmentData);
+      await createKanbanCardHistoryEntry(currentUser.id, card.id, "attachment_added", null, {
+        attachmentId: attachment.id,
+        fileName: attachment.fileName,
+      });
+
+      res.status(201).json(attachment);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные вложения", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to upload card attachment:", error);
+      res.status(500).json({ message: "Не удалось загрузить вложение" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/cards/:cardId/attachments/:attachmentId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для удаления вложений" });
+      }
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const attachments = await storage.getKanbanCardAttachments(card.id).catch(() => []);
+      const attachment = (attachments as any[]).find((item) => String(item.id) === String(req.params.attachmentId));
+      if (!attachment) {
+        return res.status(404).json({ message: "Вложение не найдено" });
+      }
+
+      await storage.deleteKanbanCardAttachment(attachment.id);
+      if (typeof attachment.fileUrl === "string" && attachment.fileUrl.startsWith("/uploads/")) {
+        const filePath = path.join(process.cwd(), attachment.fileUrl.replace(/^\/+/, ""));
+        await fs.unlink(filePath).catch(() => undefined);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete card attachment:", error);
+      res.status(500).json({ message: "Не удалось удалить вложение" });
+    }
+  });
+
   app.post("/api/kanban/boards/:boardId/cards/:cardId/comments", async (req, res) => {
     try {
       const currentUser = req.user as any;
@@ -1866,8 +1968,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ],
             onboardingCompleted: true,
             workspaceMode: "platform_admin",
-          },
-        });
+  },
+});
+
+const kanbanAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      const uploadDir = path.join(process.cwd(), "uploads", "kanban");
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (error) {
+        console.error("Error creating kanban upload directory:", error);
+      }
+      cb(null, uploadDir);
+    },
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const originalName = file.originalname || "file";
+      const ext = path.extname(originalName);
+      const base = path.basename(originalName, ext).replace(/[^\p{L}0-9_\- ]/gu, "_");
+      cb(null, base + "-" + uniqueSuffix + ext);
+    },
+  }),
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+  },
+});
       }
 
       // Все пользователи должны существовать в БД - никаких fallback аккаунтов

@@ -9,6 +9,7 @@ import {
   kanbanLabels, kanbanCardLabels,
   kanbanCardHistory,
   kanbanCardComments,
+  kanbanCardAttachments,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -44,6 +45,7 @@ import {
   type KanbanCardLabel, type InsertKanbanCardLabel,
   type KanbanCardHistory, type InsertKanbanCardHistory,
   type KanbanCardComment, type InsertKanbanCardComment,
+  type KanbanCardAttachment, type InsertKanbanCardAttachment,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -277,6 +279,9 @@ export interface IStorage {
   getKanbanCardComments(cardId: string): Promise<KanbanCardComment[]>;
   createKanbanCardComment(comment: InsertKanbanCardComment): Promise<KanbanCardComment>;
   deleteKanbanCardComment(id: string): Promise<boolean>;
+  getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]>;
+  createKanbanCardAttachment(attachment: InsertKanbanCardAttachment): Promise<KanbanCardAttachment>;
+  deleteKanbanCardAttachment(id: string): Promise<boolean>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -1056,6 +1061,10 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardAttachments).where(inArray(
+      kanbanCardAttachments.cardId,
+      db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.boardId, id)),
+    ) as any);
     await db!.delete(kanbanCardLabels).where(inArray(
       kanbanCardLabels.labelId,
       db!.select({ id: kanbanLabels.id }).from(kanbanLabels).where(eq(kanbanLabels.boardId, id)),
@@ -1149,6 +1158,10 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanList(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardAttachments).where(inArray(
+      kanbanCardAttachments.cardId,
+      db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.listId, id)),
+    ) as any);
     await db!.delete(kanbanCardLabels).where(inArray(
       kanbanCardLabels.cardId,
       db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.listId, id)),
@@ -1270,6 +1283,7 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanCard(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardAttachments).where(eq(kanbanCardAttachments.cardId, id));
     await db!.delete(kanbanCardLabels).where(eq(kanbanCardLabels.cardId, id));
     const result = await db!.delete(kanbanCards)
       .where(eq(kanbanCards.id, id))
@@ -1361,6 +1375,25 @@ export class PostgreSQLStorage implements IStorage {
     const result = await db!.delete(kanbanCardComments)
       .where(eq(kanbanCardComments.id, id))
       .returning({ id: kanbanCardComments.id });
+    return result.length > 0;
+  }
+
+  async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
+    return await db!.select().from(kanbanCardAttachments)
+      .where(eq(kanbanCardAttachments.cardId, cardId))
+      .orderBy(sql`${kanbanCardAttachments.createdAt} DESC`);
+  }
+
+  async createKanbanCardAttachment(insertAttachment: InsertKanbanCardAttachment): Promise<KanbanCardAttachment> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCardAttachments).values({ ...insertAttachment, id }).returning();
+    return result[0];
+  }
+
+  async deleteKanbanCardAttachment(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanCardAttachments)
+      .where(eq(kanbanCardAttachments.id, id))
+      .returning({ id: kanbanCardAttachments.id });
     return result.length > 0;
   }
 
@@ -1746,6 +1779,7 @@ class StubStorage implements IStorage {
   private kanbanCardLabelsMap = new Map<string, KanbanCardLabel>();
   private kanbanCardHistoryMap = new Map<string, KanbanCardHistory>();
   private kanbanCardCommentsMap = new Map<string, KanbanCardComment>();
+  private kanbanCardAttachmentsMap = new Map<string, KanbanCardAttachment>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -2203,6 +2237,9 @@ class StubStorage implements IStorage {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.boardId === id) {
         this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+          if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
+        });
         Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
           if (link.cardId === cardId) this.kanbanCardLabelsMap.delete(linkId);
         });
@@ -2293,6 +2330,9 @@ class StubStorage implements IStorage {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.listId === id) {
         this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+          if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
+        });
         Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
           if (link.cardId === cardId) this.kanbanCardLabelsMap.delete(linkId);
         });
@@ -2392,6 +2432,9 @@ class StubStorage implements IStorage {
     return movedCard;
   }
   async deleteKanbanCard(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+      if (attachment.cardId === id) this.kanbanCardAttachmentsMap.delete(attachmentId);
+    });
     Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
       if (link.cardId === id) this.kanbanCardLabelsMap.delete(linkId);
     });
@@ -2475,6 +2518,20 @@ class StubStorage implements IStorage {
   }
   async deleteKanbanCardComment(id: string): Promise<boolean> {
     return this.kanbanCardCommentsMap.delete(id);
+  }
+  async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
+    return Array.from(this.kanbanCardAttachmentsMap.values())
+      .filter((attachment) => attachment.cardId === cardId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async createKanbanCardAttachment(data: InsertKanbanCardAttachment): Promise<KanbanCardAttachment> {
+    const id = this.uid();
+    const attachment = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanCardAttachment;
+    this.kanbanCardAttachmentsMap.set(id, attachment);
+    return attachment;
+  }
+  async deleteKanbanCardAttachment(id: string): Promise<boolean> {
+    return this.kanbanCardAttachmentsMap.delete(id);
   }
 
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }

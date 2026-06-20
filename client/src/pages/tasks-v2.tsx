@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowDown, ArrowLeft, ArrowUp, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Download, GripVertical, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +80,12 @@ interface KanbanBoardMemberView {
   updatedAt?: string | Date | null;
 }
 
+interface MemberFormState {
+  userId: string;
+  role: "viewer" | "editor";
+  canComment: boolean;
+}
+
 interface KanbanListView {
   id: string;
   boardId: string;
@@ -135,6 +141,18 @@ interface KanbanCardCommentView {
   updatedAt?: string | Date | null;
 }
 
+interface KanbanCardAttachmentView {
+  id: string;
+  cardId: string;
+  uploadedByUserId: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
 const EMPTY_BOARD_FORM = {
   companyId: "",
   name: "",
@@ -163,10 +181,18 @@ const EMPTY_LABEL_FORM = {
   color: "",
 };
 
-const EMPTY_MEMBER_FORM = {
+const EMPTY_MEMBER_FORM: MemberFormState = {
   userId: "",
-  role: "viewer" as const,
+  role: "viewer",
   canComment: false,
+};
+
+const EMPTY_FILTERS = {
+  search: "",
+  assigneeUserId: "",
+  priority: "all",
+  dueStatus: "all",
+  labelId: "",
 };
 
 const LIST_TYPE_LABELS: Record<KanbanListType, string> = {
@@ -221,6 +247,72 @@ const formatDueDateLabel = (value?: string | Date | null) => {
   return DUE_DATE_FORMATTER.format(date);
 };
 
+type DueDateStatus = "none" | "upcoming" | "soon" | "overdue" | "complete";
+
+const getDueDateStatus = (
+  value?: string | Date | null,
+  options?: { isComplete?: boolean },
+): DueDateStatus => {
+  if (options?.isComplete) return "complete";
+  if (!value) return "none";
+
+  const dueDate = new Date(value);
+  if (Number.isNaN(dueDate.getTime())) return "none";
+
+  const now = new Date();
+  const diffMs = dueDate.getTime() - now.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffMs < 0) return "overdue";
+  if (diffHours <= 24) return "soon";
+  return "upcoming";
+};
+
+const getDueDateStatusLabel = (status: DueDateStatus) => {
+  switch (status) {
+    case "complete":
+      return "Завершено";
+    case "overdue":
+      return "Просрочено";
+    case "soon":
+      return "Скоро срок";
+    case "upcoming":
+      return "Запланировано";
+    default:
+      return "Без срока";
+  }
+};
+
+const getDueDateStatusClasses = (status: DueDateStatus) => {
+  switch (status) {
+    case "complete":
+      return {
+        badge: "border-emerald-200 bg-emerald-100 text-emerald-900",
+        card: "border-emerald-200/80 bg-emerald-50/40",
+      };
+    case "overdue":
+      return {
+        badge: "border-red-200 bg-red-100 text-red-900",
+        card: "border-red-200/80 bg-red-50/50",
+      };
+    case "soon":
+      return {
+        badge: "border-amber-200 bg-amber-100 text-amber-900",
+        card: "border-amber-200/80 bg-amber-50/50",
+      };
+    case "upcoming":
+      return {
+        badge: "border-sky-200 bg-sky-100 text-sky-900",
+        card: "border-sky-200/80 bg-sky-50/40",
+      };
+    default:
+      return {
+        badge: "border-border bg-muted text-muted-foreground",
+        card: "",
+      };
+  }
+};
+
 const getKanbanHistoryActionLabel = (action: string) => {
   switch (action) {
     case "created":
@@ -233,6 +325,8 @@ const getKanbanHistoryActionLabel = (action: string) => {
       return "Обновил метки карточки";
     case "commented":
       return "Добавил комментарий";
+    case "attachment_added":
+      return "Добавил вложение";
     default:
       return action || "Изменил карточку";
   }
@@ -240,6 +334,18 @@ const getKanbanHistoryActionLabel = (action: string) => {
 
 const normalizeLabelIds = (labelIds?: string[] | null) =>
   Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
+
+const formatFileSize = (value?: number | null) => {
+  if (!value || value < 0) return "Неизвестный размер";
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} КБ`;
+  return `${(value / (1024 * 1024)).toFixed(1)} МБ`;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
 
 interface KanbanCardMoveInput {
   boardId: string;
@@ -338,6 +444,7 @@ export default function TasksV2Page() {
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
   const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
   const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
+  const [cardFilters, setCardFilters] = useState(EMPTY_FILTERS);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
   const [detailCommentDraft, setDetailCommentDraft] = useState("");
 
@@ -437,6 +544,17 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: detailCardAttachments = [], isLoading: detailCardAttachmentsLoading } = useQuery<KanbanCardAttachmentView[]>({
+    queryKey: ["kanban-card-attachments", selectedBoardId, detailCardId],
+    enabled: !!selectedBoardId && !!detailCardId,
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/attachments`,
+      );
+      return await res.json();
+    },
+  });
 
   const companyItems = companiesResponse?.companies ?? [];
   const companies = companyItems.map((item) => item.company);
@@ -488,17 +606,49 @@ export default function TasksV2Page() {
       return !existingUserIds.has(String(user.id));
     });
   }, [boardMembers, selectedCompanyItem, users]);
-  const cardsByListId = useMemo(() => {
+  const filteredCards = useMemo(() => {
+    const search = cardFilters.search.trim().toLowerCase();
+
+    return cards.filter((card) => {
+      if (search) {
+        const haystack = [card.title, card.description || ""].join(" ").toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+
+      if (cardFilters.assigneeUserId && String(card.assigneeUserId || "") !== cardFilters.assigneeUserId) {
+        return false;
+      }
+
+      if (cardFilters.priority !== "all" && card.priority !== cardFilters.priority) {
+        return false;
+      }
+
+      if (cardFilters.labelId && !normalizeLabelIds(card.labelIds).includes(cardFilters.labelId)) {
+        return false;
+      }
+
+      if (cardFilters.dueStatus !== "all") {
+        const list = lists.find((item) => item.id === card.listId);
+        const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
+        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
+        if (dueStatus !== cardFilters.dueStatus) return false;
+      }
+
+      return true;
+    });
+  }, [cardFilters, cards, lists]);
+
+  const filteredCardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
 
-    for (const card of cards) {
+    for (const card of filteredCards) {
       const listCards = groupedCards.get(card.listId) ?? [];
       listCards.push(card);
       groupedCards.set(card.listId, listCards);
     }
 
     return groupedCards;
-  }, [cards]);
+  }, [filteredCards]);
 
   const toggleCardFormLabel = (labelId: string) => {
     setCardForm((prev) => ({
@@ -516,6 +666,85 @@ export default function TasksV2Page() {
         ? prev.labelIds.filter((value) => value !== labelId)
         : [...prev.labelIds, labelId],
     }));
+  };
+
+  const getListNameById = (listId: unknown) => {
+    const normalized = String(listId || "").trim();
+    if (!normalized) return "Без списка";
+    return lists.find((list) => String(list.id) === normalized)?.name || normalized;
+  };
+
+  const getUserNameById = (userId: unknown) => {
+    const normalized = String(userId || "").trim();
+    if (!normalized) return "Без исполнителя";
+    return userById.get(normalized)?.name || normalized;
+  };
+
+  const getLabelNameList = (labelIds: unknown) => {
+    const normalized = Array.isArray(labelIds) ? normalizeLabelIds(labelIds as string[]) : [];
+    return normalized.map((labelId) => labelById.get(labelId)?.name || labelId);
+  };
+
+  const getHistoryChangeLines = (entry: KanbanCardHistoryView) => {
+    const oldValue = asRecord(entry.oldValue);
+    const newValue = asRecord(entry.newValue);
+    const lines: string[] = [];
+
+    if (entry.action === "attachment_added") {
+      const fileName = String(newValue?.fileName || "").trim();
+      return fileName ? [`Файл: ${fileName}`] : [];
+    }
+
+    if (entry.action === "commented") {
+      const content = String(newValue?.content || "").trim();
+      return content ? [`Комментарий: ${content}`] : [];
+    }
+
+    if (entry.action === "labels_updated") {
+      const oldLabels = getLabelNameList(oldValue?.labelIds);
+      const newLabels = getLabelNameList(newValue?.labelIds);
+      const added = newLabels.filter((label) => !oldLabels.includes(label));
+      const removed = oldLabels.filter((label) => !newLabels.includes(label));
+      if (added.length) lines.push(`Добавлены метки: ${added.join(", ")}`);
+      if (removed.length) lines.push(`Удалены метки: ${removed.join(", ")}`);
+      if (!lines.length) lines.push("Состав меток изменен");
+      return lines;
+    }
+
+    if (entry.action === "moved") {
+      const fromList = getListNameById(oldValue?.listId);
+      const toList = getListNameById(newValue?.listId);
+      if (fromList !== toList) {
+        lines.push(`Список: ${fromList} -> ${toList}`);
+      }
+      const fromPosition = oldValue?.position;
+      const toPosition = newValue?.position;
+      if (fromPosition !== undefined && toPosition !== undefined && fromPosition !== toPosition) {
+        lines.push(`Позиция: ${Number(fromPosition) + 1} -> ${Number(toPosition) + 1}`);
+      }
+      return lines;
+    }
+
+    if (entry.action === "updated" || entry.action === "created") {
+      const fieldLines: Array<[boolean, string]> = [
+        [oldValue?.title !== newValue?.title && newValue?.title !== undefined, `Название: ${String(newValue?.title || "Без названия")}`],
+        [oldValue?.description !== newValue?.description && newValue?.description !== undefined, `Описание обновлено`],
+        [oldValue?.priority !== newValue?.priority && newValue?.priority !== undefined, `Приоритет: ${CARD_PRIORITY_LABELS[String(newValue?.priority) as KanbanCardPriority] || String(newValue?.priority)}`],
+        [oldValue?.listId !== newValue?.listId && newValue?.listId !== undefined, `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue?.listId)}`],
+        [oldValue?.assigneeUserId !== newValue?.assigneeUserId && newValue?.assigneeUserId !== undefined, `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue?.assigneeUserId)}`],
+        [String(oldValue?.dueDate || "") !== String(newValue?.dueDate || "") && newValue?.dueDate !== undefined, `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.dueDate as string | Date | null) || "Не задан"}`],
+      ];
+
+      for (const [shouldAdd, text] of fieldLines) {
+        if (shouldAdd) lines.push(text);
+      }
+
+      if (entry.action === "created" && !lines.length) {
+        lines.push("Карточка создана и готова к работе");
+      }
+    }
+
+    return lines;
   };
 
   useEffect(() => {
@@ -996,6 +1225,63 @@ export default function TasksV2Page() {
     },
   });
 
+  const uploadCardAttachmentMutation = useMutation({
+    mutationFn: async (file: File) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!detailCardId) throw new Error("Сначала выберите карточку");
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiRequest(
+        "POST",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/attachments`,
+        formData,
+        true,
+      );
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-attachments", selectedBoardId, detailCardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, detailCardId] });
+      toast({
+        title: "Файл загружен",
+        description: "Вложение появилось в карточке.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось загрузить файл",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteCardAttachmentMutation = useMutation({
+    mutationFn: async (attachmentId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!detailCardId) throw new Error("Сначала выберите карточку");
+      await apiRequest(
+        "DELETE",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/attachments/${attachmentId}`,
+      );
+      return attachmentId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-attachments", selectedBoardId, detailCardId] });
+      toast({
+        title: "Вложение удалено",
+        description: "Список файлов карточки обновлен.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось удалить вложение",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const saveLabelMutation = useMutation({
     mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
@@ -1302,6 +1588,8 @@ export default function TasksV2Page() {
     saveCardMutation.isPending ||
     saveCardDetailMutation.isPending ||
     createCardCommentMutation.isPending ||
+    uploadCardAttachmentMutation.isPending ||
+    deleteCardAttachmentMutation.isPending ||
     deleteCardCommentMutation.isPending ||
     deleteCardMutation.isPending ||
     moveCardMutation.isPending;
@@ -1538,7 +1826,7 @@ export default function TasksV2Page() {
                 </Badge>
                 <Badge variant="secondary">{boardMembers.length} участников</Badge>
                 <Badge variant="secondary">{lists.length} списков</Badge>
-                <Badge variant="secondary">{cards.length} карточек</Badge>
+                <Badge variant="secondary">{filteredCards.length} из {cards.length} карточек</Badge>
               </div>
             )}
           </div>
@@ -1551,6 +1839,118 @@ export default function TasksV2Page() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
               <div className="space-y-4">
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base">Фильтры карточек</CardTitle>
+                    <CardDescription>
+                      Быстрый поиск и срезы по исполнителю, приоритету, сроку и меткам.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                    <div className="space-y-2 xl:col-span-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-filter-search">
+                        Поиск
+                      </label>
+                      <Input
+                        id="kanban-filter-search"
+                        value={cardFilters.search}
+                        onChange={(event) => setCardFilters((prev) => ({ ...prev, search: event.target.value }))}
+                        placeholder="Название или описание карточки"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-filter-assignee">
+                        Исполнитель
+                      </label>
+                      <select
+                        id="kanban-filter-assignee"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={cardFilters.assigneeUserId}
+                        onChange={(event) =>
+                          setCardFilters((prev) => ({ ...prev, assigneeUserId: event.target.value }))
+                        }
+                      >
+                        <option value="">Все</option>
+                        {availableAssignees.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-filter-priority">
+                        Приоритет
+                      </label>
+                      <select
+                        id="kanban-filter-priority"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={cardFilters.priority}
+                        onChange={(event) =>
+                          setCardFilters((prev) => ({ ...prev, priority: event.target.value }))
+                        }
+                      >
+                        <option value="all">Все</option>
+                        {Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-filter-due">
+                        Срок
+                      </label>
+                      <select
+                        id="kanban-filter-due"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={cardFilters.dueStatus}
+                        onChange={(event) =>
+                          setCardFilters((prev) => ({ ...prev, dueStatus: event.target.value }))
+                        }
+                      >
+                        <option value="all">Все</option>
+                        <option value="overdue">Просрочено</option>
+                        <option value="soon">Скоро срок</option>
+                        <option value="upcoming">Запланировано</option>
+                        <option value="complete">Завершено</option>
+                        <option value="none">Без срока</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-filter-label">
+                        Метка
+                      </label>
+                      <select
+                        id="kanban-filter-label"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={cardFilters.labelId}
+                        onChange={(event) =>
+                          setCardFilters((prev) => ({ ...prev, labelId: event.target.value }))
+                        }
+                      >
+                        <option value="">Все</option>
+                        {boardLabels.map((label) => (
+                          <option key={label.id} value={label.id}>
+                            {label.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2 xl:col-span-5 flex justify-end">
+                      <Button variant="ghost" onClick={() => setCardFilters(EMPTY_FILTERS)}>
+                        Сбросить фильтры
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {isBoardStructureLoading ? (
                   <Card>
                     <CardContent className="py-8 text-sm text-muted-foreground">
@@ -1567,7 +1967,7 @@ export default function TasksV2Page() {
                   <DragDropContext onDragEnd={handleCardDragEnd}>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {lists.map((list, listIndex) => {
-                        const listCards = cardsByListId.get(list.id) ?? [];
+                        const listCards = filteredCardsByListId.get(list.id) ?? [];
 
                         return (
                           <Droppable
@@ -1645,7 +2045,10 @@ export default function TasksV2Page() {
                                     )}
 
                                     {listCards.map((card, index) => {
+                                      const isCompleteLikeList = list.type === "closed" || list.type === "archive" || list.type === "trash";
                                       const dueDateLabel = formatDueDateLabel(card.dueDate);
+                                      const dueDateStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
+                                      const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
                                       const assigneeName = card.assigneeUserId
                                         ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId
                                         : null;
@@ -1666,6 +2069,7 @@ export default function TasksV2Page() {
                                               {...dragProvided.draggableProps}
                                               className={[
                                                 "rounded-lg border bg-muted/20 p-3 space-y-3",
+                                                dueDateStatusClasses.card,
                                                 dragSnapshot.isDragging
                                                   ? "bg-background shadow-lg ring-1 ring-primary/40"
                                                   : "",
@@ -1694,6 +2098,12 @@ export default function TasksV2Page() {
                                                 </div>
                                                 <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]}>
                                                   {CARD_PRIORITY_LABELS[card.priority]}
+                                                </Badge>
+                                              </div>
+
+                                              <div className="flex flex-wrap gap-2">
+                                                <Badge variant="outline" className={dueDateStatusClasses.badge}>
+                                                  {getDueDateStatusLabel(dueDateStatus)}
                                                 </Badge>
                                               </div>
 
@@ -2351,6 +2761,16 @@ export default function TasksV2Page() {
             </>
           ) : (
             <>
+              {(() => {
+                const isCompleteLikeList =
+                  selectedDetailList?.type === "closed" ||
+                  selectedDetailList?.type === "archive" ||
+                  selectedDetailList?.type === "trash";
+                const dueDateStatus = getDueDateStatus(selectedDetailCard.dueDate, { isComplete: isCompleteLikeList });
+                const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
+
+                return (
+                  <>
               <DialogHeader className="space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                   <div className="space-y-1">
@@ -2364,6 +2784,9 @@ export default function TasksV2Page() {
                       {CARD_PRIORITY_LABELS[selectedDetailCard.priority]}
                     </Badge>
                     {selectedDetailList && <Badge variant="outline">{selectedDetailList.name}</Badge>}
+                    <Badge variant="outline" className={dueDateStatusClasses.badge}>
+                      {getDueDateStatusLabel(dueDateStatus)}
+                    </Badge>
                   </div>
                 </div>
               </DialogHeader>
@@ -2521,6 +2944,8 @@ export default function TasksV2Page() {
                   <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
                     <p>Создатель: {userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}</p>
                     <p>Позиция в списке: {Number(selectedDetailCard.position) + 1}</p>
+                    <p>Статус срока: {getDueDateStatusLabel(dueDateStatus)}</p>
+                    <p>Срок: {formatDueDateLabel(selectedDetailCard.dueDate) || "Не задан"}</p>
                     <p>Создана: {formatDueDateLabel(selectedDetailCard.createdAt) || "Неизвестно"}</p>
                     <p>Обновлена: {formatDueDateLabel(selectedDetailCard.updatedAt) || "Еще не обновлялась"}</p>
                   </div>
@@ -2549,6 +2974,90 @@ export default function TasksV2Page() {
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">Вложения</h3>
+                    {detailCardAttachmentsLoading && (
+                      <span className="text-xs text-muted-foreground">Загружаем файлы...</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {detailCardAttachments.length === 0 ? (
+                      <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                        У этой карточки пока нет вложений.
+                      </div>
+                    ) : (
+                      detailCardAttachments.map((attachment) => (
+                        <div key={attachment.id} className="rounded-lg border bg-muted/20 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                                <a
+                                  href={attachment.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate text-sm font-medium hover:underline"
+                                >
+                                  {attachment.fileName}
+                                </a>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatFileSize(attachment.fileSize)} · {attachment.mimeType || "unknown"} ·{" "}
+                                {formatDueDateLabel(attachment.createdAt) || "Неизвестное время"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Загрузил: {userById.get(attachment.uploadedByUserId)?.name || attachment.uploadedByUserId}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button asChild variant="ghost" size="sm">
+                                <a href={attachment.fileUrl} target="_blank" rel="noreferrer">
+                                  <Download className="h-4 w-4" />
+                                </a>
+                              </Button>
+                              {canEditSelectedBoard && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteCardAttachmentMutation.mutate(attachment.id)}
+                                  disabled={deleteCardAttachmentMutation.isPending}
+                                >
+                                  Удалить
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {canEditSelectedBoard && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-detail-attachment">
+                        Загрузить файл
+                      </label>
+                      <Input
+                        id="kanban-detail-attachment"
+                        type="file"
+                        disabled={uploadCardAttachmentMutation.isPending}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            uploadCardAttachmentMutation.mutate(file);
+                          }
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Поддерживаются любые типы файлов до 25 МБ.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">Activity Log</h3>
                     {detailCardHistoryLoading && (
                       <span className="text-xs text-muted-foreground">Обновляем историю...</span>
@@ -2561,21 +3070,34 @@ export default function TasksV2Page() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {detailCardHistory.map((entry) => (
-                        <div key={entry.id} className="rounded-lg border bg-muted/20 p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-sm font-medium">
-                              {userById.get(entry.userId)?.name || entry.userId}
+                      {detailCardHistory.map((entry) => {
+                        const changeLines = getHistoryChangeLines(entry);
+
+                        return (
+                          <div key={entry.id} className="rounded-lg border bg-muted/20 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-sm font-medium">
+                                {userById.get(entry.userId)?.name || entry.userId}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDueDateLabel(entry.createdAt) || "Неизвестное время"}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatDueDateLabel(entry.createdAt) || "Неизвестное время"}
-                            </div>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {getKanbanHistoryActionLabel(entry.action)}
+                            </p>
+                            {changeLines.length > 0 && (
+                              <div className="mt-3 space-y-1">
+                                {changeLines.map((line, index) => (
+                                  <p key={`${entry.id}-${index}`} className="text-sm">
+                                    {line}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {getKanbanHistoryActionLabel(entry.action)}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2662,6 +3184,9 @@ export default function TasksV2Page() {
                   )}
                 </div>
               </div>
+                  </>
+                );
+              })()}
             </>
           )}
         </DialogContent>

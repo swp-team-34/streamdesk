@@ -431,6 +431,18 @@ export const kanbanCardComments = pgTable("kanban_card_comments", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const kanbanCardAttachments = pgTable("kanban_card_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
+  uploadedByUserId: varchar("uploaded_by_user_id").references(() => users.id).notNull(),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  mimeType: text("mime_type"),
+  fileSize: integer("file_size"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -759,6 +771,12 @@ export const insertKanbanCardCommentSchema = createInsertSchema(kanbanCardCommen
   updatedAt: true,
 });
 
+export const insertKanbanCardAttachmentSchema = createInsertSchema(kanbanCardAttachments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
   createdAt: true,
@@ -911,6 +929,9 @@ export type InsertKanbanCardHistory = z.infer<typeof insertKanbanCardHistorySche
 
 export type KanbanCardComment = typeof kanbanCardComments.$inferSelect;
 export type InsertKanbanCardComment = z.infer<typeof insertKanbanCardCommentSchema>;
+
+export type KanbanCardAttachment = typeof kanbanCardAttachments.$inferSelect;
+export type InsertKanbanCardAttachment = z.infer<typeof insertKanbanCardAttachmentSchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;
