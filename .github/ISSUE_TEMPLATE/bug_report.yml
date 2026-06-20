@@ -1,0 +1,110 @@
+name: Bug Report
+description: Report a reproducible defect
+title: "Bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      placeholder: Summarize the defect and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      placeholder: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happens?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - Browser/device:
+        - Operating system:
+        - App version/commit:
+        - Account/company context:
+    validations:
+      required: true
+  - type: dropdown
+    id: work-status
+    attributes:
+      label: Work Status
+      options:
+        - Backlog
+        - Selected for Sprint
+        - In Progress
+        - In Review
+        - Done
+    validations:
+      required: true
+  - type: input
+    id: severity
+    attributes:
+      label: Severity
+      placeholder: Low, Medium, High, or Critical
+    validations:
+      required: true
+  - type: input
+    id: priority
+    attributes:
+      label: Priority
+      placeholder: Must, Should, Could, or Won't for this release
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria for the fix
+      placeholder: |
+        - [ ] Reproduction confirmed
+        - [ ] Fix verified locally
+        - [ ] Regression risk checked
+    validations:
+      required: true
+  - type: input
+    id: related-issue
+    attributes:
+      label: Related PBI/issue
+      placeholder: "#123 or Not applicable"
+  - type: input
+    id: implementer
+    attributes:
+      label: Implementer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: input
+    id: reviewer
+    attributes:
+      label: Reviewer
+      placeholder: GitHub username or team member name
+    validations:
+      required: true
+  - type: textarea
+    id: evidence-notes
+    attributes:
+      label: Evidence / deliverable notes
+      placeholder: Link screenshots, logs, commands, PRs, or verification evidence.
+    validations:
+      required: true

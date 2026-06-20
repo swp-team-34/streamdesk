@@ -61,7 +61,10 @@ TODO:
 
 ## Changelog
 
-- [ ] `CHANGELOG.md` was updated, or this PR has no user-visible change.
+Select exactly one:
+
+- [ ] `CHANGELOG.md` was updated for user-visible changes.
+- [ ] `CHANGELOG.md` update is not applicable because this PR has no user-visible changes.
 
 ## Quality Checklist
 
@@ -74,9 +77,12 @@ TODO:
 ## Reviewer checklist
 
 - [ ] The PR is linked to an issue.
+- [ ] The issue type matches the work: User Story, Other PBI, Course Task, or Bug Report.
+- [ ] The branch name follows `<issue-number>-short-description`, unless it is an automated branch.
 - [ ] Acceptance criteria are clear and verified.
 - [ ] Evidence is sufficient for the change.
-- [ ] Changelog decision is reasonable.
+- [ ] Exactly one changelog option is selected and the decision is reasonable.
+- [ ] Repository workflow evidence is preserved; historical PR/MR evidence was not deleted or rewritten.
 
 ## Merge readiness
 

@@ -40,7 +40,7 @@ why no PR was needed.
 
 ## Branch Naming
 
-Branches must use this format:
+Future non-automated branches must use this format:
 
 ```text
 <issue-number>-short-description
@@ -55,6 +55,10 @@ Example:
 Do not commit directly to the default branch. Create work branches from the current
 default branch and link each PR to the issue.
 
+Historical merged branches with nonconforming names cannot be renamed retroactively
+without rewriting history. Preserve them as historical evidence. Future branches
+must comply with the required naming format.
+
 ## Pull Requests
 
 Each PR must:
@@ -66,7 +70,8 @@ Each PR must:
 - verify acceptance criteria before merge;
 - include testing or verification evidence;
 - include screenshots or demo evidence when the change affects visible behavior;
-- state whether `CHANGELOG.md` was updated;
+- select exactly one `CHANGELOG.md` option: updated for user-visible changes, or
+  not applicable because the PR has no user-visible changes;
 - pass the Definition of Done and reviewer checklist.
 
 ## Acceptance Criteria and Merge Readiness
