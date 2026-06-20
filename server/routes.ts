@@ -470,6 +470,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     dueDate: z.string().trim().nullable().optional(),
   });
+  const kanbanCardMoveSchema = z.object({
+    listId: z.string().trim().min(1, "listId обязателен"),
+    position: z.coerce.number().int().min(0),
+  });
 
   const buildKanbanBoardResponse = (
     board: any,
@@ -976,6 +980,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Kanban] Failed to delete card:", error);
       res.status(500).json({ message: "Не удалось удалить карточку" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/cards/:cardId/move", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для перемещения карточек" });
+      }
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const parsed = kanbanCardMoveSchema.parse(req.body || {});
+      const targetList = await storage.getKanbanListById(parsed.listId).catch(() => undefined);
+      if (!targetList || String(targetList.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Список не найден" });
+      }
+
+      const movedCard = await storage.moveKanbanCard(card.id, targetList.id, parsed.position);
+      if (!movedCard) return res.status(404).json({ message: "Карточка не найдена" });
+
+      res.json(movedCard);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({
+          message: "Проверьте параметры перемещения карточки",
+          errors: error.flatten?.(),
+        });
+      }
+      console.error("[Kanban] Failed to move card:", error);
+      res.status(500).json({ message: "Не удалось переместить карточку" });
     }
   });
 

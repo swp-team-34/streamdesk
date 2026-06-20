@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import { ArrowLeft, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,6 +136,68 @@ const formatDueDateLabel = (value?: string | Date | null) => {
   if (Number.isNaN(date.getTime())) return null;
 
   return DUE_DATE_FORMATTER.format(date);
+};
+
+interface KanbanCardMoveInput {
+  boardId: string;
+  cardId: string;
+  targetListId: string;
+  targetPosition: number;
+}
+
+const moveKanbanCards = (
+  cards: KanbanCardView[],
+  movement: Pick<KanbanCardMoveInput, "cardId" | "targetListId" | "targetPosition">,
+) => {
+  const movingCard = cards.find((card) => card.id === movement.cardId);
+  if (!movingCard) return cards;
+
+  const sourceListId = String(movingCard.listId);
+  const targetListId = String(movement.targetListId);
+  const normalizedTargetPosition = Math.max(0, Number(movement.targetPosition || 0));
+
+  if (sourceListId === targetListId) {
+    const sameListCards = cards.filter((card) => String(card.listId) === sourceListId && card.id !== movingCard.id);
+    const insertionIndex = Math.min(normalizedTargetPosition, sameListCards.length);
+    sameListCards.splice(insertionIndex, 0, movingCard);
+
+    const updatedSameListCards = sameListCards.map((card, index) => ({
+      ...card,
+      position: index,
+    }));
+
+    return [
+      ...cards.filter((card) => String(card.listId) !== sourceListId),
+      ...updatedSameListCards,
+    ];
+  }
+
+  const sourceCards = cards.filter((card) => String(card.listId) === sourceListId && card.id !== movingCard.id);
+  const targetCards = cards.filter((card) => String(card.listId) === targetListId && card.id !== movingCard.id);
+  const insertionIndex = Math.min(normalizedTargetPosition, targetCards.length);
+
+  targetCards.splice(insertionIndex, 0, {
+    ...movingCard,
+    listId: targetListId,
+  });
+
+  const updatedSourceCards = sourceCards.map((card, index) => ({
+    ...card,
+    position: index,
+  }));
+  const updatedTargetCards = targetCards.map((card, index) => ({
+    ...card,
+    listId: targetListId,
+    position: index,
+  }));
+
+  return [
+    ...cards.filter(
+      (card) => String(card.listId) !== sourceListId && String(card.listId) !== targetListId,
+    ),
+    ...updatedSourceCards,
+    ...updatedTargetCards,
+  ];
 };
 
 export default function TasksV2Page() {
@@ -468,6 +531,58 @@ export default function TasksV2Page() {
     },
   });
 
+  const moveCardMutation = useMutation({
+    mutationFn: async (movement: KanbanCardMoveInput) => {
+      const res = await apiRequest(
+        "POST",
+        `/api/kanban/boards/${movement.boardId}/cards/${movement.cardId}/move`,
+        {
+          listId: movement.targetListId,
+          position: movement.targetPosition,
+        },
+      );
+      return await res.json();
+    },
+    onMutate: async (movement) => {
+      await queryClient.cancelQueries({ queryKey: ["kanban-cards", movement.boardId] });
+
+      const previousCards = queryClient.getQueryData<KanbanCardView[]>([
+        "kanban-cards",
+        movement.boardId,
+      ]) ?? [];
+      const previousCard = previousCards.find((card) => card.id === movement.cardId) ?? null;
+
+      queryClient.setQueryData<KanbanCardView[]>(
+        ["kanban-cards", movement.boardId],
+        moveKanbanCards(previousCards, movement),
+      );
+
+      if (editingCardId === movement.cardId) {
+        setCardForm((prev) => ({ ...prev, listId: movement.targetListId }));
+      }
+
+      return { previousCards, previousCard };
+    },
+    onError: (error: Error, movement, context) => {
+      if (context?.previousCards) {
+        queryClient.setQueryData(["kanban-cards", movement.boardId], context.previousCards);
+      }
+
+      if (editingCardId === movement.cardId && context?.previousCard) {
+        setCardForm((prev) => ({ ...prev, listId: context.previousCard?.listId || prev.listId }));
+      }
+
+      toast({
+        title: "Не удалось переместить карточку",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: (_movedCard, _error, movement) => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", movement.boardId] });
+    },
+  });
+
   const handleEditBoard = (board: KanbanBoardView) => {
     setSelectedBoardId(board.id);
     setEditingBoardId(board.id);
@@ -520,9 +635,31 @@ export default function TasksV2Page() {
     }));
   };
 
+  const handleCardDragEnd = (result: DropResult) => {
+    if (!selectedBoardId || !canEditSelectedBoard || isCardPending) return;
+
+    const { destination, source, draggableId } = result;
+    if (!destination) return;
+
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    moveCardMutation.mutate({
+      boardId: selectedBoardId,
+      cardId: draggableId,
+      targetListId: destination.droppableId,
+      targetPosition: destination.index,
+    });
+  };
+
   const isBoardPending = saveBoardMutation.isPending || deleteBoardMutation.isPending;
   const isListPending = saveListMutation.isPending || deleteListMutation.isPending;
-  const isCardPending = saveCardMutation.isPending || deleteCardMutation.isPending;
+  const isCardPending =
+    saveCardMutation.isPending || deleteCardMutation.isPending || moveCardMutation.isPending;
   const canEditSelectedBoard = Boolean(selectedBoard?.canEdit);
   const isBoardStructureLoading = listsLoading || cardsLoading;
   const hasLists = lists.length > 0;
@@ -535,7 +672,7 @@ export default function TasksV2Page() {
             <div className="space-y-1">
               <CardTitle>Kanban V2</CardTitle>
               <CardDescription>
-                Итерация 3: поверх board core и first-class lists появились отдельные карточки.
+                Итерация 4: карточки уже можно перетаскивать между списками с optimistic reorder.
               </CardDescription>
             </div>
             <Link href="/tasks">
@@ -640,7 +777,7 @@ export default function TasksV2Page() {
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>Доски и участники хранятся в отдельных таблицах.</p>
               <p>Списки и карточки стали first-class сущностями, а не `project_columns` / `project_tasks` суррогатами.</p>
-              <p>Следующий этап после этого: DnD, reorder и оптимистичные перемещения между списками.</p>
+              <p>Следующий этап после этого: assignees, detail view и activity log для карточек.</p>
             </CardContent>
           </Card>
         </div>
@@ -778,130 +915,181 @@ export default function TasksV2Page() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {lists.map((list) => {
-                      const listCards = cardsByListId.get(list.id) ?? [];
+                  <DragDropContext onDragEnd={handleCardDragEnd}>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {lists.map((list) => {
+                        const listCards = cardsByListId.get(list.id) ?? [];
 
-                      return (
-                        <Card key={list.id} className="h-full">
-                          <CardHeader className="space-y-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1 min-w-0">
-                                <CardTitle className="text-base break-words">{list.name}</CardTitle>
-                                <CardDescription>
-                                  Позиция: {Number(list.position) + 1}
-                                </CardDescription>
-                              </div>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Badge variant="secondary">{listCards.length}</Badge>
-                                <Badge variant={list.type === "active" ? "default" : "outline"}>
-                                  {LIST_TYPE_LABELS[list.type]}
-                                </Badge>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="text-sm text-muted-foreground space-y-2">
-                              <p>Тип списка: {LIST_TYPE_LABELS[list.type]}</p>
-                              <p className="flex items-center gap-2">
-                                Цвет:
-                                <span
-                                  className="inline-block h-3 w-3 rounded-full border border-border"
-                                  style={{ backgroundColor: list.color || "transparent" }}
-                                />
-                                <span>{list.color || "Не задан"}</span>
-                              </p>
-                            </div>
-
-                            <div className="space-y-3">
-                              {listCards.length === 0 ? (
-                                <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                                  В этом списке пока нет карточек.
-                                </div>
-                              ) : (
-                                listCards.map((card) => {
-                                  const dueDateLabel = formatDueDateLabel(card.dueDate);
-
-                                  return (
-                                    <div key={card.id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 space-y-1">
-                                          <p className="font-medium break-words">{card.title}</p>
-                                          {card.description && (
-                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                                              {card.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                        <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]}>
-                                          {CARD_PRIORITY_LABELS[card.priority]}
-                                        </Badge>
-                                      </div>
-
-                                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                        <span>Порядок: {Number(card.position) + 1}</span>
-                                        {dueDateLabel && <span>Срок: {dueDateLabel}</span>}
-                                      </div>
-
-                                      {canEditSelectedBoard && (
-                                        <div className="flex flex-wrap gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="gap-2"
-                                            onClick={() => handleEditCard(card)}
-                                            disabled={isCardPending}
-                                          >
-                                            <Pencil className="h-4 w-4" />
-                                            Редактировать
-                                          </Button>
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            className="gap-2"
-                                            onClick={() => deleteCardMutation.mutate(card.id)}
-                                            disabled={isCardPending}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                            Удалить
-                                          </Button>
-                                        </div>
-                                      )}
+                        return (
+                          <Droppable
+                            key={list.id}
+                            droppableId={list.id}
+                            isDropDisabled={!canEditSelectedBoard || isCardPending}
+                          >
+                            {(provided, snapshot) => (
+                              <Card
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className={[
+                                  "h-full transition-colors",
+                                  snapshot.isDraggingOver ? "border-primary/70 bg-primary/5" : "",
+                                ].join(" ").trim()}
+                              >
+                                <CardHeader className="space-y-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1 min-w-0">
+                                      <CardTitle className="text-base break-words">{list.name}</CardTitle>
+                                      <CardDescription>
+                                        Позиция: {Number(list.position) + 1}
+                                      </CardDescription>
                                     </div>
-                                  );
-                                })
-                              )}
-                            </div>
+                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                      <Badge variant="secondary">{listCards.length}</Badge>
+                                      <Badge variant={list.type === "active" ? "default" : "outline"}>
+                                        {LIST_TYPE_LABELS[list.type]}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div className="text-sm text-muted-foreground space-y-2">
+                                    <p>Тип списка: {LIST_TYPE_LABELS[list.type]}</p>
+                                    <p className="flex items-center gap-2">
+                                      Цвет:
+                                      <span
+                                        className="inline-block h-3 w-3 rounded-full border border-border"
+                                        style={{ backgroundColor: list.color || "transparent" }}
+                                      />
+                                      <span>{list.color || "Не задан"}</span>
+                                    </p>
+                                  </div>
 
-                            {canEditSelectedBoard && (
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => handleEditList(list)}
-                                  disabled={isListPending}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                  Редактировать список
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => deleteListMutation.mutate(list.id)}
-                                  disabled={isListPending}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Удалить список
-                                </Button>
-                              </div>
+                                  <div className="space-y-3 min-h-24">
+                                    {listCards.length === 0 && (
+                                      <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                                        {canEditSelectedBoard
+                                          ? "Перетащите сюда карточку или создайте новую справа."
+                                          : "В этом списке пока нет карточек."}
+                                      </div>
+                                    )}
+
+                                    {listCards.map((card, index) => {
+                                      const dueDateLabel = formatDueDateLabel(card.dueDate);
+
+                                      return (
+                                        <Draggable
+                                          key={card.id}
+                                          draggableId={card.id}
+                                          index={index}
+                                          isDragDisabled={!canEditSelectedBoard || isCardPending}
+                                        >
+                                          {(dragProvided, dragSnapshot) => (
+                                            <div
+                                              ref={dragProvided.innerRef}
+                                              {...dragProvided.draggableProps}
+                                              className={[
+                                                "rounded-lg border bg-muted/20 p-3 space-y-3",
+                                                dragSnapshot.isDragging
+                                                  ? "bg-background shadow-lg ring-1 ring-primary/40"
+                                                  : "",
+                                              ].join(" ").trim()}
+                                            >
+                                              <div className="flex items-start justify-between gap-3">
+                                                <div className="flex min-w-0 gap-2">
+                                                  {canEditSelectedBoard && (
+                                                    <button
+                                                      type="button"
+                                                      aria-label="Переместить карточку"
+                                                      className="mt-0.5 shrink-0 cursor-grab rounded-md p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
+                                                      {...dragProvided.dragHandleProps}
+                                                    >
+                                                      <GripVertical className="h-4 w-4" />
+                                                    </button>
+                                                  )}
+                                                  <div className="min-w-0 space-y-1">
+                                                    <p className="font-medium break-words">{card.title}</p>
+                                                    {card.description && (
+                                                      <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                                                        {card.description}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]}>
+                                                  {CARD_PRIORITY_LABELS[card.priority]}
+                                                </Badge>
+                                              </div>
+
+                                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                <span>Порядок: {Number(card.position) + 1}</span>
+                                                {dueDateLabel && <span>Срок: {dueDateLabel}</span>}
+                                              </div>
+
+                                              {canEditSelectedBoard && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="gap-2"
+                                                    onClick={() => handleEditCard(card)}
+                                                    disabled={isCardPending}
+                                                  >
+                                                    <Pencil className="h-4 w-4" />
+                                                    Редактировать
+                                                  </Button>
+                                                  <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    className="gap-2"
+                                                    onClick={() => deleteCardMutation.mutate(card.id)}
+                                                    disabled={isCardPending}
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                    Удалить
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </Draggable>
+                                      );
+                                    })}
+
+                                    {provided.placeholder}
+                                  </div>
+
+                                  {canEditSelectedBoard && (
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2"
+                                        onClick={() => handleEditList(list)}
+                                        disabled={isListPending}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Редактировать список
+                                      </Button>
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        className="gap-2"
+                                        onClick={() => deleteListMutation.mutate(list.id)}
+                                        disabled={isListPending}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Удалить список
+                                      </Button>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
                             )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
+                          </Droppable>
+                        );
+                      })}
+                    </div>
+                  </DragDropContext>
                 )}
               </div>
 
@@ -993,7 +1181,7 @@ export default function TasksV2Page() {
                     <CardDescription>
                       {canEditSelectedBoard
                         ? hasLists
-                          ? "Карточки создаются внутри выбранного списка и уже готовы для следующего этапа с drag-and-drop."
+                          ? "Карточки можно создавать вручную и сразу перетаскивать между списками."
                           : "Сначала создайте хотя бы один список, затем можно будет добавлять карточки."
                         : "У вас сейчас только просмотр этой доски."}
                     </CardDescription>

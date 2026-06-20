@@ -253,6 +253,7 @@ export interface IStorage {
   getKanbanCardById(id: string): Promise<KanbanCard | undefined>;
   createKanbanCard(card: InsertKanbanCard): Promise<KanbanCard>;
   updateKanbanCard(id: string, card: Partial<KanbanCard>): Promise<KanbanCard | undefined>;
+  moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined>;
   deleteKanbanCard(id: string): Promise<boolean>;
   
   // Custom Locations
@@ -1129,6 +1130,81 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(kanbanCards.id, id))
       .returning();
     return result[0];
+  }
+
+  async moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined> {
+    return await db!.transaction(async (tx) => {
+      const currentCardResult = await tx.select().from(kanbanCards).where(eq(kanbanCards.id, id)).limit(1);
+      const currentCard = currentCardResult[0];
+      if (!currentCard) return undefined;
+
+      const currentListId = String(currentCard.listId);
+      const normalizedTargetPosition = Math.max(0, Number(targetPosition || 0));
+      const targetListCards = await tx
+        .select()
+        .from(kanbanCards)
+        .where(eq(kanbanCards.listId, targetListId))
+        .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+
+      if (currentListId === String(targetListId)) {
+        const reorderedCards = targetListCards.filter((card) => String(card.id) !== String(currentCard.id));
+        const insertionIndex = Math.min(normalizedTargetPosition, reorderedCards.length);
+        reorderedCards.splice(insertionIndex, 0, currentCard);
+
+        let movedCard: KanbanCard | undefined;
+        for (const [index, card] of reorderedCards.entries()) {
+          const updatedCardResult = await tx
+            .update(kanbanCards)
+            .set({ position: index, updatedAt: new Date() })
+            .where(eq(kanbanCards.id, card.id))
+            .returning();
+
+          if (String(card.id) === String(currentCard.id)) {
+            movedCard = updatedCardResult[0];
+          }
+        }
+
+        return movedCard;
+      }
+
+      const sourceListCards = await tx
+        .select()
+        .from(kanbanCards)
+        .where(eq(kanbanCards.listId, currentListId))
+        .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+
+      const reorderedSourceCards = sourceListCards.filter((card) => String(card.id) !== String(currentCard.id));
+      const reorderedTargetCards = targetListCards.filter((card) => String(card.id) !== String(currentCard.id));
+      const insertionIndex = Math.min(normalizedTargetPosition, reorderedTargetCards.length);
+
+      reorderedTargetCards.splice(insertionIndex, 0, { ...currentCard, listId: targetListId });
+
+      for (const [index, card] of reorderedSourceCards.entries()) {
+        await tx
+          .update(kanbanCards)
+          .set({ position: index, updatedAt: new Date() })
+          .where(eq(kanbanCards.id, card.id));
+      }
+
+      let movedCard: KanbanCard | undefined;
+      for (const [index, card] of reorderedTargetCards.entries()) {
+        const updatedCardResult = await tx
+          .update(kanbanCards)
+          .set({
+            listId: targetListId,
+            position: index,
+            updatedAt: new Date(),
+          })
+          .where(eq(kanbanCards.id, card.id))
+          .returning();
+
+        if (String(card.id) === String(currentCard.id)) {
+          movedCard = updatedCardResult[0];
+        }
+      }
+
+      return movedCard;
+    });
   }
 
   async deleteKanbanCard(id: string): Promise<boolean> {
@@ -2051,6 +2127,64 @@ class StubStorage implements IStorage {
     const updated = { ...card, ...data, updatedAt: this.now() } as KanbanCard;
     this.kanbanCardsMap.set(id, updated);
     return updated;
+  }
+  async moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined> {
+    const currentCard = this.kanbanCardsMap.get(id);
+    if (!currentCard) return undefined;
+
+    const currentListId = String(currentCard.listId);
+    const normalizedTargetPosition = Math.max(0, Number(targetPosition || 0));
+
+    if (currentListId === String(targetListId)) {
+      const reorderedCards = await this.getKanbanCardsByListId(currentListId);
+      const filteredCards = reorderedCards.filter((card) => card.id !== id);
+      const insertionIndex = Math.min(normalizedTargetPosition, filteredCards.length);
+      filteredCards.splice(insertionIndex, 0, currentCard);
+
+      let movedCard: KanbanCard | undefined;
+      filteredCards.forEach((card, index) => {
+        const updatedCard = {
+          ...card,
+          position: index,
+          updatedAt: this.now(),
+        } as KanbanCard;
+        this.kanbanCardsMap.set(card.id, updatedCard);
+        if (card.id === id) movedCard = updatedCard;
+      });
+
+      return movedCard;
+    }
+
+    const sourceCards = (await this.getKanbanCardsByListId(currentListId)).filter((card) => card.id !== id);
+    const targetCards = (await this.getKanbanCardsByListId(targetListId)).filter((card) => card.id !== id);
+    const insertionIndex = Math.min(normalizedTargetPosition, targetCards.length);
+
+    targetCards.splice(insertionIndex, 0, {
+      ...currentCard,
+      listId: targetListId,
+    } as KanbanCard);
+
+    sourceCards.forEach((card, index) => {
+      this.kanbanCardsMap.set(card.id, {
+        ...card,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanCard);
+    });
+
+    let movedCard: KanbanCard | undefined;
+    targetCards.forEach((card, index) => {
+      const updatedCard = {
+        ...card,
+        listId: targetListId,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanCard;
+      this.kanbanCardsMap.set(card.id, updatedCard);
+      if (card.id === id) movedCard = updatedCard;
+    });
+
+    return movedCard;
   }
   async deleteKanbanCard(id: string): Promise<boolean> {
     return this.kanbanCardsMap.delete(id);
