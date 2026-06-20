@@ -64,10 +64,8 @@ body:
     attributes:
       label: Requirement status
       options:
-        - Draft
-        - Reviewed
-        - Approved
-        - Deferred
+        - Active
+        - Removed
     validations:
       required: true
   - type: dropdown
@@ -75,10 +73,10 @@ body:
     attributes:
       label: Work Status
       options:
-        - Backlog
-        - Selected for Sprint
+        - To Do
+        - Ready
         - In Progress
-        - In Review
+        - Review
         - Done
     validations:
       required: true

@@ -28,10 +28,10 @@ Use these issue types:
 
 Use a shared `Work Status` field or equivalent labels with these states:
 
-- Backlog
-- Selected for Sprint
+- To Do
+- Ready
 - In Progress
-- In Review
+- Review
 - Done
 
 The issue status should match the actual repository state. Work should not be marked
