@@ -478,6 +478,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
+    subtasks: z.array(z.object({
+      id: z.string().trim().min(1),
+      title: z.string().trim().min(1).max(240),
+      completed: z.boolean().optional().default(false),
+    })).max(100).optional(),
   });
 
   const kanbanCardUpdateSchema = z.object({
@@ -488,6 +493,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
+    subtasks: z.array(z.object({
+      id: z.string().trim().min(1),
+      title: z.string().trim().min(1).max(240),
+      completed: z.boolean().optional().default(false),
+    })).max(100).optional(),
   });
   const kanbanCardMoveSchema = z.object({
     listId: z.string().trim().min(1, "listId обязателен"),
@@ -547,6 +557,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!normalized) return null;
     const date = new Date(normalized);
     return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const normalizeKanbanSubtasks = (subtasks: Array<{ id: string; title: string; completed?: boolean }> | undefined) => {
+    if (!Array.isArray(subtasks)) return [];
+    return subtasks
+      .map((subtask) => ({
+        id: String(subtask.id || "").trim(),
+        title: String(subtask.title || "").trim(),
+        completed: Boolean(subtask.completed),
+      }))
+      .filter((subtask) => subtask.id && subtask.title);
   };
 
   const createKanbanCardHistoryEntry = async (
@@ -1481,6 +1502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: parsed.description?.trim() || null,
         priority: parsed.priority,
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
+        subtasks: normalizeKanbanSubtasks(parsed.subtasks),
         creatorUserId: currentUser.id,
         assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
@@ -1522,6 +1544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
+      if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.assigneeUserId !== undefined) {
         const assigneeResolution = await resolveKanbanAssigneeUserId(access.board.companyId, parsed.assigneeUserId);
         if (!assigneeResolution.ok) {

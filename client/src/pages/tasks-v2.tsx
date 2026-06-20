@@ -107,10 +107,17 @@ interface KanbanCardView {
   priority: KanbanCardPriority;
   dueDate?: string | Date | null;
   labelIds?: string[];
+  subtasks?: KanbanSubtask[];
   creatorUserId: string;
   assigneeUserId?: string | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
+}
+
+interface KanbanSubtask {
+  id: string;
+  title: string;
+  completed?: boolean;
 }
 
 interface KanbanLabelView {
@@ -347,6 +354,23 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
+const normalizeSubtasks = (subtasks?: KanbanSubtask[] | null) =>
+  Array.isArray(subtasks)
+    ? subtasks
+        .map((subtask) => ({
+          id: String(subtask.id || "").trim(),
+          title: String(subtask.title || "").trim(),
+          completed: Boolean(subtask.completed),
+        }))
+        .filter((subtask) => subtask.id && subtask.title)
+    : [];
+
+const getSubtaskProgress = (subtasks?: KanbanSubtask[] | null) => {
+  const normalized = normalizeSubtasks(subtasks);
+  const completed = normalized.filter((subtask) => subtask.completed).length;
+  return { total: normalized.length, completed };
+};
+
 interface KanbanCardMoveInput {
   boardId: string;
   cardId: string;
@@ -447,6 +471,7 @@ export default function TasksV2Page() {
   const [cardFilters, setCardFilters] = useState(EMPTY_FILTERS);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
   const [detailCommentDraft, setDetailCommentDraft] = useState("");
+  const [detailSubtaskDraft, setDetailSubtaskDraft] = useState("");
 
   const { data: companiesResponse, isLoading: companiesLoading } = useQuery<CompaniesResponse>({
     queryKey: ["/api/companies/me", "kanban-v2"],
@@ -741,6 +766,12 @@ export default function TasksV2Page() {
 
       if (entry.action === "created" && !lines.length) {
         lines.push("Карточка создана и готова к работе");
+      }
+
+      if (oldValue?.subtasks !== newValue?.subtasks && newValue?.subtasks !== undefined) {
+        const before = getSubtaskProgress(oldValue?.subtasks as KanbanSubtask[] | null);
+        const after = getSubtaskProgress(newValue?.subtasks as KanbanSubtask[] | null);
+        lines.push(`Подзадачи: ${before.completed}/${before.total} -> ${after.completed}/${after.total}`);
       }
     }
 
@@ -1282,6 +1313,32 @@ export default function TasksV2Page() {
     },
   });
 
+  const saveCardSubtasksMutation = useMutation({
+    mutationFn: async (subtasks: KanbanSubtask[]) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!detailCardId) throw new Error("Сначала выберите карточку");
+      const res = await apiRequest(
+        "PUT",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}`,
+        { subtasks: normalizeSubtasks(subtasks) },
+      );
+      return await res.json();
+    },
+    onSuccess: (card: KanbanCardView) => {
+      queryClient.setQueryData(["kanban-card", selectedBoardId, card.id], card);
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось сохранить подзадачи",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const saveLabelMutation = useMutation({
     mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
@@ -1510,6 +1567,7 @@ export default function TasksV2Page() {
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
     setDetailCommentDraft("");
+    setDetailSubtaskDraft("");
   };
 
   const handleEditLabel = (label: KanbanLabelView) => {
@@ -1587,6 +1645,7 @@ export default function TasksV2Page() {
   const isCardPending =
     saveCardMutation.isPending ||
     saveCardDetailMutation.isPending ||
+    saveCardSubtasksMutation.isPending ||
     createCardCommentMutation.isPending ||
     uploadCardAttachmentMutation.isPending ||
     deleteCardAttachmentMutation.isPending ||
@@ -2049,6 +2108,7 @@ export default function TasksV2Page() {
                                       const dueDateLabel = formatDueDateLabel(card.dueDate);
                                       const dueDateStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
                                       const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
+                                      const subtaskProgress = getSubtaskProgress(card.subtasks);
                                       const assigneeName = card.assigneeUserId
                                         ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId
                                         : null;
@@ -2111,6 +2171,9 @@ export default function TasksV2Page() {
                                                 <span>Порядок: {Number(card.position) + 1}</span>
                                                 {assigneeName && <span>Исполнитель: {assigneeName}</span>}
                                                 {dueDateLabel && <span>Срок: {dueDateLabel}</span>}
+                                                {subtaskProgress.total > 0 && (
+                                                  <span>Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}</span>
+                                                )}
                                               </div>
 
                                               {cardLabels.length > 0 && (
@@ -2942,6 +3005,10 @@ export default function TasksV2Page() {
 
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                    <p>
+                      Подзадачи: {getSubtaskProgress(selectedDetailCard.subtasks).completed}/
+                      {getSubtaskProgress(selectedDetailCard.subtasks).total}
+                    </p>
                     <p>Создатель: {userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}</p>
                     <p>Позиция в списке: {Number(selectedDetailCard.position) + 1}</p>
                     <p>Статус срока: {getDueDateStatusLabel(dueDateStatus)}</p>
@@ -2968,6 +3035,107 @@ export default function TasksV2Page() {
                           </Badge>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">
+                      Подзадачи ({getSubtaskProgress(selectedDetailCard.subtasks).completed}/{getSubtaskProgress(selectedDetailCard.subtasks).total})
+                    </h3>
+                  </div>
+
+                  {normalizeSubtasks(selectedDetailCard.subtasks).length === 0 ? (
+                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                      У этой карточки пока нет подзадач.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {normalizeSubtasks(selectedDetailCard.subtasks).map((subtask) => (
+                        <div
+                          key={subtask.id}
+                          className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(subtask.completed)}
+                            onChange={(event) => {
+                              const next = normalizeSubtasks(selectedDetailCard.subtasks).map((item) =>
+                                item.id === subtask.id ? { ...item, completed: event.target.checked } : item,
+                              );
+                              saveCardSubtasksMutation.mutate(next);
+                            }}
+                            disabled={!canEditSelectedBoard || saveCardSubtasksMutation.isPending}
+                          />
+                          <span
+                            className={[
+                              "flex-1 text-sm",
+                              subtask.completed ? "line-through text-muted-foreground" : "",
+                            ].join(" ")}
+                          >
+                            {subtask.title}
+                          </span>
+                          {canEditSelectedBoard && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const next = normalizeSubtasks(selectedDetailCard.subtasks).filter((item) => item.id !== subtask.id);
+                                saveCardSubtasksMutation.mutate(next);
+                              }}
+                              disabled={saveCardSubtasksMutation.isPending}
+                            >
+                              Удалить
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {canEditSelectedBoard && (
+                    <div className="flex gap-2">
+                      <Input
+                        value={detailSubtaskDraft}
+                        onChange={(event) => setDetailSubtaskDraft(event.target.value)}
+                        placeholder="Добавить подзадачу"
+                        disabled={saveCardSubtasksMutation.isPending}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" || !detailSubtaskDraft.trim()) return;
+                          event.preventDefault();
+                          const next = [
+                            ...normalizeSubtasks(selectedDetailCard.subtasks),
+                            {
+                              id: `kst-${Date.now()}`,
+                              title: detailSubtaskDraft.trim(),
+                              completed: false,
+                            },
+                          ];
+                          saveCardSubtasksMutation.mutate(next, {
+                            onSuccess: () => setDetailSubtaskDraft(""),
+                          });
+                        }}
+                      />
+                      <Button
+                        onClick={() => {
+                          if (!detailSubtaskDraft.trim()) return;
+                          const next = [
+                            ...normalizeSubtasks(selectedDetailCard.subtasks),
+                            {
+                              id: `kst-${Date.now()}`,
+                              title: detailSubtaskDraft.trim(),
+                              completed: false,
+                            },
+                          ];
+                          saveCardSubtasksMutation.mutate(next, {
+                            onSuccess: () => setDetailSubtaskDraft(""),
+                          });
+                        }}
+                        disabled={!detailSubtaskDraft.trim() || saveCardSubtasksMutation.isPending}
+                      >
+                        Добавить
+                      </Button>
                     </div>
                   )}
                 </div>
