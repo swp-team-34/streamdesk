@@ -65,8 +65,19 @@ interface KanbanBoardView {
   updatedAt?: string | Date | null;
   canManage?: boolean;
   canEdit?: boolean;
+  canComment?: boolean;
   isMember?: boolean;
   membershipRole?: string | null;
+}
+
+interface KanbanBoardMemberView {
+  id: string;
+  boardId: string;
+  userId: string;
+  role: "viewer" | "editor";
+  canComment?: boolean | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
 }
 
 interface KanbanListView {
@@ -89,8 +100,18 @@ interface KanbanCardView {
   position: number;
   priority: KanbanCardPriority;
   dueDate?: string | Date | null;
+  labelIds?: string[];
   creatorUserId: string;
   assigneeUserId?: string | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+interface KanbanLabelView {
+  id: string;
+  boardId: string;
+  name: string;
+  color?: string | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -103,6 +124,15 @@ interface KanbanCardHistoryView {
   oldValue?: unknown;
   newValue?: unknown;
   createdAt?: string | Date | null;
+}
+
+interface KanbanCardCommentView {
+  id: string;
+  cardId: string;
+  userId: string;
+  content: string;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
 }
 
 const EMPTY_BOARD_FORM = {
@@ -125,6 +155,18 @@ const EMPTY_CARD_FORM = {
   priority: "medium" as KanbanCardPriority,
   dueDate: "",
   assigneeUserId: "",
+  labelIds: [] as string[],
+};
+
+const EMPTY_LABEL_FORM = {
+  name: "",
+  color: "",
+};
+
+const EMPTY_MEMBER_FORM = {
+  userId: "",
+  role: "viewer" as const,
+  canComment: false,
 };
 
 const LIST_TYPE_LABELS: Record<KanbanListType, string> = {
@@ -187,10 +229,17 @@ const getKanbanHistoryActionLabel = (action: string) => {
       return "Обновил карточку";
     case "moved":
       return "Переместил карточку";
+    case "labels_updated":
+      return "Обновил метки карточки";
+    case "commented":
+      return "Добавил комментарий";
     default:
       return action || "Изменил карточку";
   }
 };
+
+const normalizeLabelIds = (labelIds?: string[] | null) =>
+  Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
 
 interface KanbanCardMoveInput {
   boardId: string;
@@ -281,11 +330,16 @@ export default function TasksV2Page() {
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
   const [boardForm, setBoardForm] = useState(EMPTY_BOARD_FORM);
   const [listForm, setListForm] = useState(EMPTY_LIST_FORM);
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
+  const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
+  const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
+  const [detailCommentDraft, setDetailCommentDraft] = useState("");
 
   const { data: companiesResponse, isLoading: companiesLoading } = useQuery<CompaniesResponse>({
     queryKey: ["/api/companies/me", "kanban-v2"],
@@ -333,6 +387,22 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: boardLabels = [], isLoading: boardLabelsLoading } = useQuery<KanbanLabelView[]>({
+    queryKey: ["kanban-labels", selectedBoardId],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/labels`);
+      return await res.json();
+    },
+  });
+  const { data: boardMembers = [], isLoading: boardMembersLoading } = useQuery<KanbanBoardMemberView[]>({
+    queryKey: ["kanban-board-members", selectedBoardId],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/members`);
+      return await res.json();
+    },
+  });
   const selectedDetailCardSummary = useMemo(
     () => cards.find((card) => card.id === detailCardId) ?? null,
     [cards, detailCardId],
@@ -356,6 +426,17 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: detailCardComments = [], isLoading: detailCardCommentsLoading } = useQuery<KanbanCardCommentView[]>({
+    queryKey: ["kanban-card-comments", selectedBoardId, detailCardId],
+    enabled: !!selectedBoardId && !!detailCardId,
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments`,
+      );
+      return await res.json();
+    },
+  });
 
   const companyItems = companiesResponse?.companies ?? [];
   const companies = companyItems.map((item) => item.company);
@@ -366,6 +447,10 @@ export default function TasksV2Page() {
   const userById = useMemo(
     () => new Map(users.map((user) => [user.id, user])),
     [users],
+  );
+  const labelById = useMemo(
+    () => new Map(boardLabels.map((label) => [label.id, label])),
+    [boardLabels],
   );
   const selectedCompanyItem = useMemo(
     () => companyItems.find((item) => item.company.id === selectedBoard?.companyId) ?? null,
@@ -391,6 +476,18 @@ export default function TasksV2Page() {
 
     return users.filter((user) => activeMemberIds.has(String(user.id)) && user.active !== false);
   }, [selectedBoard, selectedCompanyItem, users]);
+  const availableBoardMembers = useMemo(() => {
+    if (!selectedCompanyItem) return [];
+    const existingUserIds = new Set(boardMembers.map((member) => String(member.userId)));
+    return users.filter((user) => {
+      if (user.active === false) return false;
+      const companyMember = selectedCompanyItem.members.find(
+        (member) => String(member.userId) === String(user.id) && member.status === "active",
+      );
+      if (!companyMember) return false;
+      return !existingUserIds.has(String(user.id));
+    });
+  }, [boardMembers, selectedCompanyItem, users]);
   const cardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
 
@@ -403,11 +500,37 @@ export default function TasksV2Page() {
     return groupedCards;
   }, [cards]);
 
+  const toggleCardFormLabel = (labelId: string) => {
+    setCardForm((prev) => ({
+      ...prev,
+      labelIds: prev.labelIds.includes(labelId)
+        ? prev.labelIds.filter((value) => value !== labelId)
+        : [...prev.labelIds, labelId],
+    }));
+  };
+
+  const toggleDetailCardFormLabel = (labelId: string) => {
+    setDetailCardForm((prev) => ({
+      ...prev,
+      labelIds: prev.labelIds.includes(labelId)
+        ? prev.labelIds.filter((value) => value !== labelId)
+        : [...prev.labelIds, labelId],
+    }));
+  };
+
   useEffect(() => {
     if (!editingBoardId && !boardForm.companyId && companies[0]?.id) {
       setBoardForm((prev) => ({ ...prev, companyId: companies[0].id }));
     }
   }, [boardForm.companyId, companies, editingBoardId]);
+
+  useEffect(() => {
+    if (editingMemberId) return;
+    if (memberForm.userId) return;
+    if (availableBoardMembers[0]?.id) {
+      setMemberForm((prev) => ({ ...prev, userId: availableBoardMembers[0].id }));
+    }
+  }, [availableBoardMembers, editingMemberId, memberForm.userId]);
 
   useEffect(() => {
     if (boards.length === 0) {
@@ -427,6 +550,7 @@ export default function TasksV2Page() {
     setCardForm(EMPTY_CARD_FORM);
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
+    setDetailCommentDraft("");
   }, [selectedBoardId]);
 
   useEffect(() => {
@@ -464,6 +588,7 @@ export default function TasksV2Page() {
       priority: selectedDetailCard.priority,
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
+      labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
     });
   }, [detailCardId, selectedDetailCard]);
 
@@ -669,6 +794,7 @@ export default function TasksV2Page() {
         priority: cardForm.priority,
         dueDate: cardForm.dueDate || null,
         assigneeUserId: cardForm.assigneeUserId || null,
+        labelIds: normalizeLabelIds(cardForm.labelIds),
       };
 
       if (editingCardId) {
@@ -749,6 +875,7 @@ export default function TasksV2Page() {
           priority: detailCardForm.priority,
           dueDate: detailCardForm.dueDate || null,
           assigneeUserId: detailCardForm.assigneeUserId || null,
+          labelIds: normalizeLabelIds(detailCardForm.labelIds),
         },
       );
       return await res.json();
@@ -767,6 +894,7 @@ export default function TasksV2Page() {
           priority: card.priority,
           dueDate: toDateTimeLocalValue(card.dueDate),
           assigneeUserId: card.assigneeUserId || "",
+          labelIds: normalizeLabelIds(card.labelIds),
         });
       }
 
@@ -835,6 +963,202 @@ export default function TasksV2Page() {
     },
     onSettled: (_movedCard, _error, movement) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", movement.boardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", movement.boardId, movement.cardId] });
+    },
+  });
+
+  const createCardCommentMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!detailCardId) throw new Error("Сначала выберите карточку");
+      const res = await apiRequest(
+        "POST",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments`,
+        { content: detailCommentDraft.trim() },
+      );
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, detailCardId] });
+      setDetailCommentDraft("");
+      toast({
+        title: "Комментарий добавлен",
+        description: "Обсуждение карточки обновлено.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось добавить комментарий",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveLabelMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+
+      const payload = {
+        name: labelForm.name.trim(),
+        color: labelForm.color.trim() || null,
+      };
+
+      if (editingLabelId) {
+        const res = await apiRequest(
+          "PUT",
+          `/api/kanban/boards/${selectedBoardId}/labels/${editingLabelId}`,
+          payload,
+        );
+        return await res.json();
+      }
+
+      const res = await apiRequest("POST", `/api/kanban/boards/${selectedBoardId}/labels`, payload);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-labels", selectedBoardId] });
+      toast({
+        title: editingLabelId ? "Метка обновлена" : "Метка создана",
+        description: "Справочник меток доски синхронизирован.",
+      });
+      setEditingLabelId(null);
+      setLabelForm(EMPTY_LABEL_FORM);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось сохранить метку",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      await apiRequest("DELETE", `/api/kanban/boards/${selectedBoardId}/labels/${labelId}`);
+      return labelId;
+    },
+    onSuccess: (labelId: string) => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-labels", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      if (detailCardId) {
+        queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, detailCardId] });
+      }
+      setCardForm((prev) => ({ ...prev, labelIds: prev.labelIds.filter((value) => value !== labelId) }));
+      setDetailCardForm((prev) => ({ ...prev, labelIds: prev.labelIds.filter((value) => value !== labelId) }));
+      if (editingLabelId === labelId) {
+        setEditingLabelId(null);
+        setLabelForm(EMPTY_LABEL_FORM);
+      }
+      toast({
+        title: "Метка удалена",
+        description: "Связанные карточки обновят набор меток после следующего сохранения.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось удалить метку",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveMemberMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!memberForm.userId && !editingMemberId) throw new Error("Выберите пользователя");
+
+      const payload = {
+        userId: memberForm.userId,
+        role: memberForm.role,
+        canComment: memberForm.role === "editor" ? true : memberForm.canComment,
+      };
+
+      if (editingMemberId) {
+        const res = await apiRequest(
+          "PUT",
+          `/api/kanban/boards/${selectedBoardId}/members/${editingMemberId}`,
+          { role: payload.role, canComment: payload.canComment },
+        );
+        return await res.json();
+      }
+
+      const res = await apiRequest("POST", `/api/kanban/boards/${selectedBoardId}/members`, payload);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-board-members", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      toast({
+        title: editingMemberId ? "Участник обновлен" : "Участник добавлен",
+        description: "Права доступа к доске синхронизированы.",
+      });
+      setEditingMemberId(null);
+      setMemberForm(EMPTY_MEMBER_FORM);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось сохранить участника",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      await apiRequest("DELETE", `/api/kanban/boards/${selectedBoardId}/members/${memberId}`);
+      return memberId;
+    },
+    onSuccess: (memberId: string) => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-board-members", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      if (editingMemberId === memberId) {
+        setEditingMemberId(null);
+        setMemberForm(EMPTY_MEMBER_FORM);
+      }
+      toast({
+        title: "Участник удален",
+        description: "Состав доски обновлен.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось удалить участника",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteCardCommentMutation = useMutation({
+    mutationFn: async (commentId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      if (!detailCardId) throw new Error("Сначала выберите карточку");
+      await apiRequest(
+        "DELETE",
+        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments/${commentId}`,
+      );
+      return commentId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
+      toast({
+        title: "Комментарий удален",
+        description: "Лента комментариев обновлена.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось удалить комментарий",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -880,6 +1204,7 @@ export default function TasksV2Page() {
       priority: card.priority,
       dueDate: toDateTimeLocalValue(card.dueDate),
       assigneeUserId: card.assigneeUserId || "",
+      labelIds: normalizeLabelIds(card.labelIds),
     });
   };
 
@@ -898,6 +1223,34 @@ export default function TasksV2Page() {
   const handleCloseCardDetail = () => {
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
+    setDetailCommentDraft("");
+  };
+
+  const handleEditLabel = (label: KanbanLabelView) => {
+    setEditingLabelId(label.id);
+    setLabelForm({
+      name: label.name,
+      color: label.color || "",
+    });
+  };
+
+  const handleCancelLabelEdit = () => {
+    setEditingLabelId(null);
+    setLabelForm(EMPTY_LABEL_FORM);
+  };
+
+  const handleEditMember = (member: KanbanBoardMemberView) => {
+    setEditingMemberId(member.id);
+    setMemberForm({
+      userId: member.userId,
+      role: member.role,
+      canComment: Boolean(member.canComment),
+    });
+  };
+
+  const handleCancelMemberEdit = () => {
+    setEditingMemberId(null);
+    setMemberForm(EMPTY_MEMBER_FORM);
   };
 
   const handleCardDragEnd = (result: DropResult) => {
@@ -943,12 +1296,17 @@ export default function TasksV2Page() {
   const isBoardPending = saveBoardMutation.isPending || deleteBoardMutation.isPending;
   const isListPending =
     saveListMutation.isPending || deleteListMutation.isPending || moveListMutation.isPending;
+  const isLabelPending = saveLabelMutation.isPending || deleteLabelMutation.isPending;
+  const isMemberPending = saveMemberMutation.isPending || deleteMemberMutation.isPending;
   const isCardPending =
     saveCardMutation.isPending ||
     saveCardDetailMutation.isPending ||
+    createCardCommentMutation.isPending ||
+    deleteCardCommentMutation.isPending ||
     deleteCardMutation.isPending ||
     moveCardMutation.isPending;
   const canEditSelectedBoard = Boolean(selectedBoard?.canEdit);
+  const canCommentSelectedBoard = Boolean(selectedBoard?.canComment);
   const isBoardStructureLoading = listsLoading || cardsLoading;
   const hasLists = lists.length > 0;
 
@@ -960,7 +1318,7 @@ export default function TasksV2Page() {
             <div className="space-y-1">
               <CardTitle>Kanban V2</CardTitle>
               <CardDescription>
-                Итерация 7: у карточек появился detail view с отдельным просмотром и редактированием.
+                Итерация 8: добавлены board labels и назначение меток карточкам.
               </CardDescription>
             </div>
             <Link href="/tasks">
@@ -1175,7 +1533,10 @@ export default function TasksV2Page() {
             </div>
             {selectedBoard && (
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">{canEditSelectedBoard ? "Editor access" : "View only"}</Badge>
+                <Badge variant="outline">
+                  {canEditSelectedBoard ? "Editor access" : canCommentSelectedBoard ? "Comment access" : "View only"}
+                </Badge>
+                <Badge variant="secondary">{boardMembers.length} участников</Badge>
                 <Badge variant="secondary">{lists.length} списков</Badge>
                 <Badge variant="secondary">{cards.length} карточек</Badge>
               </div>
@@ -1288,6 +1649,9 @@ export default function TasksV2Page() {
                                       const assigneeName = card.assigneeUserId
                                         ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId
                                         : null;
+                                      const cardLabels = normalizeLabelIds(card.labelIds)
+                                        .map((labelId) => labelById.get(labelId))
+                                        .filter((label): label is KanbanLabelView => Boolean(label));
 
                                       return (
                                         <Draggable
@@ -1338,6 +1702,24 @@ export default function TasksV2Page() {
                                                 {assigneeName && <span>Исполнитель: {assigneeName}</span>}
                                                 {dueDateLabel && <span>Срок: {dueDateLabel}</span>}
                                               </div>
+
+                                              {cardLabels.length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  {cardLabels.map((label) => (
+                                                    <Badge
+                                                      key={label.id}
+                                                      variant="outline"
+                                                      className="gap-1 border-transparent"
+                                                      style={{
+                                                        backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
+                                                        color: "#111827",
+                                                      }}
+                                                    >
+                                                      {label.name}
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              )}
 
                                               {canEditSelectedBoard && (
                                                 <div className="flex flex-wrap gap-2">
@@ -1631,6 +2013,39 @@ export default function TasksV2Page() {
                       />
                     </div>
 
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium">Метки</label>
+                        {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                      </div>
+                      {boardLabels.length === 0 ? (
+                        <div className="rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground">
+                          У этой доски пока нет меток. Ниже справа можно создать первую.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {boardLabels.map((label) => {
+                            const selected = cardForm.labelIds.includes(label.id);
+                            return (
+                              <button
+                                key={label.id}
+                                type="button"
+                                className={[
+                                  "rounded-full border px-3 py-1.5 text-sm transition",
+                                  selected ? "border-foreground shadow-sm" : "border-border",
+                                ].join(" ")}
+                                style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
+                                onClick={() => toggleCardFormLabel(label.id)}
+                                disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                              >
+                                {label.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     {availableAssignees.length === 0 && canEditSelectedBoard && (
                       <p className="text-xs text-muted-foreground">
                         Для этой доски пока не найдено активных участников компании, поэтому карточки создаются без исполнителя.
@@ -1654,6 +2069,268 @@ export default function TasksV2Page() {
                         )}
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {editingLabelId ? "Редактировать метку" : "Метки доски"}
+                    </CardTitle>
+                    <CardDescription>
+                      {canEditSelectedBoard
+                        ? "Создавайте и переиспользуйте метки доски для карточек."
+                        : "Доступен только просмотр набора меток этой доски."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-label-name">
+                        Название метки
+                      </label>
+                      <Input
+                        id="kanban-label-name"
+                        value={labelForm.name}
+                        onChange={(event) => setLabelForm((prev) => ({ ...prev, name: event.target.value }))}
+                        placeholder="Например: Blocked"
+                        disabled={!canEditSelectedBoard || isLabelPending}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-label-color">
+                        Цвет
+                      </label>
+                      <Input
+                        id="kanban-label-color"
+                        value={labelForm.color}
+                        onChange={(event) => setLabelForm((prev) => ({ ...prev, color: event.target.value }))}
+                        placeholder="Например: #f59e0b"
+                        disabled={!canEditSelectedBoard || isLabelPending}
+                      />
+                    </div>
+
+                    {canEditSelectedBoard && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          className="gap-2"
+                          onClick={() => saveLabelMutation.mutate()}
+                          disabled={!selectedBoardId || !labelForm.name.trim() || isLabelPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {editingLabelId ? "Сохранить метку" : "Создать метку"}
+                        </Button>
+                        {editingLabelId && (
+                          <Button variant="ghost" onClick={handleCancelLabelEdit} disabled={isLabelPending}>
+                            Отменить
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {boardLabels.length === 0 ? (
+                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                          Для этой доски пока нет меток.
+                        </div>
+                      ) : (
+                        boardLabels.map((label) => (
+                          <div
+                            key={label.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-border"
+                                style={{ backgroundColor: label.color || "transparent" }}
+                              />
+                              <span className="truncate text-sm font-medium">{label.name}</span>
+                              <span className="truncate text-xs text-muted-foreground">
+                                {label.color || "без цвета"}
+                              </span>
+                            </div>
+                            {canEditSelectedBoard && (
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditLabel(label)}
+                                  disabled={isLabelPending}
+                                >
+                                  Изменить
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteLabelMutation.mutate(label.id)}
+                                  disabled={isLabelPending}
+                                >
+                                  Удалить
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {editingMemberId ? "Редактировать участника" : "Участники доски"}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedBoard?.canManage
+                        ? "Управляйте составом доски и правами viewer/editor/comment."
+                        : "Список участников и их текущих прав на доску."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedBoard?.canManage && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium" htmlFor="kanban-member-user">
+                            Пользователь
+                          </label>
+                          <select
+                            id="kanban-member-user"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={memberForm.userId}
+                            onChange={(event) => setMemberForm((prev) => ({ ...prev, userId: event.target.value }))}
+                            disabled={Boolean(editingMemberId) || isMemberPending}
+                          >
+                            {availableBoardMembers.length === 0 && !editingMemberId && (
+                              <option value="">Нет доступных пользователей</option>
+                            )}
+                            {editingMemberId && <option value={memberForm.userId}>{userById.get(memberForm.userId)?.name || memberForm.userId}</option>}
+                            {availableBoardMembers.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium" htmlFor="kanban-member-role">
+                              Роль
+                            </label>
+                            <select
+                              id="kanban-member-role"
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={memberForm.role}
+                              onChange={(event) =>
+                                setMemberForm((prev) => ({
+                                  ...prev,
+                                  role: event.target.value as "viewer" | "editor",
+                                  canComment: event.target.value === "editor" ? true : prev.canComment,
+                                }))
+                              }
+                              disabled={isMemberPending}
+                            >
+                              <option value="viewer">Viewer</option>
+                              <option value="editor">Editor</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium" htmlFor="kanban-member-comment">
+                              Комментарии
+                            </label>
+                            <select
+                              id="kanban-member-comment"
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={memberForm.role === "editor" || memberForm.canComment ? "yes" : "no"}
+                              onChange={(event) =>
+                                setMemberForm((prev) => ({ ...prev, canComment: event.target.value === "yes" }))
+                              }
+                              disabled={isMemberPending || memberForm.role === "editor"}
+                            >
+                              <option value="yes">Разрешены</option>
+                              <option value="no">Запрещены</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            className="gap-2"
+                            onClick={() => saveMemberMutation.mutate()}
+                            disabled={(!editingMemberId && !memberForm.userId) || isMemberPending}
+                          >
+                            <Plus className="h-4 w-4" />
+                            {editingMemberId ? "Сохранить участника" : "Добавить участника"}
+                          </Button>
+                          {editingMemberId && (
+                            <Button variant="ghost" onClick={handleCancelMemberEdit} disabled={isMemberPending}>
+                              Отменить
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    <div className="space-y-2">
+                      {boardMembersLoading ? (
+                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                          Загружаем участников доски...
+                        </div>
+                      ) : boardMembers.length === 0 ? (
+                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                          У этой доски пока нет участников.
+                        </div>
+                      ) : (
+                        boardMembers.map((member) => {
+                          const user = userById.get(member.userId);
+                          return (
+                            <div
+                              key={member.id}
+                              className="space-y-2 rounded-lg border bg-muted/20 px-3 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">{user?.name || member.userId}</p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {user?.email || user?.username || member.userId}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant={member.role === "editor" ? "default" : "outline"}>
+                                    {member.role}
+                                  </Badge>
+                                  <Badge variant={member.canComment ? "secondary" : "outline"}>
+                                    {member.canComment ? "can comment" : "read only"}
+                                  </Badge>
+                                </div>
+                              </div>
+                              {selectedBoard?.canManage && (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditMember(member)}
+                                    disabled={isMemberPending}
+                                  >
+                                    Изменить
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => deleteMemberMutation.mutate(member.id)}
+                                    disabled={isMemberPending || member.userId === selectedBoard.createdByUserId}
+                                  >
+                                    Удалить
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1807,6 +2484,39 @@ export default function TasksV2Page() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-sm font-medium">Метки</label>
+                    {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                  </div>
+                  {boardLabels.length === 0 ? (
+                    <div className="rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground">
+                      У этой доски пока нет меток.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {boardLabels.map((label) => {
+                        const selected = detailCardForm.labelIds.includes(label.id);
+                        return (
+                          <button
+                            key={label.id}
+                            type="button"
+                            className={[
+                              "rounded-full border px-3 py-1.5 text-sm transition",
+                              selected ? "border-foreground shadow-sm" : "border-border",
+                            ].join(" ")}
+                            style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
+                            onClick={() => toggleDetailCardFormLabel(label.id)}
+                            disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
+                          >
+                            {label.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
                     <p>Создатель: {userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}</p>
@@ -1814,6 +2524,27 @@ export default function TasksV2Page() {
                     <p>Создана: {formatDueDateLabel(selectedDetailCard.createdAt) || "Неизвестно"}</p>
                     <p>Обновлена: {formatDueDateLabel(selectedDetailCard.updatedAt) || "Еще не обновлялась"}</p>
                   </div>
+                  {normalizeLabelIds(selectedDetailCard.labelIds).length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {normalizeLabelIds(selectedDetailCard.labelIds).map((labelId) => {
+                        const label = labelById.get(labelId);
+                        if (!label) return null;
+                        return (
+                          <Badge
+                            key={label.id}
+                            variant="outline"
+                            className="border-transparent"
+                            style={{
+                              backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
+                              color: "#111827",
+                            }}
+                          >
+                            {label.name}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -1845,6 +2576,74 @@ export default function TasksV2Page() {
                           </p>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">Комментарии</h3>
+                    {detailCardCommentsLoading && (
+                      <span className="text-xs text-muted-foreground">Загружаем комментарии...</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {detailCardComments.length === 0 ? (
+                      <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                        У этой карточки пока нет комментариев.
+                      </div>
+                    ) : (
+                      detailCardComments.map((comment) => (
+                        <div key={comment.id} className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-medium">
+                              {userById.get(comment.userId)?.name || comment.userId}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {formatDueDateLabel(comment.createdAt) || "Неизвестное время"}
+                              </span>
+                              {canEditSelectedBoard && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => deleteCardCommentMutation.mutate(comment.id)}
+                                  disabled={deleteCardCommentMutation.isPending}
+                                >
+                                  Удалить
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap break-words">{comment.content}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {canCommentSelectedBoard && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-detail-comment">
+                        Новый комментарий
+                      </label>
+                      <Textarea
+                        id="kanban-detail-comment"
+                        value={detailCommentDraft}
+                        onChange={(event) => setDetailCommentDraft(event.target.value)}
+                        placeholder="Добавьте короткий комментарий по карточке"
+                        rows={3}
+                        disabled={createCardCommentMutation.isPending}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={() => createCardCommentMutation.mutate()}
+                          disabled={!detailCommentDraft.trim() || createCardCommentMutation.isPending}
+                        >
+                          Добавить комментарий
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

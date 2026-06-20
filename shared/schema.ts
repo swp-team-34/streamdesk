@@ -395,6 +395,23 @@ export const kanbanCards = pgTable("kanban_cards", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const kanbanLabels = pgTable("kanban_labels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id").references(() => kanbanBoards.id).notNull(),
+  name: text("name").notNull(),
+  color: text("color"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const kanbanCardLabels = pgTable("kanban_card_labels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
+  labelId: varchar("label_id").references(() => kanbanLabels.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const kanbanCardHistory = pgTable("kanban_card_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
@@ -403,6 +420,15 @@ export const kanbanCardHistory = pgTable("kanban_card_history", {
   oldValue: jsonb("old_value"),
   newValue: jsonb("new_value"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const kanbanCardComments = pgTable("kanban_card_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const customLocations = pgTable("custom_locations", {
@@ -710,9 +736,27 @@ export const insertKanbanCardSchema = createInsertSchema(kanbanCards).omit({
   updatedAt: true,
 });
 
+export const insertKanbanLabelSchema = createInsertSchema(kanbanLabels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertKanbanCardLabelSchema = createInsertSchema(kanbanCardLabels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertKanbanCardHistorySchema = createInsertSchema(kanbanCardHistory).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertKanbanCardCommentSchema = createInsertSchema(kanbanCardComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
@@ -856,8 +900,17 @@ export type InsertKanbanList = z.infer<typeof insertKanbanListSchema>;
 export type KanbanCard = typeof kanbanCards.$inferSelect;
 export type InsertKanbanCard = z.infer<typeof insertKanbanCardSchema>;
 
+export type KanbanLabel = typeof kanbanLabels.$inferSelect;
+export type InsertKanbanLabel = z.infer<typeof insertKanbanLabelSchema>;
+
+export type KanbanCardLabel = typeof kanbanCardLabels.$inferSelect;
+export type InsertKanbanCardLabel = z.infer<typeof insertKanbanCardLabelSchema>;
+
 export type KanbanCardHistory = typeof kanbanCardHistory.$inferSelect;
 export type InsertKanbanCardHistory = z.infer<typeof insertKanbanCardHistorySchema>;
+
+export type KanbanCardComment = typeof kanbanCardComments.$inferSelect;
+export type InsertKanbanCardComment = z.infer<typeof insertKanbanCardCommentSchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;

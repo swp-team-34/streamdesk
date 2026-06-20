@@ -19,7 +19,9 @@ import {
   insertTaskSchema,
   insertTaskCommentSchema,
   insertTaskHistorySchema,
-  insertRoleSchema
+  insertRoleSchema,
+  insertKanbanCardCommentSchema,
+  insertKanbanLabelSchema,
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
@@ -442,6 +444,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     visibility: z.enum(["company", "members"]).optional(),
   });
+  const kanbanBoardMemberCreateSchema = z.object({
+    userId: z.string().trim().min(1, "userId обязателен"),
+    role: z.enum(["viewer", "editor"]).default("viewer"),
+    canComment: z.boolean().optional().default(false),
+  });
+  const kanbanBoardMemberUpdateSchema = z.object({
+    role: z.enum(["viewer", "editor"]).optional(),
+    canComment: z.boolean().optional(),
+  });
 
   const kanbanListCreateSchema = z.object({
     name: z.string().trim().min(1, "Введите название списка").max(120, "Название слишком длинное"),
@@ -465,6 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
+    labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
   });
 
   const kanbanCardUpdateSchema = z.object({
@@ -474,10 +486,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
+    labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
   });
   const kanbanCardMoveSchema = z.object({
     listId: z.string().trim().min(1, "listId обязателен"),
     position: z.coerce.number().int().min(0),
+  });
+  const kanbanLabelPayloadSchema = z.object({
+    name: z.string().trim().min(1, "Введите название метки").max(80, "Название слишком длинное"),
+    color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
   });
 
   const buildKanbanBoardResponse = (
@@ -487,6 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ...board,
     canManage: options.canManage,
     canEdit: options.canManage || options.membership?.role === "editor",
+    canComment: options.canManage || options.membership?.role === "editor" || Boolean(options.membership?.canComment),
     isMember: Boolean(options.membership),
     membershipRole: options.membership?.role ?? null,
   });
@@ -518,6 +536,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const canEditKanbanBoard = (access: { canManage: boolean; membership?: any }) =>
     access.canManage || access.membership?.role === "editor";
+
+  const canCommentKanbanBoard = (access: { canManage: boolean; membership?: any }) =>
+    canEditKanbanBoard(access) || Boolean(access.membership?.canComment);
 
   const parseOptionalKanbanDate = (value: unknown): Date | null => {
     if (value == null) return null;
@@ -564,6 +585,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     return { ok: true as const, userId: normalized };
+  };
+
+  const resolveKanbanLabelIds = async (boardId: string, labelIds: unknown) => {
+    if (labelIds == null) return { ok: true as const, labelIds: [] as string[] };
+    if (!Array.isArray(labelIds)) {
+      return { ok: false as const, message: "Метки должны передаваться массивом" };
+    }
+
+    const uniqueLabelIds = Array.from(new Set(labelIds.map((value) => String(value || "").trim()).filter(Boolean)));
+    if (!uniqueLabelIds.length) return { ok: true as const, labelIds: [] as string[] };
+
+    const boardLabels = await storage.getKanbanLabelsByBoardId(boardId).catch(() => []);
+    const allowedLabelIds = new Set((boardLabels as any[]).map((label) => String(label.id)));
+    const invalidLabelId = uniqueLabelIds.find((labelId) => !allowedLabelIds.has(labelId));
+
+    if (invalidLabelId) {
+      return { ok: false as const, message: "Одна или несколько меток не принадлежат этой доске" };
+    }
+
+    return { ok: true as const, labelIds: uniqueLabelIds };
+  };
+
+  const buildKanbanCardResponses = async (cards: any[]) => {
+    const labelEntries = await Promise.all(
+      cards.map(async (card) => {
+        const links = await storage.getKanbanCardLabels(card.id).catch(() => []);
+        return [String(card.id), (links as any[]).map((link) => String(link.labelId))] as const;
+      }),
+    );
+
+    const labelIdsByCardId = new Map(labelEntries);
+    return cards.map((card) => ({
+      ...card,
+      labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
+    }));
+  };
+
+  const buildKanbanCardResponse = async (card: any) => {
+    const [result] = await buildKanbanCardResponses([card]);
+    return result;
   };
 
   const ensureCompanyWorkspaceKey = async (companyId: string) => {
@@ -758,6 +819,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/kanban/boards/:boardId/members", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
+      res.json(members);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch board members:", error);
+      res.status(500).json({ message: "Не удалось загрузить участников доски" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/members", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
+
+      const parsed = kanbanBoardMemberCreateSchema.parse(req.body || {});
+      const user = await storage.getUser(parsed.userId).catch(() => undefined);
+      if (!user || user.active === false) {
+        return res.status(404).json({ message: "Пользователь не найден или деактивирован" });
+      }
+
+      const membership = await storage.getCompanyMembershipByUser(access.board.companyId, parsed.userId).catch(() => undefined);
+      if (!membership || membership.status !== "active") {
+        return res.status(400).json({ message: "Пользователь должен быть активным участником компании доски" });
+      }
+
+      const existing = await storage.getKanbanBoardMember(access.board.id, parsed.userId).catch(() => undefined);
+      if (existing) return res.status(409).json({ message: "Пользователь уже добавлен в доску" });
+
+      const created = await storage.createKanbanBoardMember({
+        boardId: access.board.id,
+        userId: parsed.userId,
+        role: parsed.role,
+        canComment: parsed.role === "editor" ? true : parsed.canComment,
+      });
+
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные участника", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create board member:", error);
+      res.status(500).json({ message: "Не удалось добавить участника" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:boardId/members/:memberId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
+
+      const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
+      const member = (members as any[]).find((item) => String(item.id) === String(req.params.memberId));
+      if (!member) return res.status(404).json({ message: "Участник не найден" });
+
+      const parsed = kanbanBoardMemberUpdateSchema.parse(req.body || {});
+      const nextRole = parsed.role ?? member.role;
+      const nextCanComment = nextRole === "editor" ? true : (parsed.canComment ?? member.canComment);
+
+      if (String(member.userId) === String(access.board.createdByUserId) && nextRole !== "editor") {
+        return res.status(400).json({ message: "Создатель доски должен оставаться editor" });
+      }
+
+      const updated = await storage.updateKanbanBoardMember(member.id, {
+        role: nextRole,
+        canComment: nextCanComment,
+      });
+      if (!updated) return res.status(404).json({ message: "Участник не найден" });
+
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные участника", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update board member:", error);
+      res.status(500).json({ message: "Не удалось обновить участника" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/members/:memberId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления участниками" });
+
+      const members = await storage.getKanbanBoardMembers(access.board.id).catch(() => []);
+      const member = (members as any[]).find((item) => String(item.id) === String(req.params.memberId));
+      if (!member) return res.status(404).json({ message: "Участник не найден" });
+      if (String(member.userId) === String(access.board.createdByUserId)) {
+        return res.status(400).json({ message: "Нельзя удалить создателя доски" });
+      }
+
+      await storage.deleteKanbanBoardMember(member.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete board member:", error);
+      res.status(500).json({ message: "Не удалось удалить участника" });
+    }
+  });
+
   app.get("/api/kanban/boards/:boardId/lists", async (req, res) => {
     try {
       const currentUser = req.user as any;
@@ -916,7 +1094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
 
       const cards = await storage.getKanbanCardsByBoardId(access.board.id).catch(() => []);
-      res.json(cards);
+      res.json(await buildKanbanCardResponses(cards as any[]));
     } catch (error) {
       console.error("[Kanban] Failed to fetch cards:", error);
       res.status(500).json({ message: "Не удалось загрузить карточки" });
@@ -936,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Карточка не найдена" });
       }
 
-      res.json(card);
+      res.json(await buildKanbanCardResponse(card));
     } catch (error) {
       console.error("[Kanban] Failed to fetch card:", error);
       res.status(500).json({ message: "Не удалось загрузить карточку" });
@@ -961,6 +1139,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Kanban] Failed to fetch card history:", error);
       res.status(500).json({ message: "Не удалось загрузить историю карточки" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:boardId/cards/:cardId/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const comments = await storage.getKanbanCardComments(card.id).catch(() => []);
+      res.json(comments);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch card comments:", error);
+      res.status(500).json({ message: "Не удалось загрузить комментарии карточки" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/cards/:cardId/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canCommentKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для комментариев карточки" });
+      }
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const commentData = insertKanbanCardCommentSchema.parse({
+        ...req.body,
+        cardId: card.id,
+        userId: currentUser.id,
+      });
+      const normalizedContent = String(commentData.content || "").trim();
+      if (!normalizedContent) {
+        return res.status(400).json({ message: "Комментарий не должен быть пустым" });
+      }
+
+      const comment = await storage.createKanbanCardComment({
+        ...commentData,
+        content: normalizedContent,
+      });
+
+      await createKanbanCardHistoryEntry(currentUser.id, card.id, "commented", null, {
+        commentId: comment.id,
+        content: comment.content.slice(0, 200),
+      });
+
+      res.status(201).json(comment);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные комментария", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create card comment:", error);
+      res.status(500).json({ message: "Не удалось добавить комментарий" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/cards/:cardId/comments/:commentId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для удаления комментариев" });
+      }
+
+      const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
+      if (!card || String(card.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Карточка не найдена" });
+      }
+
+      const comments = await storage.getKanbanCardComments(card.id).catch(() => []);
+      const comment = comments.find((item: any) => String(item.id) === String(req.params.commentId));
+      if (!comment) {
+        return res.status(404).json({ message: "Комментарий не найден" });
+      }
+
+      const deleted = await storage.deleteKanbanCardComment(comment.id);
+      if (!deleted) return res.status(404).json({ message: "Комментарий не найден" });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete card comment:", error);
+      res.status(500).json({ message: "Не удалось удалить комментарий" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:boardId/labels", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const labels = await storage.getKanbanLabelsByBoardId(access.board.id).catch(() => []);
+      res.json(labels);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch labels:", error);
+      res.status(500).json({ message: "Не удалось получить метки" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/labels", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения меток" });
+      }
+
+      const parsed = kanbanLabelPayloadSchema.parse(req.body || {});
+      const labelData = insertKanbanLabelSchema.parse({
+        boardId: access.board.id,
+        name: parsed.name,
+        color: parsed.color?.trim() || null,
+      });
+      const label = await storage.createKanbanLabel(labelData);
+      res.status(201).json(label);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные метки", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create label:", error);
+      res.status(500).json({ message: "Не удалось создать метку" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:boardId/labels/:labelId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения меток" });
+      }
+
+      const label = await storage.getKanbanLabelById(req.params.labelId).catch(() => undefined);
+      if (!label || String(label.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Метка не найдена" });
+      }
+
+      const parsed = kanbanLabelPayloadSchema.parse(req.body || {});
+      const updated = await storage.updateKanbanLabel(label.id, {
+        name: parsed.name,
+        color: parsed.color?.trim() || null,
+      });
+      if (!updated) return res.status(404).json({ message: "Метка не найдена" });
+
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные метки", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update label:", error);
+      res.status(500).json({ message: "Не удалось обновить метку" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/labels/:labelId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения меток" });
+      }
+
+      const label = await storage.getKanbanLabelById(req.params.labelId).catch(() => undefined);
+      if (!label || String(label.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Метка не найдена" });
+      }
+
+      await storage.deleteKanbanLabel(label.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete label:", error);
+      res.status(500).json({ message: "Не удалось удалить метку" });
     }
   });
 
@@ -989,6 +1367,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!assigneeResolution.ok) {
         return res.status(400).json({ message: assigneeResolution.message });
       }
+      const labelResolution = await resolveKanbanLabelIds(access.board.id, parsed.labelIds);
+      if (!labelResolution.ok) {
+        return res.status(400).json({ message: labelResolution.message });
+      }
 
       const card = await storage.createKanbanCard({
         boardId: access.board.id,
@@ -1001,10 +1383,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
       });
+      await storage.setKanbanCardLabels(card.id, labelResolution.labelIds);
 
       await createKanbanCardHistoryEntry(currentUser.id, card.id, "created", null, card);
 
-      res.status(201).json(card);
+      res.status(201).json(await buildKanbanCardResponse(card));
     } catch (error: any) {
       if (error?.name === "ZodError") {
         return res.status(400).json({ message: "Проверьте данные карточки", errors: error.flatten?.() });
@@ -1044,6 +1427,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         updateData.assigneeUserId = assigneeResolution.userId;
       }
+      const previousLabelIds = (await storage.getKanbanCardLabels(card.id).catch(() => []))
+        .map((link: any) => String(link.labelId));
+      let nextLabelIds = previousLabelIds;
+      if (parsed.labelIds !== undefined) {
+        const labelResolution = await resolveKanbanLabelIds(access.board.id, parsed.labelIds);
+        if (!labelResolution.ok) {
+          return res.status(400).json({ message: labelResolution.message });
+        }
+        nextLabelIds = labelResolution.labelIds;
+      }
 
       if (parsed.listId !== undefined) {
         const targetList = await storage.getKanbanListById(parsed.listId).catch(() => undefined);
@@ -1062,10 +1455,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updated = await storage.updateKanbanCard(card.id, updateData as any);
       if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+      if (parsed.labelIds !== undefined) {
+        await storage.setKanbanCardLabels(card.id, nextLabelIds);
+        if (
+          previousLabelIds.length !== nextLabelIds.length ||
+          previousLabelIds.some((labelId, index) => labelId !== nextLabelIds[index])
+        ) {
+          await createKanbanCardHistoryEntry(currentUser.id, updated.id, "labels_updated", {
+            labelIds: previousLabelIds,
+          }, {
+            labelIds: nextLabelIds,
+          });
+        }
+      }
 
       await createKanbanCardHistoryEntry(currentUser.id, updated.id, "updated", card, updated);
 
-      res.json(updated);
+      res.json(await buildKanbanCardResponse(updated));
     } catch (error: any) {
       if (error?.name === "ZodError") {
         return res.status(400).json({ message: "Проверьте данные карточки", errors: error.flatten?.() });
