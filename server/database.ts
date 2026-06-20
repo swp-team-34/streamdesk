@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, customLocations, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, customLocations, chatSessions, chatMessages, repositories,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -35,6 +35,7 @@ import {
   type ProjectColumn, type InsertProjectColumn,
   type KanbanBoard, type InsertKanbanBoard,
   type KanbanBoardMember, type InsertKanbanBoardMember,
+  type KanbanList, type InsertKanbanList,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -241,6 +242,11 @@ export interface IStorage {
   getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]>;
   getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined>;
   createKanbanBoardMember(member: InsertKanbanBoardMember): Promise<KanbanBoardMember>;
+  getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]>;
+  getKanbanListById(id: string): Promise<KanbanList | undefined>;
+  createKanbanList(list: InsertKanbanList): Promise<KanbanList>;
+  updateKanbanList(id: string, list: Partial<KanbanList>): Promise<KanbanList | undefined>;
+  deleteKanbanList(id: string): Promise<boolean>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -1020,6 +1026,7 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    await db!.delete(kanbanLists).where(eq(kanbanLists.boardId, id));
     await db!.delete(kanbanBoardMembers).where(eq(kanbanBoardMembers.boardId, id));
     const result = await db!.delete(kanbanBoards)
       .where(eq(kanbanBoards.id, id))
@@ -1050,6 +1057,38 @@ export class PostgreSQLStorage implements IStorage {
     const id = crypto.randomUUID();
     const result = await db!.insert(kanbanBoardMembers).values({ ...insertMember, id }).returning();
     return result[0];
+  }
+
+  async getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]> {
+    return await db!.select().from(kanbanLists)
+      .where(eq(kanbanLists.boardId, boardId))
+      .orderBy(sql`${kanbanLists.position} ASC, ${kanbanLists.createdAt} ASC`);
+  }
+
+  async getKanbanListById(id: string): Promise<KanbanList | undefined> {
+    const result = await db!.select().from(kanbanLists).where(eq(kanbanLists.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanList(insertList: InsertKanbanList): Promise<KanbanList> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanLists).values({ ...insertList, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanList(id: string, listData: Partial<KanbanList>): Promise<KanbanList | undefined> {
+    const result = await db!.update(kanbanLists)
+      .set({ ...listData, updatedAt: new Date() })
+      .where(eq(kanbanLists.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanList(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanLists)
+      .where(eq(kanbanLists.id, id))
+      .returning({ id: kanbanLists.id });
+    return result.length > 0;
   }
 
   // Custom Locations
@@ -1428,6 +1467,7 @@ class StubStorage implements IStorage {
   private projects = new Map<string, Project>();
   private kanbanBoardsMap = new Map<string, KanbanBoard>();
   private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
+  private kanbanListsMap = new Map<string, KanbanList>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -1882,6 +1922,9 @@ class StubStorage implements IStorage {
     return updated;
   }
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    for (const [listId, list] of this.kanbanListsMap.entries()) {
+      if (list.boardId === id) this.kanbanListsMap.delete(listId);
+    }
     for (const [memberId, member] of this.kanbanBoardMembersMap.entries()) {
       if (member.boardId === id) this.kanbanBoardMembersMap.delete(memberId);
     }
@@ -1903,6 +1946,30 @@ class StubStorage implements IStorage {
     const member = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanBoardMember;
     this.kanbanBoardMembersMap.set(id, member);
     return member;
+  }
+  async getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]> {
+    return Array.from(this.kanbanListsMap.values())
+      .filter((list) => list.boardId === boardId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanListById(id: string): Promise<KanbanList | undefined> {
+    return this.kanbanListsMap.get(id);
+  }
+  async createKanbanList(data: InsertKanbanList): Promise<KanbanList> {
+    const id = this.uid();
+    const list = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanList;
+    this.kanbanListsMap.set(id, list);
+    return list;
+  }
+  async updateKanbanList(id: string, data: Partial<KanbanList>): Promise<KanbanList | undefined> {
+    const list = this.kanbanListsMap.get(id);
+    if (!list) return undefined;
+    const updated = { ...list, ...data, updatedAt: this.now() } as KanbanList;
+    this.kanbanListsMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanList(id: string): Promise<boolean> {
+    return this.kanbanListsMap.delete(id);
   }
 
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }

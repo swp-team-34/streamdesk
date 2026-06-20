@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const KANBAN_BOARD_VISIBILITIES = ["company", "members"] as const;
 export const KANBAN_BOARD_MEMBER_ROLES = ["editor", "viewer"] as const;
+export const KANBAN_LIST_TYPES = ["active", "closed", "archive", "trash"] as const;
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -367,6 +368,17 @@ export const kanbanBoardMembers = pgTable("kanban_board_members", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const kanbanLists = pgTable("kanban_lists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id").references(() => kanbanBoards.id).notNull(),
+  type: text("type").notNull().default("active"),
+  position: integer("position").notNull().default(0),
+  name: text("name").notNull(),
+  color: text("color"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -660,6 +672,12 @@ export const insertKanbanBoardMemberSchema = createInsertSchema(kanbanBoardMembe
   updatedAt: true,
 });
 
+export const insertKanbanListSchema = createInsertSchema(kanbanLists).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
   createdAt: true,
@@ -794,6 +812,9 @@ export type InsertKanbanBoard = z.infer<typeof insertKanbanBoardSchema>;
 
 export type KanbanBoardMember = typeof kanbanBoardMembers.$inferSelect;
 export type InsertKanbanBoardMember = z.infer<typeof insertKanbanBoardMemberSchema>;
+
+export type KanbanList = typeof kanbanLists.$inferSelect;
+export type InsertKanbanList = z.infer<typeof insertKanbanListSchema>;
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;

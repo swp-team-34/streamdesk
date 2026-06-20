@@ -443,12 +443,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     visibility: z.enum(["company", "members"]).optional(),
   });
 
+  const kanbanListCreateSchema = z.object({
+    name: z.string().trim().min(1, "Введите название списка").max(120, "Название слишком длинное"),
+    color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
+    type: z.enum(["active", "closed", "archive", "trash"]).default("active"),
+  });
+
+  const kanbanListUpdateSchema = z.object({
+    name: z.string().trim().min(1, "Введите название списка").max(120, "Название слишком длинное").optional(),
+    color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
+    type: z.enum(["active", "closed", "archive", "trash"]).optional(),
+  });
+
   const buildKanbanBoardResponse = (
     board: any,
     options: { canManage: boolean; membership?: any },
   ) => ({
     ...board,
     canManage: options.canManage,
+    canEdit: options.canManage || options.membership?.role === "editor",
     isMember: Boolean(options.membership),
     membershipRole: options.membership?.role ?? null,
   });
@@ -667,6 +680,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Kanban] Failed to delete board:", error);
       res.status(500).json({ message: "Не удалось удалить доску" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:boardId/lists", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const lists = await storage.getKanbanListsByBoardId(access.board.id).catch(() => []);
+      res.json(lists);
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch lists:", error);
+      res.status(500).json({ message: "Не удалось загрузить списки" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/lists", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const canEdit = access.canManage || access.membership?.role === "editor";
+      if (!canEdit) return res.status(403).json({ message: "Недостаточно прав для изменения списков" });
+
+      const parsed = kanbanListCreateSchema.parse(req.body || {});
+      const existingLists = await storage.getKanbanListsByBoardId(access.board.id).catch(() => []);
+      const nextPosition = existingLists.reduce((maxPosition: number, list: any) => {
+        return Math.max(maxPosition, Number(list?.position ?? 0));
+      }, -1) + 1;
+
+      const list = await storage.createKanbanList({
+        boardId: access.board.id,
+        name: parsed.name,
+        color: parsed.color?.trim() || null,
+        type: parsed.type,
+        position: nextPosition,
+      });
+
+      res.status(201).json(list);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные списка", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create list:", error);
+      res.status(500).json({ message: "Не удалось создать список" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:boardId/lists/:listId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const canEdit = access.canManage || access.membership?.role === "editor";
+      if (!canEdit) return res.status(403).json({ message: "Недостаточно прав для изменения списков" });
+
+      const list = await storage.getKanbanListById(req.params.listId).catch(() => undefined);
+      if (!list || String(list.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Список не найден" });
+      }
+
+      const parsed = kanbanListUpdateSchema.parse(req.body || {});
+      const updateData: Record<string, unknown> = {};
+      if (parsed.name !== undefined) updateData.name = parsed.name;
+      if (parsed.color !== undefined) updateData.color = parsed.color?.trim() || null;
+      if (parsed.type !== undefined) updateData.type = parsed.type;
+
+      const updated = await storage.updateKanbanList(list.id, updateData as any);
+      if (!updated) return res.status(404).json({ message: "Список не найден" });
+
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные списка", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update list:", error);
+      res.status(500).json({ message: "Не удалось обновить список" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/lists/:listId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+
+      const canEdit = access.canManage || access.membership?.role === "editor";
+      if (!canEdit) return res.status(403).json({ message: "Недостаточно прав для изменения списков" });
+
+      const list = await storage.getKanbanListById(req.params.listId).catch(() => undefined);
+      if (!list || String(list.boardId) !== String(access.board.id)) {
+        return res.status(404).json({ message: "Список не найден" });
+      }
+
+      const deleted = await storage.deleteKanbanList(list.id);
+      if (!deleted) return res.status(404).json({ message: "Список не найден" });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to delete list:", error);
+      res.status(500).json({ message: "Не удалось удалить список" });
     }
   });
 
