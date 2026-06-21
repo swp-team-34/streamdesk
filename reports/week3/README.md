@@ -133,9 +133,18 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 - **Run instructions:** [Local setup (root README)](../../README.md) <!-- Part 27 -->
 - **Public video demo (< 2 min):** [MVP v1 demonstration (Yandex Disk)](ссылка) <!-- Part 28 TODO -->
 - **Reviewed PRs from Week 3:** <!-- Part 25 TODO -->
-  - [PR #XX — Description](ссылка)
-  - [PR #YY — Description](ссылка)
-  - [PR #ZZ — Description](ссылка)
+  - [PR #20 — Configure Assignment 3 repository workflow] https://github.com/swp-team-34/streamdesk/pull/20
+  - [PR #23 — docs: describe definition of done] https://github.com/swp-team-34/streamdesk/pull/23
+  - [PR #25 — Rename PR quality checklist] https://github.com/swp-team-34/streamdesk/pull/25
+  - [PR #38 — Rrafich user stories add] https://github.com/swp-team-34/streamdesk/pull/38
+  - [PR #46 — Fix Assignment 3 repository workflow compliance] https://github.com/swp-team-34/streamdesk/pull/46
+  - [PR #49 — Link changelog entries to issues] https://github.com/swp-team-34/streamdesk/pull/49
+  - [PR #52 — Align workflow templates with Process Requirements] https://github.com/swp-team-34/streamdesk/pull/52
+  - [PR #63 — 50 pbi create task manager version 2] https://github.com/swp-team-34/streamdesk/pull/63
+  - [PR #64 — 64 course task create or update the roadmap] https://github.com/swp-team-34/streamdesk/pull/64
+  - [PR #69 — Refine task manager UX and interactions] https://github.com/swp-team-34/streamdesk/pull/69
+  - [PR #71 — 42 course task reflection and retroperspective docs] https://github.com/swp-team-34/streamdesk/pull/71
+  - [PR #72 — Features/44,57,70 task manager refactoring] https://github.com/swp-team-34/streamdesk/pull/72
 
 ## Screenshots <!-- Part 29 TODO -->
 
