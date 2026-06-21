@@ -141,7 +141,7 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
   - [PR #YY — Description](ссылка)
   - [PR #ZZ — Description](ссылка)
 
-## Screenshots <!-- Part 29 -->
+## Screenshots <!-- Part 29 TODO -->
 
 ### Product Backlog
 
