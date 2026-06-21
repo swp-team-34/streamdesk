@@ -18,8 +18,8 @@ StreamDesk is a production workflow management system for broadcast teams.  <!--
 - [Changelog](../../CHANGELOG.md) <!-- Point 20 -->
 - [Customer Review Transcript](customer-review-transcript.md) <!-- Point 30 TODO -->
 - [Customer Review Summary](customer-review-summary.md) <!-- Point 31 TODO -->
-- [Week 3 Reflection](reflection.md) <!-- Point 32 TODO -->
-- [Sprint Retrospective](retrospective.md) <!-- Part 33 TODO -->
+- [Week 3 Reflection](reflection.md) <!-- Point 32 -->
+- [Sprint Retrospective](retrospective.md) <!-- Part 33 -->
 - [LLM Usage Report](llm-report.md) <!-- Part 34 -->
 
 ## Historical Reports (Week 2)
@@ -30,17 +30,13 @@ StreamDesk is a production workflow management system for broadcast teams.  <!--
 
 ## Key Metrics
 
-<!-- Total Product Backlog size: Part 9 TODO -->
-<!-- Current Sprint (Sprint 1) size: Part 10 TODO -->
-<!-- Number of qualifying PBIs: ??? -->
-<!-- MVP v1 PBIs completed: ??? -->
+<!-- Total Product Backlog size: Part 9 -->
+<!-- Current Sprint (Sprint 1) size: Part 10 -->
 
 | Metric | Value |
 | --- | --- |
-| Total Product Backlog size | **XX Story Points** |
-| Current Sprint (Sprint 1) size | **YY Story Points** |
-| Number of qualifying PBIs | **15+** |
-| MVP v1 PBIs completed | **N / M** |
+| Total Product Backlog size | **65 Story Points** |
+| Current Sprint (Sprint 1) size | **6 Story Points** |
 
 ## MVP v1 Scope
 
@@ -57,15 +53,15 @@ During the Week 2 meeting, the customer kindly asked us to hurry up with task ma
 
 ## Backlog and Sprint Boards
 
-- [Product Backlog board](ссылка_на_product_backlog_view) <!-- Part 6 TODO -->
+- [Product Backlog board](https://github.com/orgs/swp-team-34/projects/1) <!-- Part 6 -->
 - [Sprint 1 Backlog board](ссылка_на_sprint_backlog_view) <!-- ??? -->
-- [Sprint 1 Milestone](ссылка_на_milestone) — Sprint Goal, dates, and scope <!-- Part 8 TODO -->
+- [Sprint 1 Milestone](https://github.com/swp-team-34/streamdesk/milestone/1) — Sprint Goal, dates, and scope <!-- Part 8 -->
 - [MVP version grouped view](ссылка_на_view_с_группировкой_по_mvp) <!-- ??? -->
 
 ## Process and Workflow Documentation
 
 - [Changelog](../../CHANGELOG.md) <!-- Part 20 -->
-- [Process Requirements](https://gitlab.pg.innopolis.university/swp_26/swp_26/-/blob/main/Process_Requirements.md) <!-- Part 21 TODO -->
+- [Process Requirements](https://gitlab.pg.innopolis.university/swp_26/swp_26/-/blob/main/Process_Requirements.md) <!-- Part 21 -->
 - [Roadmap](../../docs/roadmap.md) <!-- Part 22 -->
 - [Definition of Done](../../docs/definition-of-done.md) <!-- Part 23 -->
 - [User Stories Index](../../docs/user-stories.md) <!-- ??? -->
@@ -108,7 +104,7 @@ See the full [Roadmap](../../docs/roadmap.md) for details.
 
 ## Product Status and Next Steps
 
-### Current status <!-- Part 16 TODO -->
+### Current status <!-- Part 16 -->
 MVP v1 is delivered and deployed. All selected PBIs are marked `Done`, reviewed, and verified against acceptance criteria. The customer has reviewed the increment during the Sprint Review.
 
 ### Next steps <!-- Part 17 -->
@@ -116,11 +112,11 @@ MVP v1 is delivered and deployed. All selected PBIs are marked `Done`, reviewed,
 - Begin Sprint 2 planning focused on reporting features
 - Refine MVP v2 backlog items and add acceptance criteria
 
-## Verification Evidence <!-- Part 15 TODO -->
+## Verification Evidence <!-- Part 15 -->
 
 All completed MVP v1 PBIs have been verified against their acceptance criteria. Verification evidence is preserved in the following PRs:
 
-- [PR #XX — US-XX implementation](ссылка) — acceptance criteria verified in [comment](ссылка_на_комментарий)
+- [PR #72 — US-003 implementation](https://github.com/swp-team-34/streamdesk/pull/72)
 
 ## Contribution Traceability <!-- Part 18 TODO -->
 
@@ -132,9 +128,9 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 
 ## Required Links
 
-- **MVP v1 deployment:** [streamdesk.innopolis.university](https://streamdesk.innopolis.university/) <!-- Part 26 TODO -->
+- **MVP v1 deployment:** [team34.ru](https://team34.ru/) <!-- Part 26 TODO -->
 - **SemVer release (MVP v1):** [v1.0.0](ссылка_на_github_release) <!-- Part 19 TODO -->
-- **Run instructions:** [Local setup (root README)](../../README.md#локальный-запуск) <!-- Part 27 TODO -->
+- **Run instructions:** [Local setup (root README)](../../README.md) <!-- Part 27 -->
 - **Public video demo (< 2 min):** [MVP v1 demonstration (Yandex Disk)](ссылка) <!-- Part 28 TODO -->
 - **Reviewed PRs from Week 3:** <!-- Part 25 TODO -->
   - [PR #XX — Description](ссылка)
@@ -157,15 +153,15 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 
 ### MVP Version Grouped View
 
-![MVP Version View](images/mvp-version-view.png)
+![MVP Version View](images/mvp-version-view.png) <!-- TODO -->
 
 ### SemVer Release
 
-![SemVer Release](images/semver-release.png)
+![SemVer Release](images/semver-release.png) <!-- TODO -->
 
 ### MVP v1 Deployment
 
-![MVP v1](images/mvp-v1.png)
+![MVP v1](images/mvp-v1.png) <!-- TODO -->
 
 ### Example Reviewed PR
 
@@ -178,5 +174,6 @@ The following URLs are excluded from automated Lychee link checking because GitH
 | URL | Reason for exclusion |
 | --- | --- |
 | `https://streamdesk.innopolis.university/` | Times out from GitHub Actions; manually verified accessible |
-| `https://team34.ru/` | MVP deployment responds inconsistently from CI; manually verified accessible |
-| Ссылка на видео (Yandex Disk) | Requires authentication from CI; manually verified accessible |
+| `https://streamdesk.ru/` | Times out from GitHub Actions; manually verified accessible |
+| `https://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
+| `http://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
