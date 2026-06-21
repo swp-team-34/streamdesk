@@ -18,6 +18,7 @@ import Servers from "@/pages/servers";
 import Notifications from "@/pages/notifications";
 import Settings from "@/pages/settings";
 import Tasks from "@/pages/tasks";
+import TasksV2 from "@/pages/tasks-v2";
 import TasksYouGile from "@/pages/tasks-yougile";
 import Admin from "@/pages/admin";
 import PlatformAdmin from "@/pages/platform-admin";
@@ -156,7 +157,21 @@ function Router({ user }: { user: any }) {
       <Route path="/tasks">
         <ProtectedRoute user={user}>
           <ErrorBoundary>
+            <TasksV2 />
+          </ErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/tasks-legacy">
+        <ProtectedRoute user={user}>
+          <ErrorBoundary>
             <Tasks />
+          </ErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/tasks-v2">
+        <ProtectedRoute user={user}>
+          <ErrorBoundary>
+            <TasksV2 />
           </ErrorBoundary>
         </ProtectedRoute>
       </Route>

@@ -5,7 +5,11 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, customLocations, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, chatSessions, chatMessages, repositories,
+  kanbanLabels, kanbanCardLabels,
+  kanbanCardHistory,
+  kanbanCardComments,
+  kanbanCardAttachments,
   vmixSchedulerEvents, connectionSchemas, connectionSchemaComponents,
   otisStreamSettings, showParticipantProfiles, showMarkers,
   yougileProjects, yougileBoards, yougileColumns, yougileUsers, yougileStringStickerStates,
@@ -33,6 +37,15 @@ import {
   type Computer, type InsertComputer,
   type Project, type InsertProject,
   type ProjectColumn, type InsertProjectColumn,
+  type KanbanBoard, type InsertKanbanBoard,
+  type KanbanBoardMember, type InsertKanbanBoardMember,
+  type KanbanList, type InsertKanbanList,
+  type KanbanCard, type InsertKanbanCard,
+  type KanbanLabel, type InsertKanbanLabel,
+  type KanbanCardLabel, type InsertKanbanCardLabel,
+  type KanbanCardHistory, type InsertKanbanCardHistory,
+  type KanbanCardComment, type InsertKanbanCardComment,
+  type KanbanCardAttachment, type InsertKanbanCardAttachment,
   type CustomLocation, type InsertCustomLocation,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
@@ -227,6 +240,49 @@ export interface IStorage {
   updateProjectColumn(id: string, column: Partial<ProjectColumn>): Promise<ProjectColumn | undefined>;
   deleteProjectColumn(id: string): Promise<boolean>;
   reorderProjectColumns(projectId: string, columnIds: string[]): Promise<void>;
+
+  // Kanban Boards
+  getKanbanBoards(): Promise<KanbanBoard[]>;
+  getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]>;
+  getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]>;
+  getKanbanBoardById(id: string): Promise<KanbanBoard | undefined>;
+  createKanbanBoard(board: InsertKanbanBoard): Promise<KanbanBoard>;
+  updateKanbanBoard(id: string, board: Partial<KanbanBoard>): Promise<KanbanBoard | undefined>;
+  deleteKanbanBoard(id: string): Promise<boolean>;
+  getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]>;
+  getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]>;
+  getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined>;
+  createKanbanBoardMember(member: InsertKanbanBoardMember): Promise<KanbanBoardMember>;
+  updateKanbanBoardMember(id: string, member: Partial<KanbanBoardMember>): Promise<KanbanBoardMember | undefined>;
+  deleteKanbanBoardMember(id: string): Promise<boolean>;
+  getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]>;
+  getKanbanListById(id: string): Promise<KanbanList | undefined>;
+  createKanbanList(list: InsertKanbanList): Promise<KanbanList>;
+  updateKanbanList(id: string, list: Partial<KanbanList>): Promise<KanbanList | undefined>;
+  reorderKanbanLists(boardId: string, listIds: string[]): Promise<void>;
+  deleteKanbanList(id: string): Promise<boolean>;
+  getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]>;
+  getKanbanCardsByListId(listId: string): Promise<KanbanCard[]>;
+  getKanbanCardById(id: string): Promise<KanbanCard | undefined>;
+  createKanbanCard(card: InsertKanbanCard): Promise<KanbanCard>;
+  updateKanbanCard(id: string, card: Partial<KanbanCard>): Promise<KanbanCard | undefined>;
+  moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined>;
+  deleteKanbanCard(id: string): Promise<boolean>;
+  getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]>;
+  getKanbanLabelById(id: string): Promise<KanbanLabel | undefined>;
+  createKanbanLabel(label: InsertKanbanLabel): Promise<KanbanLabel>;
+  updateKanbanLabel(id: string, label: Partial<KanbanLabel>): Promise<KanbanLabel | undefined>;
+  deleteKanbanLabel(id: string): Promise<boolean>;
+  getKanbanCardLabels(cardId: string): Promise<KanbanCardLabel[]>;
+  setKanbanCardLabels(cardId: string, labelIds: string[]): Promise<KanbanCardLabel[]>;
+  getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]>;
+  createKanbanCardHistory(history: InsertKanbanCardHistory): Promise<KanbanCardHistory>;
+  getKanbanCardComments(cardId: string): Promise<KanbanCardComment[]>;
+  createKanbanCardComment(comment: InsertKanbanCardComment): Promise<KanbanCardComment>;
+  deleteKanbanCardComment(id: string): Promise<boolean>;
+  getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]>;
+  createKanbanCardAttachment(attachment: InsertKanbanCardAttachment): Promise<KanbanCardAttachment>;
+  deleteKanbanCardAttachment(id: string): Promise<boolean>;
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
@@ -974,6 +1030,411 @@ export class PostgreSQLStorage implements IStorage {
     );
   }
 
+  // Kanban Boards
+  async getKanbanBoards(): Promise<KanbanBoard[]> {
+    return await db!.select().from(kanbanBoards).orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]> {
+    if (!companyIds.length) return [];
+    return await db!.select().from(kanbanBoards)
+      .where(inArray(kanbanBoards.companyId, companyIds))
+      .orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]> {
+    return await db!.select().from(kanbanBoards)
+      .where(and(
+        isNull(kanbanBoards.companyId),
+        eq(kanbanBoards.createdByUserId, userId),
+      ))
+      .orderBy(sql`${kanbanBoards.createdAt} DESC`);
+  }
+
+  async getKanbanBoardById(id: string): Promise<KanbanBoard | undefined> {
+    const result = await db!.select().from(kanbanBoards).where(eq(kanbanBoards.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanBoard(insertBoard: InsertKanbanBoard): Promise<KanbanBoard> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanBoards).values({ ...insertBoard, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanBoard(id: string, boardData: Partial<KanbanBoard>): Promise<KanbanBoard | undefined> {
+    const result = await db!.update(kanbanBoards)
+      .set({ ...boardData, updatedAt: new Date() })
+      .where(eq(kanbanBoards.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanBoard(id: string): Promise<boolean> {
+    const boardCardIdsQuery = db!
+      .select({ id: kanbanCards.id })
+      .from(kanbanCards)
+      .where(eq(kanbanCards.boardId, id));
+
+    await db!.delete(kanbanCardAttachments).where(inArray(
+      kanbanCardAttachments.cardId,
+      boardCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardComments).where(inArray(
+      kanbanCardComments.cardId,
+      boardCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardHistory).where(inArray(
+      kanbanCardHistory.cardId,
+      boardCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardLabels).where(inArray(
+      kanbanCardLabels.labelId,
+      db!.select({ id: kanbanLabels.id }).from(kanbanLabels).where(eq(kanbanLabels.boardId, id)),
+    ) as any);
+    await db!.delete(kanbanLabels).where(eq(kanbanLabels.boardId, id));
+    await db!.delete(kanbanCards).where(eq(kanbanCards.boardId, id));
+    await db!.delete(kanbanLists).where(eq(kanbanLists.boardId, id));
+    await db!.delete(kanbanBoardMembers).where(eq(kanbanBoardMembers.boardId, id));
+    const result = await db!.delete(kanbanBoards)
+      .where(eq(kanbanBoards.id, id))
+      .returning({ id: kanbanBoards.id });
+    return result.length > 0;
+  }
+
+  async getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]> {
+    return await db!.select().from(kanbanBoardMembers)
+      .where(eq(kanbanBoardMembers.boardId, boardId))
+      .orderBy(sql`${kanbanBoardMembers.createdAt} ASC`);
+  }
+
+  async getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]> {
+    return await db!.select().from(kanbanBoardMembers)
+      .where(eq(kanbanBoardMembers.userId, userId))
+      .orderBy(sql`${kanbanBoardMembers.createdAt} ASC`);
+  }
+
+  async getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined> {
+    const result = await db!.select().from(kanbanBoardMembers)
+      .where(and(eq(kanbanBoardMembers.boardId, boardId), eq(kanbanBoardMembers.userId, userId)))
+      .limit(1);
+    return result[0];
+  }
+
+  async createKanbanBoardMember(insertMember: InsertKanbanBoardMember): Promise<KanbanBoardMember> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanBoardMembers).values({ ...insertMember, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanBoardMember(id: string, memberData: Partial<KanbanBoardMember>): Promise<KanbanBoardMember | undefined> {
+    const result = await db!.update(kanbanBoardMembers)
+      .set({ ...memberData, updatedAt: new Date() })
+      .where(eq(kanbanBoardMembers.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanBoardMember(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanBoardMembers)
+      .where(eq(kanbanBoardMembers.id, id))
+      .returning({ id: kanbanBoardMembers.id });
+    return result.length > 0;
+  }
+
+  async getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]> {
+    return await db!.select().from(kanbanLists)
+      .where(eq(kanbanLists.boardId, boardId))
+      .orderBy(sql`${kanbanLists.position} ASC, ${kanbanLists.createdAt} ASC`);
+  }
+
+  async getKanbanListById(id: string): Promise<KanbanList | undefined> {
+    const result = await db!.select().from(kanbanLists).where(eq(kanbanLists.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanList(insertList: InsertKanbanList): Promise<KanbanList> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanLists).values({ ...insertList, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanList(id: string, listData: Partial<KanbanList>): Promise<KanbanList | undefined> {
+    const result = await db!.update(kanbanLists)
+      .set({ ...listData, updatedAt: new Date() })
+      .where(eq(kanbanLists.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async reorderKanbanLists(boardId: string, listIds: string[]): Promise<void> {
+    await Promise.all(
+      listIds.map((listId, index) =>
+        db!.update(kanbanLists)
+          .set({ position: index, updatedAt: new Date() })
+          .where(and(
+            eq(kanbanLists.id, listId),
+            eq(kanbanLists.boardId, boardId),
+          ))
+      )
+    );
+  }
+
+  async deleteKanbanList(id: string): Promise<boolean> {
+    const listCardIdsQuery = db!
+      .select({ id: kanbanCards.id })
+      .from(kanbanCards)
+      .where(eq(kanbanCards.listId, id));
+
+    await db!.delete(kanbanCardAttachments).where(inArray(
+      kanbanCardAttachments.cardId,
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardComments).where(inArray(
+      kanbanCardComments.cardId,
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardHistory).where(inArray(
+      kanbanCardHistory.cardId,
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardLabels).where(inArray(
+      kanbanCardLabels.cardId,
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCards).where(eq(kanbanCards.listId, id));
+    const result = await db!.delete(kanbanLists)
+      .where(eq(kanbanLists.id, id))
+      .returning({ id: kanbanLists.id });
+    return result.length > 0;
+  }
+
+  async getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]> {
+    return await db!.select().from(kanbanCards)
+      .where(eq(kanbanCards.boardId, boardId))
+      .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+  }
+
+  async getKanbanCardsByListId(listId: string): Promise<KanbanCard[]> {
+    return await db!.select().from(kanbanCards)
+      .where(eq(kanbanCards.listId, listId))
+      .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+  }
+
+  async getKanbanCardById(id: string): Promise<KanbanCard | undefined> {
+    const result = await db!.select().from(kanbanCards).where(eq(kanbanCards.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanCard(insertCard: InsertKanbanCard): Promise<KanbanCard> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCards).values({ ...insertCard, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanCard(id: string, cardData: Partial<KanbanCard>): Promise<KanbanCard | undefined> {
+    const result = await db!.update(kanbanCards)
+      .set({ ...cardData, updatedAt: new Date() })
+      .where(eq(kanbanCards.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined> {
+    return await db!.transaction(async (tx) => {
+      const currentCardResult = await tx.select().from(kanbanCards).where(eq(kanbanCards.id, id)).limit(1);
+      const currentCard = currentCardResult[0];
+      if (!currentCard) return undefined;
+
+      const currentListId = String(currentCard.listId);
+      const normalizedTargetPosition = Math.max(0, Number(targetPosition || 0));
+      const targetListCards = await tx
+        .select()
+        .from(kanbanCards)
+        .where(eq(kanbanCards.listId, targetListId))
+        .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+
+      if (currentListId === String(targetListId)) {
+        const reorderedCards = targetListCards.filter((card) => String(card.id) !== String(currentCard.id));
+        const insertionIndex = Math.min(normalizedTargetPosition, reorderedCards.length);
+        reorderedCards.splice(insertionIndex, 0, currentCard);
+
+        let movedCard: KanbanCard | undefined;
+        for (let index = 0; index < reorderedCards.length; index += 1) {
+          const card = reorderedCards[index];
+          const updatedCardResult = await tx
+            .update(kanbanCards)
+            .set({ position: index, updatedAt: new Date() })
+            .where(eq(kanbanCards.id, card.id))
+            .returning();
+
+          if (String(card.id) === String(currentCard.id)) {
+            movedCard = updatedCardResult[0];
+          }
+        }
+
+        return movedCard;
+      }
+
+      const sourceListCards = await tx
+        .select()
+        .from(kanbanCards)
+        .where(eq(kanbanCards.listId, currentListId))
+        .orderBy(sql`${kanbanCards.position} ASC, ${kanbanCards.createdAt} ASC`);
+
+      const reorderedSourceCards = sourceListCards.filter((card) => String(card.id) !== String(currentCard.id));
+      const reorderedTargetCards = targetListCards.filter((card) => String(card.id) !== String(currentCard.id));
+      const insertionIndex = Math.min(normalizedTargetPosition, reorderedTargetCards.length);
+
+      reorderedTargetCards.splice(insertionIndex, 0, { ...currentCard, listId: targetListId });
+
+      for (let index = 0; index < reorderedSourceCards.length; index += 1) {
+        const card = reorderedSourceCards[index];
+        await tx
+          .update(kanbanCards)
+          .set({ position: index, updatedAt: new Date() })
+          .where(eq(kanbanCards.id, card.id));
+      }
+
+      let movedCard: KanbanCard | undefined;
+      for (let index = 0; index < reorderedTargetCards.length; index += 1) {
+        const card = reorderedTargetCards[index];
+        const updatedCardResult = await tx
+          .update(kanbanCards)
+          .set({
+            listId: targetListId,
+            position: index,
+            updatedAt: new Date(),
+          })
+          .where(eq(kanbanCards.id, card.id))
+          .returning();
+
+        if (String(card.id) === String(currentCard.id)) {
+          movedCard = updatedCardResult[0];
+        }
+      }
+
+      return movedCard;
+    });
+  }
+
+  async deleteKanbanCard(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardAttachments).where(eq(kanbanCardAttachments.cardId, id));
+    await db!.delete(kanbanCardComments).where(eq(kanbanCardComments.cardId, id));
+    await db!.delete(kanbanCardHistory).where(eq(kanbanCardHistory.cardId, id));
+    await db!.delete(kanbanCardLabels).where(eq(kanbanCardLabels.cardId, id));
+    const result = await db!.delete(kanbanCards)
+      .where(eq(kanbanCards.id, id))
+      .returning({ id: kanbanCards.id });
+    return result.length > 0;
+  }
+
+  async getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]> {
+    return await db!.select().from(kanbanLabels)
+      .where(eq(kanbanLabels.boardId, boardId))
+      .orderBy(sql`${kanbanLabels.createdAt} ASC, ${kanbanLabels.name} ASC`);
+  }
+
+  async getKanbanLabelById(id: string): Promise<KanbanLabel | undefined> {
+    const result = await db!.select().from(kanbanLabels).where(eq(kanbanLabels.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createKanbanLabel(insertLabel: InsertKanbanLabel): Promise<KanbanLabel> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanLabels).values({ ...insertLabel, id }).returning();
+    return result[0];
+  }
+
+  async updateKanbanLabel(id: string, labelData: Partial<KanbanLabel>): Promise<KanbanLabel | undefined> {
+    const result = await db!.update(kanbanLabels)
+      .set({ ...labelData, updatedAt: new Date() })
+      .where(eq(kanbanLabels.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKanbanLabel(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardLabels).where(eq(kanbanCardLabels.labelId, id));
+    const result = await db!.delete(kanbanLabels)
+      .where(eq(kanbanLabels.id, id))
+      .returning({ id: kanbanLabels.id });
+    return result.length > 0;
+  }
+
+  async getKanbanCardLabels(cardId: string): Promise<KanbanCardLabel[]> {
+    return await db!.select().from(kanbanCardLabels)
+      .where(eq(kanbanCardLabels.cardId, cardId))
+      .orderBy(sql`${kanbanCardLabels.createdAt} ASC`);
+  }
+
+  async setKanbanCardLabels(cardId: string, labelIds: string[]): Promise<KanbanCardLabel[]> {
+    return await db!.transaction(async (tx) => {
+      await tx.delete(kanbanCardLabels).where(eq(kanbanCardLabels.cardId, cardId));
+
+      const uniqueLabelIds = Array.from(new Set(labelIds.map(String).filter(Boolean)));
+      if (!uniqueLabelIds.length) return [];
+
+      const rows = uniqueLabelIds.map((labelId) => ({
+        id: crypto.randomUUID(),
+        cardId,
+        labelId,
+      }));
+
+      return await tx.insert(kanbanCardLabels).values(rows).returning();
+    });
+  }
+
+  async getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]> {
+    return await db!.select().from(kanbanCardHistory)
+      .where(eq(kanbanCardHistory.cardId, cardId))
+      .orderBy(sql`${kanbanCardHistory.createdAt} DESC`);
+  }
+
+  async createKanbanCardHistory(insertHistory: InsertKanbanCardHistory): Promise<KanbanCardHistory> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCardHistory).values({ ...insertHistory, id }).returning();
+    return result[0];
+  }
+
+  async getKanbanCardComments(cardId: string): Promise<KanbanCardComment[]> {
+    return await db!.select().from(kanbanCardComments)
+      .where(eq(kanbanCardComments.cardId, cardId))
+      .orderBy(sql`${kanbanCardComments.createdAt} ASC`);
+  }
+
+  async createKanbanCardComment(insertComment: InsertKanbanCardComment): Promise<KanbanCardComment> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCardComments).values({ ...insertComment, id }).returning();
+    return result[0];
+  }
+
+  async deleteKanbanCardComment(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanCardComments)
+      .where(eq(kanbanCardComments.id, id))
+      .returning({ id: kanbanCardComments.id });
+    return result.length > 0;
+  }
+
+  async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
+    return await db!.select().from(kanbanCardAttachments)
+      .where(eq(kanbanCardAttachments.cardId, cardId))
+      .orderBy(sql`${kanbanCardAttachments.createdAt} DESC`);
+  }
+
+  async createKanbanCardAttachment(insertAttachment: InsertKanbanCardAttachment): Promise<KanbanCardAttachment> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(kanbanCardAttachments).values({ ...insertAttachment, id }).returning();
+    return result[0];
+  }
+
+  async deleteKanbanCardAttachment(id: string): Promise<boolean> {
+    const result = await db!.delete(kanbanCardAttachments)
+      .where(eq(kanbanCardAttachments.id, id))
+      .returning({ id: kanbanCardAttachments.id });
+    return result.length > 0;
+  }
+
   // Custom Locations
   async getCustomLocations(): Promise<CustomLocation[]> {
     return await db!.select().from(customLocations).orderBy(customLocations.name);
@@ -1348,6 +1809,15 @@ class StubStorage implements IStorage {
   private connectionSchemaComponents = new Map<string, ConnectionSchemaComponent>();
   private equipment = new Map<string, Equipment>();
   private projects = new Map<string, Project>();
+  private kanbanBoardsMap = new Map<string, KanbanBoard>();
+  private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
+  private kanbanListsMap = new Map<string, KanbanList>();
+  private kanbanCardsMap = new Map<string, KanbanCard>();
+  private kanbanLabelsMap = new Map<string, KanbanLabel>();
+  private kanbanCardLabelsMap = new Map<string, KanbanCardLabel>();
+  private kanbanCardHistoryMap = new Map<string, KanbanCardHistory>();
+  private kanbanCardCommentsMap = new Map<string, KanbanCardComment>();
+  private kanbanCardAttachmentsMap = new Map<string, KanbanCardAttachment>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -1776,6 +2246,337 @@ class StubStorage implements IStorage {
   async deleteProjectColumn(): Promise<boolean> { return true; }
   async reorderProjectColumns(): Promise<void> {}
 
+  async getKanbanBoards(): Promise<KanbanBoard[]> {
+    return Array.from(this.kanbanBoardsMap.values()).sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    );
+  }
+  async getKanbanBoardsByCompanyIds(companyIds: string[]): Promise<KanbanBoard[]> {
+    const allowed = new Set(companyIds.map(String));
+    return (await this.getKanbanBoards()).filter((board) => allowed.has(String(board.companyId)));
+  }
+  async getPersonalKanbanBoardsByUserId(userId: string): Promise<KanbanBoard[]> {
+    return (await this.getKanbanBoards()).filter(
+      (board) => !board.companyId && String(board.createdByUserId) === String(userId),
+    );
+  }
+  async getKanbanBoardById(id: string): Promise<KanbanBoard | undefined> {
+    return this.kanbanBoardsMap.get(id);
+  }
+  async createKanbanBoard(data: InsertKanbanBoard): Promise<KanbanBoard> {
+    const id = this.uid();
+    const board = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanBoard;
+    this.kanbanBoardsMap.set(id, board);
+    return board;
+  }
+  async updateKanbanBoard(id: string, data: Partial<KanbanBoard>): Promise<KanbanBoard | undefined> {
+    const board = this.kanbanBoardsMap.get(id);
+    if (!board) return undefined;
+    const updated = { ...board, ...data, updatedAt: this.now() } as KanbanBoard;
+    this.kanbanBoardsMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanBoard(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
+      if (card.boardId === id) {
+        this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+          if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
+        });
+        Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+          if (link.cardId === cardId) this.kanbanCardLabelsMap.delete(linkId);
+        });
+        Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+          if (history.cardId === cardId) this.kanbanCardHistoryMap.delete(historyId);
+        });
+        Array.from(this.kanbanCardCommentsMap.entries()).forEach(([commentId, comment]) => {
+          if (comment.cardId === cardId) this.kanbanCardCommentsMap.delete(commentId);
+        });
+      }
+    });
+    Array.from(this.kanbanLabelsMap.entries()).forEach(([labelId, label]) => {
+      if (label.boardId === id) {
+        this.kanbanLabelsMap.delete(labelId);
+        Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+          if (link.labelId === labelId) this.kanbanCardLabelsMap.delete(linkId);
+        });
+      }
+    });
+    Array.from(this.kanbanListsMap.entries()).forEach(([listId, list]) => {
+      if (list.boardId === id) this.kanbanListsMap.delete(listId);
+    });
+    Array.from(this.kanbanBoardMembersMap.entries()).forEach(([memberId, member]) => {
+      if (member.boardId === id) this.kanbanBoardMembersMap.delete(memberId);
+    });
+    return this.kanbanBoardsMap.delete(id);
+  }
+  async getKanbanBoardMembers(boardId: string): Promise<KanbanBoardMember[]> {
+    return Array.from(this.kanbanBoardMembersMap.values()).filter((member) => member.boardId === boardId);
+  }
+  async getKanbanBoardMembershipsByUser(userId: string): Promise<KanbanBoardMember[]> {
+    return Array.from(this.kanbanBoardMembersMap.values()).filter((member) => member.userId === userId);
+  }
+  async getKanbanBoardMember(boardId: string, userId: string): Promise<KanbanBoardMember | undefined> {
+    return Array.from(this.kanbanBoardMembersMap.values()).find(
+      (member) => member.boardId === boardId && member.userId === userId,
+    );
+  }
+  async createKanbanBoardMember(data: InsertKanbanBoardMember): Promise<KanbanBoardMember> {
+    const id = this.uid();
+    const member = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanBoardMember;
+    this.kanbanBoardMembersMap.set(id, member);
+    return member;
+  }
+  async updateKanbanBoardMember(id: string, data: Partial<KanbanBoardMember>): Promise<KanbanBoardMember | undefined> {
+    const member = this.kanbanBoardMembersMap.get(id);
+    if (!member) return undefined;
+    const updated = { ...member, ...data, updatedAt: this.now() } as KanbanBoardMember;
+    this.kanbanBoardMembersMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanBoardMember(id: string): Promise<boolean> {
+    return this.kanbanBoardMembersMap.delete(id);
+  }
+  async getKanbanListsByBoardId(boardId: string): Promise<KanbanList[]> {
+    return Array.from(this.kanbanListsMap.values())
+      .filter((list) => list.boardId === boardId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanListById(id: string): Promise<KanbanList | undefined> {
+    return this.kanbanListsMap.get(id);
+  }
+  async createKanbanList(data: InsertKanbanList): Promise<KanbanList> {
+    const id = this.uid();
+    const list = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanList;
+    this.kanbanListsMap.set(id, list);
+    return list;
+  }
+  async updateKanbanList(id: string, data: Partial<KanbanList>): Promise<KanbanList | undefined> {
+    const list = this.kanbanListsMap.get(id);
+    if (!list) return undefined;
+    const updated = { ...list, ...data, updatedAt: this.now() } as KanbanList;
+    this.kanbanListsMap.set(id, updated);
+    return updated;
+  }
+  async reorderKanbanLists(boardId: string, listIds: string[]): Promise<void> {
+    listIds.forEach((listId, index) => {
+      const list = this.kanbanListsMap.get(listId);
+      if (!list || String(list.boardId) !== String(boardId)) return;
+      this.kanbanListsMap.set(listId, {
+        ...list,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanList);
+    });
+  }
+  async deleteKanbanList(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
+      if (card.listId === id) {
+        this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+          if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
+        });
+        Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+          if (link.cardId === cardId) this.kanbanCardLabelsMap.delete(linkId);
+        });
+        Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+          if (history.cardId === cardId) this.kanbanCardHistoryMap.delete(historyId);
+        });
+        Array.from(this.kanbanCardCommentsMap.entries()).forEach(([commentId, comment]) => {
+          if (comment.cardId === cardId) this.kanbanCardCommentsMap.delete(commentId);
+        });
+      }
+    });
+    return this.kanbanListsMap.delete(id);
+  }
+
+  async getKanbanCardsByBoardId(boardId: string): Promise<KanbanCard[]> {
+    return Array.from(this.kanbanCardsMap.values())
+      .filter((card) => card.boardId === boardId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanCardsByListId(listId: string): Promise<KanbanCard[]> {
+    return Array.from(this.kanbanCardsMap.values())
+      .filter((card) => card.listId === listId)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  }
+  async getKanbanCardById(id: string): Promise<KanbanCard | undefined> {
+    return this.kanbanCardsMap.get(id);
+  }
+  async createKanbanCard(data: InsertKanbanCard): Promise<KanbanCard> {
+    const id = this.uid();
+    const card = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanCard;
+    this.kanbanCardsMap.set(id, card);
+    return card;
+  }
+  async updateKanbanCard(id: string, data: Partial<KanbanCard>): Promise<KanbanCard | undefined> {
+    const card = this.kanbanCardsMap.get(id);
+    if (!card) return undefined;
+    const updated = { ...card, ...data, updatedAt: this.now() } as KanbanCard;
+    this.kanbanCardsMap.set(id, updated);
+    return updated;
+  }
+  async moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined> {
+    const currentCard = this.kanbanCardsMap.get(id);
+    if (!currentCard) return undefined;
+
+    const currentListId = String(currentCard.listId);
+    const normalizedTargetPosition = Math.max(0, Number(targetPosition || 0));
+
+    if (currentListId === String(targetListId)) {
+      const reorderedCards = await this.getKanbanCardsByListId(currentListId);
+      const filteredCards = reorderedCards.filter((card) => card.id !== id);
+      const insertionIndex = Math.min(normalizedTargetPosition, filteredCards.length);
+      filteredCards.splice(insertionIndex, 0, currentCard);
+
+      let movedCard: KanbanCard | undefined;
+      filteredCards.forEach((card, index) => {
+        const updatedCard = {
+          ...card,
+          position: index,
+          updatedAt: this.now(),
+        } as KanbanCard;
+        this.kanbanCardsMap.set(card.id, updatedCard);
+        if (card.id === id) movedCard = updatedCard;
+      });
+
+      return movedCard;
+    }
+
+    const sourceCards = (await this.getKanbanCardsByListId(currentListId)).filter((card) => card.id !== id);
+    const targetCards = (await this.getKanbanCardsByListId(targetListId)).filter((card) => card.id !== id);
+    const insertionIndex = Math.min(normalizedTargetPosition, targetCards.length);
+
+    targetCards.splice(insertionIndex, 0, {
+      ...currentCard,
+      listId: targetListId,
+    } as KanbanCard);
+
+    sourceCards.forEach((card, index) => {
+      this.kanbanCardsMap.set(card.id, {
+        ...card,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanCard);
+    });
+
+    let movedCard: KanbanCard | undefined;
+    targetCards.forEach((card, index) => {
+      const updatedCard = {
+        ...card,
+        listId: targetListId,
+        position: index,
+        updatedAt: this.now(),
+      } as KanbanCard;
+      this.kanbanCardsMap.set(card.id, updatedCard);
+      if (card.id === id) movedCard = updatedCard;
+    });
+
+    return movedCard;
+  }
+  async deleteKanbanCard(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
+      if (attachment.cardId === id) this.kanbanCardAttachmentsMap.delete(attachmentId);
+    });
+    Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+      if (link.cardId === id) this.kanbanCardLabelsMap.delete(linkId);
+    });
+    Array.from(this.kanbanCardHistoryMap.entries()).forEach(([historyId, history]) => {
+      if (history.cardId === id) this.kanbanCardHistoryMap.delete(historyId);
+    });
+    Array.from(this.kanbanCardCommentsMap.entries()).forEach(([commentId, comment]) => {
+      if (comment.cardId === id) this.kanbanCardCommentsMap.delete(commentId);
+    });
+    return this.kanbanCardsMap.delete(id);
+  }
+  async getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]> {
+    return Array.from(this.kanbanLabelsMap.values())
+      .filter((label) => label.boardId === boardId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async getKanbanLabelById(id: string): Promise<KanbanLabel | undefined> {
+    return this.kanbanLabelsMap.get(id);
+  }
+  async createKanbanLabel(data: InsertKanbanLabel): Promise<KanbanLabel> {
+    const id = this.uid();
+    const label = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanLabel;
+    this.kanbanLabelsMap.set(id, label);
+    return label;
+  }
+  async updateKanbanLabel(id: string, data: Partial<KanbanLabel>): Promise<KanbanLabel | undefined> {
+    const label = this.kanbanLabelsMap.get(id);
+    if (!label) return undefined;
+    const updated = { ...label, ...data, updatedAt: this.now() } as KanbanLabel;
+    this.kanbanLabelsMap.set(id, updated);
+    return updated;
+  }
+  async deleteKanbanLabel(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+      if (link.labelId === id) this.kanbanCardLabelsMap.delete(linkId);
+    });
+    return this.kanbanLabelsMap.delete(id);
+  }
+  async getKanbanCardLabels(cardId: string): Promise<KanbanCardLabel[]> {
+    return Array.from(this.kanbanCardLabelsMap.values())
+      .filter((link) => link.cardId === cardId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async setKanbanCardLabels(cardId: string, labelIds: string[]): Promise<KanbanCardLabel[]> {
+    Array.from(this.kanbanCardLabelsMap.entries()).forEach(([linkId, link]) => {
+      if (link.cardId === cardId) this.kanbanCardLabelsMap.delete(linkId);
+    });
+
+    const now = this.now();
+    const created: KanbanCardLabel[] = [];
+    for (const labelId of Array.from(new Set(labelIds.map(String).filter(Boolean)))) {
+      const id = this.uid();
+      const link = { id, cardId, labelId, createdAt: now, updatedAt: now } as KanbanCardLabel;
+      this.kanbanCardLabelsMap.set(id, link);
+      created.push(link);
+    }
+
+    return created;
+  }
+  async getKanbanCardHistory(cardId: string): Promise<KanbanCardHistory[]> {
+    return Array.from(this.kanbanCardHistoryMap.values())
+      .filter((history) => history.cardId === cardId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async createKanbanCardHistory(data: InsertKanbanCardHistory): Promise<KanbanCardHistory> {
+    const id = this.uid();
+    const history = { ...data, id, createdAt: this.now() } as KanbanCardHistory;
+    this.kanbanCardHistoryMap.set(id, history);
+    return history;
+  }
+  async getKanbanCardComments(cardId: string): Promise<KanbanCardComment[]> {
+    return Array.from(this.kanbanCardCommentsMap.values())
+      .filter((comment) => comment.cardId === cardId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async createKanbanCardComment(data: InsertKanbanCardComment): Promise<KanbanCardComment> {
+    const id = this.uid();
+    const comment = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanCardComment;
+    this.kanbanCardCommentsMap.set(id, comment);
+    return comment;
+  }
+  async deleteKanbanCardComment(id: string): Promise<boolean> {
+    return this.kanbanCardCommentsMap.delete(id);
+  }
+  async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
+    return Array.from(this.kanbanCardAttachmentsMap.values())
+      .filter((attachment) => attachment.cardId === cardId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async createKanbanCardAttachment(data: InsertKanbanCardAttachment): Promise<KanbanCardAttachment> {
+    const id = this.uid();
+    const attachment = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as KanbanCardAttachment;
+    this.kanbanCardAttachmentsMap.set(id, attachment);
+    return attachment;
+  }
+  async deleteKanbanCardAttachment(id: string): Promise<boolean> {
+    return this.kanbanCardAttachmentsMap.delete(id);
+  }
+
   async getCustomLocations(): Promise<CustomLocation[]> { return []; }
   async createCustomLocation(data: InsertCustomLocation): Promise<CustomLocation> {
     return { ...data, id: this.uid(), createdAt: this.now() } as CustomLocation;
@@ -2023,6 +2824,11 @@ export async function initDatabase(): Promise<void> {
       storage = new PostgreSQLStorage();
       isStubStorage = false;
       console.log("✅ Подключение к PostgreSQL успешно.");
+      try {
+        await client`ALTER TABLE kanban_boards ALTER COLUMN company_id DROP NOT NULL`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось ослабить kanban_boards.company_id:", schemaErr);
+      }
       try {
         await db!.select().from(users).limit(0);
       } catch (tableErr: any) {
