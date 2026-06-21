@@ -1,17 +1,19 @@
 ## Linked issue
 
-Closes #
+Value: Related issue #, or `Not applicable`.
+
+Closes # only if this PR/MR fully completes the linked issue.
 
 ## Summary
 
-Describe the change.
+Value: Describe the change.
 
 ## Branch naming confirmation
 
 - [ ] Branch follows `<issue-number>-short-description`.
-- [ ] Branch is linked to the issue above.
+- [ ] Branch was created from the issue page where supported, or this PR/MR is linked to the issue above.
 
-## PBI type
+## Linked issue type
 
 - [ ] User Story
 - [ ] Other PBI
@@ -19,69 +21,79 @@ Describe the change.
 - [ ] Bug Report
 - [ ] Other:
 
-## Work Status
+## Expected linked issue Work Status after merge
 
-- [ ] Backlog
-- [ ] Selected for Sprint
+- [ ] To Do
+- [ ] Ready
 - [ ] In Progress
-- [ ] In Review
+- [ ] Review
 - [ ] Done
+- [ ] Not applicable
 
 ## MoSCoW priority, if applicable
 
-- [ ] Must
-- [ ] Should
-- [ ] Could
-- [ ] Won't for this release
+- [ ] Must Have
+- [ ] Should Have
+- [ ] Could Have
+- [ ] Won't Have / not counted toward required qualifying PBIs
 - [ ] Not applicable
 
 ## Story Points, if applicable
 
-TODO:
+Value: Story Points value, or `Not applicable`.
 
 ## MVP version, if applicable
 
-TODO:
+Value: MVP version, or `Not applicable`.
+
+## Sprint role confirmation, if applicable
+
+* Implementer:
+* Reviewer:
+- [ ] Reviewer is different from implementer.
 
 ## Acceptance criteria verification
 
 - [ ] Acceptance criteria are listed in the linked issue.
 - [ ] Each acceptance criterion has been verified.
 - [ ] Any incomplete criterion is documented with a reason.
+- [ ] Team Definition of Done is satisfied, if this PR/MR completes the linked issue.
 
 ## Testing/verification evidence
 
-- Commands run:
-- Results:
-- Evidence links or files:
+* Commands run:
+* Results:
+* Evidence links or files:
 
 ## Screenshots or demo evidence, if applicable
 
-- TODO:
+Value: Link screenshots/demo evidence, or `Not applicable`.
 
 ## Changelog
 
 Select exactly one:
 
 - [ ] `CHANGELOG.md` was updated for user-visible changes.
-- [ ] `CHANGELOG.md` update is not applicable because this PR has no user-visible changes.
+- [ ] `CHANGELOG.md` update is not applicable because this PR/MR has no user-visible changes.
 
-## Quality Checklist
+## Quality checklist
 
 - [ ] Scope matches the linked issue.
 - [ ] Documentation was updated where needed.
 - [ ] Tests/checks were run where practical.
-- [ ] No secrets, tokens, passwords, or `.env` files are committed.
+- [ ] No secrets, tokens, passwords, `.env` files, private recordings, confidential materials, or unnecessary PII are committed.
 - [ ] Links were checked or intentionally excluded with justification.
 
 ## Reviewer checklist
 
-- [ ] The PR is linked to an issue.
+- [ ] The PR/MR is linked to an issue.
 - [ ] The issue type matches the work: User Story, Other PBI, Course Task, or Bug Report.
 - [ ] The branch name follows `<issue-number>-short-description`, unless it is an automated branch.
 - [ ] Acceptance criteria are clear and verified.
 - [ ] Evidence is sufficient for the change.
+- [ ] The team Definition of Done is satisfied if this PR/MR completes the linked issue.
 - [ ] Exactly one changelog option is selected and the decision is reasonable.
+- [ ] A meaningful review comment was left where review feedback was needed, or the approval comment explains that no changes were required.
 - [ ] Repository workflow evidence is preserved; historical PR/MR evidence was not deleted or rewritten.
 
 ## Merge readiness
@@ -93,16 +105,8 @@ Select exactly one:
 
 ## Related assignment section
 
-- [ ] Part 1
-- [ ] Part 2
-- [ ] Part 3
-- [ ] Part 4
-- [ ] Part 5
-- [ ] Part 6
-- [ ] Part 7
-- [ ] Part 8
-- [ ] Part 9
-- [ ] Part 10
-- [ ] Part 11
-- [ ] Part 12
-- [ ] Part 13
+Write the relevant Assignment 3 part(s), or `Not applicable`.
+
+Example: Part 2, Part 6
+
+Value:
