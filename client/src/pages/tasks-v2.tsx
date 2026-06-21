@@ -270,6 +270,16 @@ const BOARD_VISIBILITY_META: Record<
   },
 };
 
+const KANBAN_PANEL_CARD_CLASS =
+  "overflow-hidden border-slate-500/20 bg-[linear-gradient(180deg,rgba(226,232,240,0.62),rgba(148,163,184,0.10))] shadow-sm";
+const KANBAN_PANEL_HEADER_CLASS = "border-b border-slate-500/15 bg-slate-900/[0.03]";
+const KANBAN_PANEL_INPUT_CLASS =
+  "h-10 rounded-xl border-slate-500/15 bg-slate-50/80 shadow-none focus-visible:ring-slate-400/30";
+const KANBAN_PANEL_SELECT_CLASS =
+  "flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm shadow-none";
+const KANBAN_DETAIL_SECTION_CLASS =
+  "rounded-[22px] border border-slate-500/15 bg-[linear-gradient(180deg,rgba(226,232,240,0.52),rgba(148,163,184,0.08))] p-4 shadow-sm";
+
 const DUE_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -296,6 +306,28 @@ const formatDueDateLabel = (value?: string | Date | null) => {
   if (Number.isNaN(date.getTime())) return null;
 
   return DUE_DATE_FORMATTER.format(date);
+};
+
+const toSoftColor = (value?: string | null, alpha = 0.12) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return undefined;
+
+  const shortHexMatch = normalized.match(/^#([\da-fA-F]{3})$/);
+  if (shortHexMatch) {
+    const [r, g, b] = shortHexMatch[1].split("").map((part) => parseInt(part + part, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const fullHexMatch = normalized.match(/^#([\da-fA-F]{6})$/);
+  if (fullHexMatch) {
+    const hex = fullHexMatch[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  return undefined;
 };
 
 type DueDateStatus = "none" | "upcoming" | "soon" | "overdue" | "complete";
@@ -2021,7 +2053,7 @@ export default function TasksV2Page() {
         </div>
       </section>
 
-      <Card className="border-border/70">
+      <Card className="border-slate-500/20 bg-[linear-gradient(180deg,rgba(15,23,42,0.05),rgba(148,163,184,0.08))] shadow-sm">
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
@@ -2036,12 +2068,12 @@ export default function TasksV2Page() {
             </div>
             {selectedBoard && (
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">
+                <Badge variant="outline" className="border-slate-500/20 bg-slate-900/[0.035]">
                   {canEditSelectedBoard ? "Редактирование" : canCommentSelectedBoard ? "Комментарии" : "Просмотр"}
                 </Badge>
-                <Badge variant="secondary">{isSelectedBoardPersonal ? "Личное пространство" : `${boardMembers.length} участников`}</Badge>
-                <Badge variant="secondary">{lists.length} списков</Badge>
-                <Badge variant="secondary">{filteredCards.length} из {cards.length} карточек</Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700">{isSelectedBoardPersonal ? "Личное пространство" : `${boardMembers.length} участников`}</Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700">{lists.length} списков</Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700">{filteredCards.length} из {cards.length} карточек</Badge>
               </div>
             )}
           </div>
@@ -2054,8 +2086,8 @@ export default function TasksV2Page() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
               <div className="space-y-4">
-                <Card className="overflow-hidden border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] shadow-sm">
-                  <CardHeader className="border-b border-slate-200/70 bg-slate-50/80">
+                <Card className="overflow-hidden border-slate-500/20 bg-[linear-gradient(180deg,rgba(226,232,240,0.68),rgba(148,163,184,0.14))] shadow-sm backdrop-blur">
+                  <CardHeader className="border-b border-slate-500/15 bg-slate-900/[0.035]">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <CardTitle className="text-base">Фокус и фильтры</CardTitle>
@@ -2064,10 +2096,10 @@ export default function TasksV2Page() {
                         </CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                        <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.045] px-3 py-1">
                           {filteredCards.length} в выборке
                         </span>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                        <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.045] px-3 py-1">
                           {cards.length} всего
                         </span>
                       </div>
@@ -2092,7 +2124,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-filter-assignee"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm"
                         value={cardFilters.assigneeUserId}
                         onChange={(event) =>
                           setCardFilters((prev) => ({ ...prev, assigneeUserId: event.target.value }))
@@ -2113,7 +2145,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-filter-priority"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm"
                         value={cardFilters.priority}
                         onChange={(event) =>
                           setCardFilters((prev) => ({ ...prev, priority: event.target.value }))
@@ -2134,7 +2166,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-filter-due"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm"
                         value={cardFilters.dueStatus}
                         onChange={(event) =>
                           setCardFilters((prev) => ({ ...prev, dueStatus: event.target.value }))
@@ -2155,7 +2187,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-filter-label"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm"
                         value={cardFilters.labelId}
                         onChange={(event) =>
                           setCardFilters((prev) => ({ ...prev, labelId: event.target.value }))
@@ -2195,6 +2227,10 @@ export default function TasksV2Page() {
                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                       {lists.map((list, listIndex) => {
                         const listCards = filteredCardsByListId.get(list.id) ?? [];
+                        const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
+                        const listHeaderTint = toSoftColor(list.color, 0.2);
+                        const listLaneTint = toSoftColor(list.color, 0.1);
+                        const listCardTint = toSoftColor(list.color, 0.05);
 
                         return (
                           <Droppable
@@ -2207,20 +2243,28 @@ export default function TasksV2Page() {
                                 ref={provided.innerRef}
                                 {...provided.droppableProps}
                                 className={[
-                                  "h-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] shadow-sm transition-all duration-200",
+                                  "h-full overflow-hidden rounded-[24px] border border-slate-500/20 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
                                   snapshot.isDraggingOver
-                                    ? "border-sky-400/70 bg-sky-50 shadow-lg shadow-sky-100/60 ring-2 ring-sky-200/70"
-                                    : "hover:border-slate-300/80 hover:shadow-md",
+                                    ? "border-sky-400/70 shadow-lg shadow-sky-900/10 ring-2 ring-sky-300/30"
+                                    : "hover:border-slate-500/30 hover:shadow-md",
                                 ].join(" ").trim()}
+                                style={{
+                                  background: snapshot.isDraggingOver
+                                    ? `linear-gradient(180deg, rgba(226, 232, 240, 0.88), ${listHeaderTint || listTint || "rgba(203, 213, 225, 0.72)"})`
+                                    : `linear-gradient(180deg, rgba(226, 232, 240, 0.74), ${listTint || "rgba(203, 213, 225, 0.52)"})`,
+                                }}
                               >
-                                <CardHeader className="space-y-4 border-b border-slate-200/70 bg-white/90">
+                                <CardHeader
+                                className="space-y-4 border-b border-slate-500/15"
+                                  style={{ backgroundColor: listHeaderTint || listTint || "rgba(226,232,240,0.72)" }}
+                                >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <CardTitle className="text-base break-words">{list.name}</CardTitle>
                                         {list.color && (
                                           <span
-                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-white"
+                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-slate-800/10"
                                             style={{ backgroundColor: list.color }}
                                           />
                                         )}
@@ -2252,7 +2296,7 @@ export default function TasksV2Page() {
                                           </Button>
                                         </>
                                       )}
-                                      <Badge variant="secondary" className="rounded-full px-2.5">
+                                      <Badge variant="secondary" className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 text-slate-700">
                                         {listCards.length}
                                       </Badge>
                                       <Badge variant={list.type === "active" ? "default" : "outline"} className="rounded-full px-2.5">
@@ -2263,17 +2307,20 @@ export default function TasksV2Page() {
                                 </CardHeader>
                                 <CardContent className="space-y-4 p-4">
                                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 py-1">
                                       Тип: {LIST_TYPE_LABELS[list.type]}
                                     </span>
-                                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 py-1">
                                       {list.color ? `Цвет ${list.color}` : "Без цвета"}
                                     </span>
                                   </div>
 
-                                  <div className="space-y-3 min-h-24 rounded-2xl bg-slate-100/65 p-2">
+                                  <div
+                                    className="space-y-3 min-h-24 rounded-2xl p-2"
+                                    style={{ backgroundColor: listLaneTint || "rgba(148, 163, 184, 0.14)" }}
+                                  >
                                     {listCards.length === 0 && (
-                                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-3 py-5 text-sm text-muted-foreground">
+                                      <div className="rounded-2xl border border-dashed border-slate-400/30 bg-slate-900/[0.025] px-3 py-5 text-sm text-muted-foreground">
                                         {canEditSelectedBoard
                                           ? "Перетащите сюда карточку или создайте новую справа."
                                           : "В этом списке пока нет карточек."}
@@ -2305,19 +2352,33 @@ export default function TasksV2Page() {
                                               ref={dragProvided.innerRef}
                                               {...dragProvided.draggableProps}
                                               {...dragProvided.dragHandleProps}
-                                              className={[
-                                                "group rounded-[20px] border border-slate-200 bg-white p-3.5 space-y-3 shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out cursor-grab active:cursor-grabbing select-none",
-                                                dueDateStatusClasses.card,
-                                                dragSnapshot.isDragging
-                                                  ? "scale-[1.02] border-sky-300 bg-white shadow-2xl shadow-slate-300/40 ring-2 ring-sky-200/80 rotate-[0.4deg] cursor-grabbing"
-                                                  : "hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
-                                              ].join(" ").trim()}
+                                              className="cursor-grab active:cursor-grabbing"
                                               style={dragProvided.draggableProps.style}
                                             >
-                                              <div className="flex items-start justify-between gap-3">
+                                              <div
+                                                className={[
+                                                  "group rounded-[20px] border p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-150 ease-out select-none",
+                                                  dueDateStatusClasses.card,
+                                                  dragSnapshot.isDragging
+                                                    ? "border-sky-300/80 shadow-xl shadow-slate-900/15 ring-2 ring-sky-300/30"
+                                                    : dragSnapshot.isDropAnimating
+                                                      ? "border-sky-200/70 shadow-lg shadow-slate-900/10"
+                                                      : "hover:border-slate-500/25 hover:shadow-md",
+                                                ].join(" ").trim()}
+                                                style={{
+                                                  background: `linear-gradient(180deg, rgba(226,232,240,0.82), ${listCardTint || "rgba(203,213,225,0.62)"})`,
+                                                  borderColor: dragSnapshot.isDragging || dragSnapshot.isDropAnimating
+                                                    ? undefined
+                                                    : (list.color || "rgba(100,116,139,0.18)"),
+                                                }}
+                                              >
+                                                <div className="flex items-start justify-between gap-3">
                                                 <div className="flex min-w-0 gap-2">
                                                   {canEditSelectedBoard && (
-                                                    <div className="mt-0.5 shrink-0 rounded-xl bg-slate-100 p-1.5 text-slate-400 transition group-hover:bg-slate-200 group-hover:text-slate-600">
+                                                    <div
+                                                      className="mt-0.5 shrink-0 rounded-xl p-1.5 text-slate-500 transition group-hover:text-slate-700"
+                                                      style={{ backgroundColor: listLaneTint || "rgba(148,163,184,0.14)" }}
+                                                    >
                                                       <GripVertical className="h-4 w-4" />
                                                     </div>
                                                   )}
@@ -2335,92 +2396,93 @@ export default function TasksV2Page() {
                                                 </Badge>
                                               </div>
 
-                                              <div className="flex flex-wrap gap-2">
-                                                <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
-                                                  {getDueDateStatusLabel(dueDateStatus)}
-                                                </Badge>
-                                                {canEditSelectedBoard && (
-                                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
-                                                    Тяни за любую часть карточки
-                                                  </span>
-                                                )}
-                                              </div>
-
-                                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                                <span className="rounded-full bg-slate-100 px-2.5 py-1">#{Number(card.position) + 1}</span>
-                                                {assigneeName && <span className="rounded-full bg-slate-100 px-2.5 py-1">Исполнитель: {assigneeName}</span>}
-                                                {dueDateLabel && <span className="rounded-full bg-slate-100 px-2.5 py-1">Срок: {dueDateLabel}</span>}
-                                                {subtaskProgress.total > 0 && (
-                                                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                                    Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
-                                                  </span>
-                                                )}
-                                              </div>
-
-                                              {cardLabels.length > 0 && (
                                                 <div className="flex flex-wrap gap-2">
-                                                  {cardLabels.map((label) => (
-                                                    <Badge
-                                                      key={label.id}
-                                                      variant="outline"
-                                                      className="gap-1 rounded-full border-transparent"
-                                                      style={{
-                                                        backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
-                                                        color: "#111827",
-                                                      }}
+                                                  <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
+                                                    {getDueDateStatusLabel(dueDateStatus)}
+                                                  </Badge>
+                                                  {canEditSelectedBoard && (
+                                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1 text-[11px] text-slate-500">
+                                                      Тяни за любую часть карточки
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                  <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">#{Number(card.position) + 1}</span>
+                                                  {assigneeName && <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">Исполнитель: {assigneeName}</span>}
+                                                  {dueDateLabel && <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">Срок: {dueDateLabel}</span>}
+                                                  {subtaskProgress.total > 0 && (
+                                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">
+                                                      Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {cardLabels.length > 0 && (
+                                                  <div className="flex flex-wrap gap-2">
+                                                    {cardLabels.map((label) => (
+                                                      <Badge
+                                                        key={label.id}
+                                                        variant="outline"
+                                                        className="gap-1 rounded-full border-transparent"
+                                                        style={{
+                                                          backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
+                                                          color: "#111827",
+                                                        }}
+                                                      >
+                                                        {label.name}
+                                                      </Badge>
+                                                    ))}
+                                                  </div>
+                                                )}
+
+                                                {canEditSelectedBoard && (
+                                                  <div className="flex flex-wrap gap-2 border-t border-slate-500/10 pt-2">
+                                                    <Button
+                                                      variant="secondary"
+                                                      size="sm"
+                                                      className="rounded-xl"
+                                                      onClick={() => handleOpenCardDetail(card.id)}
+                                                      disabled={detailCardLoading && detailCardId === card.id}
                                                     >
-                                                      {label.name}
-                                                    </Badge>
-                                                  ))}
-                                                </div>
-                                              )}
+                                                      Подробнее
+                                                    </Button>
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      className="gap-2 rounded-xl"
+                                                      onClick={() => handleEditCard(card)}
+                                                      disabled={isCardPending}
+                                                    >
+                                                      <Pencil className="h-4 w-4" />
+                                                      Редактировать
+                                                    </Button>
+                                                    <Button
+                                                      variant="destructive"
+                                                      size="sm"
+                                                      className="gap-2 rounded-xl"
+                                                      onClick={() => deleteCardMutation.mutate(card.id)}
+                                                      disabled={isCardPending}
+                                                    >
+                                                      <Trash2 className="h-4 w-4" />
+                                                      Удалить
+                                                    </Button>
+                                                  </div>
+                                                )}
 
-                                              {canEditSelectedBoard && (
-                                                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2">
-                                                  <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="rounded-xl"
-                                                    onClick={() => handleOpenCardDetail(card.id)}
-                                                    disabled={detailCardLoading && detailCardId === card.id}
-                                                  >
-                                                    Подробнее
-                                                  </Button>
-                                                  <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="gap-2 rounded-xl"
-                                                    onClick={() => handleEditCard(card)}
-                                                    disabled={isCardPending}
-                                                  >
-                                                    <Pencil className="h-4 w-4" />
-                                                    Редактировать
-                                                  </Button>
-                                                  <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    className="gap-2 rounded-xl"
-                                                    onClick={() => deleteCardMutation.mutate(card.id)}
-                                                    disabled={isCardPending}
-                                                  >
-                                                    <Trash2 className="h-4 w-4" />
-                                                    Удалить
-                                                  </Button>
-                                                </div>
-                                              )}
-
-                                              {!canEditSelectedBoard && (
-                                                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2">
-                                                  <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="rounded-xl"
-                                                    onClick={() => handleOpenCardDetail(card.id)}
-                                                  >
-                                                    Подробнее
-                                                  </Button>
-                                                </div>
-                                              )}
+                                                {!canEditSelectedBoard && (
+                                                  <div className="flex flex-wrap gap-2 border-t border-slate-500/10 pt-2">
+                                                    <Button
+                                                      variant="secondary"
+                                                      size="sm"
+                                                      className="rounded-xl"
+                                                      onClick={() => handleOpenCardDetail(card.id)}
+                                                    >
+                                                      Подробнее
+                                                    </Button>
+                                                  </div>
+                                                )}
+                                              </div>
                                             </div>
                                           )}
                                         </Draggable>
@@ -2466,8 +2528,8 @@ export default function TasksV2Page() {
               </div>
 
               <div className="space-y-4">
-                <Card className="border-dashed">
-                  <CardHeader>
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
                     <CardTitle className="text-base">
                       {editingListId ? "Редактировать список" : "Новый список"}
                     </CardTitle>
@@ -2488,6 +2550,7 @@ export default function TasksV2Page() {
                         onChange={(event) => setListForm((prev) => ({ ...prev, name: event.target.value }))}
                         placeholder="Например: Бэклог"
                         disabled={!canEditSelectedBoard || isListPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
@@ -2497,7 +2560,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-list-type"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className={KANBAN_PANEL_SELECT_CLASS}
                         value={listForm.type}
                         onChange={(event) =>
                           setListForm((prev) => ({ ...prev, type: event.target.value as KanbanListType }))
@@ -2522,13 +2585,14 @@ export default function TasksV2Page() {
                         onChange={(event) => setListForm((prev) => ({ ...prev, color: event.target.value }))}
                         placeholder="Например: #0f766e"
                         disabled={!canEditSelectedBoard || isListPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
                     {canEditSelectedBoard && (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          className="gap-2"
+                          className="gap-2 rounded-xl"
                           onClick={() => saveListMutation.mutate()}
                           disabled={!listForm.name.trim() || isListPending}
                         >
@@ -2545,8 +2609,8 @@ export default function TasksV2Page() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-dashed">
-                  <CardHeader>
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
                     <CardTitle className="text-base">
                       {editingCardId ? "Редактировать карточку" : "Новая карточка"}
                     </CardTitle>
@@ -2565,7 +2629,7 @@ export default function TasksV2Page() {
                       </label>
                       <select
                         id="kanban-card-list"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className={KANBAN_PANEL_SELECT_CLASS}
                         value={cardForm.listId}
                         onChange={(event) => setCardForm((prev) => ({ ...prev, listId: event.target.value }))}
                         disabled={!canEditSelectedBoard || !hasLists || isCardPending}
@@ -2589,6 +2653,7 @@ export default function TasksV2Page() {
                         onChange={(event) => setCardForm((prev) => ({ ...prev, title: event.target.value }))}
                         placeholder="Например: Подготовить релиз"
                         disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
@@ -2605,6 +2670,7 @@ export default function TasksV2Page() {
                         placeholder="Краткий контекст, критерии готовности или детали задачи"
                         rows={4}
                         disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className="rounded-2xl border-slate-500/15 bg-slate-50/80 shadow-none focus-visible:ring-slate-400/30"
                       />
                     </div>
 
@@ -2615,7 +2681,7 @@ export default function TasksV2Page() {
                         </label>
                         <select
                           id="kanban-card-priority"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          className={KANBAN_PANEL_SELECT_CLASS}
                           value={cardForm.priority}
                           onChange={(event) =>
                             setCardForm((prev) => ({
@@ -2639,7 +2705,7 @@ export default function TasksV2Page() {
                         </label>
                         <select
                           id="kanban-card-assignee"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          className={KANBAN_PANEL_SELECT_CLASS}
                           value={cardForm.assigneeUserId}
                           onChange={(event) =>
                             setCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
@@ -2666,6 +2732,7 @@ export default function TasksV2Page() {
                         value={cardForm.dueDate}
                         onChange={(event) => setCardForm((prev) => ({ ...prev, dueDate: event.target.value }))}
                         disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
@@ -2675,7 +2742,7 @@ export default function TasksV2Page() {
                         {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
                       </div>
                       {boardLabels.length === 0 ? (
-                        <div className="rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground">
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-3 text-sm text-muted-foreground">
                           У этой доски пока нет меток. Ниже справа можно создать первую.
                         </div>
                       ) : (
@@ -2688,7 +2755,7 @@ export default function TasksV2Page() {
                                 type="button"
                                 className={[
                                   "rounded-full border px-3 py-1.5 text-sm transition",
-                                  selected ? "border-foreground shadow-sm" : "border-border",
+                                  selected ? "border-slate-700 bg-slate-900/[0.05] shadow-sm" : "border-slate-500/15",
                                 ].join(" ")}
                                 style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
                                 onClick={() => toggleCardFormLabel(label.id)}
@@ -2713,7 +2780,7 @@ export default function TasksV2Page() {
                     {canEditSelectedBoard && (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          className="gap-2"
+                          className="gap-2 rounded-xl"
                           onClick={() => saveCardMutation.mutate()}
                           disabled={!hasLists || !cardForm.listId || !cardForm.title.trim() || isCardPending}
                         >
@@ -2730,8 +2797,8 @@ export default function TasksV2Page() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-dashed">
-                  <CardHeader>
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
                     <CardTitle className="text-base">
                       {editingLabelId ? "Редактировать метку" : "Метки доски"}
                     </CardTitle>
@@ -2752,6 +2819,7 @@ export default function TasksV2Page() {
                         onChange={(event) => setLabelForm((prev) => ({ ...prev, name: event.target.value }))}
                         placeholder="Например: Blocked"
                         disabled={!canEditSelectedBoard || isLabelPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
@@ -2765,13 +2833,14 @@ export default function TasksV2Page() {
                         onChange={(event) => setLabelForm((prev) => ({ ...prev, color: event.target.value }))}
                         placeholder="Например: #f59e0b"
                         disabled={!canEditSelectedBoard || isLabelPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                       />
                     </div>
 
                     {canEditSelectedBoard && (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          className="gap-2"
+                          className="gap-2 rounded-xl"
                           onClick={() => saveLabelMutation.mutate()}
                           disabled={!selectedBoardId || !labelForm.name.trim() || isLabelPending}
                         >
@@ -2788,14 +2857,14 @@ export default function TasksV2Page() {
 
                     <div className="space-y-2">
                       {boardLabels.length === 0 ? (
-                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground">
                           Для этой доски пока нет меток.
                         </div>
                       ) : (
                         boardLabels.map((label) => (
                           <div
                             key={label.id}
-                            className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2"
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-2.5"
                           >
                             <div className="flex min-w-0 items-center gap-2">
                               <span
@@ -2834,8 +2903,8 @@ export default function TasksV2Page() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-dashed">
-                  <CardHeader>
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
                     <CardTitle className="text-base">
                       {editingMemberId ? "Редактировать участника" : "Участники доски"}
                     </CardTitle>
@@ -2849,7 +2918,7 @@ export default function TasksV2Page() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {isSelectedBoardPersonal ? (
-                      <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground">
                         Эта доска принадлежит лично тебе. Если понадобится совместная работа, создай отдельную командную
                         доску и выбери компанию при создании.
                       </div>
@@ -2861,7 +2930,7 @@ export default function TasksV2Page() {
                           </label>
                           <select
                             id="kanban-member-user"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            className={KANBAN_PANEL_SELECT_CLASS}
                             value={memberForm.userId}
                             onChange={(event) => setMemberForm((prev) => ({ ...prev, userId: event.target.value }))}
                             disabled={Boolean(editingMemberId) || isMemberPending}
@@ -2885,7 +2954,7 @@ export default function TasksV2Page() {
                             </label>
                             <select
                               id="kanban-member-role"
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              className={KANBAN_PANEL_SELECT_CLASS}
                               value={memberForm.role}
                               onChange={(event) =>
                                 setMemberForm((prev) => ({
@@ -2907,7 +2976,7 @@ export default function TasksV2Page() {
                             </label>
                             <select
                               id="kanban-member-comment"
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              className={KANBAN_PANEL_SELECT_CLASS}
                               value={memberForm.role === "editor" || memberForm.canComment ? "yes" : "no"}
                               onChange={(event) =>
                                 setMemberForm((prev) => ({ ...prev, canComment: event.target.value === "yes" }))
@@ -2922,7 +2991,7 @@ export default function TasksV2Page() {
 
                         <div className="flex flex-wrap gap-2">
                           <Button
-                            className="gap-2"
+                            className="gap-2 rounded-xl"
                             onClick={() => saveMemberMutation.mutate()}
                             disabled={(!editingMemberId && !memberForm.userId) || isMemberPending}
                           >
@@ -2940,11 +3009,11 @@ export default function TasksV2Page() {
 
                     <div className="space-y-2">
                       {boardMembersLoading ? (
-                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground">
                           Загружаем участников доски...
                         </div>
                       ) : boardMembers.length === 0 ? (
-                        <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground">
                           У этой доски пока нет участников.
                         </div>
                       ) : (
@@ -2953,7 +3022,7 @@ export default function TasksV2Page() {
                           return (
                             <div
                               key={member.id}
-                              className="space-y-2 rounded-lg border bg-muted/20 px-3 py-3"
+                              className="space-y-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-3"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -3005,14 +3074,14 @@ export default function TasksV2Page() {
       </Card>
 
       <Dialog open={!!detailCardId} onOpenChange={(open) => !open && handleCloseCardDetail()}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-slate-500/20 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(226,232,240,0.92))] p-0 shadow-2xl shadow-slate-900/20">
           {!selectedDetailCard ? (
             <>
-              <DialogHeader>
+              <DialogHeader className="border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5">
                 <DialogTitle>Карточка</DialogTitle>
                 <DialogDescription>Загружаем детали карточки...</DialogDescription>
               </DialogHeader>
-              <div className="py-8 text-sm text-muted-foreground">Подождите, данные карточки загружаются.</div>
+              <div className="px-6 py-8 text-sm text-muted-foreground">Подождите, данные карточки загружаются.</div>
             </>
           ) : (
             <>
@@ -3026,27 +3095,28 @@ export default function TasksV2Page() {
 
                 return (
                   <>
-              <DialogHeader className="space-y-3">
+              <DialogHeader className="space-y-3 border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                   <div className="space-y-1">
-                    <DialogTitle className="break-words">{selectedDetailCard.title}</DialogTitle>
+                    <DialogTitle className="break-words text-2xl font-semibold tracking-tight">{selectedDetailCard.title}</DialogTitle>
                     <DialogDescription className="break-words">
                       {selectedDetailCard.description || "У этой карточки пока нет описания."}
                     </DialogDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[selectedDetailCard.priority]}>
+                    <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[selectedDetailCard.priority]} className="rounded-full">
                       {CARD_PRIORITY_LABELS[selectedDetailCard.priority]}
                     </Badge>
-                    {selectedDetailList && <Badge variant="outline">{selectedDetailList.name}</Badge>}
-                    <Badge variant="outline" className={dueDateStatusClasses.badge}>
+                    {selectedDetailList && <Badge variant="outline" className="rounded-full border-slate-500/20 bg-slate-900/[0.04]">{selectedDetailList.name}</Badge>}
+                    <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
                       {getDueDateStatusLabel(dueDateStatus)}
                     </Badge>
                   </div>
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6">
+              <div className="space-y-6 px-6 py-6">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="kanban-detail-title">
@@ -3059,6 +3129,7 @@ export default function TasksV2Page() {
                         setDetailCardForm((prev) => ({ ...prev, title: event.target.value }))
                       }
                       disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
+                      className={KANBAN_PANEL_INPUT_CLASS}
                     />
                   </div>
 
@@ -3068,7 +3139,7 @@ export default function TasksV2Page() {
                     </label>
                     <select
                       id="kanban-detail-list"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className={KANBAN_PANEL_SELECT_CLASS}
                       value={detailCardForm.listId}
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, listId: event.target.value }))
@@ -3096,6 +3167,7 @@ export default function TasksV2Page() {
                     }
                     rows={6}
                     disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
+                    className="rounded-2xl border-slate-500/15 bg-slate-50/80 shadow-none focus-visible:ring-slate-400/30"
                   />
                 </div>
 
@@ -3106,7 +3178,7 @@ export default function TasksV2Page() {
                     </label>
                     <select
                       id="kanban-detail-priority"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className={KANBAN_PANEL_SELECT_CLASS}
                       value={detailCardForm.priority}
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({
@@ -3130,7 +3202,7 @@ export default function TasksV2Page() {
                     </label>
                     <select
                       id="kanban-detail-assignee"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className={KANBAN_PANEL_SELECT_CLASS}
                       value={detailCardForm.assigneeUserId}
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
@@ -3158,6 +3230,7 @@ export default function TasksV2Page() {
                         setDetailCardForm((prev) => ({ ...prev, dueDate: event.target.value }))
                       }
                       disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
+                      className={KANBAN_PANEL_INPUT_CLASS}
                     />
                   </div>
                 </div>
@@ -3168,7 +3241,7 @@ export default function TasksV2Page() {
                     {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
                   </div>
                   {boardLabels.length === 0 ? (
-                    <div className="rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground">
+                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-3 text-sm text-muted-foreground">
                       У этой доски пока нет меток.
                     </div>
                   ) : (
@@ -3181,7 +3254,7 @@ export default function TasksV2Page() {
                             type="button"
                             className={[
                               "rounded-full border px-3 py-1.5 text-sm transition",
-                              selected ? "border-foreground shadow-sm" : "border-border",
+                              selected ? "border-slate-700 bg-slate-900/[0.05] shadow-sm" : "border-slate-500/15",
                             ].join(" ")}
                             style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
                             onClick={() => toggleDetailCardFormLabel(label.id)}
@@ -3194,8 +3267,9 @@ export default function TasksV2Page() {
                     </div>
                   )}
                 </div>
+                </div>
 
-                <div className="rounded-lg border bg-muted/20 p-4">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
                   <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
                     <p>
                       Подзадачи: {getSubtaskProgress(selectedDetailCard.subtasks).completed}/
@@ -3217,7 +3291,7 @@ export default function TasksV2Page() {
                           <Badge
                             key={label.id}
                             variant="outline"
-                            className="border-transparent"
+                            className="rounded-full border-transparent"
                             style={{
                               backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
                               color: "#111827",
@@ -3231,7 +3305,8 @@ export default function TasksV2Page() {
                   )}
                 </div>
 
-                <div className="space-y-3">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">
                       Подзадачи ({getSubtaskProgress(selectedDetailCard.subtasks).completed}/{getSubtaskProgress(selectedDetailCard.subtasks).total})
@@ -3239,7 +3314,7 @@ export default function TasksV2Page() {
                   </div>
 
                   {normalizeSubtasks(selectedDetailCard.subtasks).length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground">
                       У этой карточки пока нет подзадач.
                     </div>
                   ) : (
@@ -3247,7 +3322,7 @@ export default function TasksV2Page() {
                       {normalizeSubtasks(selectedDetailCard.subtasks).map((subtask) => (
                         <div
                           key={subtask.id}
-                          className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2"
+                          className="flex items-center gap-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-2.5"
                         >
                           <input
                             type="checkbox"
@@ -3293,6 +3368,7 @@ export default function TasksV2Page() {
                         onChange={(event) => setDetailSubtaskDraft(event.target.value)}
                         placeholder="Добавить подзадачу"
                         disabled={saveCardSubtasksMutation.isPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                         onKeyDown={(event) => {
                           if (event.key !== "Enter" || !detailSubtaskDraft.trim()) return;
                           event.preventDefault();
@@ -3310,6 +3386,7 @@ export default function TasksV2Page() {
                         }}
                       />
                       <Button
+                        className="rounded-xl"
                         onClick={() => {
                           if (!detailSubtaskDraft.trim()) return;
                           const next = [
@@ -3331,8 +3408,10 @@ export default function TasksV2Page() {
                     </div>
                   )}
                 </div>
+                </div>
 
-                <div className="space-y-3">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">Вложения</h3>
                     {detailCardAttachmentsLoading && (
@@ -3342,12 +3421,12 @@ export default function TasksV2Page() {
 
                   <div className="space-y-3">
                     {detailCardAttachments.length === 0 ? (
-                      <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground">
                         У этой карточки пока нет вложений.
                       </div>
                     ) : (
                       detailCardAttachments.map((attachment) => (
-                        <div key={attachment.id} className="rounded-lg border bg-muted/20 p-4">
+                        <div key={attachment.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1">
                               <div className="flex items-center gap-2">
@@ -3361,9 +3440,11 @@ export default function TasksV2Page() {
                                   {attachment.fileName}
                                 </a>
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1">
                                 {formatFileSize(attachment.fileSize)} · {attachment.mimeType || "unknown"} ·{" "}
                                 {formatDueDateLabel(attachment.createdAt) || "Неизвестное время"}
+                                </span>
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 Загрузил: {userById.get(attachment.uploadedByUserId)?.name || attachment.uploadedByUserId}
@@ -3401,6 +3482,7 @@ export default function TasksV2Page() {
                         id="kanban-detail-attachment"
                         type="file"
                         disabled={uploadCardAttachmentMutation.isPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
                           if (file) {
@@ -3415,8 +3497,10 @@ export default function TasksV2Page() {
                     </div>
                   )}
                 </div>
+                </div>
 
-                <div className="space-y-3">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">Activity Log</h3>
                     {detailCardHistoryLoading && (
@@ -3425,7 +3509,7 @@ export default function TasksV2Page() {
                   </div>
 
                   {detailCardHistory.length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground">
                       Для этой карточки пока нет записанной истории.
                     </div>
                   ) : (
@@ -3434,24 +3518,27 @@ export default function TasksV2Page() {
                         const changeLines = getHistoryChangeLines(entry);
 
                         return (
-                          <div key={entry.id} className="rounded-lg border bg-muted/20 p-4">
+                          <div key={entry.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-sm font-medium">
                                 {userById.get(entry.userId)?.name || entry.userId}
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1 text-xs text-muted-foreground">
                                 {formatDueDateLabel(entry.createdAt) || "Неизвестное время"}
                               </div>
                             </div>
-                            <p className="mt-2 text-sm text-muted-foreground">
+                            <p className="mt-2 text-sm font-medium text-slate-700">
                               {getKanbanHistoryActionLabel(entry.action)}
                             </p>
                             {changeLines.length > 0 && (
-                              <div className="mt-3 space-y-1">
+                              <div className="mt-3 space-y-2">
                                 {changeLines.map((line, index) => (
-                                  <p key={`${entry.id}-${index}`} className="text-sm">
+                                  <div
+                                    key={`${entry.id}-${index}`}
+                                    className="rounded-xl border border-slate-500/10 bg-slate-50/70 px-3 py-2 text-sm"
+                                  >
                                     {line}
-                                  </p>
+                                  </div>
                                 ))}
                               </div>
                             )}
@@ -3461,8 +3548,10 @@ export default function TasksV2Page() {
                     </div>
                   )}
                 </div>
+                </div>
 
-                <div className="space-y-3">
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">Комментарии</h3>
                     {detailCardCommentsLoading && (
@@ -3472,18 +3561,18 @@ export default function TasksV2Page() {
 
                   <div className="space-y-3">
                     {detailCardComments.length === 0 ? (
-                      <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground">
                         У этой карточки пока нет комментариев.
                       </div>
                     ) : (
                       detailCardComments.map((comment) => (
-                        <div key={comment.id} className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                        <div key={comment.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="text-sm font-medium">
                               {userById.get(comment.userId)?.name || comment.userId}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">
+                              <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1 text-xs text-muted-foreground">
                                 {formatDueDateLabel(comment.createdAt) || "Неизвестное время"}
                               </span>
                               {canEditSelectedBoard && (
@@ -3499,7 +3588,9 @@ export default function TasksV2Page() {
                               )}
                             </div>
                           </div>
-                          <p className="text-sm whitespace-pre-wrap break-words">{comment.content}</p>
+                          <p className="rounded-xl border border-slate-500/10 bg-slate-50/70 px-3 py-3 text-sm leading-6 whitespace-pre-wrap break-words">
+                            {comment.content}
+                          </p>
                         </div>
                       ))
                     )}
@@ -3517,9 +3608,11 @@ export default function TasksV2Page() {
                         placeholder="Добавьте короткий комментарий по карточке"
                         rows={3}
                         disabled={createCardCommentMutation.isPending}
+                        className="rounded-2xl border-slate-500/15 bg-slate-50/80 shadow-none focus-visible:ring-slate-400/30"
                       />
                       <div className="flex justify-end">
                         <Button
+                          className="rounded-xl"
                           onClick={() => createCardCommentMutation.mutate()}
                           disabled={!detailCommentDraft.trim() || createCardCommentMutation.isPending}
                         >
@@ -3529,13 +3622,15 @@ export default function TasksV2Page() {
                     </div>
                   )}
                 </div>
+                </div>
 
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="outline" onClick={handleCloseCardDetail}>
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                  <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
                     Закрыть
                   </Button>
                   {canEditSelectedBoard && (
                     <Button
+                      className="rounded-xl"
                       onClick={() => saveCardDetailMutation.mutate()}
                       disabled={!detailCardForm.title.trim() || !detailCardForm.listId || saveCardDetailMutation.isPending}
                     >
