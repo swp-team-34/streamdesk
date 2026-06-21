@@ -66,10 +66,10 @@ During the Week 2 meeting, the customer kindly asked us to hurry up with task ma
 - [Definition of Done](../../docs/definition-of-done.md) <!-- Part 23 -->
 - [User Stories Index](../../docs/user-stories.md) <!-- ??? -->
 - Issue templates: <!-- Part 24 -->
-  - [User Story](../../.github/ISSUE_TEMPLATE/user_story.md)
-  - [Other PBI](../../.github/ISSUE_TEMPLATE/other_pbi.md)
-  - [Course Task](../../.github/ISSUE_TEMPLATE/course_task.md)
-  - [Bug Report](../../.github/ISSUE_TEMPLATE/bug_report.md)
+  - [User Story](../../.github/ISSUE_TEMPLATE/user_story.yml)
+  - [Other PBI](../../.github/ISSUE_TEMPLATE/other_pbi.yml)
+  - [Course Task](../../.github/ISSUE_TEMPLATE/course_task.yml)
+  - [Bug Report](../../.github/ISSUE_TEMPLATE/bug_report.yml)
 - [Extended Pull Request Template](../../.github/pull_request_template.md)
 
 ## PBI Types, Statuses, and Workflow <!-- Part 13 -->
@@ -154,31 +154,17 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 
 ### Product Backlog
 
-![Product Backlog](images/product-backlog.png)
-
 ### Sprint 1 Backlog
-
-![Sprint Backlog](images/sprint-backlog.png)
 
 ### Sprint 1 Milestone
 
-![Sprint Milestone](images/sprint-milestone.png)
-
 ### MVP Version Grouped View
-
-![MVP Version View](images/mvp-version-view.png) <!-- TODO -->
 
 ### SemVer Release
 
-![SemVer Release](images/semver-release.png)
-
 ### MVP v1 Deployment
 
-![MVP v1](images/mvp-v1.png) <!-- TODO -->
-
 ### Example Reviewed PR
-
-![Reviewed PR](images/reviewed-pr.png)
 
 ## Excluded Lychee links
 
