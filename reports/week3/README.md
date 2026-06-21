@@ -175,7 +175,7 @@ The following URLs are excluded from automated Lychee link checking because GitH
 | `https://streamdesk.ru/` | Times out from GitHub Actions; manually verified accessible |
 | `https://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
 | `http://team34.ru/` | MVP v0 deployment responds inconsistently from CI; manually verified accessible |
-| `https://gitlab.pg.innopolis.university/swp_26/swp_26/-/blob/main/Process_Requirements.md/` | Times out from GitHub Actions; manually verified accessible |
+| `https://gitlab.pg.innopolis.university/swp_26/swp_26/-/blob/main/Process_Requirements.md` | Times out from GitHub Actions; manually verified accessible |
 | `https://github.com/swp-team-34/streamdesk/blob/main/reports/week3/reflection.md` | Absence in issue branch, exist in main branch |
 | `https://github.com/swp-team-34/streamdesk/blob/main/reports/week3/retrospective.md` | Absence in issue branch, exist in main branch |
 | `https://github.com/swp-team-34/streamdesk/blob/main/reports/week3/llm-report.md` | Absence in issue branch, exist in main branch |
