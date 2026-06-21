@@ -2,24 +2,24 @@
 
 ## Learning points
 
-- Migrating Week 2 stories into an issue-based backlog requires more than copying text: each item also needs status, traceability, acceptance criteria, and Sprint readiness.
-- For this repository, workflow evidence is part of the deliverable. Issue templates, PR templates, changelog updates, and Definition of Done are necessary to make MVP work reviewable.
-- StreamDesk has a broad product vision, so keeping MVP v1 focused on a small manager workflow is essential for realistic Sprint planning.
+- Moving stories into issues is not just copy-paste. We also need status, links, and clear acceptance criteria.
+- For this assignment, the workflow itself is part of the result, not just the product code.
+- The product idea is quite wide, so MVP v1 has to stay small and focused.
 
 ## Validated assumptions
 
-- The Week 2 user stories already give a usable starting point for backlog refinement, especially the manager-facing calendar and dashboard stories in the proposed MVP v1 scope.
-- The repository already contains enough structure to support Assignment 3 work: product documentation, workflow rules, templates, and a defined quality baseline.
-- Writing shared process rules in versioned markdown files improves team alignment and makes review expectations easier to follow.
+- Week 2 gave us a solid base for the backlog, especially for the calendar and dashboard flow.
+- The repo already has the main workflow pieces: templates, docs, and Definition of Done.
+- Keeping process rules in the repo makes teamwork and review simpler.
 
 ## Friction and gaps
 
-- `docs/user-stories.md` is still missing, so the required stable-ID index and issue traceability are not complete yet.
-- Some submission-facing placeholders remain open in `README.md`, `CHANGELOG.md`, and workflow-related templates, so release and deployment evidence is not fully closed.
-- The product scope described in the repository is larger than the current MVP v1 slice, which increases the risk of overcommitting during planning.
+- It was not always easy to decide what really belongs in MVP v1 and what should be left for later.
+- Some stories still feel too broad, so they will need to be split before estimation and Sprint planning.
+- A few business details are still unclear, especially around reservation flow, progress calculation, and status definitions.
 
 ## Planned response
 
-- Create and maintain `docs/user-stories.md` as the authoritative index of active and removed user stories.
-- Migrate active stories from `reports/week2/user-stories.md` into issue-backed backlog items before deeper estimation and Sprint selection.
-- Replace the remaining assignment-facing `TODO` placeholders with real release, access, and verification evidence as soon as those artifacts exist.
+- Limit MVP v1 to a small set of core stories and avoid adding extra scope during planning.
+- Split the broader stories into smaller backlog items before estimation and Sprint planning.
+- Clarify the unclear business rules with the customer before treating those stories as Sprint-ready.
