@@ -122,9 +122,13 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 
 | Team Member | Role | Issues | PRs/MRs | Reviews |
 | --- | --- | --- | --- | --- |
-| [@username1](https://github.com/username1) | [Role] | [#XX](ссылка), [#YY](ссылка) | [#12](ссылка), [#13](ссылка) | [#11](ссылка), [#14](ссылка) |
-| [@username2](https://github.com/username2) | [Role] | [#ZZ](ссылка) | [#15](ссылка) | [#12](ссылка), [#16](ссылка) |
-| [@username3](https://github.com/username3) | [Role] | [#AA](ссылка), [#BB](ссылка) | [#17](ссылка) | [#15](ссылка), [#18](ссылка) |
+| [@kkonstantin08](https://github.com/kkonstantin08) | Implementer | [#24](https://github.com/swp-team-34/streamdesk/issues/24) | [#25](https://github.com/swp-team-34/streamdesk/pull/25)|
+| [@MeeDaniel](https://github.com/MeeDaniel) | Implementer | [#22](https://github.com/swp-team-34/streamdesk/issues/22) | [#23](https://github.com/swp-team-34/streamdesk/pull/23)|
+| [@TripleA89](https://github.com/TripleA89) | Implementer | [#50](https://github.com/swp-team-34/streamdesk/issues/50) | [#63](https://github.com/swp-team-34/streamdesk/pull/63)|
+| [@TimBqs](https://github.com/TimBqs) | Implementer | [#44](https://github.com/swp-team-34/streamdesk/issues/44), [#55](https://github.com/swp-team-34/streamdesk/issues/55), [#70](https://github.com/swp-team-34/streamdesk/issues/70)| [#72](https://github.com/swp-team-34/streamdesk/pull/72)|
+| [@rrafich](https://github.com/rrafich) | Implementer | [#26](https://github.com/swp-team-34/streamdesk/issues/26) | [#38](https://github.com/swp-team-34/streamdesk/pull/38)|
+| [@AleksKornilov07](https://github.com/AleksKornilov07) | Implementer | [#50](https://github.com/swp-team-34/streamdesk/issues/50) | [#63](https://github.com/swp-team-34/streamdesk/pull/63)|
+
 
 ## Required Links
 
