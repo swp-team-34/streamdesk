@@ -16,8 +16,8 @@ StreamDesk is a production workflow management system for broadcast teams.  <!--
 - [Roadmap](../../docs/roadmap.md) <!-- Point 22 -->
 - [Definition of Done](../../docs/definition-of-done.md) <!-- Point 23 -->
 - [Changelog](../../CHANGELOG.md) <!-- Point 20 -->
-- [Customer Review Transcript](customer-review-transcript.md) <!-- Point 30 TODO -->
-- [Customer Review Summary](customer-review-summary.md) <!-- Point 31 TODO -->
+- [Customer Review Transcript](customer-review-transcript.md) <!-- Point 30 -->
+- [Customer Review Summary](customer-review-summary.md) <!-- Point 31 -->
 - [Week 3 Reflection](reflection.md) <!-- Point 32 -->
 - [Sprint Retrospective](retrospective.md) <!-- Part 33 -->
 - [LLM Usage Report](llm-report.md) <!-- Part 34 -->
@@ -129,10 +129,10 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 ## Required Links
 
 - **MVP v1 deployment:** [team34.ru](https://team34.ru/) <!-- Part 26 TODO -->
-- **SemVer release (MVP v1):** [v1.0.0](ссылка_на_github_release) <!-- Part 19 TODO -->
+- **SemVer release (MVP v1):** [v1.0.0](https://github.com/swp-team-34/streamdesk/releases/tag/v1.0.0) <!-- Part 19 ->
 - **Run instructions:** [Local setup (root README)](../../README.md) <!-- Part 27 -->
-- **Public video demo (< 2 min):** [MVP v1 demonstration (Yandex Disk)](ссылка) <!-- Part 28 TODO -->
-- **Reviewed PRs from Week 3:** <!-- Part 25 TODO -->
+- **Public video demo (< 2 min):** [MVP v1 demonstration (Yandex Disk)](https://disk.yandex.ru/i/reDuRfTtJCoElA) <!-- Part 28 -->
+- **Reviewed PRs from Week 3:** <!-- Part 25 -->
   - [PR #20 — Configure Assignment 3 repository workflow] https://github.com/swp-team-34/streamdesk/pull/20
   - [PR #23 — docs: describe definition of done] https://github.com/swp-team-34/streamdesk/pull/23
   - [PR #25 — Rename PR quality checklist] https://github.com/swp-team-34/streamdesk/pull/25
@@ -166,7 +166,7 @@ All completed MVP v1 PBIs have been verified against their acceptance criteria. 
 
 ### SemVer Release
 
-![SemVer Release](images/semver-release.png) <!-- TODO -->
+![SemVer Release](images/semver-release.png)
 
 ### MVP v1 Deployment
 
