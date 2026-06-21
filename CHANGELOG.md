@@ -19,5 +19,6 @@ changes are collected under `Unreleased`.
 - Documented issue-based backlog, branch, PR, changelog, and release workflows. Issue link: `#<issue-number>`.
 - Replaced the legacy Task Manager as the default `/tasks` experience with the new Kanban-based workspace, while keeping the old manager available under `/tasks-legacy`.
 - Refined the Kanban task workspace UX with improved board layout, smoother full-card drag interactions, and personal board support without requiring a company.
+- Refined the Kanban task manager with dark theme contrast improvements, compact icon actions, safer delete confirmations, color swatches for lists, and drag-and-drop state fixes ([#65](https://github.com/swp-team-34/streamdesk/issues/65)).
 - Fixed Kanban deletion flows in PostgreSQL-backed environments so cards, lists, and boards can be removed together with their related comments, history, attachments, and labels.
 - Documented issue-based backlog, branch, PR, changelog, and release workflows ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).
