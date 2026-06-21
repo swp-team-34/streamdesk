@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Building2,
   CheckCircle2,
   Clock3,
@@ -12,14 +13,10 @@ import {
   GripVertical,
   Info,
   Layers3,
-  LayoutList,
-  MoreHorizontal,
   Paperclip,
   Pencil,
   Plus,
-  Settings2,
   Sparkles,
-  Tag,
   Trash2,
   UserRound,
   Users,
@@ -27,15 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -44,9 +33,6 @@ import { apiRequest } from "@/lib/queryClient";
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
 type KanbanCardPriority = "low" | "medium" | "high" | "urgent";
-type BoardViewMode = "kanban" | "list";
-type BoardListGrouping = "none" | "list" | "due" | "assignee" | "priority";
-type DetailSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
 interface CompanySummary {
   id: string;
@@ -215,21 +201,6 @@ const LIST_COLOR_PRESETS = [
   { label: "Violet", value: "#7c3aed" },
   { label: "Indigo", value: "#4f46e5" },
 ] as const;
-
-const LABEL_COLOR_PRESETS = [
-  { label: "Sky", value: "#0ea5e9" },
-  { label: "Emerald", value: "#10b981" },
-  { label: "Amber", value: "#f59e0b" },
-  { label: "Rose", value: "#f43f5e" },
-  { label: "Violet", value: "#8b5cf6" },
-  { label: "Fuchsia", value: "#d946ef" },
-  { label: "Indigo", value: "#6366f1" },
-  { label: "Slate", value: "#64748b" },
-] as const;
-
-const BOARD_VIEW_MODE_STORAGE_KEY = "streamdesk.tasks.v2.viewMode";
-const BOARD_LIST_GROUPING_STORAGE_KEY = "streamdesk.tasks.v2.listGrouping";
-const DETAIL_AUTOSAVE_DELAY_MS = 700;
 
 const EMPTY_CARD_FORM = {
   listId: "",
@@ -468,17 +439,6 @@ const getKanbanHistoryActionLabel = (action: string) => {
 const normalizeLabelIds = (labelIds?: string[] | null) =>
   Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
 
-const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
-  JSON.stringify({
-    listId: form.listId,
-    title: form.title.trim(),
-    description: form.description.trim(),
-    priority: form.priority,
-    dueDate: form.dueDate || "",
-    assigneeUserId: form.assigneeUserId || "",
-    labelIds: normalizeLabelIds(form.labelIds).sort(),
-  });
-
 const formatFileSize = (value?: number | null) => {
   if (!value || value < 0) return "Неизвестный размер";
   if (value < 1024) return `${value} Б`;
@@ -492,13 +452,13 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 };
 
 const getDraggableCardStyle = (
-  style: DraggableStyle | undefined,
+  style: CSSProperties | undefined,
   options: { isDragging: boolean; isDropAnimating: boolean },
 ): CSSProperties | undefined => {
   if (!style) return style;
 
   return {
-    ...(style as CSSProperties),
+    ...style,
     transition: options.isDropAnimating
       ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease"
       : "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)",
@@ -544,39 +504,6 @@ interface KanbanCardMoveInput {
 interface KanbanListReorderInput {
   boardId: string;
   listIds: string[];
-}
-
-interface SaveListInput {
-  listId?: string | null;
-  name?: string;
-  color?: string | null;
-  type?: KanbanListType;
-  closeInline?: boolean;
-}
-
-interface SaveCardInput {
-  cardId?: string | null;
-  listId?: string;
-  title?: string;
-  description?: string | null;
-  priority?: KanbanCardPriority;
-  dueDate?: string | null;
-  assigneeUserId?: string | null;
-  labelIds?: string[];
-  inlineListId?: string;
-}
-
-interface SaveLabelInput {
-  labelId?: string | null;
-  name?: string;
-  color?: string | null;
-  attachToDetail?: boolean;
-}
-
-interface SaveCardDetailInput {
-  form?: typeof EMPTY_CARD_FORM;
-  silent?: boolean;
-  closeAfter?: boolean;
 }
 
 const moveKanbanCards = (
@@ -676,35 +603,6 @@ export default function TasksV2Page() {
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
   const [detailCommentDraft, setDetailCommentDraft] = useState("");
   const [detailSubtaskDraft, setDetailSubtaskDraft] = useState("");
-  const [boardViewMode, setBoardViewMode] = useState<BoardViewMode>(() => {
-    if (typeof window === "undefined") return "kanban";
-    const stored = window.localStorage.getItem(BOARD_VIEW_MODE_STORAGE_KEY);
-    return stored === "list" ? "list" : "kanban";
-  });
-  const [listGrouping, setListGrouping] = useState<BoardListGrouping>(() => {
-    if (typeof window === "undefined") return "list";
-    const stored = window.localStorage.getItem(BOARD_LIST_GROUPING_STORAGE_KEY);
-    return stored === "none" || stored === "list" || stored === "due" || stored === "assignee" || stored === "priority"
-      ? stored
-      : "list";
-  });
-  const [boardSettingsOpen, setBoardSettingsOpen] = useState(false);
-  const [inlineListOpen, setInlineListOpen] = useState(false);
-  const [inlineListTitle, setInlineListTitle] = useState("");
-  const [inlineCardListId, setInlineCardListId] = useState<string | null>(null);
-  const [inlineCardTitle, setInlineCardTitle] = useState("");
-  const [inlineEditingCardId, setInlineEditingCardId] = useState<string | null>(null);
-  const [inlineEditingCardTitle, setInlineEditingCardTitle] = useState("");
-  const [detailLabelQuery, setDetailLabelQuery] = useState("");
-  const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
-  const [detailSaveError, setDetailSaveError] = useState("");
-  const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
-  const [editingSettingsLabelId, setEditingSettingsLabelId] = useState<string | null>(null);
-  const [editingSettingsLabelName, setEditingSettingsLabelName] = useState("");
-  const [listViewDraftTitle, setListViewDraftTitle] = useState("");
-  const [listViewDraftListId, setListViewDraftListId] = useState("");
-  const detailAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const detailLastSavedSignatureRef = useRef("");
 
   const { data: companiesResponse, isLoading: companiesLoading } = useQuery<CompaniesResponse>({
     queryKey: ["/api/companies/me", "kanban-v2"],
@@ -920,68 +818,23 @@ export default function TasksV2Page() {
     return groupedCards;
   }, [filteredCards]);
 
-  const matchingDetailLabels = useMemo(() => {
-    const query = detailLabelQuery.trim().toLowerCase();
-    return boardLabels.filter((label) => {
-      if (detailCardForm.labelIds.includes(label.id)) return false;
-      if (!query) return true;
-      return label.name.toLowerCase().includes(query);
-    });
-  }, [boardLabels, detailCardForm.labelIds, detailLabelQuery]);
+  const toggleCardFormLabel = (labelId: string) => {
+    setCardForm((prev) => ({
+      ...prev,
+      labelIds: prev.labelIds.includes(labelId)
+        ? prev.labelIds.filter((value) => value !== labelId)
+        : [...prev.labelIds, labelId],
+    }));
+  };
 
-  const detailLabelExactMatch = useMemo(() => {
-    const query = detailLabelQuery.trim().toLowerCase();
-    if (!query) return null;
-    return boardLabels.find((label) => label.name.toLowerCase() === query) ?? null;
-  }, [boardLabels, detailLabelQuery]);
-
-  const listViewGroups = useMemo(() => {
-    const groups = new Map<string, { id: string; title: string; cards: KanbanCardView[]; droppableListId?: string }>();
-    const addCard = (id: string, title: string, card: KanbanCardView, droppableListId?: string) => {
-      const group = groups.get(id) ?? { id, title, cards: [], droppableListId };
-      group.cards.push(card);
-      groups.set(id, group);
-    };
-
-    for (const card of filteredCards) {
-      if (listGrouping === "none") {
-        addCard("all", "Все задачи", card);
-        continue;
-      }
-
-      if (listGrouping === "list") {
-        const list = lists.find((item) => item.id === card.listId);
-        addCard(card.listId || "no-list", list?.name || "Без списка", card, card.listId || undefined);
-        continue;
-      }
-
-      if (listGrouping === "due") {
-        const list = lists.find((item) => item.id === card.listId);
-        const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
-        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
-        addCard(dueStatus, getDueDateStatusLabel(dueStatus), card);
-        continue;
-      }
-
-      if (listGrouping === "assignee") {
-        const assigneeId = card.assigneeUserId || "unassigned";
-        addCard(assigneeId, card.assigneeUserId ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId : "Без исполнителя", card);
-        continue;
-      }
-
-      addCard(card.priority, CARD_PRIORITY_LABELS[card.priority], card);
-    }
-
-    if (listGrouping === "list") {
-      for (const list of lists) {
-        if (!groups.has(list.id)) {
-          groups.set(list.id, { id: list.id, title: list.name, cards: [], droppableListId: list.id });
-        }
-      }
-    }
-
-    return Array.from(groups.values());
-  }, [filteredCards, listGrouping, lists, userById]);
+  const toggleDetailCardFormLabel = (labelId: string) => {
+    setDetailCardForm((prev) => ({
+      ...prev,
+      labelIds: prev.labelIds.includes(labelId)
+        ? prev.labelIds.filter((value) => value !== labelId)
+        : [...prev.labelIds, labelId],
+    }));
+  };
 
   const getListNameById = (listId: unknown) => {
     const normalized = String(listId || "").trim();
@@ -1069,16 +922,6 @@ export default function TasksV2Page() {
   };
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(BOARD_VIEW_MODE_STORAGE_KEY, boardViewMode);
-  }, [boardViewMode]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(BOARD_LIST_GROUPING_STORAGE_KEY, listGrouping);
-  }, [listGrouping]);
-
-  useEffect(() => {
     if (
       !editingBoardId &&
       boardForm.visibility !== "personal" &&
@@ -1115,13 +958,6 @@ export default function TasksV2Page() {
     setCardForm(EMPTY_CARD_FORM);
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
-    setDetailSaveStatus("idle");
-    setDetailSaveError("");
-    detailLastSavedSignatureRef.current = "";
-    if (detailAutosaveTimerRef.current) {
-      clearTimeout(detailAutosaveTimerRef.current);
-      detailAutosaveTimerRef.current = null;
-    }
     setDetailCommentDraft("");
   }, [selectedBoardId]);
 
@@ -1136,7 +972,6 @@ export default function TasksV2Page() {
       const nextListId = lists.some((list) => list.id === prev.listId) ? prev.listId : lists[0].id;
       return prev.listId === nextListId ? prev : { ...prev, listId: nextListId };
     });
-    setListViewDraftListId((prev) => (lists.some((list) => list.id === prev) ? prev : lists[0]?.id || ""));
   }, [lists]);
 
   useEffect(() => {
@@ -1154,7 +989,7 @@ export default function TasksV2Page() {
     if (!detailCardId) return;
     if (!selectedDetailCard) return;
 
-    const nextForm = {
+    setDetailCardForm({
       listId: selectedDetailCard.listId,
       title: selectedDetailCard.title,
       description: selectedDetailCard.description || "",
@@ -1162,11 +997,7 @@ export default function TasksV2Page() {
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
-    };
-    setDetailCardForm(nextForm);
-    detailLastSavedSignatureRef.current = serializeCardForm(nextForm);
-    setDetailSaveStatus("saved");
-    setDetailSaveError("");
+    });
   }, [detailCardId, selectedDetailCard]);
 
   useEffect(() => {
@@ -1253,20 +1084,19 @@ export default function TasksV2Page() {
   });
 
   const saveListMutation = useMutation({
-    mutationFn: async (input?: SaveListInput) => {
+    mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
 
-      const targetListId = input?.listId ?? editingListId;
       const payload = {
-        name: (input?.name ?? listForm.name).trim(),
-        color: input?.color !== undefined ? (input.color?.trim() || null) : (listForm.color.trim() || null),
-        type: input?.type ?? listForm.type,
+        name: listForm.name.trim(),
+        color: listForm.color.trim() || null,
+        type: listForm.type,
       };
 
-      if (targetListId) {
+      if (editingListId) {
         const res = await apiRequest(
           "PUT",
-          `/api/kanban/boards/${selectedBoardId}/lists/${targetListId}`,
+          `/api/kanban/boards/${selectedBoardId}/lists/${editingListId}`,
           payload,
         );
         return await res.json();
@@ -1275,18 +1105,14 @@ export default function TasksV2Page() {
       const res = await apiRequest("POST", `/api/kanban/boards/${selectedBoardId}/lists`, payload);
       return await res.json();
     },
-    onSuccess: (_list, input) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban-lists", selectedBoardId] });
       toast({
-        title: (input?.listId ?? editingListId) ? "Список обновлен" : "Список создан",
-        description: "Список сохранен в текущей доске.",
+        title: editingListId ? "Список обновлен" : "Список создан",
+        description: "First-class list сохранен в Kanban V2.",
       });
       setEditingListId(null);
       setListForm(EMPTY_LIST_FORM);
-      if (input?.closeInline) {
-        setInlineListOpen(false);
-        setInlineListTitle("");
-      }
     },
     onError: (error: Error) => {
       toast({
@@ -1365,26 +1191,24 @@ export default function TasksV2Page() {
   });
 
   const saveCardMutation = useMutation({
-    mutationFn: async (input?: SaveCardInput) => {
+    mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
-      const targetCardId = input?.cardId ?? editingCardId;
-      const targetListId = input?.listId ?? cardForm.listId;
-      if (!targetListId) throw new Error("Сначала выберите список");
+      if (!cardForm.listId) throw new Error("Сначала выберите список");
 
       const payload = {
-        listId: targetListId,
-        title: (input?.title ?? cardForm.title).trim(),
-        description: input?.description !== undefined ? input.description : (cardForm.description.trim() || null),
-        priority: input?.priority ?? cardForm.priority,
-        dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
-        assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
-        labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
+        listId: cardForm.listId,
+        title: cardForm.title.trim(),
+        description: cardForm.description.trim() || null,
+        priority: cardForm.priority,
+        dueDate: cardForm.dueDate || null,
+        assigneeUserId: cardForm.assigneeUserId || null,
+        labelIds: normalizeLabelIds(cardForm.labelIds),
       };
 
-      if (targetCardId) {
+      if (editingCardId) {
         const res = await apiRequest(
           "PUT",
-          `/api/kanban/boards/${selectedBoardId}/cards/${targetCardId}`,
+          `/api/kanban/boards/${selectedBoardId}/cards/${editingCardId}`,
           payload,
         );
         return await res.json();
@@ -1393,25 +1217,17 @@ export default function TasksV2Page() {
       const res = await apiRequest("POST", `/api/kanban/boards/${selectedBoardId}/cards`, payload);
       return await res.json();
     },
-    onSuccess: (card: KanbanCardView, input) => {
+    onSuccess: (card: KanbanCardView) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       toast({
-        title: (input?.cardId ?? editingCardId) ? "Карточка обновлена" : "Карточка создана",
-        description: "Карточка сохранена в текущем списке.",
+        title: editingCardId ? "Карточка обновлена" : "Карточка создана",
+        description: "First-class card сохранена в Kanban V2.",
       });
       setEditingCardId(null);
       setCardForm({
         ...EMPTY_CARD_FORM,
         listId: card.listId || lists[0]?.id || "",
       });
-      if (input?.inlineListId) {
-        setInlineCardListId(null);
-        setInlineCardTitle("");
-      }
-      if (input?.cardId) {
-        setInlineEditingCardId(null);
-        setInlineEditingCardTitle("");
-      }
     },
     onError: (error: Error) => {
       toast({
@@ -1452,47 +1268,31 @@ export default function TasksV2Page() {
   });
 
   const saveCardDetailMutation = useMutation({
-    mutationFn: async (input?: SaveCardDetailInput) => {
+    mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
       if (!detailCardId) throw new Error("Сначала выберите карточку");
-      const form = input?.form ?? detailCardForm;
-      if (!form.listId) throw new Error("Сначала выберите список");
-      if (!form.title.trim()) throw new Error("Название карточки не может быть пустым");
+      if (!detailCardForm.listId) throw new Error("Сначала выберите список");
 
       const res = await apiRequest(
         "PUT",
         `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}`,
         {
-          listId: form.listId,
-          title: form.title.trim(),
-          description: form.description.trim() || null,
-          priority: form.priority,
-          dueDate: form.dueDate || null,
-          assigneeUserId: form.assigneeUserId || null,
-          labelIds: normalizeLabelIds(form.labelIds),
+          listId: detailCardForm.listId,
+          title: detailCardForm.title.trim(),
+          description: detailCardForm.description.trim() || null,
+          priority: detailCardForm.priority,
+          dueDate: detailCardForm.dueDate || null,
+          assigneeUserId: detailCardForm.assigneeUserId || null,
+          labelIds: normalizeLabelIds(detailCardForm.labelIds),
         },
       );
       return await res.json();
     },
-    onMutate: (input) => {
-      if (input?.silent) setDetailSaveStatus("saving");
-    },
-    onSuccess: (card: KanbanCardView, input) => {
+    onSuccess: (card: KanbanCardView) => {
       queryClient.setQueryData(["kanban-card", selectedBoardId, card.id], card);
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
-      detailLastSavedSignatureRef.current = serializeCardForm(input?.form ?? {
-        listId: card.listId,
-        title: card.title,
-        description: card.description || "",
-        priority: card.priority,
-        dueDate: toDateTimeLocalValue(card.dueDate),
-        assigneeUserId: card.assigneeUserId || "",
-        labelIds: normalizeLabelIds(card.labelIds),
-      });
-      setDetailSaveStatus("saved");
-      setDetailSaveError("");
 
       if (editingCardId === card.id) {
         setCardForm({
@@ -1506,21 +1306,14 @@ export default function TasksV2Page() {
         });
       }
 
-      if (!input?.silent) {
-        toast({
-          title: "Карточка обновлена",
-          description: "Изменения сохранены.",
-        });
-      }
-      if (input?.closeAfter) {
-        setDetailCardId(null);
-        setDetailCardForm(EMPTY_CARD_FORM);
-        setDetailSaveStatus("idle");
-      }
+      toast({
+        title: "Карточка обновлена",
+        description: "Изменения сохранены в detail view.",
+      });
+      setDetailCardId(null);
+      setDetailCardForm(EMPTY_CARD_FORM);
     },
     onError: (error: Error) => {
-      setDetailSaveStatus("error");
-      setDetailSaveError(error.message);
       toast({
         title: "Не удалось сохранить карточку",
         description: error.message,
@@ -1723,19 +1516,18 @@ export default function TasksV2Page() {
   });
 
   const saveLabelMutation = useMutation({
-    mutationFn: async (input?: SaveLabelInput) => {
+    mutationFn: async () => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
 
-      const targetLabelId = input?.labelId ?? editingLabelId;
       const payload = {
-        name: (input?.name ?? labelForm.name).trim(),
-        color: input?.color !== undefined ? (input.color?.trim() || null) : (labelForm.color.trim() || null),
+        name: labelForm.name.trim(),
+        color: labelForm.color.trim() || null,
       };
 
-      if (targetLabelId) {
+      if (editingLabelId) {
         const res = await apiRequest(
           "PUT",
-          `/api/kanban/boards/${selectedBoardId}/labels/${targetLabelId}`,
+          `/api/kanban/boards/${selectedBoardId}/labels/${editingLabelId}`,
           payload,
         );
         return await res.json();
@@ -1744,17 +1536,10 @@ export default function TasksV2Page() {
       const res = await apiRequest("POST", `/api/kanban/boards/${selectedBoardId}/labels`, payload);
       return await res.json();
     },
-    onSuccess: (label: KanbanLabelView, input) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban-labels", selectedBoardId] });
-      if (input?.attachToDetail) {
-        setDetailCardForm((prev) => ({
-          ...prev,
-          labelIds: prev.labelIds.includes(label.id) ? prev.labelIds : [...prev.labelIds, label.id],
-        }));
-        setDetailLabelQuery("");
-      }
       toast({
-        title: (input?.labelId ?? editingLabelId) ? "Метка обновлена" : "Метка создана",
+        title: editingLabelId ? "Метка обновлена" : "Метка создана",
         description: "Справочник меток доски синхронизирован.",
       });
       setEditingLabelId(null);
@@ -1955,34 +1740,10 @@ export default function TasksV2Page() {
   };
 
   const handleCloseCardDetail = () => {
-    if (detailAutosaveTimerRef.current) {
-      clearTimeout(detailAutosaveTimerRef.current);
-      detailAutosaveTimerRef.current = null;
-    }
-
-    const currentSignature = serializeCardForm(detailCardForm);
-    const hasPendingChanges =
-      detailCardId &&
-      canEditSelectedBoard &&
-      currentSignature !== detailLastSavedSignatureRef.current &&
-      detailCardForm.title.trim() &&
-      detailCardForm.listId;
-
-    if (hasPendingChanges) {
-      saveCardDetailMutation.mutate({
-        form: detailCardForm,
-        silent: true,
-        closeAfter: true,
-      });
-      return;
-    }
-
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
     setDetailCommentDraft("");
     setDetailSubtaskDraft("");
-    setDetailSaveStatus("idle");
-    setDetailSaveError("");
   };
 
   const handleEditLabel = (label: KanbanLabelView) => {
@@ -2012,172 +1773,16 @@ export default function TasksV2Page() {
     setMemberForm(EMPTY_MEMBER_FORM);
   };
 
-  const handleSubmitInlineList = () => {
-    const name = inlineListTitle.trim();
-    if (!name || !canEditSelectedBoard || saveListMutation.isPending) return;
-    saveListMutation.mutate({
-      name,
-      color: null,
-      type: "active",
-      closeInline: true,
-    });
-  };
-
-  const handleCancelInlineList = () => {
-    setInlineListOpen(false);
-    setInlineListTitle("");
-  };
-
-  const handleSubmitInlineCard = (listId: string) => {
-    const title = inlineCardTitle.trim();
-    if (!title || !canEditSelectedBoard || saveCardMutation.isPending) return;
-    saveCardMutation.mutate({
-      listId,
-      title,
-      description: null,
-      priority: "medium",
-      dueDate: null,
-      assigneeUserId: null,
-      labelIds: [],
-      inlineListId: listId,
-    });
-  };
-
-  const handleCancelInlineCard = () => {
-    setInlineCardListId(null);
-    setInlineCardTitle("");
-  };
-
-  const handleBeginInlineCardTitleEdit = (card: KanbanCardView) => {
-    if (!canEditSelectedBoard || isCardPending) return;
-    setInlineEditingCardId(card.id);
-    setInlineEditingCardTitle(card.title);
-  };
-
-  const handleCommitInlineCardTitleEdit = (card: KanbanCardView) => {
-    const nextTitle = inlineEditingCardTitle.trim();
-    if (!nextTitle || nextTitle === card.title) {
-      setInlineEditingCardId(null);
-      setInlineEditingCardTitle("");
-      return;
-    }
-
-    saveCardMutation.mutate({
-      cardId: card.id,
-      listId: card.listId,
-      title: nextTitle,
-      description: card.description || null,
-      priority: card.priority,
-      dueDate: card.dueDate ? toDateTimeLocalValue(card.dueDate) : null,
-      assigneeUserId: card.assigneeUserId || null,
-      labelIds: normalizeLabelIds(card.labelIds),
-    });
-  };
-
-  const handleCancelInlineCardTitleEdit = () => {
-    setInlineEditingCardId(null);
-    setInlineEditingCardTitle("");
-  };
-
-  const handleAttachDetailLabel = (labelId: string) => {
-    setDetailCardForm((prev) => ({
-      ...prev,
-      labelIds: prev.labelIds.includes(labelId) ? prev.labelIds : [...prev.labelIds, labelId],
-    }));
-    setDetailLabelQuery("");
-  };
-
-  const handleRemoveDetailLabel = (labelId: string) => {
-    setDetailCardForm((prev) => ({
-      ...prev,
-      labelIds: prev.labelIds.filter((value) => value !== labelId),
-    }));
-  };
-
-  const handleCreateDetailLabel = () => {
-    const name = detailLabelQuery.trim();
-    if (!name || saveLabelMutation.isPending) return;
-    const color = LABEL_COLOR_PRESETS[boardLabels.length % LABEL_COLOR_PRESETS.length].value;
-    saveLabelMutation.mutate({ name, color, attachToDetail: true });
-  };
-
-  const handleCreateSettingsLabel = () => {
-    const name = settingsLabelDraft.trim();
-    if (!name || saveLabelMutation.isPending) return;
-    const color = LABEL_COLOR_PRESETS[boardLabels.length % LABEL_COLOR_PRESETS.length].value;
-    saveLabelMutation.mutate(
-      { name, color },
-      { onSuccess: () => setSettingsLabelDraft("") },
-    );
-  };
-
-  const handleBeginSettingsLabelEdit = (label: KanbanLabelView) => {
-    setEditingSettingsLabelId(label.id);
-    setEditingSettingsLabelName(label.name);
-  };
-
-  const handleCancelSettingsLabelEdit = () => {
-    setEditingSettingsLabelId(null);
-    setEditingSettingsLabelName("");
-  };
-
-  const handleCommitSettingsLabelEdit = (label: KanbanLabelView) => {
-    const name = editingSettingsLabelName.trim();
-    if (!name || name === label.name) {
-      handleCancelSettingsLabelEdit();
-      return;
-    }
-    saveLabelMutation.mutate(
-      { labelId: label.id, name, color: label.color || null },
-      { onSuccess: handleCancelSettingsLabelEdit },
-    );
-  };
-
-  const handleSubmitListViewCard = () => {
-    const title = listViewDraftTitle.trim();
-    const listId = listViewDraftListId || lists[0]?.id || "";
-    if (!title || !listId || !canEditSelectedBoard || saveCardMutation.isPending) return;
-    saveCardMutation.mutate(
-      {
-        listId,
-        title,
-        description: null,
-        priority: "medium",
-        dueDate: null,
-        assigneeUserId: null,
-        labelIds: [],
-      },
-      {
-        onSuccess: () => setListViewDraftTitle(""),
-      },
-    );
-  };
-
-  const handleBoardDragEnd = (result: DropResult) => {
+  const handleCardDragEnd = (result: DropResult) => {
     if (!selectedBoardId || !canEditSelectedBoard || isCardPending) return;
 
-    const { destination, source, draggableId, type } = result;
+    const { destination, source, draggableId } = result;
     if (!destination) return;
 
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
     ) {
-      return;
-    }
-
-    if (type === "LIST") {
-      if (moveListMutation.isPending) return;
-      const sourceIndex = source.index;
-      const destinationIndex = destination.index;
-      const reorderedIds = lists.map((list) => list.id);
-      const [movedId] = reorderedIds.splice(sourceIndex, 1);
-      if (!movedId) return;
-      reorderedIds.splice(destinationIndex, 0, movedId);
-      moveListMutation.mutate({
-        boardId: selectedBoardId,
-        listIds: reorderedIds,
-      });
       return;
     }
 
@@ -2208,108 +1813,6 @@ export default function TasksV2Page() {
     });
   };
 
-  const renderListViewCardRow = (card: KanbanCardView) => {
-    const list = lists.find((item) => item.id === card.listId);
-    const assigneeName = card.assigneeUserId ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId : "Без исполнителя";
-    const dueDateStatus = getDueDateStatus(card.dueDate, {
-      isComplete: list?.type === "closed" || list?.type === "archive" || list?.type === "trash",
-    });
-    const cardLabels = normalizeLabelIds(card.labelIds)
-      .map((labelId) => labelById.get(labelId))
-      .filter((label): label is KanbanLabelView => Boolean(label));
-
-    return (
-      <div className="grid gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-4 py-3 text-sm dark:border-slate-700/80 dark:bg-slate-950/40 md:grid-cols-[minmax(220px,1.7fr)_160px_130px_160px_150px_auto]">
-        <div className="min-w-0">
-          {inlineEditingCardId === card.id ? (
-            <Input
-              value={inlineEditingCardTitle}
-              onChange={(event) => setInlineEditingCardTitle(event.target.value)}
-              autoFocus
-              className={KANBAN_PANEL_INPUT_CLASS}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  handleCancelInlineCardTitleEdit();
-                }
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  handleCommitInlineCardTitleEdit(card);
-                }
-              }}
-              onBlur={() => handleCommitInlineCardTitleEdit(card)}
-              disabled={saveCardMutation.isPending}
-            />
-          ) : (
-            <button
-              type="button"
-              className="block max-w-full truncate text-left font-medium text-slate-900 hover:underline dark:text-slate-100"
-              title={canEditSelectedBoard ? "Двойной клик для переименования" : card.title}
-              onDoubleClick={() => handleBeginInlineCardTitleEdit(card)}
-            >
-              {card.title}
-            </button>
-          )}
-          {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
-        </div>
-        <select
-          className={KANBAN_PANEL_SELECT_CLASS}
-          value={card.listId}
-          onChange={(event) => {
-            if (!selectedBoardId) return;
-            moveCardMutation.mutate({
-              boardId: selectedBoardId,
-              cardId: card.id,
-              targetListId: event.target.value,
-              targetPosition: 0,
-            });
-          }}
-          disabled={!canEditSelectedBoard || moveCardMutation.isPending}
-        >
-          {lists.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-        <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]} className="w-fit rounded-full">
-          {CARD_PRIORITY_LABELS[card.priority]}
-        </Badge>
-        <span className="truncate text-muted-foreground">{assigneeName}</span>
-        <Badge variant="outline" className="w-fit rounded-full">
-          {getDueDateStatusLabel(dueDateStatus)}
-        </Badge>
-        <div className="flex items-center justify-end gap-1">
-          {cardLabels.slice(0, 2).map((label) => (
-            <span
-              key={label.id}
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.5)" }}
-              title={label.name}
-            />
-          ))}
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => handleOpenCardDetail(card.id)}>
-            <Info className="h-4 w-4" />
-          </Button>
-          {canEditSelectedBoard && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
-              onClick={() => {
-                if (!confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
-                deleteCardMutation.mutate(card.id);
-              }}
-              disabled={deleteCardMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const isBoardPending = saveBoardMutation.isPending || deleteBoardMutation.isPending;
   const isListPending =
     saveListMutation.isPending || deleteListMutation.isPending || moveListMutation.isPending;
@@ -2329,50 +1832,6 @@ export default function TasksV2Page() {
   const canCommentSelectedBoard = Boolean(selectedBoard?.canComment);
   const isBoardStructureLoading = listsLoading || cardsLoading;
   const hasLists = lists.length > 0;
-
-  useEffect(() => {
-    if (!detailCardId || !selectedDetailCard || !canEditSelectedBoard) return;
-    if (saveCardDetailMutation.isPending) return;
-
-    const currentSignature = serializeCardForm(detailCardForm);
-    const lastSavedSignature = detailLastSavedSignatureRef.current;
-
-    if (currentSignature === lastSavedSignature) {
-      if (detailSaveStatus === "dirty") setDetailSaveStatus("saved");
-      return;
-    }
-
-    if (!detailCardForm.title.trim() || !detailCardForm.listId) {
-      setDetailSaveStatus("dirty");
-      return;
-    }
-
-    setDetailSaveStatus("dirty");
-    setDetailSaveError("");
-
-    if (detailAutosaveTimerRef.current) {
-      clearTimeout(detailAutosaveTimerRef.current);
-    }
-
-    const formSnapshot = { ...detailCardForm, labelIds: [...detailCardForm.labelIds] };
-    detailAutosaveTimerRef.current = setTimeout(() => {
-      saveCardDetailMutation.mutate({ form: formSnapshot, silent: true });
-      detailAutosaveTimerRef.current = null;
-    }, DETAIL_AUTOSAVE_DELAY_MS);
-
-    return () => {
-      if (detailAutosaveTimerRef.current) {
-        clearTimeout(detailAutosaveTimerRef.current);
-        detailAutosaveTimerRef.current = null;
-      }
-    };
-  }, [
-    canEditSelectedBoard,
-    detailCardForm,
-    detailCardId,
-    detailSaveStatus,
-    selectedDetailCard,
-  ]);
 
   return (
     <div className="mx-auto max-w-[1520px] space-y-6 p-4 [--kanban-card-end:rgba(148,163,184,0.26)] [--kanban-card-start:rgba(226,232,240,0.78)] [--kanban-drag-card-start:rgba(226,232,240,0.94)] [--kanban-lane-empty:rgba(15,23,42,0.05)] [--kanban-lane-fallback:rgba(100,116,139,0.16)] [--kanban-list-end:rgba(148,163,184,0.32)] [--kanban-list-header:rgba(226,232,240,0.72)] [--kanban-list-over-end:rgba(148,163,184,0.42)] [--kanban-list-over-start:rgba(226,232,240,0.84)] [--kanban-list-start:rgba(226,232,240,0.68)] dark:[--kanban-card-end:rgba(30,41,59,0.88)] dark:[--kanban-card-start:rgba(27,38,56,0.98)] dark:[--kanban-drag-card-start:rgba(30,41,59,0.98)] dark:[--kanban-lane-empty:rgba(15,23,42,0.72)] dark:[--kanban-lane-fallback:rgba(15,23,42,0.62)] dark:[--kanban-list-end:rgba(23,32,51,0.94)] dark:[--kanban-list-header:rgba(23,32,51,0.9)] dark:[--kanban-list-over-end:rgba(30,41,59,0.98)] dark:[--kanban-list-over-start:rgba(23,32,51,0.98)] dark:[--kanban-list-start:rgba(17,24,39,0.98)] sm:p-6">
@@ -2656,19 +2115,11 @@ export default function TasksV2Page() {
                   </div>
                 </div>
 
-	                {selectedBoard.canManage && (
-	                  <div className="flex flex-wrap gap-2">
-	                    <Button
-	                      variant="outline"
-	                      className="gap-2 rounded-xl border-slate-500/20 bg-slate-900/[0.045] dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-100 dark:hover:bg-slate-900"
-	                      onClick={() => setBoardSettingsOpen(true)}
-	                    >
-	                      <Settings2 className="h-4 w-4" />
-	                      Board settings
-	                    </Button>
-	                    <Button variant="outline" className="gap-2 rounded-xl border-slate-500/20 bg-slate-900/[0.045] dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-100 dark:hover:bg-slate-900" onClick={() => handleEditBoard(selectedBoard)} disabled={isBoardPending}>
-	                      <Pencil className="h-4 w-4" />
-	                      Редактировать
+                {selectedBoard.canManage && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="gap-2 rounded-xl border-slate-500/20 bg-slate-900/[0.045] dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-100 dark:hover:bg-slate-900" onClick={() => handleEditBoard(selectedBoard)} disabled={isBoardPending}>
+                      <Pencil className="h-4 w-4" />
+                      Редактировать
                     </Button>
                     <Button
                       variant="destructive"
@@ -2708,50 +2159,13 @@ export default function TasksV2Page() {
               </CardDescription>
             </div>
             {selectedBoard && (
-              <div className="flex flex-col items-start gap-3 sm:items-end">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="border-slate-500/20 bg-slate-900/[0.035] dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
-                    {canEditSelectedBoard ? "Редактирование" : canCommentSelectedBoard ? "Комментарии" : "Просмотр"}
-                  </Badge>
-                  <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{isSelectedBoardPersonal ? "Личное пространство" : `${boardMembers.length} участников`}</Badge>
-                  <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{lists.length} списков</Badge>
-                  <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{filteredCards.length} из {cards.length} карточек</Badge>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-xl border border-slate-500/15 bg-slate-900/[0.035] p-1 dark:border-slate-700 dark:bg-slate-950/50">
-                    <Button
-                      variant={boardViewMode === "kanban" ? "secondary" : "ghost"}
-                      size="sm"
-                      className="gap-2 rounded-lg"
-                      onClick={() => setBoardViewMode("kanban")}
-                    >
-                      <Layers3 className="h-4 w-4" />
-                      Kanban
-                    </Button>
-                    <Button
-                      variant={boardViewMode === "list" ? "secondary" : "ghost"}
-                      size="sm"
-                      className="gap-2 rounded-lg"
-                      onClick={() => setBoardViewMode("list")}
-                    >
-                      <LayoutList className="h-4 w-4" />
-                      List
-                    </Button>
-                  </div>
-                  {boardViewMode === "list" && (
-                    <select
-                      className={KANBAN_PANEL_SELECT_CLASS}
-                      value={listGrouping}
-                      onChange={(event) => setListGrouping(event.target.value as BoardListGrouping)}
-                    >
-                      <option value="none">Без группировки</option>
-                      <option value="list">По списку</option>
-                      <option value="due">По сроку</option>
-                      <option value="assignee">По исполнителю</option>
-                      <option value="priority">По приоритету</option>
-                    </select>
-                  )}
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="border-slate-500/20 bg-slate-900/[0.035] dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
+                  {canEditSelectedBoard ? "Редактирование" : canCommentSelectedBoard ? "Комментарии" : "Просмотр"}
+                </Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{isSelectedBoardPersonal ? "Личное пространство" : `${boardMembers.length} участников`}</Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{lists.length} списков</Badge>
+                <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">{filteredCards.length} из {cards.length} карточек</Badge>
               </div>
             )}
           </div>
@@ -2762,7 +2176,8 @@ export default function TasksV2Page() {
               Выберите доску в левом навигаторе, чтобы открыть её поток задач, списки и карточки.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
+              <div className="space-y-4">
                 <Card className="overflow-hidden border-slate-500/20 bg-[linear-gradient(180deg,rgba(226,232,240,0.68),rgba(148,163,184,0.14))] shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.98),rgba(23,32,51,0.94))]">
                   <CardHeader className="border-b border-slate-500/15 bg-slate-900/[0.035] dark:border-slate-700/70 dark:bg-slate-950/25">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2894,15 +2309,15 @@ export default function TasksV2Page() {
                       Загружаем структуру доски и карточки...
                     </CardContent>
                   </Card>
-                ) : boardViewMode === "kanban" ? (
-                  <DragDropContext onDragEnd={handleBoardDragEnd}>
-                    <Droppable droppableId="board-lists" direction="horizontal" type="LIST">
-                      {(listDropProvided) => (
-                        <div
-                          ref={listDropProvided.innerRef}
-                          {...listDropProvided.droppableProps}
-                          className="flex max-w-full items-stretch gap-4 overflow-x-auto px-1 pb-3 pr-6"
-                        >
+                ) : lists.length === 0 ? (
+                  <Card className="border-slate-500/15 bg-slate-900/[0.035] dark:border-slate-700/80 dark:bg-slate-950/40">
+                    <CardContent className="py-10 text-sm leading-6 text-muted-foreground">
+                      В этой доске пока нет списков. Создай первый список справа, чтобы запустить рабочий поток.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <DragDropContext onDragEnd={handleCardDragEnd}>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {lists.map((list, listIndex) => {
                         const listCards = filteredCardsByListId.get(list.id) ?? [];
                         const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
@@ -2911,32 +2326,18 @@ export default function TasksV2Page() {
                         const listCardTint = toSoftColor(list.color, 0.05);
 
                         return (
-                          <Draggable
-                            key={list.id}
-                            draggableId={`list:${list.id}`}
-                            index={listIndex}
-                            isDragDisabled={!canEditSelectedBoard || isListPending}
-                          >
-                            {(listDragProvided, listDragSnapshot) => (
-                              <div
-                                ref={listDragProvided.innerRef}
-                                {...listDragProvided.draggableProps}
-                                className="h-full w-[320px] shrink-0"
-                                style={getDraggableCardStyle(listDragProvided.draggableProps.style, {
-                                  isDragging: listDragSnapshot.isDragging,
-                                  isDropAnimating: listDragSnapshot.isDropAnimating,
-                                })}
-                              >
                           <Droppable
+                            key={list.id}
                             droppableId={list.id}
-                            type="CARD"
                             isDropDisabled={!canEditSelectedBoard || isCardPending}
                           >
                             {(provided, snapshot) => (
                               <Card
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
                                 className={[
                                   "h-full overflow-hidden rounded-[24px] border border-slate-500/20 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 dark:border-slate-700/80 dark:text-slate-100",
-                                  snapshot.isDraggingOver || listDragSnapshot.isDragging
+                                  snapshot.isDraggingOver
                                     ? "border-sky-400/70 shadow-lg shadow-sky-900/10 ring-2 ring-sky-300/30 dark:border-blue-400/60 dark:ring-blue-400/20"
                                     : "hover:border-slate-500/30 hover:shadow-md dark:hover:border-slate-600",
                                 ].join(" ").trim()}
@@ -2953,34 +2354,7 @@ export default function TasksV2Page() {
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
-                                        {editingListId === list.id ? (
-                                          <Input
-                                            value={listForm.name}
-                                            onChange={(event) => setListForm((prev) => ({ ...prev, name: event.target.value }))}
-                                            autoFocus
-                                            className={KANBAN_PANEL_INPUT_CLASS}
-                                            disabled={isListPending}
-                                            onKeyDown={(event) => {
-                                              if (event.key === "Escape") {
-                                                event.preventDefault();
-                                                handleCancelListEdit();
-                                              }
-                                              if (event.key === "Enter") {
-                                                event.preventDefault();
-                                                if (listForm.name.trim()) saveListMutation.mutate({ listId: list.id });
-                                              }
-                                            }}
-                                            onBlur={() => {
-                                              if (!listForm.name.trim()) {
-                                                handleCancelListEdit();
-                                                return;
-                                              }
-                                              saveListMutation.mutate({ listId: list.id });
-                                            }}
-                                          />
-                                        ) : (
-                                          <CardTitle className="text-base font-semibold tracking-tight text-slate-900 break-words dark:text-slate-100">{list.name}</CardTitle>
-                                        )}
+                                        <CardTitle className="text-base font-semibold tracking-tight text-slate-900 break-words dark:text-slate-100">{list.name}</CardTitle>
                                         {list.color && (
                                           <span
                                             className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-slate-800/10 shadow-sm"
@@ -2990,19 +2364,30 @@ export default function TasksV2Page() {
                                       </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-2">
-	                                      {canEditSelectedBoard && (
-	                                        <>
-	                                          <Button
-	                                            variant="ghost"
-	                                            size="icon"
-	                                            className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
-	                                            aria-label="Перетащить список"
-	                                            title="Перетащить список"
-	                                            disabled={isListPending}
-	                                            {...listDragProvided.dragHandleProps}
-	                                          >
-	                                            <GripVertical className="h-4 w-4" />
-	                                          </Button>
+                                      {canEditSelectedBoard && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                            aria-label="Поднять список"
+                                            title="Поднять список"
+                                            onClick={() => handleShiftList(list.id, "up")}
+                                            disabled={isListPending || listIndex === 0}
+                                          >
+                                            <ArrowUp className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                            aria-label="Опустить список"
+                                            title="Опустить список"
+                                            onClick={() => handleShiftList(list.id, "down")}
+                                            disabled={isListPending || listIndex === lists.length - 1}
+                                          >
+                                            <ArrowDown className="h-4 w-4" />
+                                          </Button>
                                           <Button
                                             variant="ghost"
                                             size="icon"
@@ -3014,85 +2399,6 @@ export default function TasksV2Page() {
                                           >
                                             <Pencil className="h-4 w-4" />
                                           </Button>
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
-                                                aria-label="Настройки списка"
-                                                title="Настройки списка"
-                                                disabled={isListPending}
-                                              >
-                                                <MoreHorizontal className="h-4 w-4" />
-                                              </Button>
-	                                            </DropdownMenuTrigger>
-	                                            <DropdownMenuContent align="end" className="w-64">
-	                                              <DropdownMenuLabel>Позиция</DropdownMenuLabel>
-	                                              <DropdownMenuItem onClick={() => handleShiftList(list.id, "up")} disabled={isListPending || listIndex === 0}>
-	                                                <ArrowLeft className="mr-2 h-4 w-4" />
-	                                                Move left
-	                                              </DropdownMenuItem>
-	                                              <DropdownMenuItem onClick={() => handleShiftList(list.id, "down")} disabled={isListPending || listIndex === lists.length - 1}>
-	                                                <ArrowDown className="mr-2 h-4 w-4 rotate-[-90deg]" />
-	                                                Move right
-	                                              </DropdownMenuItem>
-	                                              <DropdownMenuSeparator />
-	                                              <DropdownMenuLabel>Тип списка</DropdownMenuLabel>
-                                              {Object.entries(LIST_TYPE_LABELS).map(([value, label]) => (
-                                                <DropdownMenuItem
-                                                  key={value}
-                                                  onClick={() =>
-                                                    saveListMutation.mutate({
-                                                      listId: list.id,
-                                                      name: list.name,
-                                                      color: list.color || null,
-                                                      type: value as KanbanListType,
-                                                    })
-                                                  }
-                                                >
-                                                  {label}{list.type === value ? " ✓" : ""}
-                                                </DropdownMenuItem>
-                                              ))}
-                                              <DropdownMenuSeparator />
-                                              <DropdownMenuLabel>Цвет</DropdownMenuLabel>
-                                              <DropdownMenuItem
-                                                onClick={() =>
-                                                  saveListMutation.mutate({
-                                                    listId: list.id,
-                                                    name: list.name,
-                                                    color: null,
-                                                    type: list.type,
-                                                  })
-                                                }
-                                              >
-                                                Без цвета{!list.color ? " ✓" : ""}
-                                              </DropdownMenuItem>
-                                              <div className="grid grid-cols-4 gap-2 p-2">
-                                                {LIST_COLOR_PRESETS.map((preset) => (
-                                                  <button
-                                                    key={preset.value}
-                                                    type="button"
-                                                    className={[
-                                                      "h-8 rounded-lg border transition hover:scale-105",
-                                                      list.color === preset.value ? "border-foreground ring-2 ring-primary/40" : "border-border",
-                                                    ].join(" ")}
-                                                    style={{ backgroundColor: preset.value }}
-                                                    aria-label={`Выбрать цвет ${preset.label}`}
-                                                    title={preset.label}
-                                                    onClick={() =>
-                                                      saveListMutation.mutate({
-                                                        listId: list.id,
-                                                        name: list.name,
-                                                        color: preset.value,
-                                                        type: list.type,
-                                                      })
-                                                    }
-                                                  />
-                                                ))}
-                                              </div>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
                                           <Button
                                             variant="ghost"
                                             size="icon"
@@ -3128,73 +2434,14 @@ export default function TasksV2Page() {
                                     </span>
                                   </div>
 
-                                  {canEditSelectedBoard && (
-                                    <div className="rounded-[18px] border border-slate-500/15 bg-slate-900/[0.035] p-2 dark:border-slate-700/80 dark:bg-slate-950/35">
-                                      {inlineCardListId === list.id ? (
-                                        <div className="space-y-2">
-                                          <Input
-                                            value={inlineCardTitle}
-                                            onChange={(event) => setInlineCardTitle(event.target.value)}
-                                            placeholder="Название задачи"
-                                            autoFocus
-                                            disabled={isCardPending}
-                                            className={KANBAN_PANEL_INPUT_CLASS}
-                                            onKeyDown={(event) => {
-                                              if (event.key === "Escape") {
-                                                event.preventDefault();
-                                                handleCancelInlineCard();
-                                              }
-                                              if (event.key === "Enter") {
-                                                event.preventDefault();
-                                                handleSubmitInlineCard(list.id);
-                                              }
-                                            }}
-                                            onBlur={() => {
-                                              if (!inlineCardTitle.trim()) handleCancelInlineCard();
-                                            }}
-                                          />
-                                          <div className="flex justify-end gap-2">
-                                            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={handleCancelInlineCard}>
-                                              Отмена
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              className="rounded-xl"
-                                              onMouseDown={(event) => event.preventDefault()}
-                                              onClick={() => handleSubmitInlineCard(list.id)}
-                                              disabled={!inlineCardTitle.trim() || isCardPending}
-                                            >
-                                              Добавить
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-slate-900/[0.055] hover:text-slate-900 dark:hover:bg-slate-900/70 dark:hover:text-slate-100"
-                                          onClick={() => {
-                                            setInlineCardListId(list.id);
-                                            setInlineCardTitle("");
-                                          }}
-                                          disabled={isCardPending}
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                          Добавить задачу
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-
                                   <div
-                                    ref={provided.innerRef}
-                                    {...provided.droppableProps}
-                                    className="space-y-3 min-h-[180px] rounded-[20px] p-2.5 sm:p-3 transition-colors"
+                                    className="space-y-3 min-h-24 rounded-[20px] p-2.5 sm:p-3"
                                     style={{ backgroundColor: listLaneTint || "var(--kanban-lane-fallback)" }}
                                   >
                                     {listCards.length === 0 && !snapshot.isDraggingOver && (
                                       <div className="rounded-[18px] border border-dashed border-slate-400/30 bg-slate-900/[0.05] px-3 py-5 text-sm leading-6 text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/45">
                                         {canEditSelectedBoard
-                                          ? "Перетащите сюда карточку или добавьте задачу выше."
+                                          ? "Перетащите сюда карточку или создайте новую справа."
                                           : "В этом списке пока нет карточек."}
                                       </div>
                                     )}
@@ -3263,40 +2510,7 @@ export default function TasksV2Page() {
                                                           </div>
                                                         )}
                                                         <div className="min-w-0 space-y-1">
-                                                          {inlineEditingCardId === card.id ? (
-                                                            <Input
-                                                              value={inlineEditingCardTitle}
-                                                              onChange={(event) => setInlineEditingCardTitle(event.target.value)}
-                                                              autoFocus
-                                                              className={KANBAN_PANEL_INPUT_CLASS}
-                                                              onMouseDown={stopInteractiveEvent}
-                                                              onPointerDown={stopInteractiveEvent}
-                                                              onTouchStart={stopInteractiveEvent}
-                                                              onKeyDown={(event) => {
-                                                                if (event.key === "Escape") {
-                                                                  event.preventDefault();
-                                                                  handleCancelInlineCardTitleEdit();
-                                                                }
-                                                                if (event.key === "Enter") {
-                                                                  event.preventDefault();
-                                                                  handleCommitInlineCardTitleEdit(card);
-                                                                }
-                                                              }}
-                                                              onBlur={() => handleCommitInlineCardTitleEdit(card)}
-                                                              disabled={isCardPending}
-                                                            />
-                                                          ) : (
-                                                            <p
-                                                              className="font-medium break-words text-slate-900 dark:text-slate-100"
-                                                              title={canEditSelectedBoard ? "Двойной клик для переименования" : undefined}
-                                                              onDoubleClick={(event) => {
-                                                                stopInteractiveEvent(event);
-                                                                handleBeginInlineCardTitleEdit(card);
-                                                              }}
-                                                            >
-                                                              {card.title}
-                                                            </p>
-                                                          )}
+                                                          <p className="font-medium break-words text-slate-900 dark:text-slate-100">{card.title}</p>
                                                           {card.description && (
                                                             <p className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap break-words">
                                                               {card.description}
@@ -3368,6 +2582,23 @@ export default function TasksV2Page() {
                                                         <Button
                                                           variant="ghost"
                                                           size="icon"
+                                                          className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                                          aria-label="Редактировать"
+                                                          title="Редактировать"
+                                                          onMouseDown={stopInteractiveEvent}
+                                                          onPointerDown={stopInteractiveEvent}
+                                                          onTouchStart={stopInteractiveEvent}
+                                                          onClick={(event) => {
+                                                            stopInteractiveEvent(event);
+                                                            handleEditCard(card);
+                                                          }}
+                                                          disabled={isCardPending}
+                                                        >
+                                                          <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="icon"
                                                           className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
                                                           aria-label="Удалить"
                                                           title="Удалить"
@@ -3401,173 +2632,592 @@ export default function TasksV2Page() {
                               </Card>
                             )}
                           </Droppable>
+                        );
+                      })}
+                    </div>
+                  </DragDropContext>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
+                    <CardTitle className="text-base">
+                      {editingListId ? "Редактировать список" : "Новый список"}
+                    </CardTitle>
+                    <CardDescription>
+                      {canEditSelectedBoard
+                        ? "Списки живут отдельно от legacy project columns и теперь содержат first-class cards."
+                        : "У вас сейчас только просмотр этой доски."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-list-name">
+                        Название списка
+                      </label>
+                      <Input
+                        id="kanban-list-name"
+                        value={listForm.name}
+                        onChange={(event) => setListForm((prev) => ({ ...prev, name: event.target.value }))}
+                        placeholder="Например: Бэклог"
+                        disabled={!canEditSelectedBoard || isListPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-list-type">
+                        Тип
+                      </label>
+                      <select
+                        id="kanban-list-type"
+                        className={KANBAN_PANEL_SELECT_CLASS}
+                        value={listForm.type}
+                        onChange={(event) =>
+                          setListForm((prev) => ({ ...prev, type: event.target.value as KanbanListType }))
+                        }
+                        disabled={!canEditSelectedBoard || isListPending}
+                      >
+                        {Object.entries(LIST_TYPE_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium">Цвет</label>
+                        <span className="text-xs text-muted-foreground">
+                          {listForm.color ? LIST_COLOR_PRESETS.find((preset) => preset.value === listForm.color)?.label || "Custom" : "Без цвета"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={[
+                            "h-9 rounded-xl border px-3 text-xs font-medium transition",
+                            !listForm.color
+                              ? "border-blue-400/60 bg-blue-400/10 text-blue-200 ring-2 ring-blue-400/20"
+                              : "border-slate-500/15 bg-slate-900/[0.03] text-muted-foreground hover:border-slate-500/35 dark:border-slate-700 dark:bg-slate-950/40",
+                          ].join(" ")}
+                          onClick={() => setListForm((prev) => ({ ...prev, color: "" }))}
+                          disabled={!canEditSelectedBoard || isListPending}
+                        >
+                          Без цвета
+                        </button>
+                        {LIST_COLOR_PRESETS.map((preset) => {
+                          const selected = listForm.color === preset.value;
+                          return (
+                            <button
+                              key={preset.value}
+                              type="button"
+                              className={[
+                                "h-9 w-9 rounded-xl border transition hover:scale-105",
+                                selected
+                                  ? "border-white/80 ring-2 ring-blue-400/35 ring-offset-2 ring-offset-slate-950"
+                                  : "border-white/15 hover:border-white/50",
+                              ].join(" ")}
+                              style={{ backgroundColor: preset.value }}
+                              aria-label={`Выбрать цвет ${preset.label}`}
+                              title={preset.label}
+                              onClick={() => setListForm((prev) => ({ ...prev, color: preset.value }))}
+                              disabled={!canEditSelectedBoard || isListPending}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {canEditSelectedBoard && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          className="gap-2 rounded-xl"
+                          onClick={() => saveListMutation.mutate()}
+                          disabled={!listForm.name.trim() || isListPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {editingListId ? "Сохранить список" : "Создать список"}
+                        </Button>
+                        {editingListId && (
+                          <Button variant="ghost" onClick={handleCancelListEdit} disabled={isListPending}>
+                            Отменить
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
+                    <CardTitle className="text-base">
+                      {editingCardId ? "Редактировать карточку" : "Новая карточка"}
+                    </CardTitle>
+                    <CardDescription>
+                      {canEditSelectedBoard
+                        ? hasLists
+                          ? "Карточки можно создавать вручную и сразу перетаскивать между списками."
+                          : "Сначала создайте хотя бы один список, затем можно будет добавлять карточки."
+                        : "У вас сейчас только просмотр этой доски."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-card-list">
+                        Список
+                      </label>
+                      <select
+                        id="kanban-card-list"
+                        className={KANBAN_PANEL_SELECT_CLASS}
+                        value={cardForm.listId}
+                        onChange={(event) => setCardForm((prev) => ({ ...prev, listId: event.target.value }))}
+                        disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                      >
+                        {!hasLists && <option value="">Нет доступных списков</option>}
+                        {lists.map((list) => (
+                          <option key={list.id} value={list.id}>
+                            {list.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-card-title">
+                        Название карточки
+                      </label>
+                      <Input
+                        id="kanban-card-title"
+                        value={cardForm.title}
+                        onChange={(event) => setCardForm((prev) => ({ ...prev, title: event.target.value }))}
+                        placeholder="Например: Подготовить релиз"
+                        disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-card-description">
+                        Описание
+                      </label>
+                      <Textarea
+                        id="kanban-card-description"
+                        value={cardForm.description}
+                        onChange={(event) =>
+                          setCardForm((prev) => ({ ...prev, description: event.target.value }))
+                        }
+                        placeholder="Краткий контекст, критерии готовности или детали задачи"
+                        rows={4}
+                        disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className={KANBAN_PANEL_TEXTAREA_CLASS}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="kanban-card-priority">
+                          Приоритет
+                        </label>
+                        <select
+                          id="kanban-card-priority"
+                          className={KANBAN_PANEL_SELECT_CLASS}
+                          value={cardForm.priority}
+                          onChange={(event) =>
+                            setCardForm((prev) => ({
+                              ...prev,
+                              priority: event.target.value as KanbanCardPriority,
+                            }))
+                          }
+                          disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        >
+                          {Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="kanban-card-assignee">
+                          Исполнитель
+                        </label>
+                        <select
+                          id="kanban-card-assignee"
+                          className={KANBAN_PANEL_SELECT_CLASS}
+                          value={cardForm.assigneeUserId}
+                          onChange={(event) =>
+                            setCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
+                          }
+                          disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        >
+                          <option value="">Без исполнителя</option>
+                          {availableAssignees.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-card-due-date">
+                        Срок
+                      </label>
+                      <Input
+                        id="kanban-card-due-date"
+                        type="datetime-local"
+                        value={cardForm.dueDate}
+                        onChange={(event) => setCardForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                        disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium">Метки</label>
+                        {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                      </div>
+                      {boardLabels.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-3 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                          У этой доски пока нет меток. Ниже справа можно создать первую.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {boardLabels.map((label) => {
+                            const selected = cardForm.labelIds.includes(label.id);
+                            return (
+                              <button
+                                key={label.id}
+                                type="button"
+                                className={[
+                                  "rounded-full border px-3 py-1.5 text-sm transition",
+                                  selected ? "border-slate-700 bg-slate-900/[0.05] shadow-sm dark:border-blue-400/40 dark:bg-blue-400/10" : "border-slate-500/15 dark:border-slate-700/80",
+                                ].join(" ")}
+                                style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
+                                onClick={() => toggleCardFormLabel(label.id)}
+                                disabled={!canEditSelectedBoard || !hasLists || isCardPending}
+                              >
+                                {label.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {availableAssignees.length === 0 && canEditSelectedBoard && (
+                      <p className="text-xs text-muted-foreground">
+                        {isSelectedBoardPersonal
+                          ? "Личная доска назначает карточки только на тебя, поэтому список исполнителей минимальный."
+                          : "Для этой доски пока не найдено активных участников компании, поэтому карточки создаются без исполнителя."}
+                      </p>
+                    )}
+
+                    {canEditSelectedBoard && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          className="gap-2 rounded-xl"
+                          onClick={() => saveCardMutation.mutate()}
+                          disabled={!hasLists || !cardForm.listId || !cardForm.title.trim() || isCardPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {editingCardId ? "Сохранить карточку" : "Создать карточку"}
+                        </Button>
+                        {editingCardId && (
+                          <Button variant="ghost" onClick={handleCancelCardEdit} disabled={isCardPending}>
+                            Отменить
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
+                    <CardTitle className="text-base">
+                      {editingLabelId ? "Редактировать метку" : "Метки доски"}
+                    </CardTitle>
+                    <CardDescription>
+                      {canEditSelectedBoard
+                        ? "Создавайте и переиспользуйте метки доски для карточек."
+                        : "Доступен только просмотр набора меток этой доски."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-label-name">
+                        Название метки
+                      </label>
+                      <Input
+                        id="kanban-label-name"
+                        value={labelForm.name}
+                        onChange={(event) => setLabelForm((prev) => ({ ...prev, name: event.target.value }))}
+                        placeholder="Например: Blocked"
+                        disabled={!canEditSelectedBoard || isLabelPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="kanban-label-color">
+                        Цвет
+                      </label>
+                      <Input
+                        id="kanban-label-color"
+                        value={labelForm.color}
+                        onChange={(event) => setLabelForm((prev) => ({ ...prev, color: event.target.value }))}
+                        placeholder="Например: #f59e0b"
+                        disabled={!canEditSelectedBoard || isLabelPending}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+
+                    {canEditSelectedBoard && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          className="gap-2 rounded-xl"
+                          onClick={() => saveLabelMutation.mutate()}
+                          disabled={!selectedBoardId || !labelForm.name.trim() || isLabelPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {editingLabelId ? "Сохранить метку" : "Создать метку"}
+                        </Button>
+                        {editingLabelId && (
+                          <Button variant="ghost" onClick={handleCancelLabelEdit} disabled={isLabelPending}>
+                            Отменить
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {boardLabels.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                          Для этой доски пока нет меток.
+                        </div>
+                      ) : (
+                        boardLabels.map((label) => (
+                          <div
+                            key={label.id}
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-2.5 dark:border-slate-700/80 dark:bg-slate-950/40"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-border"
+                                style={{ backgroundColor: label.color || "transparent" }}
+                              />
+                              <span className="truncate text-sm font-medium">{label.name}</span>
+                              <span className="truncate text-xs text-muted-foreground">
+                                {label.color || "без цвета"}
+                              </span>
+                            </div>
+                            {canEditSelectedBoard && (
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditLabel(label)}
+                                  disabled={isLabelPending}
+                                >
+                                  Изменить
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!confirmDelete(`Удалить метку "${label.name}"? Она будет снята с карточек.`)) return;
+                                    deleteLabelMutation.mutate(label.id);
+                                  }}
+                                  disabled={isLabelPending}
+                                >
+                                  Удалить
+                                </Button>
                               </div>
                             )}
-                          </Draggable>
-	                        );
-	                      })}
-	                      {listDropProvided.placeholder}
-	                      {canEditSelectedBoard && (
-                        <Card className="flex h-auto min-h-[220px] w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-slate-500/25 bg-slate-900/[0.025] shadow-sm dark:border-slate-700/80 dark:bg-slate-950/35">
-                          <CardContent className="flex w-full flex-col justify-start p-4">
-                            {inlineListOpen ? (
-                              <div className="space-y-3">
-                                <Input
-                                  value={inlineListTitle}
-                                  onChange={(event) => setInlineListTitle(event.target.value)}
-                                  placeholder="Название столбца"
-                                  autoFocus
-                                  disabled={isListPending}
-                                  className={KANBAN_PANEL_INPUT_CLASS}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                      event.preventDefault();
-                                      handleCancelInlineList();
-                                    }
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      handleSubmitInlineList();
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    if (!inlineListTitle.trim()) handleCancelInlineList();
-                                  }}
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={handleCancelInlineList}>
-                                    Отмена
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="rounded-xl"
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={handleSubmitInlineList}
-                                    disabled={!inlineListTitle.trim() || isListPending}
-                                  >
-                                    Создать
-                                  </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className={KANBAN_PANEL_CARD_CLASS}>
+                  <CardHeader className={KANBAN_PANEL_HEADER_CLASS}>
+                    <CardTitle className="text-base">
+                      {editingMemberId ? "Редактировать участника" : "Участники доски"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isSelectedBoardPersonal
+                        ? "Личная доска не требует отдельного состава участников."
+                        : selectedBoard?.canManage
+                        ? "Управляйте составом доски и правами viewer/editor/comment."
+                        : "Список участников и их текущих прав на доску."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {isSelectedBoardPersonal ? (
+                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                        Эта доска принадлежит лично тебе. Если понадобится совместная работа, создай отдельную командную
+                        доску и выбери компанию при создании.
+                      </div>
+                    ) : selectedBoard?.canManage && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium" htmlFor="kanban-member-user">
+                            Пользователь
+                          </label>
+                          <select
+                            id="kanban-member-user"
+                            className={KANBAN_PANEL_SELECT_CLASS}
+                            value={memberForm.userId}
+                            onChange={(event) => setMemberForm((prev) => ({ ...prev, userId: event.target.value }))}
+                            disabled={Boolean(editingMemberId) || isMemberPending}
+                          >
+                            {availableBoardMembers.length === 0 && !editingMemberId && (
+                              <option value="">Нет доступных пользователей</option>
+                            )}
+                            {editingMemberId && <option value={memberForm.userId}>{userById.get(memberForm.userId)?.name || memberForm.userId}</option>}
+                            {availableBoardMembers.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium" htmlFor="kanban-member-role">
+                              Роль
+                            </label>
+                            <select
+                              id="kanban-member-role"
+                              className={KANBAN_PANEL_SELECT_CLASS}
+                              value={memberForm.role}
+                              onChange={(event) =>
+                                setMemberForm((prev) => ({
+                                  ...prev,
+                                  role: event.target.value as "viewer" | "editor",
+                                  canComment: event.target.value === "editor" ? true : prev.canComment,
+                                }))
+                              }
+                              disabled={isMemberPending}
+                            >
+                              <option value="viewer">Viewer</option>
+                              <option value="editor">Editor</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium" htmlFor="kanban-member-comment">
+                              Комментарии
+                            </label>
+                            <select
+                              id="kanban-member-comment"
+                              className={KANBAN_PANEL_SELECT_CLASS}
+                              value={memberForm.role === "editor" || memberForm.canComment ? "yes" : "no"}
+                              onChange={(event) =>
+                                setMemberForm((prev) => ({ ...prev, canComment: event.target.value === "yes" }))
+                              }
+                              disabled={isMemberPending || memberForm.role === "editor"}
+                            >
+                              <option value="yes">Разрешены</option>
+                              <option value="no">Запрещены</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            className="gap-2 rounded-xl"
+                            onClick={() => saveMemberMutation.mutate()}
+                            disabled={(!editingMemberId && !memberForm.userId) || isMemberPending}
+                          >
+                            <Plus className="h-4 w-4" />
+                            {editingMemberId ? "Сохранить участника" : "Добавить участника"}
+                          </Button>
+                          {editingMemberId && (
+                            <Button variant="ghost" onClick={handleCancelMemberEdit} disabled={isMemberPending}>
+                              Отменить
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    <div className="space-y-2">
+                      {boardMembersLoading ? (
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                          Загружаем участников доски...
+                        </div>
+                      ) : boardMembers.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-4 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                          У этой доски пока нет участников.
+                        </div>
+                      ) : (
+                        boardMembers.map((member) => {
+                          const user = userById.get(member.userId);
+                          return (
+                            <div
+                              key={member.id}
+                              className="space-y-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-3 dark:border-slate-700/80 dark:bg-slate-950/40"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">{user?.name || member.userId}</p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {user?.email || user?.username || member.userId}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant={member.role === "editor" ? "default" : "outline"}>
+                                    {member.role}
+                                  </Badge>
+                                  <Badge variant={member.canComment ? "secondary" : "outline"}>
+                                    {member.canComment ? "can comment" : "read only"}
+                                  </Badge>
                                 </div>
                               </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-[20px] text-sm font-medium text-muted-foreground transition hover:bg-slate-900/[0.045] hover:text-slate-900 dark:hover:bg-slate-900/70 dark:hover:text-slate-100"
-                                onClick={() => {
-                                  setInlineListOpen(true);
-                                  setInlineListTitle("");
-                                }}
-                                disabled={isListPending}
-                              >
-                                <Plus className="h-5 w-5" />
-                                Новый столбец
-                              </button>
-                            )}
-                          </CardContent>
-	                        </Card>
-	                      )}
-	                    </div>
+                              {selectedBoard?.canManage && (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditMember(member)}
+                                    disabled={isMemberPending}
+                                  >
+                                    Изменить
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const memberName = user?.name || user?.email || member.userId;
+                                      if (!confirmDelete(`Удалить участника "${memberName}" с доски?`)) return;
+                                      deleteMemberMutation.mutate(member.id);
+                                    }}
+                                    disabled={isMemberPending || member.userId === selectedBoard.createdByUserId}
+                                  >
+                                    Удалить
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
                       )}
-                    </Droppable>
-		                  </DragDropContext>
-	                ) : (
-	                  <Card className="overflow-hidden border-slate-500/20 bg-[linear-gradient(180deg,rgba(226,232,240,0.66),rgba(148,163,184,0.12))] shadow-sm dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.98),rgba(23,32,51,0.94))]">
-	                    <CardHeader className="border-b border-slate-500/15 bg-slate-900/[0.035] dark:border-slate-700/70 dark:bg-slate-950/25">
-	                      <div className="flex flex-wrap items-start justify-between gap-3">
-	                        <div>
-	                          <CardTitle className="text-base">Список задач</CardTitle>
-	                          <CardDescription>Табличный вид с группировками. Drag доступен при группировке по списку.</CardDescription>
-	                        </div>
-	                        {canEditSelectedBoard && (
-	                          <div className="flex min-w-[min(100%,540px)] flex-wrap items-center gap-2">
-	                            <Input
-	                              value={listViewDraftTitle}
-	                              onChange={(event) => setListViewDraftTitle(event.target.value)}
-	                              placeholder="Новая задача"
-	                              className={`${KANBAN_PANEL_INPUT_CLASS} min-w-[220px] flex-1`}
-	                              disabled={saveCardMutation.isPending || lists.length === 0}
-	                              onKeyDown={(event) => {
-	                                if (event.key !== "Enter") return;
-	                                event.preventDefault();
-	                                handleSubmitListViewCard();
-	                              }}
-	                            />
-	                            <select
-	                              className={`${KANBAN_PANEL_SELECT_CLASS} w-[180px]`}
-	                              value={listViewDraftListId}
-	                              onChange={(event) => setListViewDraftListId(event.target.value)}
-	                              disabled={saveCardMutation.isPending || lists.length === 0}
-	                            >
-	                              {lists.length === 0 ? (
-	                                <option value="">Нет списков</option>
-	                              ) : (
-	                                lists.map((list) => (
-	                                  <option key={list.id} value={list.id}>{list.name}</option>
-	                                ))
-	                              )}
-	                            </select>
-	                            <Button className="rounded-xl" onClick={handleSubmitListViewCard} disabled={!listViewDraftTitle.trim() || !listViewDraftListId || saveCardMutation.isPending}>
-	                              <Plus className="mr-1 h-4 w-4" />
-	                              Добавить
-	                            </Button>
-	                          </div>
-	                        )}
-	                      </div>
-	                    </CardHeader>
-	                    <CardContent className="space-y-4 p-4">
-	                      <DragDropContext onDragEnd={handleBoardDragEnd}>
-	                        {listViewGroups.map((group) => {
-	                          const canDropInGroup = listGrouping === "list" && Boolean(group.droppableListId);
-	                          return (
-	                            <section key={group.id} className="overflow-hidden rounded-[24px] border border-slate-500/15 bg-slate-900/[0.025] dark:border-slate-700/80 dark:bg-slate-950/30">
-	                              <div className="flex items-center justify-between gap-3 border-b border-slate-500/15 px-4 py-3 dark:border-slate-700/70">
-	                                <h3 className="font-semibold">{group.title}</h3>
-	                                <Badge variant="secondary" className="rounded-full">{group.cards.length}</Badge>
-	                              </div>
-	                              {canDropInGroup ? (
-	                                <Droppable droppableId={group.droppableListId!} type="CARD">
-	                                  {(provided) => (
-	                                    <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[96px] space-y-2 p-3">
-	                                      {group.cards.map((card, index) => (
-	                                        <Draggable key={card.id} draggableId={card.id} index={index} isDragDisabled={!canEditSelectedBoard || isCardPending}>
-	                                          {(dragProvided, dragSnapshot) => (
-	                                            <div
-	                                              ref={dragProvided.innerRef}
-	                                              {...dragProvided.draggableProps}
-	                                              {...dragProvided.dragHandleProps}
-	                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
-	                                                isDragging: dragSnapshot.isDragging,
-	                                                isDropAnimating: dragSnapshot.isDropAnimating,
-	                                              })}
-	                                            >
-	                                              {renderListViewCardRow(card)}
-	                                            </div>
-	                                          )}
-	                                        </Draggable>
-	                                      ))}
-	                                      {group.cards.length === 0 && (
-	                                        <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">В этой группе пока нет задач.</div>
-	                                      )}
-	                                      {provided.placeholder}
-	                                    </div>
-	                                  )}
-	                                </Droppable>
-	                              ) : (
-	                                <div className="space-y-2 p-3">
-	                                  {group.cards.length === 0 ? (
-	                                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">В этой группе пока нет задач.</div>
-	                                  ) : (
-	                                    group.cards.map((card) => <div key={card.id}>{renderListViewCardRow(card)}</div>)
-	                                  )}
-	                                </div>
-	                              )}
-	                            </section>
-	                          );
-	                        })}
-	                      </DragDropContext>
-	                    </CardContent>
-	                  </Card>
-	                )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -3627,7 +3277,7 @@ export default function TasksV2Page() {
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, title: event.target.value }))
                       }
-                      disabled={!canEditSelectedBoard}
+                      disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                       className={KANBAN_PANEL_INPUT_CLASS}
                     />
                   </div>
@@ -3643,7 +3293,7 @@ export default function TasksV2Page() {
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, listId: event.target.value }))
                       }
-                      disabled={!canEditSelectedBoard}
+                      disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                     >
                       {lists.map((list) => (
                         <option key={list.id} value={list.id}>
@@ -3665,7 +3315,7 @@ export default function TasksV2Page() {
                       setDetailCardForm((prev) => ({ ...prev, description: event.target.value }))
                     }
                     rows={6}
-                    disabled={!canEditSelectedBoard}
+                    disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                     className={KANBAN_PANEL_TEXTAREA_CLASS}
                   />
                 </div>
@@ -3685,7 +3335,7 @@ export default function TasksV2Page() {
                           priority: event.target.value as KanbanCardPriority,
                         }))
                       }
-                      disabled={!canEditSelectedBoard}
+                      disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                     >
                       {Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -3706,7 +3356,7 @@ export default function TasksV2Page() {
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
                       }
-                      disabled={!canEditSelectedBoard}
+                      disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                     >
                       <option value="">Без исполнителя</option>
                       {availableAssignees.map((user) => (
@@ -3728,94 +3378,41 @@ export default function TasksV2Page() {
                       onChange={(event) =>
                         setDetailCardForm((prev) => ({ ...prev, dueDate: event.target.value }))
                       }
-                      disabled={!canEditSelectedBoard}
+                      disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                       className={KANBAN_PANEL_INPUT_CLASS}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <label className="text-sm font-medium" htmlFor="kanban-detail-label-query">Метки</label>
+                    <label className="text-sm font-medium">Метки</label>
                     {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {detailCardForm.labelIds.map((labelId) => {
-                      const label = labelById.get(labelId);
-                      if (!label) return null;
-                      return (
-                        <button
-                          key={label.id}
-                          type="button"
-                          className="inline-flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5 text-sm"
-                          style={{
-                            backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
-                            color: "#111827",
-                          }}
-                          onClick={() => handleRemoveDetailLabel(label.id)}
-                          disabled={!canEditSelectedBoard}
-                          title="Снять метку"
-                        >
-                          <Tag className="h-3.5 w-3.5" />
-                          {label.name}
-                          <span aria-hidden>×</span>
-                        </button>
-                      );
-                    })}
-                    {detailCardForm.labelIds.length === 0 && (
-                      <span className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-2 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
-                        У карточки пока нет меток.
-                      </span>
-                    )}
-                  </div>
-
-                  {canEditSelectedBoard && (
-                    <div className="space-y-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40">
-                      <Input
-                        id="kanban-detail-label-query"
-                        value={detailLabelQuery}
-                        onChange={(event) => setDetailLabelQuery(event.target.value)}
-                        placeholder="Найти или создать метку"
-                        disabled={saveLabelMutation.isPending}
-                        className={KANBAN_PANEL_INPUT_CLASS}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") return;
-                          event.preventDefault();
-                          if (detailLabelExactMatch) {
-                            handleAttachDetailLabel(detailLabelExactMatch.id);
-                          } else {
-                            handleCreateDetailLabel();
-                          }
-                        }}
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        {matchingDetailLabels.slice(0, 8).map((label) => (
+                  {boardLabels.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-3 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                      У этой доски пока нет меток.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {boardLabels.map((label) => {
+                        const selected = detailCardForm.labelIds.includes(label.id);
+                        return (
                           <button
                             key={label.id}
                             type="button"
-                            className="rounded-full border border-slate-500/15 px-3 py-1.5 text-sm transition hover:border-slate-500/35"
+                            className={[
+                              "rounded-full border px-3 py-1.5 text-sm transition",
+                              selected ? "border-slate-700 bg-slate-900/[0.05] shadow-sm dark:border-blue-400/40 dark:bg-blue-400/10" : "border-slate-500/15 dark:border-slate-700/80",
+                            ].join(" ")}
                             style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
-                            onClick={() => handleAttachDetailLabel(label.id)}
-                            disabled={saveCardDetailMutation.isPending}
+                            onClick={() => toggleDetailCardFormLabel(label.id)}
+                            disabled={!canEditSelectedBoard || saveCardDetailMutation.isPending}
                           >
                             {label.name}
                           </button>
-                        ))}
-                        {detailLabelQuery.trim() && !detailLabelExactMatch && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full"
-                            onClick={handleCreateDetailLabel}
-                            disabled={saveLabelMutation.isPending}
-                          >
-                            <Plus className="mr-1 h-3.5 w-3.5" />
-                            Создать “{detailLabelQuery.trim()}”
-                          </Button>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -4183,313 +3780,26 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-	                <div className="sticky bottom-0 -mx-6 mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-500/15 bg-slate-50/95 px-6 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/95">
-	                  <div className="text-sm text-muted-foreground">
-	                    {detailSaveStatus === "saving" && "Сохраняется..."}
-	                    {detailSaveStatus === "saved" && "Сохранено"}
-	                    {detailSaveStatus === "dirty" && (detailCardForm.title.trim() ? "Есть несохраненные изменения" : "Введите название, чтобы сохранить")}
-	                    {detailSaveStatus === "error" && `Ошибка сохранения: ${detailSaveError}`}
-	                    {detailSaveStatus === "idle" && "Изменения сохраняются автоматически"}
-	                  </div>
-	                  <div className="flex flex-wrap justify-end gap-2">
-	                    <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
-	                      Закрыть
-	                    </Button>
-	                    {canEditSelectedBoard && (
-	                      <Button
-	                        className="rounded-xl"
-	                        onClick={() => saveCardDetailMutation.mutate({ form: detailCardForm })}
-	                        disabled={!detailCardForm.title.trim() || !detailCardForm.listId || saveCardDetailMutation.isPending}
-	                      >
-	                        {saveCardDetailMutation.isPending ? "Сохраняется..." : "Сохранить сейчас"}
-	                      </Button>
-	                    )}
-	                  </div>
-	                </div>
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                  <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
+                    Закрыть
+                  </Button>
+                  {canEditSelectedBoard && (
+                    <Button
+                      className="rounded-xl"
+                      onClick={() => saveCardDetailMutation.mutate()}
+                      disabled={!detailCardForm.title.trim() || !detailCardForm.listId || saveCardDetailMutation.isPending}
+                    >
+                      Сохранить изменения
+                    </Button>
+                  )}
+                </div>
               </div>
                   </>
                 );
               })()}
             </>
           )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={boardSettingsOpen} onOpenChange={setBoardSettingsOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-slate-500/20 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(226,232,240,0.92))] p-0 shadow-2xl shadow-slate-900/20 dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.98),rgba(11,16,32,0.98))] dark:text-slate-100">
-          <DialogHeader className="border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5 dark:border-slate-700/70 dark:bg-slate-950/30">
-            <DialogTitle>Настройки доски</DialogTitle>
-            <DialogDescription>
-              {selectedBoard ? `${selectedBoard.name}: участники и палитра меток.` : "Выберите доску, чтобы управлять настройками."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5 px-6 py-6">
-            <div className={KANBAN_DETAIL_SECTION_CLASS}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold">Участники</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {isSelectedBoardPersonal
-                      ? "Личная доска принадлежит тебе. Для командной совместной работы создай доску компании."
-                      : "Управляй доступом участников к текущей доске."}
-                  </p>
-                </div>
-                {!isSelectedBoardPersonal && boardMembersLoading && (
-                  <span className="text-xs text-muted-foreground">Загружаем...</span>
-                )}
-              </div>
-
-              {!isSelectedBoardPersonal && selectedBoard?.canManage && (
-                <div className="mt-4 grid gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
-                  <select
-                    className={KANBAN_PANEL_SELECT_CLASS}
-                    value={memberForm.userId}
-                    onChange={(event) => setMemberForm((prev) => ({ ...prev, userId: event.target.value }))}
-                    disabled={Boolean(editingMemberId) || isMemberPending}
-                  >
-                    {editingMemberId ? (
-                      <option value={memberForm.userId}>
-                        {userById.get(memberForm.userId)?.name || memberForm.userId}
-                      </option>
-                    ) : availableBoardMembers.length === 0 ? (
-                      <option value="">Нет доступных участников</option>
-                    ) : (
-                      availableBoardMembers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-
-                  <select
-                    className={KANBAN_PANEL_SELECT_CLASS}
-                    value={memberForm.role}
-                    onChange={(event) =>
-                      setMemberForm((prev) => ({
-                        ...prev,
-                        role: event.target.value as MemberFormState["role"],
-                        canComment: event.target.value === "editor" ? true : prev.canComment,
-                      }))
-                    }
-                    disabled={isMemberPending}
-                  >
-                    <option value="viewer">viewer</option>
-                    <option value="editor">editor</option>
-                  </select>
-
-                  <label className="flex items-center gap-2 rounded-xl border border-slate-500/15 bg-slate-950/[0.02] px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950/50">
-                    <input
-                      type="checkbox"
-                      checked={memberForm.role === "editor" ? true : memberForm.canComment}
-                      onChange={(event) => setMemberForm((prev) => ({ ...prev, canComment: event.target.checked }))}
-                      disabled={memberForm.role === "editor" || isMemberPending}
-                    />
-                    can comment
-                  </label>
-
-                  <div className="flex gap-2">
-                    {editingMemberId && (
-                      <Button variant="ghost" size="sm" className="rounded-xl" onClick={handleCancelMemberEdit} disabled={isMemberPending}>
-                        Отмена
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className="rounded-xl"
-                      onClick={() => saveMemberMutation.mutate()}
-                      disabled={(!memberForm.userId && !editingMemberId) || isMemberPending}
-                    >
-                      {editingMemberId ? "Сохранить" : "Добавить"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {!isSelectedBoardPersonal && (
-                <div className="mt-4 space-y-2">
-                  {boardMembers.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
-                      В этой доске пока нет отдельных участников.
-                    </div>
-                  ) : (
-                    boardMembers.map((member) => {
-                      const user = userById.get(member.userId);
-                      const isCreator = String(member.userId) === String(selectedBoard?.createdByUserId);
-                      return (
-                        <div
-                          key={member.id}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-4 py-3 dark:border-slate-700/80 dark:bg-slate-950/40"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-medium">{user?.name || member.userId}</div>
-                            <div className="text-xs text-muted-foreground">{user?.email || "Без email"}</div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary" className="rounded-full">{member.role}</Badge>
-                            <Badge variant="outline" className="rounded-full">{member.canComment || member.role === "editor" ? "can comment" : "read only"}</Badge>
-                            {isCreator && <Badge variant="outline" className="rounded-full">creator</Badge>}
-                            {selectedBoard?.canManage && (
-                              <>
-                                <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => handleEditMember(member)} disabled={isMemberPending}>
-                                  Изменить
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                  onClick={() => {
-                                    if (!confirmDelete(`Удалить участника "${user?.name || member.userId}" из доски?`)) return;
-                                    deleteMemberMutation.mutate(member.id);
-                                  }}
-                                  disabled={isMemberPending || isCreator}
-                                >
-                                  Удалить
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className={KANBAN_DETAIL_SECTION_CLASS}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold">Метки доски</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Новые метки создаются прямо в карточке. Здесь можно поменять цвет через палитру или удалить метку.
-                  </p>
-                </div>
-	                {boardLabelsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
-	              </div>
-
-	              {canEditSelectedBoard && (
-	                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40">
-	                  <Input
-	                    value={settingsLabelDraft}
-	                    onChange={(event) => setSettingsLabelDraft(event.target.value)}
-	                    placeholder="Название новой метки"
-	                    className={`${KANBAN_PANEL_INPUT_CLASS} min-w-[220px] flex-1`}
-	                    disabled={saveLabelMutation.isPending}
-	                    onKeyDown={(event) => {
-	                      if (event.key !== "Enter") return;
-	                      event.preventDefault();
-	                      handleCreateSettingsLabel();
-	                    }}
-	                  />
-	                  <Button className="rounded-xl" onClick={handleCreateSettingsLabel} disabled={!settingsLabelDraft.trim() || saveLabelMutation.isPending}>
-	                    <Plus className="mr-1 h-4 w-4" />
-	                    Добавить метку
-	                  </Button>
-	                </div>
-	              )}
-
-	              <div className="mt-4 space-y-3">
-                {boardLabels.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
-                    Меток пока нет. Создай первую из detail modal карточки.
-                  </div>
-                ) : (
-                  boardLabels.map((label) => (
-                    <div
-                      key={label.id}
-                      className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 dark:border-slate-700/80 dark:bg-slate-950/40"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-	                        {editingSettingsLabelId === label.id ? (
-	                          <Input
-	                            value={editingSettingsLabelName}
-	                            onChange={(event) => setEditingSettingsLabelName(event.target.value)}
-	                            autoFocus
-	                            className={`${KANBAN_PANEL_INPUT_CLASS} max-w-[260px]`}
-	                            disabled={saveLabelMutation.isPending}
-	                            onKeyDown={(event) => {
-	                              if (event.key === "Escape") {
-	                                event.preventDefault();
-	                                handleCancelSettingsLabelEdit();
-	                              }
-	                              if (event.key === "Enter") {
-	                                event.preventDefault();
-	                                handleCommitSettingsLabelEdit(label);
-	                              }
-	                            }}
-	                            onBlur={() => handleCommitSettingsLabelEdit(label)}
-	                          />
-	                        ) : (
-	                          <Badge
-	                            variant="outline"
-	                            className="cursor-text rounded-full border-transparent px-3 py-1.5"
-	                            style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.18)", color: "#111827" }}
-	                            onDoubleClick={() => handleBeginSettingsLabelEdit(label)}
-	                          >
-	                            {label.name}
-	                          </Badge>
-	                        )}
-	                        {canEditSelectedBoard && (
-	                          <div className="flex items-center gap-1">
-	                            <Button
-	                              variant="ghost"
-	                              size="icon"
-	                              className="h-8 w-8 rounded-xl"
-	                              onClick={() => handleBeginSettingsLabelEdit(label)}
-	                              disabled={saveLabelMutation.isPending}
-	                              title="Переименовать"
-	                            >
-	                              <Pencil className="h-4 w-4" />
-	                            </Button>
-	                            <Button
-	                              variant="ghost"
-	                              size="sm"
-	                              className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
-	                              onClick={() => {
-	                                if (!confirmDelete(`Удалить метку "${label.name}"?`)) return;
-	                                deleteLabelMutation.mutate(label.id);
-	                              }}
-	                              disabled={deleteLabelMutation.isPending}
-	                            >
-	                              Удалить
-	                            </Button>
-	                          </div>
-	                        )}
-                      </div>
-
-                      {canEditSelectedBoard && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {LABEL_COLOR_PRESETS.map((preset) => (
-                            <button
-                              key={preset.value}
-                              type="button"
-                              className={[
-                                "h-8 w-8 rounded-xl border transition hover:scale-105",
-                                label.color === preset.value ? "border-slate-950 ring-2 ring-slate-950/20 dark:border-white dark:ring-white/25" : "border-white/50",
-                              ].join(" ")}
-                              style={{ backgroundColor: preset.value }}
-                              title={preset.label}
-                              aria-label={`Цвет метки ${preset.label}`}
-                              onClick={() => saveLabelMutation.mutate({ labelId: label.id, name: label.name, color: preset.value })}
-                              disabled={saveLabelMutation.isPending}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="border-t border-slate-500/15 bg-slate-900/[0.03] px-6 py-4 dark:border-slate-700/70 dark:bg-slate-950/30">
-            <Button variant="outline" className="rounded-xl" onClick={() => setBoardSettingsOpen(false)}>
-              Закрыть
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
