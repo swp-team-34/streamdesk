@@ -54,9 +54,8 @@ During the Week 2 meeting, the customer kindly asked us to hurry up with task ma
 ## Backlog and Sprint Boards
 
 - [Product Backlog board](https://github.com/orgs/swp-team-34/projects/1) <!-- Part 6 -->
-- [Sprint 1 Backlog board](ссылка_на_sprint_backlog_view) <!-- ??? -->
+- [Sprint 1 Backlog board](https://github.com/orgs/swp-team-34/projects/2) <!-- ??? -->
 - [Sprint 1 Milestone](https://github.com/swp-team-34/streamdesk/milestone/1) — Sprint Goal, dates, and scope <!-- Part 8 -->
-- [MVP version grouped view](ссылка_на_view_с_группировкой_по_mvp) <!-- ??? -->
 
 ## Process and Workflow Documentation
 
