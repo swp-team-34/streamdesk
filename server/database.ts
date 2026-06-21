@@ -1071,9 +1071,22 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanBoard(id: string): Promise<boolean> {
+    const boardCardIdsQuery = db!
+      .select({ id: kanbanCards.id })
+      .from(kanbanCards)
+      .where(eq(kanbanCards.boardId, id));
+
     await db!.delete(kanbanCardAttachments).where(inArray(
       kanbanCardAttachments.cardId,
-      db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.boardId, id)),
+      boardCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardComments).where(inArray(
+      kanbanCardComments.cardId,
+      boardCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardHistory).where(inArray(
+      kanbanCardHistory.cardId,
+      boardCardIdsQuery,
     ) as any);
     await db!.delete(kanbanCardLabels).where(inArray(
       kanbanCardLabels.labelId,
@@ -1168,13 +1181,26 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanList(id: string): Promise<boolean> {
+    const listCardIdsQuery = db!
+      .select({ id: kanbanCards.id })
+      .from(kanbanCards)
+      .where(eq(kanbanCards.listId, id));
+
     await db!.delete(kanbanCardAttachments).where(inArray(
       kanbanCardAttachments.cardId,
-      db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.listId, id)),
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardComments).where(inArray(
+      kanbanCardComments.cardId,
+      listCardIdsQuery,
+    ) as any);
+    await db!.delete(kanbanCardHistory).where(inArray(
+      kanbanCardHistory.cardId,
+      listCardIdsQuery,
     ) as any);
     await db!.delete(kanbanCardLabels).where(inArray(
       kanbanCardLabels.cardId,
-      db!.select({ id: kanbanCards.id }).from(kanbanCards).where(eq(kanbanCards.listId, id)),
+      listCardIdsQuery,
     ) as any);
     await db!.delete(kanbanCards).where(eq(kanbanCards.listId, id));
     const result = await db!.delete(kanbanLists)
@@ -1294,6 +1320,8 @@ export class PostgreSQLStorage implements IStorage {
 
   async deleteKanbanCard(id: string): Promise<boolean> {
     await db!.delete(kanbanCardAttachments).where(eq(kanbanCardAttachments.cardId, id));
+    await db!.delete(kanbanCardComments).where(eq(kanbanCardComments.cardId, id));
+    await db!.delete(kanbanCardHistory).where(eq(kanbanCardHistory.cardId, id));
     await db!.delete(kanbanCardLabels).where(eq(kanbanCardLabels.cardId, id));
     const result = await db!.delete(kanbanCards)
       .where(eq(kanbanCards.id, id))

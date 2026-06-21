@@ -157,6 +157,13 @@ function Router({ user }: { user: any }) {
       <Route path="/tasks">
         <ProtectedRoute user={user}>
           <ErrorBoundary>
+            <TasksV2 />
+          </ErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/tasks-legacy">
+        <ProtectedRoute user={user}>
+          <ErrorBoundary>
             <Tasks />
           </ErrorBoundary>
         </ProtectedRoute>

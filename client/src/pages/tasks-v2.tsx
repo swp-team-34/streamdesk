@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
@@ -279,6 +279,12 @@ const KANBAN_PANEL_SELECT_CLASS =
   "flex h-10 w-full rounded-xl border border-slate-500/15 bg-slate-50/80 px-3 py-2 text-sm shadow-none";
 const KANBAN_DETAIL_SECTION_CLASS =
   "rounded-[22px] border border-slate-500/15 bg-[linear-gradient(180deg,rgba(226,232,240,0.52),rgba(148,163,184,0.08))] p-4 shadow-sm";
+const KANBAN_BOARD_SOFT_BADGE_CLASS =
+  "rounded-full border border-slate-500/20 bg-slate-900/[0.045] px-3 py-1 text-slate-600";
+const KANBAN_BOARD_GHOST_BADGE_CLASS =
+  "rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2.5 py-1 text-slate-500";
+const KANBAN_HERO_STAT_CLASS =
+  "rounded-[20px] border border-white/10 bg-white/5 p-4 backdrop-blur-sm";
 
 const DUE_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "medium",
@@ -428,6 +434,29 @@ const formatFileSize = (value?: number | null) => {
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+};
+
+const getDraggableCardStyle = (
+  style: CSSProperties | undefined,
+  options: { isDragging: boolean; isDropAnimating: boolean },
+): CSSProperties | undefined => {
+  if (!style) return style;
+
+  return {
+    ...style,
+    transition: options.isDropAnimating
+      ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease"
+      : "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)",
+    willChange: "transform",
+  };
+};
+
+const stopInteractiveEvent = (event: {
+  stopPropagation: () => void;
+  preventDefault?: () => void;
+}) => {
+  event.stopPropagation();
+  event.preventDefault?.();
 };
 
 const normalizeSubtasks = (subtasks?: KanbanSubtask[] | null) =>
@@ -1777,7 +1806,7 @@ export default function TasksV2Page() {
                   </p>
                 </div>
               </div>
-              <Link href="/tasks">
+              <Link href="/tasks-legacy">
                 <Button variant="outline" className="gap-2 border-white/15 bg-white/5 text-white hover:bg-white/10">
                   <ArrowLeft className="h-4 w-4" />
                   Legacy Tasks
@@ -1934,31 +1963,36 @@ export default function TasksV2Page() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <Card className="border-border/60 bg-card/80 shadow-sm">
+        <Card className="border-slate-500/20 bg-[linear-gradient(180deg,rgba(226,232,240,0.86),rgba(148,163,184,0.24))] shadow-sm backdrop-blur">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Навигатор досок</CardTitle>
-                <CardDescription>Сначала личный фокус, потом командные пространства.</CardDescription>
+                <CardDescription>Быстрый доступ к личным и командным потокам работы.</CardDescription>
               </div>
-              <Badge variant="secondary">{boards.length}</Badge>
+              <Badge variant="secondary" className="border border-slate-500/15 bg-slate-900/[0.045] text-slate-700">{boards.length}</Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
             {boardsLoading ? (
-              <div className="rounded-2xl border border-dashed px-4 py-8 text-sm text-muted-foreground">
-                Загружаем доски...
+              <div className="rounded-[24px] border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-10 text-sm text-muted-foreground">
+                Загружаем навигатор досок...
               </div>
             ) : boards.length === 0 ? (
-              <div className="rounded-2xl border border-dashed px-4 py-8 text-sm text-muted-foreground">
-                Пока нет досок. Начни с личной доски сверху, она не требует компанию.
+              <div className="rounded-[24px] border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-10 text-sm text-muted-foreground">
+                Пока нет досок. Начни с личной доски сверху: она создаётся без компании и подойдёт для первого сценария.
               </div>
             ) : (
               <>
                 {([["Личные", personalBoards], ["Командные", sharedBoards]] as const).map(([title, items]) =>
                   items.length > 0 ? (
-                    <div key={title} className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{title}</p>
+                    <div key={title} className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{title}</p>
+                        <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-0.5 text-[11px] text-slate-500">
+                          {items.length}
+                        </span>
+                      </div>
                       {items.map((board) => {
                         const isSelected = board.id === selectedBoardId;
                         const meta = BOARD_VISIBILITY_META[board.visibility];
@@ -1969,20 +2003,20 @@ export default function TasksV2Page() {
                             type="button"
                             onClick={() => setSelectedBoardId(board.id)}
                             className={[
-                              "w-full rounded-2xl border px-4 py-4 text-left transition",
+                              "w-full rounded-[24px] border px-4 py-4 text-left transition-all duration-200",
                               isSelected
-                                ? "border-slate-900 bg-slate-900 text-white shadow-lg"
-                                : "border-border bg-background hover:border-slate-300 hover:bg-slate-50",
+                                ? "border-slate-900 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(30,41,59,0.92))] text-white shadow-lg shadow-slate-900/20"
+                                : "border-slate-500/15 bg-slate-900/[0.04] hover:border-slate-400/35 hover:bg-slate-900/[0.065]",
                             ].join(" ")}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate font-medium">{board.name}</p>
-                                <p className={["mt-1 text-sm", isSelected ? "text-slate-300" : "text-muted-foreground"].join(" ")}>
+                                <p className="truncate font-semibold tracking-tight">{board.name}</p>
+                                <p className={["mt-1 text-sm leading-6", isSelected ? "text-slate-300" : "text-slate-500"].join(" ")}>
                                   {board.description || "Без описания"}
                                 </p>
                               </div>
-                              <div className={["rounded-full border px-2 py-1 text-xs", isSelected ? "border-white/10 bg-white/10" : meta.surface].join(" ")}>
+                              <div className={["rounded-full border px-2 py-1 text-xs shadow-sm", isSelected ? "border-white/10 bg-white/10" : meta.surface].join(" ")}>
                                 <span className="inline-flex items-center gap-1">
                                   <Icon className="h-3.5 w-3.5" />
                                   {meta.label}
@@ -2002,46 +2036,57 @@ export default function TasksV2Page() {
 
         <div className="space-y-4">
           {selectedBoard && (
-            <Card className="border-border/60 overflow-hidden">
-              <CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <Card className="overflow-hidden border-slate-500/20 bg-[linear-gradient(135deg,rgba(15,23,42,0.10),rgba(148,163,184,0.14),rgba(203,213,225,0.22))] shadow-sm">
+              <CardContent className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full px-3 py-1">
+                    <Badge variant="outline" className="rounded-full border-slate-500/20 bg-slate-900/[0.04] px-3 py-1 text-slate-700">
                       {BOARD_VISIBILITY_META[selectedBoard.visibility].label}
                     </Badge>
                     {selectedBoard.companyId ? (
-                      <Badge variant="secondary" className="rounded-full px-3 py-1">
+                      <Badge variant="secondary" className={KANBAN_BOARD_SOFT_BADGE_CLASS}>
                         {companyById.get(selectedBoard.companyId)?.name || "Компания"}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="rounded-full px-3 py-1">
+                      <Badge variant="secondary" className={KANBAN_BOARD_SOFT_BADGE_CLASS}>
                         Personal space
                       </Badge>
                     )}
-                    <Badge variant="secondary" className="rounded-full px-3 py-1">
+                    <Badge variant="secondary" className={KANBAN_BOARD_SOFT_BADGE_CLASS}>
                       {canEditSelectedBoard ? "Можно редактировать" : canCommentSelectedBoard ? "Можно комментировать" : "Только просмотр"}
                     </Badge>
                   </div>
                   <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">{selectedBoard.name}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{selectedBoard.name}</h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
                       {selectedBoard.description || "Добавь короткое описание, чтобы команда быстрее понимала контекст."}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><CheckCircle2 className="h-3.5 w-3.5" /> {lists.length} списков</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Layers3 className="h-3.5 w-3.5" /> {filteredCards.length} карточек в фокусе</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Users className="h-3.5 w-3.5" /> {boardMembers.length || 1} участников</span>
+                  <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                    <span className={["inline-flex items-center gap-1", KANBAN_BOARD_SOFT_BADGE_CLASS].join(" ")}><CheckCircle2 className="h-3.5 w-3.5" /> {lists.length} списков</span>
+                    <span className={["inline-flex items-center gap-1", KANBAN_BOARD_SOFT_BADGE_CLASS].join(" ")}><Layers3 className="h-3.5 w-3.5" /> {filteredCards.length} карточек в фокусе</span>
+                    <span className={["inline-flex items-center gap-1", KANBAN_BOARD_SOFT_BADGE_CLASS].join(" ")}><Users className="h-3.5 w-3.5" /> {boardMembers.length || 1} участников</span>
                   </div>
                 </div>
 
                 {selectedBoard.canManage && (
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" className="gap-2" onClick={() => handleEditBoard(selectedBoard)} disabled={isBoardPending}>
+                    <Button variant="outline" className="gap-2 rounded-xl border-slate-500/20 bg-slate-900/[0.045]" onClick={() => handleEditBoard(selectedBoard)} disabled={isBoardPending}>
                       <Pencil className="h-4 w-4" />
                       Редактировать
                     </Button>
-                    <Button variant="destructive" className="gap-2" onClick={() => deleteBoardMutation.mutate(selectedBoard.id)} disabled={isBoardPending}>
+                    <Button
+                      variant="destructive"
+                      className="gap-2 rounded-xl"
+                      onMouseDown={stopInteractiveEvent}
+                      onPointerDown={stopInteractiveEvent}
+                      onTouchStart={stopInteractiveEvent}
+                      onClick={(event) => {
+                        stopInteractiveEvent(event);
+                        deleteBoardMutation.mutate(selectedBoard.id);
+                      }}
+                      disabled={isBoardPending}
+                    >
                       <Trash2 className="h-4 w-4" />
                       Удалить
                     </Button>
@@ -2080,8 +2125,8 @@ export default function TasksV2Page() {
         </CardHeader>
         <CardContent>
           {!selectedBoard ? (
-            <div className="py-8 text-sm text-muted-foreground">
-              Выберите доску выше, чтобы управлять ее списками и карточками.
+            <div className="rounded-[24px] border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-5 py-10 text-sm leading-6 text-muted-foreground">
+              Выберите доску в левом навигаторе, чтобы открыть её поток задач, списки и карточки.
             </div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
@@ -2105,7 +2150,7 @@ export default function TasksV2Page() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 xl:grid-cols-5">
+                    <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 xl:grid-cols-5">
                     <div className="space-y-2 xl:col-span-2">
                       <label className="text-sm font-medium" htmlFor="kanban-filter-search">
                         Поиск
@@ -2211,20 +2256,20 @@ export default function TasksV2Page() {
                 </Card>
 
                 {isBoardStructureLoading ? (
-                  <Card>
-                    <CardContent className="py-8 text-sm text-muted-foreground">
+                  <Card className="border-slate-500/15 bg-slate-900/[0.035]">
+                    <CardContent className="py-10 text-sm text-muted-foreground">
                       Загружаем структуру доски и карточки...
                     </CardContent>
                   </Card>
                 ) : lists.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-sm text-muted-foreground">
-                      В этой доске пока нет списков. Создайте первый список справа.
+                  <Card className="border-slate-500/15 bg-slate-900/[0.035]">
+                    <CardContent className="py-10 text-sm leading-6 text-muted-foreground">
+                      В этой доске пока нет списков. Создай первый список справа, чтобы запустить рабочий поток.
                     </CardContent>
                   </Card>
                 ) : (
                   <DragDropContext onDragEnd={handleCardDragEnd}>
-                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {lists.map((list, listIndex) => {
                         const listCards = filteredCardsByListId.get(list.id) ?? [];
                         const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
@@ -2250,27 +2295,27 @@ export default function TasksV2Page() {
                                 ].join(" ").trim()}
                                 style={{
                                   background: snapshot.isDraggingOver
-                                    ? `linear-gradient(180deg, rgba(226, 232, 240, 0.88), ${listHeaderTint || listTint || "rgba(203, 213, 225, 0.72)"})`
-                                    : `linear-gradient(180deg, rgba(226, 232, 240, 0.74), ${listTint || "rgba(203, 213, 225, 0.52)"})`,
+                                    ? `linear-gradient(180deg, rgba(226, 232, 240, 0.84), ${listHeaderTint || listTint || "rgba(148, 163, 184, 0.42)"})`
+                                    : `linear-gradient(180deg, rgba(226, 232, 240, 0.68), ${listTint || "rgba(148, 163, 184, 0.32)"})`,
                                 }}
                               >
                                 <CardHeader
-                                className="space-y-4 border-b border-slate-500/15"
+                                  className="space-y-4 border-b border-slate-500/15"
                                   style={{ backgroundColor: listHeaderTint || listTint || "rgba(226,232,240,0.72)" }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <CardTitle className="text-base break-words">{list.name}</CardTitle>
+                                        <CardTitle className="text-base font-semibold tracking-tight text-slate-900 break-words">{list.name}</CardTitle>
                                         {list.color && (
                                           <span
-                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-slate-800/10"
+                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-slate-800/10 shadow-sm"
                                             style={{ backgroundColor: list.color }}
                                           />
                                         )}
                                       </div>
-                                      <CardDescription>
-                                        Колонка #{Number(list.position) + 1}
+                                      <CardDescription className="text-[12px] uppercase tracking-[0.18em] text-slate-500">
+                                        Колонка {Number(list.position) + 1}
                                       </CardDescription>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2296,10 +2341,10 @@ export default function TasksV2Page() {
                                           </Button>
                                         </>
                                       )}
-                                      <Badge variant="secondary" className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 text-slate-700">
+                                      <Badge variant="secondary" className="rounded-full border border-slate-500/15 bg-slate-900/[0.05] px-2.5 text-slate-700">
                                         {listCards.length}
                                       </Badge>
-                                      <Badge variant={list.type === "active" ? "default" : "outline"} className="rounded-full px-2.5">
+                                      <Badge variant={list.type === "active" ? "default" : "outline"} className="rounded-full px-2.5 shadow-sm">
                                         {LIST_TYPE_LABELS[list.type]}
                                       </Badge>
                                     </div>
@@ -2307,20 +2352,20 @@ export default function TasksV2Page() {
                                 </CardHeader>
                                 <CardContent className="space-y-4 p-4">
                                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 py-1">
+                                    <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                       Тип: {LIST_TYPE_LABELS[list.type]}
                                     </span>
-                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/5 px-2.5 py-1">
+                                    <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                       {list.color ? `Цвет ${list.color}` : "Без цвета"}
                                     </span>
                                   </div>
 
                                   <div
-                                    className="space-y-3 min-h-24 rounded-2xl p-2"
-                                    style={{ backgroundColor: listLaneTint || "rgba(148, 163, 184, 0.14)" }}
+                                    className="space-y-3 min-h-24 rounded-[20px] p-2.5 sm:p-3"
+                                    style={{ backgroundColor: listLaneTint || "rgba(100, 116, 139, 0.16)" }}
                                   >
                                     {listCards.length === 0 && (
-                                      <div className="rounded-2xl border border-dashed border-slate-400/30 bg-slate-900/[0.025] px-3 py-5 text-sm text-muted-foreground">
+                                      <div className="rounded-[18px] border border-dashed border-slate-400/30 bg-slate-900/[0.05] px-3 py-5 text-sm leading-6 text-muted-foreground">
                                         {canEditSelectedBoard
                                           ? "Перетащите сюда карточку или создайте новую справа."
                                           : "В этом списке пока нет карточек."}
@@ -2353,11 +2398,14 @@ export default function TasksV2Page() {
                                               {...dragProvided.draggableProps}
                                               {...dragProvided.dragHandleProps}
                                               className="cursor-grab active:cursor-grabbing"
-                                              style={dragProvided.draggableProps.style}
+                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
+                                                isDragging: dragSnapshot.isDragging,
+                                                isDropAnimating: dragSnapshot.isDropAnimating,
+                                              })}
                                             >
                                               <div
                                                 className={[
-                                                  "group rounded-[20px] border p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-150 ease-out select-none",
+                                                  "group rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none",
                                                   dueDateStatusClasses.card,
                                                   dragSnapshot.isDragging
                                                     ? "border-sky-300/80 shadow-xl shadow-slate-900/15 ring-2 ring-sky-300/30"
@@ -2366,10 +2414,13 @@ export default function TasksV2Page() {
                                                       : "hover:border-slate-500/25 hover:shadow-md",
                                                 ].join(" ").trim()}
                                                 style={{
-                                                  background: `linear-gradient(180deg, rgba(226,232,240,0.82), ${listCardTint || "rgba(203,213,225,0.62)"})`,
+                                                  background: dragSnapshot.isDragging
+                                                    ? `linear-gradient(180deg, rgba(226,232,240,0.94), ${listTint || "rgba(148,163,184,0.34)"})`
+                                                    : `linear-gradient(180deg, rgba(226,232,240,0.78), ${listCardTint || "rgba(148,163,184,0.26)"})`,
                                                   borderColor: dragSnapshot.isDragging || dragSnapshot.isDropAnimating
                                                     ? undefined
                                                     : (list.color || "rgba(100,116,139,0.18)"),
+                                                  transform: "translateZ(0)",
                                                 }}
                                               >
                                                 <div className="flex items-start justify-between gap-3">
@@ -2377,7 +2428,7 @@ export default function TasksV2Page() {
                                                   {canEditSelectedBoard && (
                                                     <div
                                                       className="mt-0.5 shrink-0 rounded-xl p-1.5 text-slate-500 transition group-hover:text-slate-700"
-                                                      style={{ backgroundColor: listLaneTint || "rgba(148,163,184,0.14)" }}
+                                                      style={{ backgroundColor: listLaneTint || "rgba(100,116,139,0.14)" }}
                                                     >
                                                       <GripVertical className="h-4 w-4" />
                                                     </div>
@@ -2401,18 +2452,18 @@ export default function TasksV2Page() {
                                                     {getDueDateStatusLabel(dueDateStatus)}
                                                   </Badge>
                                                   {canEditSelectedBoard && (
-                                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1 text-[11px] text-slate-500">
+                                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.05] px-2.5 py-1 text-[11px] text-slate-500">
                                                       Тяни за любую часть карточки
                                                     </span>
                                                   )}
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                                  <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">#{Number(card.position) + 1}</span>
-                                                  {assigneeName && <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">Исполнитель: {assigneeName}</span>}
-                                                  {dueDateLabel && <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">Срок: {dueDateLabel}</span>}
+                                                  <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>#{Number(card.position) + 1}</span>
+                                                  {assigneeName && <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>Исполнитель: {assigneeName}</span>}
+                                                  {dueDateLabel && <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>Срок: {dueDateLabel}</span>}
                                                   {subtaskProgress.total > 0 && (
-                                                    <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.035] px-2.5 py-1">
+                                                    <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                                       Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
                                                     </span>
                                                   )}
@@ -2442,7 +2493,13 @@ export default function TasksV2Page() {
                                                       variant="secondary"
                                                       size="sm"
                                                       className="rounded-xl"
-                                                      onClick={() => handleOpenCardDetail(card.id)}
+                                                      onMouseDown={stopInteractiveEvent}
+                                                      onPointerDown={stopInteractiveEvent}
+                                                      onTouchStart={stopInteractiveEvent}
+                                                      onClick={(event) => {
+                                                        stopInteractiveEvent(event);
+                                                        handleOpenCardDetail(card.id);
+                                                      }}
                                                       disabled={detailCardLoading && detailCardId === card.id}
                                                     >
                                                       Подробнее
@@ -2451,7 +2508,13 @@ export default function TasksV2Page() {
                                                       variant="outline"
                                                       size="sm"
                                                       className="gap-2 rounded-xl"
-                                                      onClick={() => handleEditCard(card)}
+                                                      onMouseDown={stopInteractiveEvent}
+                                                      onPointerDown={stopInteractiveEvent}
+                                                      onTouchStart={stopInteractiveEvent}
+                                                      onClick={(event) => {
+                                                        stopInteractiveEvent(event);
+                                                        handleEditCard(card);
+                                                      }}
                                                       disabled={isCardPending}
                                                     >
                                                       <Pencil className="h-4 w-4" />
@@ -2461,7 +2524,13 @@ export default function TasksV2Page() {
                                                       variant="destructive"
                                                       size="sm"
                                                       className="gap-2 rounded-xl"
-                                                      onClick={() => deleteCardMutation.mutate(card.id)}
+                                                      onMouseDown={stopInteractiveEvent}
+                                                      onPointerDown={stopInteractiveEvent}
+                                                      onTouchStart={stopInteractiveEvent}
+                                                      onClick={(event) => {
+                                                        stopInteractiveEvent(event);
+                                                        deleteCardMutation.mutate(card.id);
+                                                      }}
                                                       disabled={isCardPending}
                                                     >
                                                       <Trash2 className="h-4 w-4" />
@@ -2476,7 +2545,13 @@ export default function TasksV2Page() {
                                                       variant="secondary"
                                                       size="sm"
                                                       className="rounded-xl"
-                                                      onClick={() => handleOpenCardDetail(card.id)}
+                                                      onMouseDown={stopInteractiveEvent}
+                                                      onPointerDown={stopInteractiveEvent}
+                                                      onTouchStart={stopInteractiveEvent}
+                                                      onClick={(event) => {
+                                                        stopInteractiveEvent(event);
+                                                        handleOpenCardDetail(card.id);
+                                                      }}
                                                     >
                                                       Подробнее
                                                     </Button>
