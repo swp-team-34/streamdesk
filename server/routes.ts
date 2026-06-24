@@ -1,7 +1,7 @@
 ﻿import express, { type Express } from "express";
 import { createServer as createHttpServer, type Server } from "http";
 import { createServer as createHttpsServer } from "https";
-import fs from "fs";
+import fsSync from "fs";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage, isStubStorage } from "./database";
 import {
@@ -2586,7 +2586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             performerCounts[task.assigneeId] = {
               count: 0,
               name: user?.name || "Неизвестно",
-              avatar: user?.avatar,
+              avatar: user?.avatar ?? undefined,
             };
           }
           performerCounts[task.assigneeId].count++;
@@ -3247,7 +3247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const deleted = await storage.deleteEquipment(id);
         if (deleted) return res.json({ success: true, mode: "deleted" });
-      } catch (error: any) {
+    } catch (error: any) {
         console.warn("[Equipment] hard delete failed, archiving:", error?.message || error);
       }
       const archived = await storage.updateEquipment(id, {
@@ -4035,8 +4035,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         });
         return result.text;
       }
-    } catch (error: any) {
-      console.warn("[Transcription] Whisper X failed, trying local whisper.cpp:", error.message);
+      } catch (error: any) {
+        console.warn("[Transcription] Whisper X failed, trying local whisper.cpp:", error.message);
 
       // Fallback на локальный whisper.cpp если удаленный API недоступен
       const { spawn } = await import("child_process");
@@ -4097,6 +4097,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         });
       });
     }
+    throw new Error("Transcription service is not configured");
   }
 
   // vMix API - подключение и статус
@@ -5053,6 +5054,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           error: error.message
         });
       }
+      throw new Error("Transcription service is not configured");
     }
   );
 
@@ -5664,6 +5666,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
 
       const task = await storage.updateTask(id, updateData);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
 
       // Уведомление новому исполнителю при смене назначения
       if (updateData.assigneeId != null && updateData.assigneeId !== oldTask.assigneeId && task.assigneeId) {
@@ -6156,6 +6161,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     code: string;
     telegramId: string; // Номер телефона
     chatId: string; // Номер телефона
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    photoUrl?: string;
     expiresAt: number;
     hash: string;
   }>();
@@ -7455,8 +7464,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   const keyPath = process.env.SSL_KEY_PATH;
   if (certPath && keyPath) {
     try {
-      const key = fs.readFileSync(keyPath, "utf8");
-      const cert = fs.readFileSync(certPath, "utf8");
+      const key = fsSync.readFileSync(keyPath, "utf8");
+      const cert = fsSync.readFileSync(certPath, "utf8");
       server = createHttpsServer({ key, cert }, app);
       console.log("[Security] HTTPS включён — логин и пароль передаются в шифрованном виде");
     } catch (e: any) {

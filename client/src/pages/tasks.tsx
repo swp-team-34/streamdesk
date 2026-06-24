@@ -30,6 +30,12 @@ import { format, isPast, differenceInDays, differenceInHours } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Link } from "wouter";
 
+function clearInputValue(input: HTMLInputElement | null) {
+  if (input) {
+    input.value = "";
+  }
+}
+
 /** Ссылка на задачи YouGile. Синхронизация только автоматическая (раз в минуту), кнопка не показывается. */
 function YouGileTasksLink() {
   const { data: status } = useQuery<{ configured: boolean }>({
@@ -958,8 +964,7 @@ export default function Tasks() {
     saveSections(updatedSections);
     setSelectedSectionId(newSection.id);
     setNewSectionName("");
-    const boardNameInput = boardNameInputRef.current;
-    if (boardNameInput) boardNameInput.value = "";
+    clearInputValue(boardNameInputRef.current);
     setIsSectionFormOpen(false);
     toast({ title: "Успешно", description: "Раздел создан" });
   };
@@ -3553,4 +3558,3 @@ const TaskCard = memo(function TaskCard({ task, provided, snapshot, users, taskC
     </TasksLayout>
   );
 }
-

@@ -46,7 +46,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { PERMISSIONS } from "@shared/schema";
 
 function StubModeBanner() {
-  const { data } = useQuery({
+  const { data } = useQuery<{ stubMode?: boolean }>({
     queryKey: ["/api/health"],
     retry: false,
     refetchInterval: false,

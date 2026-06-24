@@ -296,6 +296,37 @@ export interface IStorage {
   updateRepository(id: string, repository: Partial<Repository>): Promise<Repository | undefined>;
   deleteRepository(id: string): Promise<boolean>;
 
+  // Chat Sessions
+  getChatSessionsByUser(userId: string): Promise<ChatSession[]>;
+  getChatSessionById(id: string): Promise<ChatSession | undefined>;
+  createChatSession(session: InsertChatSession): Promise<ChatSession>;
+  updateChatSession(id: string, session: Partial<ChatSession>): Promise<ChatSession | undefined>;
+  deleteChatSession(id: string): Promise<boolean>;
+
+  // Chat Messages
+  getChatMessagesBySession(sessionId: string): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  deleteChatMessage(id: string): Promise<boolean>;
+
+  // vMix Scheduler Events
+  getVmixSchedulerEvents(): Promise<VmixSchedulerEvent[]>;
+  getVmixSchedulerEventById(id: string): Promise<VmixSchedulerEvent | undefined>;
+  createVmixSchedulerEvent(event: InsertVmixSchedulerEvent): Promise<VmixSchedulerEvent>;
+  updateVmixSchedulerEvent(id: string, event: Partial<VmixSchedulerEvent>): Promise<VmixSchedulerEvent | undefined>;
+  deleteVmixSchedulerEvent(id: string): Promise<boolean>;
+
+  // Connection Schemas
+  getConnectionSchemas(): Promise<ConnectionSchema[]>;
+  getConnectionSchemaById(id: string): Promise<ConnectionSchema | undefined>;
+  createConnectionSchema(schema: InsertConnectionSchema): Promise<ConnectionSchema>;
+  updateConnectionSchema(id: string, schema: Partial<ConnectionSchema>): Promise<ConnectionSchema | undefined>;
+  deleteConnectionSchema(id: string): Promise<boolean>;
+  getConnectionSchemaComponents(schemaId: string): Promise<ConnectionSchemaComponent[]>;
+  getConnectionSchemaComponentById(id: string): Promise<ConnectionSchemaComponent | undefined>;
+  createConnectionSchemaComponent(component: InsertConnectionSchemaComponent): Promise<ConnectionSchemaComponent>;
+  updateConnectionSchemaComponent(id: string, component: Partial<ConnectionSchemaComponent>): Promise<ConnectionSchemaComponent | undefined>;
+  deleteConnectionSchemaComponent(id: string): Promise<boolean>;
+
   // Otis stream settings
   getOtisStreamSettings(): Promise<OtisStreamSettings | undefined>;
   upsertOtisStreamSettings(settings: InsertOtisStreamSettings): Promise<OtisStreamSettings>;
@@ -482,8 +513,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteEvent(id: string): Promise<boolean> {
-    const result = await db!.delete(events).where(eq(events.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(events).where(eq(events.id, id)).returning({ id: events.id });
+    return result.length > 0;
   }
 
   // Equipment
@@ -522,8 +553,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteEquipment(id: string): Promise<boolean> {
-    const result = await db!.delete(equipment).where(eq(equipment.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(equipment).where(eq(equipment.id, id)).returning({ id: equipment.id });
+    return result.length > 0;
   }
 
   async uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined> {
@@ -561,8 +592,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteSystem(id: string): Promise<boolean> {
-    const result = await db!.delete(systems).where(eq(systems.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(systems).where(eq(systems.id, id)).returning({ id: systems.id });
+    return result.length > 0;
   }
 
   async pingSystem(id: string, status: string): Promise<System | undefined> {
@@ -610,18 +641,18 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async markNotificationRead(id: string): Promise<boolean> {
-    const result = await db!.update(notifications).set({ read: true }).where(eq(notifications.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.update(notifications).set({ read: true }).where(eq(notifications.id, id)).returning({ id: notifications.id });
+    return result.length > 0;
   }
 
   async markAllNotificationsRead(userId: string): Promise<number> {
-    const result = await db!.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
-    return result.rowCount ?? 0;
+    const result = await db!.update(notifications).set({ read: true }).where(eq(notifications.userId, userId)).returning({ id: notifications.id });
+    return result.length;
   }
 
   async deleteNotification(id: string): Promise<boolean> {
-    const result = await db!.delete(notifications).where(eq(notifications.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(notifications).where(eq(notifications.id, id)).returning({ id: notifications.id });
+    return result.length > 0;
   }
 
   async getPlatformSettings(): Promise<PlatformSetting[]> {
@@ -780,8 +811,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteObsConnection(id: string): Promise<boolean> {
-    const result = await db!.delete(obsConnections).where(eq(obsConnections.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(obsConnections).where(eq(obsConnections.id, id)).returning({ id: obsConnections.id });
+    return result.length > 0;
   }
 
   // Analytics
@@ -869,8 +900,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteTask(id: string): Promise<boolean> {
-    const result = await db!.delete(tasks).where(eq(tasks.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(tasks).where(eq(tasks.id, id)).returning({ id: tasks.id });
+    return result.length > 0;
   }
 
   // Task Comments
@@ -886,8 +917,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteTaskComment(id: string): Promise<boolean> {
-    const result = await db!.delete(taskComments).where(eq(taskComments.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(taskComments).where(eq(taskComments.id, id)).returning({ id: taskComments.id });
+    return result.length > 0;
   }
 
   // Task History
@@ -928,8 +959,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteRole(id: string): Promise<boolean> {
-    const result = await db!.delete(roles).where(eq(roles.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(roles).where(eq(roles.id, id)).returning({ id: roles.id });
+    return result.length > 0;
   }
 
   // Computers
@@ -953,8 +984,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteComputer(id: string): Promise<boolean> {
-    const result = await db!.delete(computers).where(eq(computers.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(computers).where(eq(computers.id, id)).returning({ id: computers.id });
+    return result.length > 0;
   }
 
   // Projects
@@ -983,8 +1014,8 @@ export class PostgreSQLStorage implements IStorage {
       .set({ projectId: null, projectColumnId: null } as any)
       .where(eq(tasks.projectId, id));
     await db!.delete(projectColumns).where(eq(projectColumns.projectId, id));
-    const result = await db!.delete(projects).where(eq(projects.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(projects).where(eq(projects.id, id)).returning({ id: projects.id });
+    return result.length > 0;
   }
 
   // Project Columns
@@ -1012,8 +1043,8 @@ export class PostgreSQLStorage implements IStorage {
     await db!.update(tasks)
       .set({ projectColumnId: null } as any)
       .where(eq(tasks.projectColumnId, id));
-    const result = await db!.delete(projectColumns).where(eq(projectColumns.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(projectColumns).where(eq(projectColumns.id, id)).returning({ id: projectColumns.id });
+    return result.length > 0;
   }
 
   async reorderProjectColumns(projectId: string, columnIds: string[]): Promise<void> {
@@ -1446,8 +1477,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteCustomLocation(id: string): Promise<boolean> {
-    const result = await db!.delete(customLocations).where(eq(customLocations.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(customLocations).where(eq(customLocations.id, id)).returning({ id: customLocations.id });
+    return result.length > 0;
   }
 
   // Repositories
@@ -1474,8 +1505,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteRepository(id: string): Promise<boolean> {
-    const result = await db!.delete(repositories).where(eq(repositories.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(repositories).where(eq(repositories.id, id)).returning({ id: repositories.id });
+    return result.length > 0;
   }
 
   // Chat Sessions
@@ -1507,8 +1538,8 @@ export class PostgreSQLStorage implements IStorage {
     // Сначала удаляем все сообщения
     await db!.delete(chatMessages).where(eq(chatMessages.sessionId, id));
     // Затем удаляем сессию
-    const result = await db!.delete(chatSessions).where(eq(chatSessions.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(chatSessions).where(eq(chatSessions.id, id)).returning({ id: chatSessions.id });
+    return result.length > 0;
   }
 
   // Chat Messages
@@ -1528,8 +1559,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteChatMessage(id: string): Promise<boolean> {
-    const result = await db!.delete(chatMessages).where(eq(chatMessages.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(chatMessages).where(eq(chatMessages.id, id)).returning({ id: chatMessages.id });
+    return result.length > 0;
   }
 
   // vMix Scheduler Events
@@ -1675,8 +1706,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteShowParticipantProfile(id: string): Promise<boolean> {
-    const result = await db!.delete(showParticipantProfiles).where(eq(showParticipantProfiles.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(showParticipantProfiles).where(eq(showParticipantProfiles.id, id)).returning({ id: showParticipantProfiles.id });
+    return result.length > 0;
   }
 
   // Show markers
@@ -1697,8 +1728,8 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteShowMarker(id: string): Promise<boolean> {
-    const result = await db!.delete(showMarkers).where(eq(showMarkers.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const result = await db!.delete(showMarkers).where(eq(showMarkers.id, id)).returning({ id: showMarkers.id });
+    return result.length > 0;
   }
 
   // YouGile cache
@@ -1834,17 +1865,27 @@ class StubStorage implements IStorage {
       name: "Администратор",
       role: "admin",
       active: true,
+      email: null,
+      phone: null,
+      position: null,
+      department: null,
+      permissions: [],
+      telegramId: null,
+      avatar: null,
+      onboardingCompleted: false,
+      workspaceMode: "pending",
+      lastLogin: null,
       createdAt: new Date(),
     } as User);
     // Тестовые карточки оборудования для локального теста (склад)
-    const seedEq: Array<Omit<Equipment, "createdAt"> & { createdAt?: Date }> = [
-      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", status: "available", location: "Студия А", specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
-      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", status: "available", location: "Подкаст зона", createdAt: this.now() },
-      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", status: "available", location: "Студия А", createdAt: this.now() },
-      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", status: "in-use", location: "Мобильная съёмка", createdAt: this.now() },
-      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", status: "available", location: "Техническая", createdAt: this.now() },
+    const seedEq: Equipment[] = [
+      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
+      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", location: "Подкаст зона", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", location: "Мобильная съёмка", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Техническая", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
     ];
-    seedEq.forEach((e) => this.equipment.set(e.id, e as Equipment));
+    seedEq.forEach((e) => this.equipment.set(e.id, e));
     // Тестовый проект для локального теста (корзина → проект)
     const defaultProject = { id: this.uid(), name: "Тестовый проект", description: "Для проверки привязки оборудования", status: "planning", createdAt: this.now() } as Project;
     this.projects.set(defaultProject.id, defaultProject);
@@ -2113,7 +2154,7 @@ class StubStorage implements IStorage {
       decisionNote: data.decisionNote ?? null,
       createdAt: this.now(),
       updatedAt: this.now(),
-      reviewedAt: data.reviewedAt ?? null,
+      reviewedAt: null,
     };
     this.equipmentCheckoutRequestsMap.set(request.id, request);
     return request;
@@ -2152,9 +2193,9 @@ class StubStorage implements IStorage {
   async getAnalyticsEvents(entityType?: string, startDate?: Date, endDate?: Date): Promise<AnalyticsEvent[]> {
     return Array.from(this.analytics.values())
       .filter((event) => !entityType || event.entityType === entityType)
-      .filter((event) => !startDate || new Date(event.timestamp).getTime() >= startDate.getTime())
-      .filter((event) => !endDate || new Date(event.timestamp).getTime() <= endDate.getTime())
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      .filter((event) => !startDate || new Date(event.timestamp ?? 0).getTime() >= startDate.getTime())
+      .filter((event) => !endDate || new Date(event.timestamp ?? 0).getTime() <= endDate.getTime())
+      .sort((a, b) => new Date(b.timestamp ?? 0).getTime() - new Date(a.timestamp ?? 0).getTime());
   }
 
   async getTasks(): Promise<Task[]> { return Array.from(this.tasks.values()); }
@@ -2728,7 +2769,7 @@ class StubStorage implements IStorage {
   async getChatSessionsByUser(userId: string): Promise<ChatSession[]> {
     return Array.from(this.chatSessionsMap.values())
       .filter((s) => s.userId === userId)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
   }
   async getChatSessionById(id: string): Promise<ChatSession | undefined> {
     return this.chatSessionsMap.get(id);
@@ -2755,7 +2796,7 @@ class StubStorage implements IStorage {
   async getChatMessagesBySession(sessionId: string): Promise<ChatMessage[]> {
     return Array.from(this.chatMessagesMap.values())
       .filter((m) => m.sessionId === sessionId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
   }
   async createChatMessage(data: InsertChatMessage): Promise<ChatMessage> {
     const id = this.uid();
@@ -2817,7 +2858,6 @@ export async function initDatabase(): Promise<void> {
         connect_timeout: 15,
         max_lifetime: 60 * 30,
         prepare: false,
-        statement_timeout: 30000,
       });
       db = drizzle(client);
       await client`SELECT 1`;

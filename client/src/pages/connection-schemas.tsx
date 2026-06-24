@@ -83,7 +83,7 @@ interface Cable {
 }
 
 type ComponentConnection = {
-  componentId?: string;
+  componentId: string;
   port?: string;
   fromPortId?: string;
   cableType?: string;
@@ -93,11 +93,11 @@ type ComponentConnection = {
 function normalizeConnections(
   connections: ConnectionSchemaComponent["connections"] | string | null | undefined
 ): ComponentConnection[] {
-  if (Array.isArray(connections)) return connections as ComponentConnection[];
+  if (Array.isArray(connections)) return (connections as ComponentConnection[]).filter((connection) => typeof connection.componentId === "string");
   if (typeof connections === "string") {
     try {
       const parsed = JSON.parse(connections);
-      return Array.isArray(parsed) ? (parsed as ComponentConnection[]) : [];
+      return Array.isArray(parsed) ? (parsed as ComponentConnection[]).filter((connection) => typeof connection.componentId === "string") : [];
     } catch {
       return [];
     }
@@ -621,8 +621,8 @@ export default function ConnectionSchemas() {
     manufacturer?: string;
     model?: string;
     type: string;
-    portsIn: Array<{ id: string; name: string; type: "in"; portType?: string }>;
-    portsOut: Array<{ id: string; name: string; type: "out"; portType?: string }>;
+    portsIn: Array<{ id: string; name: string; type: "in" | "out"; portType?: string }>;
+    portsOut: Array<{ id: string; name: string; type: "in" | "out"; portType?: string }>;
     specifications?: Record<string, any>;
   }) => {
     if (!selectedSchema) {
@@ -647,8 +647,8 @@ export default function ConnectionSchemas() {
       properties: {
         manufacturer: equipment.manufacturer,
         model: equipment.model,
-        portsIn: equipment.portsIn,
-        portsOut: equipment.portsOut,
+        portsIn: equipment.portsIn.filter((port): port is { id: string; name: string; type: "in"; portType?: string } => port.type === "in"),
+        portsOut: equipment.portsOut.filter((port): port is { id: string; name: string; type: "out"; portType?: string } => port.type === "out"),
         ...equipment.specifications,
       },
       connections: [],
@@ -851,7 +851,7 @@ export default function ConnectionSchemas() {
             <div className="flex-1 min-h-0">
               <SchemaCanvas
                 ref={schemaCanvasRef}
-                schemaId={selectedSchema}
+                schemaId={selectedSchemaData.id}
                 devices={devices}
                 zones={zones}
                 cables={cables}
@@ -1097,7 +1097,7 @@ export default function ConnectionSchemas() {
                 <CardContent className="flex-1 min-h-0 p-0 overflow-hidden">
                   <SchemaCanvas
                     ref={schemaCanvasRef}
-                    schemaId={selectedSchema}
+                    schemaId={selectedSchemaData.id}
                     devices={devices}
                     zones={zones}
                     cables={cables}

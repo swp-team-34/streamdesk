@@ -231,6 +231,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                       placeholder="Подробное описание события..."
                       className="min-h-[100px]"
                       {...field} 
+                      value={field.value ?? ""}
                     />
                   </FormControl>
                   <FormMessage />
@@ -322,7 +323,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                 <Checkbox
                   id="customLocation"
                   checked={useCustomLocation}
-                  onCheckedChange={setUseCustomLocation}
+                  onCheckedChange={(checked) => setUseCustomLocation(checked === true)}
                 />
                 <label htmlFor="customLocation" className="text-sm font-medium">
                   Указать свое место
@@ -337,7 +338,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                     <FormItem>
                       <FormLabel>Место проведения *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Введите место проведения" {...field} />
+                        <Input placeholder="Введите место проведения" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

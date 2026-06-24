@@ -42,8 +42,9 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem(storageKey) as Theme | null;
-    if (saved && (saved.startsWith("neon") || saved === "neon")) {
+    const savedValue = localStorage.getItem(storageKey);
+    const saved = savedValue as Theme | null;
+    if (savedValue && (savedValue.startsWith("neon") || savedValue === "neon")) {
       localStorage.setItem(storageKey, "dark");
       return "dark";
     }

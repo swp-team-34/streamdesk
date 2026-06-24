@@ -172,6 +172,10 @@ export async function seedDatabase() {
       }
     }
 
+    if (!adminUser) {
+      throw new Error("Admin user is required to seed events");
+    }
+
     // Create sample events
     const events = [
       {

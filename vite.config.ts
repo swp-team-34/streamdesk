@@ -4,9 +4,7 @@ import path from "path";
 
 export default defineConfig({
   plugins: [
-    react({
-      fastRefresh: false,
-    }),
+    react(),
   ],
   resolve: {
     alias: {

@@ -16,6 +16,20 @@ function formatTimecode(seconds: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(2, "0")}`;
 }
 
+interface OtisSettings {
+  streamUrl?: string | null;
+  streamUrlBackup?: string | null;
+  showTimecode?: boolean | null;
+  withSound?: boolean | null;
+  timecodeSource?: "local" | "vmix" | string | null;
+  vmixHost?: string | null;
+  vmixPort?: number | null;
+}
+
+interface VmixTimecodeResponse {
+  timecode?: string;
+}
+
 export default function OtisOnAir() {
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -29,7 +43,7 @@ export default function OtisOnAir() {
   const [vmixPortInput, setVmixPortInput] = useState("8088");
   const startTimeRef = useRef<number>(Date.now() / 1000);
 
-  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useQuery({
+  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useQuery<OtisSettings>({
     queryKey: ["/api/otis"],
     retry: 1,
   });
@@ -67,7 +81,7 @@ export default function OtisOnAir() {
     }
   }, [settings]);
 
-  const { data: vmixTimecodeData } = useQuery({
+  const { data: vmixTimecodeData } = useQuery<VmixTimecodeResponse>({
     queryKey: ["/api/vmix/timecode", vmixHost, vmixPort],
     enabled: timecodeSource === "vmix",
     refetchInterval: 500,
