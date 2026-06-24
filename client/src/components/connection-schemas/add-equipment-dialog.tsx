@@ -62,6 +62,12 @@ interface EquipmentTemplate {
   specifications?: Record<string, any>;
 }
 
+function getEquipmentSpecifications(item: Equipment): Record<string, unknown> {
+  return item.specifications && typeof item.specifications === "object" && !Array.isArray(item.specifications)
+    ? item.specifications as Record<string, unknown>
+    : {};
+}
+
 interface AddEquipmentDialogProps {
   open: boolean;
   onClose: () => void;
@@ -250,15 +256,16 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
   }, [equipment, searchTerm, typeFilters]);
 
   const handleAddFromStock = (item: Equipment) => {
+    const specifications = getEquipmentSpecifications(item);
     const template: EquipmentTemplate = {
       id: item.id,
       name: item.name,
-      manufacturer: item.specifications?.manufacturer as string || undefined,
+      manufacturer: specifications.manufacturer as string || undefined,
       model: item.model || undefined,
       type: item.type,
-      portsIn: (item.specifications?.portsIn as Port[]) || [],
-      portsOut: (item.specifications?.portsOut as Port[]) || [],
-      specifications: item.specifications as Record<string, any> || {},
+      portsIn: (specifications.portsIn as Port[]) || [],
+      portsOut: (specifications.portsOut as Port[]) || [],
+      specifications,
     };
     onAdd(template);
     onClose();
@@ -420,8 +427,9 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                     onMouseDown={(e) => e.preventDefault()}
                   >
                     {stockDropdownSuggestions.map((item) => {
-                      const portsIn = (item.specifications?.portsIn as Port[]) || [];
-                      const portsOut = (item.specifications?.portsOut as Port[]) || [];
+                      const specifications = getEquipmentSpecifications(item);
+                      const portsIn = (specifications.portsIn as Port[]) || [];
+                      const portsOut = (specifications.portsOut as Port[]) || [];
                       return (
                         <button
                           key={item.id}
@@ -501,8 +509,9 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                   ) : (
                     <div className="space-y-2">
                       {filteredEquipment.map(item => {
-                        const portsIn = (item.specifications?.portsIn as Port[]) || [];
-                        const portsOut = (item.specifications?.portsOut as Port[]) || [];
+                        const specifications = getEquipmentSpecifications(item);
+                        const portsIn = (specifications.portsIn as Port[]) || [];
+                        const portsOut = (specifications.portsOut as Port[]) || [];
                         return (
                           <div
                             key={item.id}
@@ -822,4 +831,3 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
     </Dialog>
   );
 }
-

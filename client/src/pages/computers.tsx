@@ -412,7 +412,7 @@ export default function Computers() {
           filteredComputers.map((computer: any) => {
             const status = statusConfig[computer.status as keyof typeof statusConfig] || statusConfig.offline;
             const isExpanded = expandedCards.has(computer.id);
-            const components = computer.components || {};
+            const components: Record<string, string | undefined> = computer.components || {};
 
             return (
               <Card 

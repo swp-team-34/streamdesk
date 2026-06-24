@@ -36,11 +36,15 @@ interface YouGileTask {
   status?: string;
 }
 
+interface YouGileStatus {
+  configured: boolean;
+}
+
 export default function TasksYouGile() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
 
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const { data: status, isLoading: statusLoading } = useQuery<YouGileStatus>({
     queryKey: ["/api/yougile/status"],
     retry: false,
   });

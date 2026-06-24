@@ -53,7 +53,7 @@ export default function Login({ onLogin }: LoginProps) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { username: string; password: string; name: string; email?: string }) => {
+    mutationFn: async (data: { username: string; password: string; name: string; email?: string; invite?: string }) => {
       const response = await apiRequest("POST", "/api/auth/register", data);
       return response.json();
     },

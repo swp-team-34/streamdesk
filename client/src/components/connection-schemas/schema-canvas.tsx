@@ -1005,7 +1005,8 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
                         {isHovered && !cableDrag && (
                           <circle cx={portWidth / 2} cy={PORT_HEIGHT / 2} r={6} fill="none" stroke="#3b82f6" strokeWidth={2} strokeDasharray="3 2" />
                         )}
-                        <text x={portWidth / 2} y={PORT_HEIGHT / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#fff" pointerEvents="none" title={port.name}>
+                        <text x={portWidth / 2} y={PORT_HEIGHT / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#fff" pointerEvents="none">
+                          <title>{port.name}</title>
                           {port.name || ""}
                         </text>
                       </g>
@@ -1040,13 +1041,14 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
                         onPointerEnter={() => setHoveredPort({ deviceId: device.id, portId: port.id, type: "out" })}
                         onPointerLeave={() => setHoveredPort((p) => (p?.portId === port.id ? null : p))}
                         style={{ cursor: cableDrag ? "crosshair" : "crosshair" }}
-                        title="Потяните для соединения с входом"
                       >
+                        <title>Потяните для соединения с входом</title>
                         <rect width={portWidth} height={PORT_HEIGHT} fill={fill} stroke="#fff" strokeWidth={1} rx={2} />
                         {isHovered && !cableDrag && (
                           <circle cx={portWidth / 2} cy={PORT_HEIGHT / 2} r={6} fill="none" stroke="#3b82f6" strokeWidth={2} strokeDasharray="3 2" />
                         )}
-                        <text x={portWidth / 2} y={PORT_HEIGHT / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#fff" pointerEvents="none" title={port.name}>
+                        <text x={portWidth / 2} y={PORT_HEIGHT / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#fff" pointerEvents="none">
+                          <title>{port.name}</title>
                           {port.name || ""}
                         </text>
                       </g>

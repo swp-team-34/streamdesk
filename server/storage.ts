@@ -66,27 +66,62 @@ export class MemStorage implements IStorage {
     this.initializeData();
   }
 
+  private withUserDefaults(user: Pick<User, "id" | "username" | "password" | "name"> & Partial<User>): User {
+    return {
+      role: "employee",
+      email: null,
+      phone: null,
+      position: null,
+      department: null,
+      permissions: [],
+      telegramId: null,
+      avatar: null,
+      active: true,
+      onboardingCompleted: false,
+      workspaceMode: "pending",
+      lastLogin: null,
+      createdAt: new Date(),
+      ...user,
+    };
+  }
+
+  private withEquipmentDefaults(equipment: Pick<Equipment, "id" | "name" | "type"> & Partial<Equipment>): Equipment {
+    return {
+      model: null,
+      serialNumber: null,
+      inventoryNumber: null,
+      barcode: null,
+      specifications: null,
+      notes: null,
+      status: "available",
+      location: null,
+      assignedTo: null,
+      lastUsed: null,
+      photos: [],
+      createdAt: new Date(),
+      ...equipment,
+    };
+  }
+
   private initializeData() {
     // Create default admin user
-    const adminUser: User = {
+    const adminUser = this.withUserDefaults({
       id: randomUUID(),
       username: "admin",
       password: "replace-with-password",
       name: "Администратор",
       role: "admin",
-      createdAt: new Date(),
-    };
+    });
     this.users.set(adminUser.id, adminUser);
 
     // Create default employee
-    const employee: User = {
+    const employee = this.withUserDefaults({
       id: randomUUID(),
       username: "ivan",
       password: "replace-with-password",
       name: "Иван Петров",
       role: "employee",
-      createdAt: new Date(),
-    };
+    });
     this.users.set(employee.id, employee);
 
     // Initialize some systems
@@ -141,7 +176,7 @@ export class MemStorage implements IStorage {
 
     // Initialize equipment
     const equipmentItems: Equipment[] = [
-      {
+      this.withEquipmentDefaults({
         id: randomUUID(),
         name: "Shure SM7B",
         type: "microphone",
@@ -151,9 +186,8 @@ export class MemStorage implements IStorage {
         location: "Студия А",
         assignedTo: employee.id,
         lastUsed: new Date(),
-        createdAt: new Date(),
-      },
-      {
+      }),
+      this.withEquipmentDefaults({
         id: randomUUID(),
         name: "Sony A7S III",
         type: "camera",
@@ -163,9 +197,8 @@ export class MemStorage implements IStorage {
         location: "Студия Б",
         assignedTo: employee.id,
         lastUsed: new Date(),
-        createdAt: new Date(),
-      },
-      {
+      }),
+      this.withEquipmentDefaults({
         id: randomUUID(),
         name: "Godox SL-60W",
         type: "lighting",
@@ -175,8 +208,7 @@ export class MemStorage implements IStorage {
         location: "Студия А",
         assignedTo: employee.id,
         lastUsed: new Date(),
-        createdAt: new Date(),
-      },
+      }),
     ];
 
     equipmentItems.forEach(item => this.equipment.set(item.id, item));
@@ -192,11 +224,10 @@ export class MemStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const user: User = {
+    const user = this.withUserDefaults({
       ...insertUser,
       id: randomUUID(),
-      createdAt: new Date(),
-    };
+    });
     this.users.set(user.id, user);
     return user;
   }
@@ -216,7 +247,7 @@ export class MemStorage implements IStorage {
   }
 
   async getEventsByUser(userId: string): Promise<Event[]> {
-    return Array.from(this.events.values()).filter(event => event.userId === userId);
+    return Array.from(this.events.values()).filter(event => event.organizerId === userId);
   }
 
   async getEventsByDateRange(start: Date, end: Date): Promise<Event[]> {
@@ -227,6 +258,10 @@ export class MemStorage implements IStorage {
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
     const event: Event = {
+      description: null,
+      status: "scheduled",
+      customLocation: null,
+      type: "stream",
       ...insertEvent,
       id: randomUUID(),
       createdAt: new Date(),
@@ -262,11 +297,10 @@ export class MemStorage implements IStorage {
   }
 
   async createEquipment(insertEquipment: InsertEquipment): Promise<Equipment> {
-    const equipment: Equipment = {
+    const equipment = this.withEquipmentDefaults({
       ...insertEquipment,
       id: randomUUID(),
-      createdAt: new Date(),
-    };
+    });
     this.equipment.set(equipment.id, equipment);
     return equipment;
   }
@@ -299,6 +333,10 @@ export class MemStorage implements IStorage {
 
   async createSystem(insertSystem: InsertSystem): Promise<System> {
     const system: System = {
+      status: "offline",
+      specifications: null,
+      ipAddress: null,
+      lastPing: null,
       ...insertSystem,
       id: randomUUID(),
       createdAt: new Date(),
@@ -335,6 +373,17 @@ export class MemStorage implements IStorage {
 
   async createStream(insertStream: InsertStream): Promise<Stream> {
     const stream: Stream = {
+      status: "offline",
+      userId: null,
+      startTime: null,
+      endTime: null,
+      streamKey: null,
+      bitrate: null,
+      fps: null,
+      resolution: null,
+      viewerCount: 0,
+      systemId: null,
+      metadata: null,
       ...insertStream,
       id: randomUUID(),
       createdAt: new Date(),
@@ -359,6 +408,9 @@ export class MemStorage implements IStorage {
 
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
     const notification: Notification = {
+      userId: null,
+      type: "info",
+      read: false,
       ...insertNotification,
       id: randomUUID(),
       createdAt: new Date(),

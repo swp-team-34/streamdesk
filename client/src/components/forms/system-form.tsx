@@ -261,7 +261,7 @@ export function SystemForm({ isOpen, onClose, system }: SystemFormProps) {
                       <FormLabel>IP адрес</FormLabel>
                       <div className="flex gap-2">
                         <FormControl>
-                          <Input placeholder="192.168.1.100" {...field} />
+                          <Input placeholder="192.168.1.100" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <Button
                           type="button"

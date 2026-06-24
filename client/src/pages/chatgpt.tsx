@@ -216,7 +216,7 @@ export default function ChatGPT() {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
           });
-          return { ...model, status: response.ok ? "online" : "offline" as const };
+          return { ...model, status: response.ok ? ("online" as const) : ("offline" as const) };
         } catch {
           return { ...model, status: "offline" as const };
         }
