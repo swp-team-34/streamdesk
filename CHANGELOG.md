@@ -12,6 +12,7 @@ changes are collected under `Unreleased`.
 
 - Added repository workflow scaffolding for issue templates, PR evidence, and release tracking ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).
 - Added definition of done ([#22](https://github.com/swp-team-34/streamdesk/issues/22)).
+- Added calendar support for Kanban V2 task cards so scheduled cards now appear in Day, 3 Days, Week, and Month views with title, timing, status, assignee, and task preview details.
 
 ### Changed
 
@@ -21,5 +22,6 @@ changes are collected under `Unreleased`.
 - Refined the Kanban task workspace UX with improved board layout, smoother full-card drag interactions, and personal board support without requiring a company.
 - Refined the Kanban task manager with dark theme contrast improvements, compact icon actions, safer delete confirmations, color swatches for lists, and drag-and-drop state fixes ([#65](https://github.com/swp-team-34/streamdesk/issues/65)).
 - Reworked the Kanban task board interactions with inline column and task creation, draggable columns, debounced task detail autosave, board settings for labels and members, and a persisted list view with grouping. ([#70](https://github.com/swp-team-34/streamdesk/issues/70))
+- Extended Kanban V2 cards with a `start date` field across the UI, API, schema, and calendar synchronization flow.
 - Fixed Kanban deletion flows in PostgreSQL-backed environments so cards, lists, and boards can be removed together with their related comments, history, attachments, and labels.
 - Documented issue-based backlog, branch, PR, changelog, and release workflows ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).

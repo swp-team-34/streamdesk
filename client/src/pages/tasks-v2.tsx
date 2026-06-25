@@ -137,6 +137,7 @@ interface KanbanCardView {
   description?: string | null;
   position: number;
   priority: KanbanCardPriority;
+  startDate?: string | Date | null;
   dueDate?: string | Date | null;
   labelIds?: string[];
   subtasks?: KanbanSubtask[];
@@ -236,6 +237,7 @@ const EMPTY_CARD_FORM = {
   title: "",
   description: "",
   priority: "medium" as KanbanCardPriority,
+  startDate: "",
   dueDate: "",
   assigneeUserId: "",
   labelIds: [] as string[],
@@ -560,6 +562,7 @@ interface SaveCardInput {
   title?: string;
   description?: string | null;
   priority?: KanbanCardPriority;
+  startDate?: string | null;
   dueDate?: string | null;
   assigneeUserId?: string | null;
   labelIds?: string[];
@@ -1047,6 +1050,7 @@ export default function TasksV2Page() {
         [oldValue?.priority !== newValue?.priority && newValue?.priority !== undefined, `Приоритет: ${CARD_PRIORITY_LABELS[String(newValue?.priority) as KanbanCardPriority] || String(newValue?.priority)}`],
         [oldValue?.listId !== newValue?.listId && newValue?.listId !== undefined, `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue?.listId)}`],
         [oldValue?.assigneeUserId !== newValue?.assigneeUserId && newValue?.assigneeUserId !== undefined, `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue?.assigneeUserId)}`],
+        [String(oldValue?.startDate || "") !== String(newValue?.startDate || "") && newValue?.startDate !== undefined, `Старт: ${formatDueDateLabel(oldValue?.startDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.startDate as string | Date | null) || "Не задан"}`],
         [String(oldValue?.dueDate || "") !== String(newValue?.dueDate || "") && newValue?.dueDate !== undefined, `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.dueDate as string | Date | null) || "Не задан"}`],
       ];
 
@@ -1159,6 +1163,7 @@ export default function TasksV2Page() {
       title: selectedDetailCard.title,
       description: selectedDetailCard.description || "",
       priority: selectedDetailCard.priority,
+      startDate: toDateTimeLocalValue(selectedDetailCard.startDate),
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
@@ -1376,6 +1381,7 @@ export default function TasksV2Page() {
         title: (input?.title ?? cardForm.title).trim(),
         description: input?.description !== undefined ? input.description : (cardForm.description.trim() || null),
         priority: input?.priority ?? cardForm.priority,
+        startDate: input?.startDate !== undefined ? input.startDate : (cardForm.startDate || null),
         dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
         assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
         labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
@@ -1395,6 +1401,7 @@ export default function TasksV2Page() {
     },
     onSuccess: (card: KanbanCardView, input) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       toast({
         title: (input?.cardId ?? editingCardId) ? "Карточка обновлена" : "Карточка создана",
         description: "Карточка сохранена в текущем списке.",
@@ -1430,6 +1437,7 @@ export default function TasksV2Page() {
     },
     onSuccess: (cardId: string) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       toast({
         title: "Карточка удалена",
         description: "Содержимое списка синхронизировано.",
@@ -1467,6 +1475,7 @@ export default function TasksV2Page() {
           title: form.title.trim(),
           description: form.description.trim() || null,
           priority: form.priority,
+          startDate: form.startDate || null,
           dueDate: form.dueDate || null,
           assigneeUserId: form.assigneeUserId || null,
           labelIds: normalizeLabelIds(form.labelIds),
@@ -1480,6 +1489,7 @@ export default function TasksV2Page() {
     onSuccess: (card: KanbanCardView, input) => {
       queryClient.setQueryData(["kanban-card", selectedBoardId, card.id], card);
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
       detailLastSavedSignatureRef.current = serializeCardForm(input?.form ?? {
@@ -1487,6 +1497,7 @@ export default function TasksV2Page() {
         title: card.title,
         description: card.description || "",
         priority: card.priority,
+        startDate: toDateTimeLocalValue(card.startDate),
         dueDate: toDateTimeLocalValue(card.dueDate),
         assigneeUserId: card.assigneeUserId || "",
         labelIds: normalizeLabelIds(card.labelIds),
@@ -1500,6 +1511,7 @@ export default function TasksV2Page() {
           title: card.title,
           description: card.description || "",
           priority: card.priority,
+          startDate: toDateTimeLocalValue(card.startDate),
           dueDate: toDateTimeLocalValue(card.dueDate),
           assigneeUserId: card.assigneeUserId || "",
           labelIds: normalizeLabelIds(card.labelIds),
@@ -1605,6 +1617,7 @@ export default function TasksV2Page() {
     },
     onSettled: (_movedCard, _error, movement) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", movement.boardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", movement.boardId, movement.cardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", movement.boardId, movement.cardId] });
     },
@@ -1936,6 +1949,7 @@ export default function TasksV2Page() {
       title: card.title,
       description: card.description || "",
       priority: card.priority,
+      startDate: toDateTimeLocalValue(card.startDate),
       dueDate: toDateTimeLocalValue(card.dueDate),
       assigneeUserId: card.assigneeUserId || "",
       labelIds: normalizeLabelIds(card.labelIds),
@@ -2031,14 +2045,15 @@ export default function TasksV2Page() {
   const handleSubmitInlineCard = (listId: string) => {
     const title = inlineCardTitle.trim();
     if (!title || !canEditSelectedBoard || saveCardMutation.isPending) return;
-    saveCardMutation.mutate({
-      listId,
-      title,
-      description: null,
-      priority: "medium",
-      dueDate: null,
-      assigneeUserId: null,
-      labelIds: [],
+      saveCardMutation.mutate({
+        listId,
+        title,
+        description: null,
+        priority: "medium",
+        startDate: null,
+        dueDate: null,
+        assigneeUserId: null,
+        labelIds: [],
       inlineListId: listId,
     });
   };
@@ -2068,6 +2083,7 @@ export default function TasksV2Page() {
       title: nextTitle,
       description: card.description || null,
       priority: card.priority,
+      startDate: card.startDate ? toDateTimeLocalValue(card.startDate) : null,
       dueDate: card.dueDate ? toDateTimeLocalValue(card.dueDate) : null,
       assigneeUserId: card.assigneeUserId || null,
       labelIds: normalizeLabelIds(card.labelIds),
@@ -2143,6 +2159,7 @@ export default function TasksV2Page() {
         title,
         description: null,
         priority: "medium",
+        startDate: null,
         dueDate: null,
         assigneeUserId: null,
         labelIds: [],
@@ -3670,7 +3687,7 @@ export default function TasksV2Page() {
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="kanban-detail-priority">
                       Приоритет
@@ -3715,6 +3732,22 @@ export default function TasksV2Page() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="kanban-detail-start-date">
+                      Дата старта
+                    </label>
+                    <Input
+                      id="kanban-detail-start-date"
+                      type="datetime-local"
+                      value={detailCardForm.startDate}
+                      onChange={(event) =>
+                        setDetailCardForm((prev) => ({ ...prev, startDate: event.target.value }))
+                      }
+                      disabled={!canEditSelectedBoard}
+                      className={KANBAN_PANEL_INPUT_CLASS}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -3829,6 +3862,7 @@ export default function TasksV2Page() {
                     </p>
                     <p>Создатель: {userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}</p>
                     <p>Позиция в списке: {Number(selectedDetailCard.position) + 1}</p>
+                    <p>Старт: {formatDueDateLabel(selectedDetailCard.startDate) || "Не задан"}</p>
                     <p>Статус срока: {getDueDateStatusLabel(dueDateStatus)}</p>
                     <p>Срок: {formatDueDateLabel(selectedDetailCard.dueDate) || "Не задан"}</p>
                     <p>Создана: {formatDueDateLabel(selectedDetailCard.createdAt) || "Неизвестно"}</p>

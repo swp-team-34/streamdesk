@@ -48,6 +48,13 @@ export function useWebSocket() {
               case "streams_update":
                 queryClient.setQueryData(["/api/streams", "active=true"], data.data);
                 break;
+              case "tasks_update":
+                queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+                break;
+              case "events_update":
+                queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+                break;
               case "youtube_stats":
                 queryClient.setQueryData(["/api/integrations/youtube/stats"], data.data);
                 break;

@@ -377,6 +377,7 @@ export default function Tasks() {
   const [selectedHour, setSelectedHour] = useState<string>("00");
   const [selectedMinute, setSelectedMinute] = useState<string>("00");
   const [newTaskDueDate, setNewTaskDueDate] = useState<string>("");
+  const [newTaskStartDate, setNewTaskStartDate] = useState<string>("");
 
   // Состояния для подзадач и файлов
   const [subtasks, setSubtasks] = useState<Array<{ id: string; title: string; completed: boolean }>>([]);
@@ -1178,6 +1179,7 @@ export default function Tasks() {
         setNewTaskPriority("medium");
         setNewTaskAssigneeId("");
         setNewTaskDueDate("");
+        setNewTaskStartDate("");
         setSelectedMonth(new Date().getMonth());
         setSelectedDay(new Date().getDate());
         setSelectedYear(new Date().getFullYear());
@@ -1416,6 +1418,7 @@ export default function Tasks() {
       priority: newTaskPriority,
       assigneeId: newTaskAssigneeId || null,
       dueDate: newTaskDueDate || null,
+      startDate: newTaskStartDate || null,
       repository: newTaskRepository || null,
       projectId: newTaskProject || currentSection?.localProjectId || null,
       category: newTaskCategory || null,
@@ -1458,6 +1461,7 @@ export default function Tasks() {
     setNewTaskPriority("medium");
     setNewTaskAssigneeId("");
     setNewTaskDueDate("");
+    setNewTaskStartDate("");
     setSelectedMonth(new Date().getMonth());
     setSelectedDay(new Date().getDate());
     setSelectedYear(new Date().getFullYear());
@@ -2233,6 +2237,24 @@ const TaskCard = memo(function TaskCard({ task, provided, snapshot, users, taskC
                       </Select>
                     </div>
                   </div>
+                  <div>
+                    <Label className="text-xs sm:text-sm">Дата старта</Label>
+                    <Input
+                      type="datetime-local"
+                      value={newTaskStartDate}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewTaskStartDate(value ? new Date(value).toISOString() : "");
+                      }}
+                      className="h-9 sm:h-10 text-xs sm:text-sm"
+                    />
+                    {newTaskStartDate && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Запланировано: {format(new Date(newTaskStartDate), "dd.MM.yyyy HH:mm", { locale: ru })}
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <Label className="text-xs sm:text-sm">Исполнитель</Label>
                     <Select value={newTaskAssigneeId || "none"} onValueChange={(value) => setNewTaskAssigneeId(value === "none" ? "" : value)}>
