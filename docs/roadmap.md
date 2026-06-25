@@ -9,7 +9,7 @@ This document describes the sprint-by-sprint delivery plan for the project. For 
 - **Focus**: Only on task manager, as this feature is urgent for the customer.
 - **Planned Items**: [#44](https://github.com/swp-team-34/streamdesk/issues/44) (Minor bug fix), [#55](https://github.com/swp-team-34/streamdesk/issues/55) (Core functionality of the task manager)
 
-## Sprint 2: Calendar
+## Sprint 2: Calendar and bug fix
 - **Milestone**: [Sprint 2](https://github.com/swp-team-34/streamdesk/milestone/2)
 - **Dates**: June 23, 2026 - June 28, 2026
 - **Sprint Goal**: For the current sprint developers shall imlement calendar page with core functions and fix several bugs for the task manager
