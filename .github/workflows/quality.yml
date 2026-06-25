@@ -1,0 +1,38 @@
+name: Quality
+
+on:
+  push:
+    branches: [main, 81-configure-assignment-4-quality-tests-ci]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run check
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Dependency audit
+        run: npm audit --audit-level=critical
