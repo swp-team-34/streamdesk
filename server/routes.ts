@@ -499,6 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     title: z.string().trim().min(1, "Введите название карточки").max(160, "Название слишком длинное"),
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+    startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
@@ -514,6 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     title: z.string().trim().min(1, "Введите название карточки").max(160, "Название слишком длинное").optional(),
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+    startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
@@ -543,6 +545,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isMember: Boolean(options.membership),
     membershipRole: options.membership?.role ?? null,
   });
+
+  const getVisibleKanbanBoardsForUser = async (currentUser: any) => {
+    const memberships = await storage.getKanbanBoardMembershipsByUser(currentUser.id).catch(() => []);
+    const membershipMap = new Map((memberships as any[]).map((member) => [String(member.boardId), member]));
+
+    if (currentUser.role === "admin") {
+      const boards = await storage.getKanbanBoards().catch(() => []);
+      return {
+        boards: (boards as any[]).map((board) =>
+          buildKanbanBoardResponse(board, {
+            canManage: true,
+            membership: membershipMap.get(String(board.id)),
+          }),
+        ),
+        membershipMap,
+      };
+    }
+
+    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
+    const [companyBoards, personalBoards] = await Promise.all([
+      companyIds.length ? storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []) : Promise.resolve([]),
+      storage.getPersonalKanbanBoardsByUserId(currentUser.id).catch(() => []),
+    ]);
+    const boards = [...(personalBoards as any[]), ...(companyBoards as any[])];
+    const manageableCompanyIds = new Set<string>();
+
+    for (const companyId of companyIds) {
+      if (await canManageCompany(currentUser, companyId).catch(() => false)) {
+        manageableCompanyIds.add(String(companyId));
+      }
+    }
+
+    const visibleBoards = (boards as any[]).filter((board) => {
+      if (!board.companyId) return String(board.createdByUserId) === String(currentUser.id);
+      if (manageableCompanyIds.has(String(board.companyId))) return true;
+      if (board.visibility !== "members") return true;
+      return membershipMap.has(String(board.id));
+    });
+
+    return {
+      boards: visibleBoards.map((board) =>
+        buildKanbanBoardResponse(board, {
+          canManage: !board.companyId
+            ? String(board.createdByUserId) === String(currentUser.id)
+            : manageableCompanyIds.has(String(board.companyId)),
+          membership: membershipMap.get(String(board.id)),
+        }),
+      ),
+      membershipMap,
+    };
+  };
 
   const getKanbanBoardAccess = async (user: any, boardId: string) => {
     const board = await storage.getKanbanBoardById(boardId).catch(() => undefined);
@@ -739,56 +792,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-
-      const memberships = await storage.getKanbanBoardMembershipsByUser(currentUser.id).catch(() => []);
-      const membershipMap = new Map((memberships as any[]).map((member) => [String(member.boardId), member]));
-
-      if (currentUser.role === "admin") {
-        const boards = await storage.getKanbanBoards().catch(() => []);
-        return res.json(
-          (boards as any[]).map((board) =>
-            buildKanbanBoardResponse(board, {
-              canManage: true,
-              membership: membershipMap.get(String(board.id)),
-            }),
-          ),
-        );
-      }
-
-      const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-      const [companyBoards, personalBoards] = await Promise.all([
-        companyIds.length ? storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []) : Promise.resolve([]),
-        storage.getPersonalKanbanBoardsByUserId(currentUser.id).catch(() => []),
-      ]);
-      const boards = [...(personalBoards as any[]), ...(companyBoards as any[])];
-      const manageableCompanyIds = new Set<string>();
-
-      for (const companyId of companyIds) {
-        if (await canManageCompany(currentUser, companyId).catch(() => false)) {
-          manageableCompanyIds.add(String(companyId));
-        }
-      }
-
-      const visibleBoards = (boards as any[]).filter((board) => {
-        if (!board.companyId) return String(board.createdByUserId) === String(currentUser.id);
-        if (manageableCompanyIds.has(String(board.companyId))) return true;
-        if (board.visibility !== "members") return true;
-        return membershipMap.has(String(board.id));
-      });
-
-      res.json(
-        visibleBoards.map((board) =>
-          buildKanbanBoardResponse(board, {
-            canManage: !board.companyId
-              ? String(board.createdByUserId) === String(currentUser.id)
-              : manageableCompanyIds.has(String(board.companyId)),
-            membership: membershipMap.get(String(board.id)),
-          }),
-        ),
-      );
+      const { boards } = await getVisibleKanbanBoardsForUser(currentUser);
+      res.json(boards);
     } catch (error) {
       console.error("[Kanban] Failed to fetch boards:", error);
       res.status(500).json({ message: "Не удалось загрузить доски" });
+    }
+  });
+
+  app.get("/api/kanban/cards", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const { boards } = await getVisibleKanbanBoardsForUser(currentUser);
+      const boardIds = boards.map((board: any) => String(board.id)).filter(Boolean);
+      const [cardLists, listLists] = await Promise.all([
+        Promise.all(boardIds.map((boardId) => storage.getKanbanCardsByBoardId(boardId).catch(() => []))),
+        Promise.all(boardIds.map((boardId) => storage.getKanbanListsByBoardId(boardId).catch(() => []))),
+      ]);
+      const cards = cardLists.flat();
+      const lists = listLists.flat() as any[];
+      const listNameById = new Map(lists.map((list) => [String(list.id), String(list.name || "Список")]));
+      const boardNameById = new Map((boards as any[]).map((board) => [String(board.id), String(board.name || "Доска")]));
+      const cardsWithLabels = await buildKanbanCardResponses(cards as any[]);
+      res.json(
+        cardsWithLabels.map((card: any) => ({
+          ...card,
+          listName: listNameById.get(String(card.listId)) || "Список",
+          boardName: boardNameById.get(String(card.boardId)) || "Доска",
+        })),
+      );
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch all cards:", error);
+      res.status(500).json({ message: "Не удалось загрузить карточки" });
     }
   });
 
@@ -1614,6 +1651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title: parsed.title,
         description: parsed.description?.trim() || null,
         priority: parsed.priority,
+        startDate: parseOptionalKanbanDate(parsed.startDate),
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
         subtasks: normalizeKanbanSubtasks(parsed.subtasks),
         creatorUserId: currentUser.id,
@@ -1664,6 +1702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.title !== undefined) updateData.title = parsed.title;
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
+      if (parsed.startDate !== undefined) updateData.startDate = parseOptionalKanbanDate(parsed.startDate);
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.assigneeUserId !== undefined) {
@@ -7516,6 +7555,14 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           ws.send(JSON.stringify({
             type: 'streams_update',
             data: streams
+          }));
+
+          ws.send(JSON.stringify({
+            type: 'tasks_update',
+          }));
+
+          ws.send(JSON.stringify({
+            type: 'events_update',
           }));
 
           // Send mock YouTube stats (не требует БД, всегда работает)

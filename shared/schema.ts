@@ -388,6 +388,7 @@ export const kanbanCards = pgTable("kanban_cards", {
   description: text("description"),
   position: integer("position").notNull().default(0),
   priority: text("priority").notNull().default("medium"),
+  startDate: timestamp("start_date"),
   dueDate: timestamp("due_date"),
   subtasks: jsonb("subtasks").default([]),
   creatorUserId: varchar("creator_user_id").references(() => users.id).notNull(),
