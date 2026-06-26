@@ -40,6 +40,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  type DueDateStatus,
+  formatDueDateLabel,
+  getDueDateStatus,
+  getDueDateStatusClasses,
+  getDueDateStatusLabel,
+  toDateTimeLocalValue,
+} from "@/lib/task-dates";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -332,34 +340,6 @@ const KANBAN_BOARD_GHOST_BADGE_CLASS =
 const KANBAN_HERO_STAT_CLASS =
   "rounded-[20px] border border-white/10 bg-white/5 p-4 backdrop-blur-sm";
 
-const DUE_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-const toDateTimeLocalValue = (value?: string | Date | null) => {
-  if (!value) return "";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const pad = (part: number) => String(part).padStart(2, "0");
-
-  return [
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-    `${pad(date.getHours())}:${pad(date.getMinutes())}`,
-  ].join("T");
-};
-
-const formatDueDateLabel = (value?: string | Date | null) => {
-  if (!value) return null;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return DUE_DATE_FORMATTER.format(date);
-};
-
 const toSoftColor = (value?: string | null, alpha = 0.12) => {
   const normalized = String(value || "").trim();
   if (!normalized) return undefined;
@@ -380,72 +360,6 @@ const toSoftColor = (value?: string | null, alpha = 0.12) => {
   }
 
   return undefined;
-};
-
-type DueDateStatus = "none" | "upcoming" | "soon" | "overdue" | "complete";
-
-const getDueDateStatus = (
-  value?: string | Date | null,
-  options?: { isComplete?: boolean },
-): DueDateStatus => {
-  if (options?.isComplete) return "complete";
-  if (!value) return "none";
-
-  const dueDate = new Date(value);
-  if (Number.isNaN(dueDate.getTime())) return "none";
-
-  const now = new Date();
-  const diffMs = dueDate.getTime() - now.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-
-  if (diffMs < 0) return "overdue";
-  if (diffHours <= 24) return "soon";
-  return "upcoming";
-};
-
-const getDueDateStatusLabel = (status: DueDateStatus) => {
-  switch (status) {
-    case "complete":
-      return "Завершено";
-    case "overdue":
-      return "Просрочено";
-    case "soon":
-      return "Скоро срок";
-    case "upcoming":
-      return "Запланировано";
-    default:
-      return "Без срока";
-  }
-};
-
-const getDueDateStatusClasses = (status: DueDateStatus) => {
-  switch (status) {
-    case "complete":
-      return {
-        badge: "border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
-        card: "border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-500/25 dark:bg-emerald-500/10",
-      };
-    case "overdue":
-      return {
-        badge: "border-red-200 bg-red-100 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200",
-        card: "border-red-200/80 bg-red-50/50 dark:border-red-500/25 dark:bg-red-500/10",
-      };
-    case "soon":
-      return {
-        badge: "border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
-        card: "border-amber-200/80 bg-amber-50/50 dark:border-amber-500/25 dark:bg-amber-500/10",
-      };
-    case "upcoming":
-      return {
-        badge: "border-sky-200 bg-sky-100 text-sky-900 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-200",
-        card: "border-sky-200/80 bg-sky-50/40 dark:border-blue-400/25 dark:bg-blue-400/10",
-      };
-    default:
-      return {
-        badge: "border-border bg-muted text-muted-foreground",
-        card: "",
-      };
-  }
 };
 
 const getKanbanHistoryActionLabel = (action: string) => {
@@ -1177,11 +1091,12 @@ export default function TasksV2Page() {
   useEffect(() => {
     if (!detailCardId) return;
     if (cards.some((card) => card.id === detailCardId)) return;
+    if (cardsLoading) return;
     if (detailCardLoading) return;
 
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
-  }, [cards, detailCardId, detailCardLoading]);
+  }, [cards, cardsLoading, detailCardId, detailCardLoading]);
 
   const saveBoardMutation = useMutation({
     mutationFn: async () => {

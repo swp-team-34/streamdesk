@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { AuthService } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { getDueDateStatus, getDueDateStatusClasses, getDueDateStatusLabel } from "@/lib/task-dates";
 
 type CalendarEvent = {
   id: string;
@@ -70,6 +71,8 @@ type CalendarTask = {
 
 type CalendarKanbanCard = {
   id: string;
+  boardId: string;
+  listId: string;
   title: string;
   description?: string | null;
   priority?: string | null;
@@ -77,6 +80,7 @@ type CalendarKanbanCard = {
   dueDate?: string | Date | null;
   startDate?: string | Date | null;
   listName?: string | null;
+  listType?: string | null;
   boardName?: string | null;
 };
 
@@ -478,6 +482,14 @@ export default function Calendar() {
   };
 
   const getPalette = (entry: CalendarEntry) => {
+    if (isEntryOverdue(entry)) {
+      return {
+        card: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
+        inline: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
+        dot: "bg-red-400",
+        badge: getDueDateStatusClasses("overdue").badge,
+      };
+    }
     if (entry.kind === "task") return EVENT_COLOR_PALETTES[3];
     if (entry.kind === "kanban") return EVENT_COLOR_PALETTES[4];
     const key = `${entry.id}:${entry.title}:${entry.type || ""}`;
@@ -500,9 +512,30 @@ export default function Calendar() {
 
   const getEntryMetaLine = (entry: CalendarEntry) => {
     const parts = [format(new Date(entry.startTime), "HH:mm")];
+    if (isEntryOverdue(entry)) parts.push(getDueDateStatusLabel("overdue"));
     if (entry.statusLabel) parts.push(entry.statusLabel);
     if (entry.responsibleLabel) parts.push(entry.responsibleLabel);
     return parts.join(" • ");
+  };
+
+  const isEntryOverdue = (entry: CalendarEntry) => {
+    if (entry.kind === "event") return false;
+
+    if (entry.kind === "task") {
+      const isComplete = entry.task.status === "done" || entry.task.status === "cancelled";
+      return getDueDateStatus(entry.task.dueDate, { isComplete }) === "overdue";
+    }
+
+    const isCompleteLikeList =
+      entry.task.listType === "closed" ||
+      entry.task.listType === "archive" ||
+      entry.task.listType === "trash";
+    return getDueDateStatus(entry.task.dueDate, { isComplete: isCompleteLikeList }) === "overdue";
+  };
+
+  const handleEntryClick = (entry: CalendarEntry) => {
+    setSelectedEntry(entry);
+    setIsDetailOpen(true);
   };
 
   const getTaskScheduleLabel = (task: { startDate?: string | Date | null; dueDate?: string | Date | null }) => {
@@ -641,10 +674,7 @@ export default function Calendar() {
                             key={entry.id}
                             type="button"
                             className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-pointer", getEventInlineClasses(entry))}
-                            onClick={() => {
-                              setSelectedEntry(entry);
-                              setIsDetailOpen(true);
-                            }}
+                            onClick={() => handleEntryClick(entry)}
                           >
                             {entry.title}
                             <span className="ml-1 opacity-80">· {getEntryMetaLine(entry)}</span>
@@ -735,10 +765,7 @@ export default function Calendar() {
                             type="button"
                             className={cn("absolute rounded-xl text-xs overflow-hidden cursor-pointer pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-white/10 dark:border-white/5 text-left", getEventCardClasses(entry))}
                             style={{ ...style, ...overlapStyle, minHeight: 24 }}
-                            onClick={() => {
-                              setSelectedEntry(entry);
-                              setIsDetailOpen(true);
-                            }}
+                            onClick={() => handleEntryClick(entry)}
                           >
                             <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
                             <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
@@ -814,10 +841,7 @@ export default function Calendar() {
                           type="button"
                           className={cn("absolute rounded-xl text-xs overflow-hidden cursor-pointer shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-white/10 dark:border-white/5 text-left", getEventCardClasses(entry))}
                           style={{ ...style, ...overlapStyle, minHeight: 24 }}
-                          onClick={() => {
-                            setSelectedEntry(entry);
-                            setIsDetailOpen(true);
-                          }}
+                          onClick={() => handleEntryClick(entry)}
                         >
                           <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
                           <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
@@ -857,7 +881,7 @@ export default function Calendar() {
                 );
               }
               return listEntries.map((entry) => (
-                <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => { setSelectedEntry(entry); setIsDetailOpen(true); }}>
+                <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => handleEntryClick(entry)}>
                   <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                       <div className="flex-1 min-w-0">
@@ -902,7 +926,7 @@ export default function Calendar() {
                   </div>
                 ) : (
                   getEntriesForDate(selectedDate).map((entry) => (
-                    <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => { setSelectedEntry(entry); setIsDetailOpen(true); }}>
+                    <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => handleEntryClick(entry)}>
                       <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                           <div className="flex-1 min-w-0">

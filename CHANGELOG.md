@@ -12,7 +12,7 @@ changes are collected under `Unreleased`.
 
 - Added repository workflow scaffolding for issue templates, PR evidence, and release tracking ([#19](https://github.com/swp-team-34/streamdesk/issues/19)).
 - Added definition of done ([#22](https://github.com/swp-team-34/streamdesk/issues/22)).
-- Added calendar support for Kanban V2 task cards so scheduled cards now appear in Day, 3 Days, Week, and Month views with title, timing, status, assignee, and task preview details.
+- Added calendar support for Kanban V2 task cards so scheduled cards now appear in Day, 3 Days, Week, and Month views with title, timing, status, assignee, overdue highlighting, and in-calendar task detail previews.
 
 ### Changed
 

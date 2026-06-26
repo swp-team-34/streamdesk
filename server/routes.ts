@@ -814,12 +814,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cards = cardLists.flat();
       const lists = listLists.flat() as any[];
       const listNameById = new Map(lists.map((list) => [String(list.id), String(list.name || "Список")]));
+      const listTypeById = new Map(lists.map((list) => [String(list.id), String(list.type || "active")]));
       const boardNameById = new Map((boards as any[]).map((board) => [String(board.id), String(board.name || "Доска")]));
       const cardsWithLabels = await buildKanbanCardResponses(cards as any[]);
       res.json(
         cardsWithLabels.map((card: any) => ({
           ...card,
           listName: listNameById.get(String(card.listId)) || "Список",
+          listType: listTypeById.get(String(card.listId)) || "active",
           boardName: boardNameById.get(String(card.boardId)) || "Доска",
         })),
       );
