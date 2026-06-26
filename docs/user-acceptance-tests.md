@@ -16,11 +16,11 @@
 - Click on a future date cell containing current tasks and review the task cards.
 - Expected Outcome: Delayed tasks (past deadlines) are visually distinguishable from current tasks (e.g., red highlight, warning icon) directly in the calendar cells. Both types display priority and deadline, but the delayed status is immediately apparent without opening the task.
 
-- Assignment-Specific Execution Results: (To be filled)
+### Assignment-Specific Execution Results (To be filled)
 
-- Customer Comments or Observed Issues: (To be filled)
+### Customer Comments or Observed Issues (To be filled)
 
-- Resulting PBIs or Issues: (To be filled)
+### Resulting PBIs or Issues (To be filled)
 
 ## UAT-002: Monitor Task Completion Progress from the Dashboard
 
@@ -40,11 +40,11 @@
 - Apply a filter for "In Progress" status (if available) and confirm the completion bars update accordingly.
 - Expected Outcome: The completion bar is clearly visible in the task list on the Dashboard for every task. Grouping and filtering do not hide or obscure the progress indicator, allowing the manager to assess workload distribution and identify stuck tasks at a glance.
 
-- Assignment-Specific Execution Results: (To be filled)
+### Assignment-Specific Execution Results (To be filled)
 
-- Customer Comments or Observed Issues: (To be filled)
+### Customer Comments or Observed Issues (To be filled)
 
-- Resulting PBIs or Issues: (To be filled)
+### Resulting PBIs or Issues (To be filled)
 
 ## UAT-003: Read Task Essentials Directly from Calendar Cells
 
@@ -67,9 +67,9 @@
 - Verify that deadline of each task is clear enough and none of the important details (e.g. priority icons) are included as well.
 - Expected Outcome: Every task in a calendar cell displays at minimum the task name, a visual priority indicator (e.g., color-coded dot or badge), and the deadline time. The information remains legible and non-truncated in "7 Days" view, is appropriately abbreviated but still complete in "Month" view, and clearly showing the deadline along with the other details in time in "1 Day" and "3 Days" view. The manager can grasp the schedule's density and criticality without drill-down.
 
-- Assignment-Specific Execution Results: (To be filled)
+### Assignment-Specific Execution Results (To be filled)
 
-- Customer Comments or Observed Issues: (To be filled)
+### Customer Comments or Observed Issues (To be filled)
 
-- Resulting PBIs or Issues: (To be filled)
+### Resulting PBIs or Issues (To be filled)
 
