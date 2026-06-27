@@ -55,7 +55,7 @@
 ## CI and Automation
 23. **CI pipeline:** [Link] TODO
 24. **Latest protected-default-branch CI run:** [Link] TODO
-25. **Branch protection or rules evidence:** [Link/Screenshot] READY
+25. **Branch protection or rules evidence:** `![Product Backlog](images/branch-protection.png)` READY
 26. **Linting, coverage, tests, and additional QA check evidence:** [Links/Screenshots] TODO
 27. **Continuation of quality gates:** [Short explanation of how Assignment 4 tests, CI checks, QRTs, and DoD will continue to govern later project work] TODO
 
