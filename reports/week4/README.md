@@ -2,17 +2,22 @@
 
 ## Project and Sprint Overview
 1. **Project name and short description**:
-   1. **Name**: StreamDesk
-   2. **Short description**: StreamDesk is a production workflow management system for broadcast teams.
+   - **Name**: StreamDesk
+   - **Short description**: StreamDesk is a production workflow management system for broadcast teams.
 2. **Product Backlog board/view:** [Link](https://github.com/orgs/swp-team-34/projects/1)
 3. **Sprint Backlog board/table:** [Link](https://github.com/orgs/swp-team-34/projects/2)
 4. **Assignment 4 Sprint milestone:** [Link](https://github.com/swp-team-34/streamdesk/milestone/2)
 5. **Sprint Goal, dates, and scope:**
-   1. **Goal**: Developers shall implement core features of calendar and fix several
-   2. **Dates** 23.06.2026 - 28.06.2026
-   3. **Scope summary**: Implement calendar and fix bugs in task manager
+   - **Goal**: Developers shall implement core features of calendar and fix several
+   - **Dates** 23.06.2026 - 28.06.2026
+   - **Scope summary**: Implement calendar and fix bugs in task manager
 6. **Total Sprint size:** [X] Story Points TODO
-7. **Summary of delivered product changes:** [Summary] TODO
+7. **Summary of delivered product changes:** *(AI generated, based on customer feedback, thoughtfully reviewed by real person)*
+   - Implemented task creation flow: users can create boards, columns, and tasks with deadlines.
+   - Added deadline status visibility on task cards.
+   - Integrated a calendar view that displays tasks with their scheduled times.
+   - Implemented task detail view accessible from the calendar.
+   - Implemented task overlap handling logic so multiple tasks scheduled at the same time shift and display correctly.
 8. **Deployed product / artifact:** [Link](https://team34.ru/)
 9.  **Access or run instructions:** [Link](https://team34.ru/) (Enter any email and password for registration, then click "for personal use")
 
@@ -36,16 +41,21 @@
 15. **Quality Requirement Tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md)
 16. **Testing:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/testing.md)
 17. **User Acceptance Tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/user-acceptance-tests.md)
-18. **Quality model summary:** [Summary of ISO/IEC 25010 sub-characteristics used] TODO
+18. **Quality model summary:**
+    - **Equipment Permission Correctness** (`QR-01`): Functional correctness
+    - **Protected Route Access Control** (`QR-02`): Authenticity
+    - **Automated Regression Coverage** (`QR-03`): Testability
 19. **Testing status summary:** [Critical modules and per-module line coverage status] TODO
-20. **Unit tests:** [Link] TODO
-21. **Integration tests:** [Link] TODO
+20. **Unit tests:**
+    - [`client/src/lib/equipment-permissions.test.ts`](https://github.com/swp-team-34/streamdesk/tree/main/client/src/lib/equipment-permissions.test.ts)
+21. **Integration tests:** [Link]
+    - [`client/src/components/protected-route.test.tsx`](https://github.com/swp-team-34/streamdesk/tree/main/client/src/lib/equipment-permissions.test.ts)
 22. **Automated quality requirement tests:** [Link] TODO
 
 ## CI and Automation
 23. **CI pipeline:** [Link] TODO
 24. **Latest protected-default-branch CI run:** [Link] TODO
-25. **Branch protection or rules evidence:** [Link/Screenshot] TODO
+25. **Branch protection or rules evidence:** [Link/Screenshot] READY
 26. **Linting, coverage, tests, and additional QA check evidence:** [Links/Screenshots] TODO
 27. **Continuation of quality gates:** [Short explanation of how Assignment 4 tests, CI checks, QRTs, and DoD will continue to govern later project work] TODO
 
@@ -56,7 +66,13 @@
 31. **Presentation slides (optional public copy):** [Link or N/A] TODO
 
 ## Customer Review and UAT
-32. **Public sanitized UAT results summary:** [Summary] TODO
+32. **Public sanitized UAT results summary** *(AI generated, based on customer feedback, thoughtfully reviewed by real person)*:
+    - Three active UAT scenarios were executed by the customer during a recorded session: 
+    - **UAT-001 (Task creation):** Passed. The customer successfully created boards, columns, and tasks, and confirmed the deadline status visibility is clear.
+    - **UAT-002 (Calendar display):** Passed with noted UI issue. The customer located tasks on the calendar easily but identified a visual bug where task cards stretch awkwardly when containing excessive text.
+    - **UAT-003 (Calendar task details):** Passed with feature requests. The customer approved the task detail view but requested drag-and-drop editing, color-coded deadline indicators, and confirmed that task overlap handling works correctly.
+    
+    All feedback points have been converted into traceable PBIs and added to the Product Backlog (see Customer Feedback section above).
 33. **Customer review transcript:** [Link](customer-review-transcript.md)
 34. **Customer review summary:** [Link](customer-review-summary.md)
 
@@ -66,8 +82,10 @@
 37. **LLM report:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/llm-report.md)
 
 ## Status and Next Steps
-38. **Current product status:** [Summary] TODO
-39. **Next steps:** [Summary] TODO
+38.  **Current product status:**
+    - **Implemented**: two core features of four. Task manager and Calendar at least work. They have several bugs, but in general satisfie customer needs
+    - **Not implemented**: we still have to implement two core features. They are warehouse and monitoring pages.
+39.  **Next steps:** In general is to implement next features and fix bugs. In more details will be determined in the beginning of the next sprint.
 
 ## Team Contribution
 40. **Contribution traceability table:**
@@ -84,7 +102,7 @@
 41. **Embedded screenshots from `reports/week4/images/`:**
     - Sprint milestone: `![Sprint milestone](images/sprint-milestone.png)` READY
     - Latest protected-default-branch CI run: `![CI run](images/ci-run.png)` TODO
-    - Branch protection or rules evidence: `![Branch protection](images/branch-protection.png)` TODO
+    - Branch protection or rules evidence: `![Branch protection](images/branch-protection.png)` READY
     - Coverage or test report: `![Coverage](images/coverage.png)` TODO
     - Additional QA check result: `![Additional QA](images/additional-qa.png)` TODO
     - SemVer release: `![Release](images/release.png)` TODO
