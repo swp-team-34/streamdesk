@@ -3,11 +3,8 @@
 ## Learning points
 [What the team learned from responding to customer feedback, defining quality requirements, automating quality requirement tests, configuring CI, running UAT, releasing the Sprint increment, and reviewing the increment with the customer.]
 - **From responding to customer feedback**: we learned some technical details ([customer feedback RT](customer%20feedback%20RT.md))
-- **Defining quality requirements**: We learned how to prevent bugs during the developing by writing the quality requirements.
-- **Automating quality requirement tests**: 
-- **Configuring CI**: We learned how to prevent merging code with bugs.
-- **Running UAT**: 
-- **Reviewing the increment with the customer**: 
+- **From defining quality requirements**: We learned how to prevent bugs during the developing by writing the quality requirements.
+- **From configuring CI**: We learned how to prevent merging code with bugs.
 
 ## Validated assumptions
 [Assumptions or decisions confirmed or rejected through implementation, automated testing, CI, deployment, UAT, Sprint Review, or customer feedback.]
