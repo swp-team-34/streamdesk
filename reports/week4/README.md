@@ -1,15 +1,20 @@
 # Week 4 Report
 
 ## Project and Sprint Overview
-1. **Project name and short description:** [Name and description]
-2. **Product Backlog board/view:** [Link]
-3. **Sprint Backlog board/table:** [Link]
-4. **Assignment 4 Sprint milestone:** [Link]
-5. **Sprint Goal, dates, and scope:** [Goal], [Start Date] - [End Date], [Scope summary]
-6. **Total Sprint size:** [X] Story Points
-7. **Summary of delivered product changes:** [Summary]
-8. **Deployed product / artifact:** [Link]
-9. **Access or run instructions:** [Link]
+1. **Project name and short description**:
+   1. **Name**: StreamDesk
+   2. **Short description**: StreamDesk is a production workflow management system for broadcast teams.
+2. **Product Backlog board/view:** [Link](https://github.com/orgs/swp-team-34/projects/1)
+3. **Sprint Backlog board/table:** [Link](https://github.com/orgs/swp-team-34/projects/2)
+4. **Assignment 4 Sprint milestone:** [Link](https://github.com/swp-team-34/streamdesk/milestone/2)
+5. **Sprint Goal, dates, and scope:**
+   1. **Goal**: Developers shall implement core features of calendar and fix several
+   2. **Dates** 23.06.2026 - 28.06.2026
+   3. **Scope summary**: Implement calendar and fix bugs in task manager
+6. **Total Sprint size:** [X] Story Points TODO
+7. **Summary of delivered product changes:** [Summary] TODO
+8. **Deployed product / artifact:** [Link](https://team34.ru/)
+9.  **Access or run instructions:** [Link](https://team34.ru/) (Enter any email and password for registration, then click "for personal use")
 
 ## Customer Feedback
 10. **Customer feedback response table:**
@@ -25,44 +30,44 @@
 - All customer feedback points received during the review have been addressed: either converted into a concrete PBI (#94) or already satisfied by the current sprint scope and development approach.
 
 ## Documentation and Quality
-12. **Roadmap:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/roadmap.md]
-13. **Definition of Done:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/definition-of-done.md`]
-14. **Quality Requirements:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirements.md]
-15. **Quality Requirement Tests:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md]
-16. **Testing:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/testing.md]
-17. **User Acceptance Tests:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/user-acceptance-tests.md]
-18. **Quality model summary:** [Summary of ISO/IEC 25010 sub-characteristics used]
-19. **Testing status summary:** [Critical modules and per-module line coverage status]
-20. **Unit tests:** [Link]
-21. **Integration tests:** [Link]
-22. **Automated quality requirement tests:** [Link]
+12. **Roadmap:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/roadmap.md)
+13. **Definition of Done:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/definition-of-done.md`)
+14. **Quality Requirements:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirements.md)
+15. **Quality Requirement Tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md)
+16. **Testing:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/testing.md)
+17. **User Acceptance Tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/user-acceptance-tests.md)
+18. **Quality model summary:** [Summary of ISO/IEC 25010 sub-characteristics used] TODO
+19. **Testing status summary:** [Critical modules and per-module line coverage status] TODO
+20. **Unit tests:** [Link] TODO
+21. **Integration tests:** [Link] TODO
+22. **Automated quality requirement tests:** [Link] TODO
 
 ## CI and Automation
-23. **CI pipeline:** [Link]
-24. **Latest protected-default-branch CI run:** [Link]
-25. **Branch protection or rules evidence:** [Link/Screenshot]
-26. **Linting, coverage, tests, and additional QA check evidence:** [Links/Screenshots]
-27. **Continuation of quality gates:** [Short explanation of how Assignment 4 tests, CI checks, QRTs, and DoD will continue to govern later project work]
+23. **CI pipeline:** [Link] TODO
+24. **Latest protected-default-branch CI run:** [Link] TODO
+25. **Branch protection or rules evidence:** [Link/Screenshot] TODO
+26. **Linting, coverage, tests, and additional QA check evidence:** [Links/Screenshots] TODO
+27. **Continuation of quality gates:** [Short explanation of how Assignment 4 tests, CI checks, QRTs, and DoD will continue to govern later project work] TODO
 
 ## Release and Demo
-28. **SemVer release:** [Link]
-29. **CHANGELOG.md:** [Link]
-30. **Public sanitized demo video:** [Link]
-31. **Presentation slides (optional public copy):** [Link or N/A]
+28. **SemVer release:** [Link] TODO
+29. **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
+30. **Public sanitized demo video:** [Link] TODO
+31. **Presentation slides (optional public copy):** [Link or N/A] TODO
 
 ## Customer Review and UAT
-32. **Public sanitized UAT results summary:** [Summary]
-33. **Customer review transcript:** [Link to `reports/week4/customer-review-transcript.md`]
-34. **Customer review summary:** [Link to `reports/week4/customer-review-summary.md`]
+32. **Public sanitized UAT results summary:** [Summary] TODO
+33. **Customer review transcript:** [Link](customer-review-transcript.md)
+34. **Customer review summary:** [Link](customer-review-summary.md)
 
 ## Reflection and Reports
-35. **Reflection:** [https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/reflection.md]
-36. **Retrospective:** [https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/retrospective.md]
-37. **LLM report:** [https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/llm-report.md]
+35. **Reflection:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/reflection.md)
+36. **Retrospective:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/retrospective.md)
+37. **LLM report:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/llm-report.md)
 
 ## Status and Next Steps
-38. **Current product status:** [Summary]
-39. **Next steps:** [Summary]
+38. **Current product status:** [Summary] TODO
+39. **Next steps:** [Summary] TODO
 
 ## Team Contribution
 40. **Contribution traceability table:**
@@ -77,14 +82,14 @@
 
 ## Evidence Screenshots
 41. **Embedded screenshots from `reports/week4/images/`:**
-    - Sprint milestone: `![Sprint milestone](images/sprint-milestone.png)`
-    - Latest protected-default-branch CI run: `![CI run](images/ci-run.png)`
-    - Branch protection or rules evidence: `![Branch protection](images/branch-protection.png)`
-    - Coverage or test report: `![Coverage](images/coverage.png)`
-    - Additional QA check result: `![Additional QA](images/additional-qa.png)`
-    - SemVer release: `![Release](images/release.png)`
-    - Example reviewed issue-linked PR/MR: `![PR example](images/pr-example.png)`
+    - Sprint milestone: `![Sprint milestone](images/sprint-milestone.png)` READY
+    - Latest protected-default-branch CI run: `![CI run](images/ci-run.png)` TODO
+    - Branch protection or rules evidence: `![Branch protection](images/branch-protection.png)` TODO
+    - Coverage or test report: `![Coverage](images/coverage.png)` TODO
+    - Additional QA check result: `![Additional QA](images/additional-qa.png)` TODO
+    - SemVer release: `![Release](images/release.png)` TODO
+    - Example reviewed issue-linked PR/MR: `![PR example](images/pr-example.png)` READY
 42. **Additional relevant screenshots:**
-    - Product Backlog: `![Product Backlog](images/product-backlog.png)`
-    - Sprint Backlog: `![Sprint Backlog](images/sprint-backlog.png)`
-    - Deployed product: `![Deployed product](images/deployed-product.png)`
+    - Product Backlog: `![Product Backlog](images/product-backlog.png)` READY
+    - Sprint Backlog: `![Sprint Backlog](images/sprint-backlog.png)` READY
+    - Deployed product: `![Deployed product](images/deployed-product.png)` TODO
