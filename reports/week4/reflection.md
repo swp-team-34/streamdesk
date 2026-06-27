@@ -14,7 +14,10 @@
 - **Result:** **Rejected.** The customer explicitly requested drag-and-drop functionality to move and edit tasks directly on the calendar, indicating our assumption about their preferred editing workflow was incorrect.
 
 ## Friction and gaps
-[Unresolved requirements, technical risks, quality gaps, missing test coverage, blocked work, review/process friction, follow-up questions, and uncertainties discovered during the Assignment 4 Sprint.]
+- **UI/UX Gap (Visual Bug):** The calendar task cards do not handle text overflow properly. When a task has a long description or title, the card stretches vertically in an awkward way, breaking the visual consistency of the calendar grid.
+- **Feature Gap (Direct Manipulation):** The calendar view currently lacks drag-and-drop capabilities. The customer expects to be able to move tasks between time slots directly on the calendar interface.
+- **Feature Gap (Visual Cues):** There is no visual indication of deadline proximity. The customer suggested color-coding tasks to show how close a deadline is, which is currently missing.
+- **Testing Gap (Overlap Verification):** Although the moderator confirmed that task overlap logic works correctly on the backend, there is currently no automated UI test or specific UAT step dedicated to verifying that overlapping tasks render correctly without visual clutter on the frontend.
 
 ## Planned response
 [How the team will respond in the next Sprint or assignment, with links to affected PBIs, quality requirements, UAT scenarios, CI checks, milestones, releases, or documentation where relevant.]
