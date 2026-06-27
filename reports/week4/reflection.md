@@ -20,4 +20,13 @@
 - **Testing Gap (Overlap Verification):** Although the moderator confirmed that task overlap logic works correctly on the backend, there is currently no automated UI test or specific UAT step dedicated to verifying that overlapping tasks render correctly without visual clutter on the frontend.
 
 ## Planned response
-[How the team will respond in the next Sprint or assignment, with links to affected PBIs, quality requirements, UAT scenarios, CI checks, milestones, releases, or documentation where relevant.]
+To address the gaps and friction identified during the Sprint Review, we have adapted the Product Backlog with the following actions:
+
+1. **Fix UI Stretching Bug:** We created a Bug PBI to investigate and fix the CSS/layout issue where calendar task cards stretch awkwardly with excessive text. 
+   *Link:* [Issue #XX - Fix calendar card overflow/stretching UI bug](link_to_issue)
+2. **Implement Drag-and-Drop:** We added a new User Story to the backlog for implementing drag-and-drop functionality for moving and editing tasks directly on the calendar interface. Due to its complexity, it will be refined and prioritized for the next Sprint.
+   *Link:* [Issue #YY - Add drag-and-drop support for calendar tasks](link_to_issue)
+3. **Implement Deadline Color-Coding:** We created a User Story to evaluate and implement dynamic color-coding for calendar tasks based on deadline proximity.
+   *Link:* [Issue #ZZ - Add color-coding for tasks based on deadline proximity](link_to_issue)
+4. **Verify Task Overlap Rendering:** We created a QA/Testing PBI to add a specific manual UAT scenario (and an automated UI test if applicable) to verify that overlapping tasks shift and display correctly without visual clutter, closing the testing gap identified during the session.
+   *Link:* [Issue #WW - Add UAT and UI test for calendar task overlap rendering](link_to_issue)
