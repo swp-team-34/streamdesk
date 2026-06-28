@@ -11,8 +11,8 @@
    - **Goal**: Developers shall implement core features of calendar and fix several
    - **Dates** 23.06.2026 - 28.06.2026
    - **Scope summary**: Implement calendar and fix bugs in task manager
-6. **Total Sprint size:** [X] Story Points TODO
-7. **Summary of delivered product changes:** *(AI generated, based on customer feedback, thoughtfully reviewed by real person)*
+6. **Total Sprint size:** [31] Story Points
+7. **Summary of delivered product changes:**
    - Implemented task creation flow: users can create boards, columns, and tasks with deadlines.
    - Added deadline status visibility on task cards.
    - Integrated a calendar view that displays tasks with their scheduled times.
@@ -45,19 +45,26 @@
     - **Equipment Permission Correctness** (`QR-01`): Functional correctness
     - **Protected Route Access Control** (`QR-02`): Authenticity
     - **Automated Regression Coverage** (`QR-03`): Testability
-19. **Testing status summary:** [Critical modules and per-module line coverage status] TODO
+19. **Testing status summary:**
+-Two critical modules are covered by tests: equipment permissions (4 tests, 100% line coverage) and protected route (3 tests, ~73% line coverage). All 7 tests pass.
 20. **Unit tests:**
     - [`client/src/lib/equipment-permissions.test.ts`](https://github.com/swp-team-34/streamdesk/tree/main/client/src/lib/equipment-permissions.test.ts)
 21. **Integration tests:** [Link]
-    - [`client/src/components/protected-route.test.tsx`](https://github.com/swp-team-34/streamdesk/tree/main/client/src/lib/equipment-permissions.test.ts)
-22. **Automated quality requirement tests:** [Link] TODO
+    - [`client/src/components/protected-route.test.tsx`](https://github.com/swp-team-34/streamdesk/blob/main/client/src/components/protected-route.test.tsx)
+22. **Automated quality requirement tests:** [https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md]
 
 ## CI and Automation
-23. **CI pipeline:** [Link] TODO
-24. **Latest protected-default-branch CI run:** [Link] TODO
+23. **CI pipeline:** [https://github.com/swp-team-34/streamdesk/blob/main/.github/workflows/quality.yml]
+24. **Latest protected-default-branch CI run:** [https://github.com/swp-team-34/streamdesk/actions/runs/28227174649/job/83621847187?pr=101]
 25. **Branch protection or rules evidence:** `![Product Backlog](images/branch-protection.png)` READY
-26. **Linting, coverage, tests, and additional QA check evidence:** [Links/Screenshots] TODO
-27. **Continuation of quality gates:** [Short explanation of how Assignment 4 tests, CI checks, QRTs, and DoD will continue to govern later project work] TODO
+26. **Linting, coverage, tests, and additional QA check evidence:**
+-TypeScript check (`npm run check`) passed without errors.
+- Unit/Integration tests (`npm test`) passed: 7/7 tests (2 suites).
+- Coverage report generated (`npm run coverage`): line coverage 0.48% (equipment-permissions and protected-route fully covered).
+- Link checker (lychee) – included in the same workflow, previously configured to pass with exclusions (see CI run).
+- All evidence is visible
+27. **Continuation of quality gates:**
+- In the following sprints, everything that we have set up (type checking, tests, coverage, CI, UAT, quality‑requirement‑tests) remains mandatory for each PR in the main. We will immediately cover the new acceptance criteria with tests. The coating should not fall off. Once a sprint, we will look at our quality‑characteristics (correctness, authenticity, testability) and, if necessary, supplement the quality‑requirements.
 
 ## Release and Demo
 28. **SemVer release:** [Link] TODO
@@ -66,15 +73,15 @@
 31. **Presentation slides (optional public copy):** [Link or N/A] TODO
 
 ## Customer Review and UAT
-32. **Public sanitized UAT results summary** *(AI generated, based on customer feedback, thoughtfully reviewed by real person)*:
-    - Three active UAT scenarios were executed by the customer during a recorded session: 
+32. **Public sanitized UAT results summary**:
+    - Three active UAT scenarios were executed by the customer during a recorded session:
     - **UAT-001 (Task creation):** Passed. The customer successfully created boards, columns, and tasks, and confirmed the deadline status visibility is clear.
     - **UAT-002 (Calendar display):** Passed with noted UI issue. The customer located tasks on the calendar easily but identified a visual bug where task cards stretch awkwardly when containing excessive text.
     - **UAT-003 (Calendar task details):** Passed with feature requests. The customer approved the task detail view but requested drag-and-drop editing, color-coded deadline indicators, and confirmed that task overlap handling works correctly.
     
     All feedback points have been converted into traceable PBIs and added to the Product Backlog (see Customer Feedback section above).
-33. **Customer review transcript:** [Link](customer-review-transcript.md)
-34. **Customer review summary:** [Link](customer-review-summary.md)
+33. **Customer review transcript:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/customer-review-transcript.md)
+34. **Customer review summary:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/customer-review-summary.md)
 
 ## Reflection and Reports
 35. **Reflection:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week4/reflection.md)
