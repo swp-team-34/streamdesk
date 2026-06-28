@@ -815,6 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lists = listLists.flat() as any[];
       const listNameById = new Map(lists.map((list) => [String(list.id), String(list.name || "Список")]));
       const listTypeById = new Map(lists.map((list) => [String(list.id), String(list.type || "active")]));
+      const listColorById = new Map(lists.map((list) => [String(list.id), list.color ? String(list.color) : null]));
       const boardNameById = new Map((boards as any[]).map((board) => [String(board.id), String(board.name || "Доска")]));
       const cardsWithLabels = await buildKanbanCardResponses(cards as any[]);
       res.json(
@@ -822,6 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...card,
           listName: listNameById.get(String(card.listId)) || "Список",
           listType: listTypeById.get(String(card.listId)) || "active",
+          listColor: listColorById.get(String(card.listId)) || null,
           boardName: boardNameById.get(String(card.boardId)) || "Доска",
         })),
       );

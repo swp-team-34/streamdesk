@@ -370,13 +370,19 @@ function App() {
   const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.PLATFORM_ADMIN);
   const showWorkspaceChrome = user.onboardingCompleted !== false && location !== "/onboarding";
   const showBottomNav = showWorkspaceChrome && !isPlatformAdmin;
-  const isFullWidthWorkspace = location === "/tasks";
+  const isTasksWorkspace = location === "/tasks" || location === "/tasks-v2";
+  const isFullWidthWorkspace = isTasksWorkspace;
 
   return (
     <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <div className="app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 overflow-x-hidden w-full max-w-[100vw] flex">
+          <div
+            className={cn(
+              "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
+              isTasksWorkspace ? "overflow-visible" : "overflow-x-hidden",
+            )}
+          >
             {showWorkspaceChrome && mobileNavOpen && (
               <div
                 className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -424,7 +430,10 @@ function App() {
             />}
             
             <div
-              className="flex-1 min-w-0 min-h-screen flex flex-col overflow-x-hidden hide-scrollbar bg-starry w-full"
+              className={cn(
+                "flex-1 min-w-0 min-h-screen flex flex-col hide-scrollbar bg-starry w-full",
+                isTasksWorkspace ? "overflow-visible" : "overflow-x-hidden",
+              )}
               id="main-content"
             >
               <StubModeBanner />
@@ -436,7 +445,8 @@ function App() {
                 />
               )}
               <main className={cn(
-                "flex-1 min-h-0 overflow-x-hidden overflow-y-auto hide-scrollbar page-content w-full max-w-full safe-area-bottom",
+                "flex-1 min-h-0 hide-scrollbar page-content w-full max-w-full safe-area-bottom",
+                isTasksWorkspace ? "overflow-visible" : "overflow-x-hidden overflow-y-auto",
                 showWorkspaceChrome ? "safe-area-top pb-24 md:pb-0" : "py-0"
               )}>
                 <div

@@ -32,7 +32,7 @@
 ::before,
 ::backdrop,
 ::file-selector-button {
-  border-color: var(--color-gray-200, currentcolor);
+  border-color: hsl(var(--border) / 0.45);
 }
 
 @keyframes fake-progress {
