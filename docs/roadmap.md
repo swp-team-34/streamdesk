@@ -12,6 +12,12 @@ This document describes the sprint-by-sprint delivery plan for the project. For 
 ## Sprint 2: Calendar and bug fix
 - **Milestone**: [Sprint 2](https://github.com/swp-team-34/streamdesk/milestone/2)
 - **Dates**: June 23, 2026 - June 28, 2026
-- **Sprint Goal**: For the current sprint developers shall imlement calendar page with core functions and fix several bugs for the task manager
+- **Sprint Goal**: For the current sprint developers shall implement calendar page with core functions and fix several bugs for the task manager
 - **Focus**: On the calendar and task manager (MVP v1) bug fixes
 - **Planned Items**: [US-002](https://github.com/swp-team-34/streamdesk/issues/54) (Calendar), [US-009](https://github.com/swp-team-34/streamdesk/issues/61) (Task details in the calendar), [US-013](https://github.com/swp-team-34/streamdesk/issues/41) (Filters in task manager), [US-014](https://github.com/swp-team-34/streamdesk/issues/43) (Task manager, custom tags), [#84](https://github.com/swp-team-34/streamdesk/issues/84), [#89](https://github.com/swp-team-34/streamdesk/issues/89), [#90](https://github.com/swp-team-34/streamdesk/issues/90) (Bugs)
+
+- ## Sprint 3: bug fix and storage
+- - **Milestone**: [Sprint 3]
+- **Dates**: June 29, 2026 - July 5, 2026
+- **Sprint Goal**: For the current sprint developers shall implement storage core functions and continue fix bugs for the task manager and calendar
+- **Focus**: On storage implementation bug fixes

@@ -2870,6 +2870,15 @@ export async function initDatabase(): Promise<void> {
         console.warn("[DB] Не удалось ослабить kanban_boards.company_id:", schemaErr);
       }
       try {
+        await client`ALTER TABLE kanban_boards ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '[]'::jsonb`;
+        await client`ALTER TABLE kanban_boards ADD COLUMN IF NOT EXISTS label_groups jsonb DEFAULT '[]'::jsonb`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS custom_field_values jsonb DEFAULT '{}'::jsonb`;
+        await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS group_id text`;
+        await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS archived_at timestamp`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось обновить Kanban V2 schema:", schemaErr);
+      }
+      try {
         await db!.select().from(users).limit(0);
       } catch (tableErr: any) {
         const tableMsg = (tableErr?.message ?? "").toLowerCase();

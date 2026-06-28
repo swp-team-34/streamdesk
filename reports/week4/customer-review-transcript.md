@@ -1,0 +1,40 @@
+# Customer Sprint Review Transcript
+## Date: 2026-06-28 Participants: Team member, Customer Sprint Goal Reviewed: Sprint 2 — Implement the Calendar feature with core functionality and apply fixes to the Task Manager.
+- [00:00:00] Team member: Well, then I suggest we start. First of all, I'd like to ask for permission to record and include the transcript in our documentation. [00:00:09] Customer: Yes, I allow it.
+- [00:00:11] Team member: Great. So, regarding the sprint. This is our sprint review, we will walk through it now, talk about this sprint, what we did, and what didn't work out. The goal of this Sprint 2 was to implement the calendar with its main functions and fix the task manager.
+- [00:00:30] Team member: Now we'll show the demo. We implemented several user stories related to the calendar and the task manager. We also added CI tests plus automated tests on GitHub so that everything pushes without crashing. Everything is checked automatically, and in case of errors, it simply rolls back. [00:00:52] Team member: Regarding the task manager, both the task manager and the calendar are working now. We fixed the design a bit, as we discussed for the planner. Now I'll show you everything. Can you see it?
+- [00:01:06] Customer: Yes.
+- [00:01:08] Team member: Great. Let's start with the calendar. Here is our calendar.
+- [00:01:14] Customer: Oh my, you've created quite a lot of cards there.
+- [00:01:17] Team member: They are created automatically.
+- [00:01:19] Customer: Oh, I see.
+- [00:01:21] Team member: So, we have all-day tasks, everything can be dragged around, you can stretch them. The color changes depending on whether the task is due soon or not. It depends on the deadline.
+- [00:01:34] Team member: Everything can be dragged here as well, you can rearrange them like this. Clicking opens it, and you can edit it, change the color, or specify a location. Add a participant. Everything is saved automatically.
+- [00:01:50] Team member: There are several views: 3 days, day, list. There is also a month view.
+- [00:01:57] Customer: Uh-huh.
+- [00:01:58] Team member: We also added settings; let me show you what they do for the week view. There is a compact mode, where the cards just get smaller and contain less information. Also, you can choose the start of the workday, for example, 10 AM, and the end — 8 PM. And our working hours will be limited by these cards, or rather, these slots. You can expand it back or hide it.
+- [00:02:26] Customer: Is this separate for everyone, or?
+- [00:02:29] Team member: Yes, these are local settings. Everyone can set it up for themselves.
+- [00:02:32] Customer: Uh-huh.
+- [00:02:33] Team member: Now let's move on to tasks. We removed all unnecessary clutter and hid it. Here are the board settings with labels. You can select the board itself. Here you can either create a board, a column, or a card, and everything else is here: statistics, board editing. And these columns...
+- [00:02:54] Team member: We also hid the filter for convenience. There are several display types: Kanban, list. Everything can be moved around here too.
+- [00:03:04] Customer: Are the labels for a specific board or general for the whole workspace?
+- [00:03:10] Team member: They are for the board.
+- [00:03:12] Customer: So if there are two boards, the labels will be different?
+- [00:03:15] Team member: Yes, yes.
+- [00:03:16] Customer: Okay, great.
+- [00:03:18] Team member: Everything moves and changes. You can also change the columns themselves. It's bugging out a little bit, but we'll fix that.
+- [00:03:26] Customer: Uh-huh.
+- [00:03:27] Team member: Also, custom fields are currently in development. And we are fixing minor bugs right now. So, basically, we will almost completely finish the sprint by the end of the day. Just a couple of things might be left.
+- [00:03:41] Team member: That's pretty much it. Here is the full editing; you can choose a start date, let's say today, yes. It will be 18:00, and the end date is today, 21:00. We selected it. Saved the task. Test. Where is it...
+- [00:03:59] Team member: And it will now appear on the calendar.
+- [00:04:02] Customer: Yes, all good.
+- [00:04:04] Team member: There it is. Look. That's everything that was done this week. We haven't touched the warehouse yet.
+- [00:04:12] Customer: Yes, okay, everything is fine.
+- [00:04:14] Team member: Great, let me see what else we need to discuss. We also conducted user acceptance testing, everything went well there. Regarding quality requirements, all automated tests are passing. All routes are protected, meaning a user without an account has no access to anything. And CI passes completely. GitHub Actions tests everything on every PR, on pull requests, so that's excellent.
+- [00:04:42] Team member: Whatever we don't manage to finish by the end of today will be moved to the next sprint, and we will post a report in the chat if needed. For now, we are on track.
+- [00:04:52] Team member: Regarding risks: there are bugs right now, and next week we plan to move on to the warehouse. We will be fixing bugs in parallel, so because of these bugs, the warehouse might be slightly delayed. But the calendar and task manager will work reliably and with high quality in the first place.
+- [00:05:11] Customer: Yes, everything is good.
+- [00:05:13] Team member: Well, that's basically all. Do you have any questions or wishes?
+- [00:05:17] Customer: Everything is good, I like it.
+- [00:05:19] Team member: Excellent then. I won't keep you any longer.

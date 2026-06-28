@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Monitor, Video, Zap, Calendar } from "lucide-react";
+import { CheckCircle2, Monitor, Video, Zap, Calendar } from "lucide-react";
 import { tabPermission } from "@shared/schema";
 
 interface StatusCardsProps {
@@ -71,13 +71,23 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
       bgColor: "bg-violet-500/10 dark:bg-violet-500/20",
       glow: "",
       description: "сегодня"
-    }
+    },
+    ...(stats.kanbanCompletion ? [{
+      title: "Задачи",
+      tabKey: "tasks",
+      value: `${stats.kanbanCompletion.percent ?? 0}%`,
+      icon: CheckCircle2,
+      iconColor: "text-primary",
+      bgColor: "bg-primary/10",
+      glow: "",
+      description: `${stats.kanbanCompletion.completed ?? 0}/${stats.kanbanCompletion.total ?? 0} готово`
+    }] : [])
   ];
 
   const visibleCards = cards.filter((card) => canAccessTab(user, card.tabKey));
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 w-full min-w-0">
+    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2 w-full min-w-0">
       {visibleCards.map((card, index) => {
         const Icon = card.icon;
         return (

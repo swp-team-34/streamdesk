@@ -1,74 +1,90 @@
-# User acceptance tests (cover US-002, US-003, US-009)
+# User Acceptance Tests
 
-## UAT-001: Identify Delayed vs. On-Schedule Tasks in Calendar
+## UAT-001 — Create and Track Task Status
 
+- Scenario ID: UAT-001
+- Title: Create a task and verify its progress/status visibility
 - Status: Active
+- Related feature: Task Manager
 
-- User Goal: As a manager, I want to view all scheduled tasks in a calendar so that I can easily distinguish current and delayed work.
+### Objective
+Verify that the customer can create a task in the Task Manager and see its current progress or time-related status.
 
-- Preconditions: The calendar contains tasks assigned to various dates, including at least 3 tasks with deadlines that have passed (delayed) and at least 5 tasks with deadlines in the future (current). The user is on the Calendar tab.
+### Preconditions
+The user is logged into the system and has access to the Task Manager.
 
-### Step-by-step Instructions
+### Test steps
 
-- Set the calendar format to "Month" to get an overview of the entire schedule.
-- Observe the visual styling (e.g., color, badge, or icon) of task entries in past date cells versus future date cells.
-- Click on a past date cell containing delayed tasks and review the task cards.
-- Click on a future date cell containing current tasks and review the task cards.
-- Expected Outcome: Delayed tasks (past deadlines) are visually distinguishable from current tasks (e.g., red highlight, warning icon) directly in the calendar cells. Both types display priority and deadline, but the delayed status is immediately apparent without opening the task.
+- Open the Task Manager.
+- Create a new task.
+- Fill in the task title and basic task details.
+- Set a due date or deadline for the task.
+- Save the task.
+- Find the created task in the Task Manager.
+- Check whether the task shows its current status, such as upcoming, close to deadline, completed, or overdue.
 
-### Assignment-Specific Execution Results (To be filled)
+### Expected result
+The created task is visible in the Task Manager. The user can clearly see the task status and understand whether the task is on time, close to the deadline, completed, or overdue.
 
-### Customer Comments or Observed Issues (To be filled)
+### Execution result
+To be filled during Week 4 UAT session.
 
-### Resulting PBIs or Issues (To be filled)
+## UAT-002 — Create Task with Time Management and Verify Calendar Display
 
-## UAT-002: Monitor Task Completion Progress from the Dashboard
-
+- Scenario ID: UAT-002
+- Title: Create a task with time information and verify it appears in the calendar
 - Status: Active
+- Related feature: Task Manager / Calendar
 
-- User Goal: As a manager, I want to see the current completion level of work (task description has a completion bar) so that I can manage the team's workload.
+### Objective
+Verify that a task with assigned time management data is correctly displayed in the calendar.
 
-- Preconditions: The user has several tasks with varying completion progress. Each task's description field contains a completion bar or progress indicator. The user is on the Dashboard.
+### Preconditions
+The user is logged into the system and has access to both the Task Manager and Calendar.
 
-### Step-by-step Instructions
+### Test steps
 
-- View the task list on the Dashboard without filtering or grouping.
-- Create a new task starting from the current interface and set deadline to the new task.
-- Return to the Dashboard view and locate the new task. Observe which details are seen in the task's preview.
-- Locate the task with partial completion and observe how the progress is presented (e.g., a filled progress bar, text with amount of completed tasks out of all, or both).
-- Use the grouping feature to group tasks by Priority and verify that the progress bar remains visible within each group.
-- Apply a filter for "In Progress" status (if available) and confirm the completion bars update accordingly.
-- Expected Outcome: The completion bar is clearly visible in the task list on the Dashboard for every task. Grouping and filtering do not hide or obscure the progress indicator, allowing the manager to assess workload distribution and identify stuck tasks at a glance.
+- Open the Task Manager.
+- Create a new task.
+- Add a task title and basic task details.
+- Add time management information, such as start time, end time, or deadline.
+- Save the task.
+- Open the Calendar.
+- Navigate to the relevant day, week, or month.
+- Check whether the created task appears in the correct calendar time slot.
 
-### Assignment-Specific Execution Results (To be filled)
+### Expected result
+The task is created successfully and appears in the Calendar according to the assigned date and time. The displayed timing matches the time management information entered in the Task Manager.
 
-### Customer Comments or Observed Issues (To be filled)
+### Execution result
+To be filled during Week 4 UAT session.
 
-### Resulting PBIs or Issues (To be filled)
+## UAT-003 — Create Task and Verify Calendar Overview
 
-## UAT-003: Read Task Essentials Directly from Calendar Cells
-
+- Scenario ID: UAT-003
+- Title: Create a task and verify its short overview in the calendar
 - Status: Active
+- Related feature: Calendar
 
-- User Goal: As a manager, I want calendar cells to show the most important task information concisely so that I can understand the schedule without opening every task.
+### Objective
+Verify that the customer can see a short overview of a created task directly from the Calendar.
 
-- Preconditions: The user has tasks assigned across multiple dates, each containing a name, priority (High/Medium/Low), and deadline. The user is on the Calendar tab.
+### Preconditions
+The user is logged into the system and has access to the Task Manager and Calendar.
 
-- Step-by-step Instructions:
+### Test steps
 
-- Set the calendar view to "7 Days" to see a moderate number of tasks per cell.
-- Without clicking anything, scan the tasks displayed in any given cell.
-- Note which attributes are displayed (e.g., task name, priority badge, deadline time).
-- Switch to "Month" view and observe how the same task information is condensed (e.g., shortened names, priority icons).
-- Verify that no task requires a click to reveal its priority or deadline.
-- Switch to "1 Day" to see the tasks scheduled within the timeline of one day.
-- Verify that deadline of each task is clear enough and none of the important details (e.g. priority icons) are included as well.
-- Switch to "3 Days" to see the tasks scheduled within the timeline of three days.
-- Verify that deadline of each task is clear enough and none of the important details (e.g. priority icons) are included as well.
-- Expected Outcome: Every task in a calendar cell displays at minimum the task name, a visual priority indicator (e.g., color-coded dot or badge), and the deadline time. The information remains legible and non-truncated in "7 Days" view, is appropriately abbreviated but still complete in "Month" view, and clearly showing the deadline along with the other details in time in "1 Day" and "3 Days" view. The manager can grasp the schedule's density and criticality without drill-down.
+- Open the Task Manager.
+- Create a new task.
+- Add a task title, description, deadline, and status if available.
+- Save the task.
+- Open the Calendar.
+- Find the created task in the calendar.
+- Click or hover over the task in the calendar.
+- Check whether a short overview of the task is displayed.
 
-### Assignment-Specific Execution Results (To be filled)
+### Expected result
+The task is visible in the Calendar. The user can open or preview a short task overview, including key information such as title, date/time, status, and basic task details.
 
-### Customer Comments or Observed Issues (To be filled)
-
-### Resulting PBIs or Issues (To be filled)
+### Execution result
+To be filled during Week 4 UAT session.

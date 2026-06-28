@@ -1,9 +1,10 @@
-import { useState, Fragment, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, Fragment, useCallback, useEffect, useRef, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -27,8 +28,6 @@ import {
   endOfWeek,
   eachDayOfInterval,
   isSameDay,
-  setHours,
-  setMinutes,
   startOfMonth,
   endOfMonth,
   getISOWeek,
@@ -41,7 +40,16 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { AuthService } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { getDueDateStatus, getDueDateStatusClasses, getDueDateStatusLabel } from "@/lib/task-dates";
+import {
+  buildQuarterHourOptions,
+  combineDateWithTime,
+  formatDueDateLabel,
+  getDueDateStatus,
+  getDueDateStatusClasses,
+  getDueDateStatusLabel,
+  moveDateRange,
+  normalizeDateRange,
+} from "@/lib/task-dates";
 
 type CalendarEvent = {
   id: string;
@@ -52,6 +60,7 @@ type CalendarEvent = {
   location?: string | null;
   participants?: Array<{ id: string; userId: string; userName?: string; status?: string }>;
   type?: string;
+  color?: string | null;
 };
 
 type CalendarTask = {
@@ -81,6 +90,7 @@ type CalendarKanbanCard = {
   startDate?: string | Date | null;
   listName?: string | null;
   listType?: string | null;
+  listColor?: string | null;
   boardName?: string | null;
 };
 
@@ -127,6 +137,15 @@ type KanbanEntry = {
 
 type CalendarEntry = EventEntry | TaskEntry | KanbanEntry;
 
+type CalendarPointerPreview = {
+  entry: CalendarEntry;
+  startTime: string;
+  endTime: string;
+  mode: CalendarPointerMode;
+};
+
+type CalendarPointerMode = "move" | "resize-start" | "resize-end" | "all-day-move" | "all-day-resize-start" | "all-day-resize-end";
+
 const TASK_STATUS_LABELS: Record<string, string> = {
   not_ready: "Бэклог",
   todo: "К выполнению",
@@ -141,6 +160,29 @@ const TASK_PRIORITY_LABELS: Record<string, string> = {
   medium: "Средний",
   high: "Высокий",
   urgent: "Срочный",
+};
+const CALENDAR_TIME_SLOTS = buildQuarterHourOptions();
+const CALENDAR_SLOT_HEIGHT = 12;
+const CALENDAR_SETTINGS_STORAGE_KEY = "streamdesk_calendar_settings_v1";
+
+type CalendarSettings = {
+  workdayStart: number;
+  workdayEnd: number;
+  gridStep: 15 | 30 | 60;
+  showWeekends: boolean;
+  showAllDay: boolean;
+  compactMode: boolean;
+  timezoneLabel: string;
+};
+
+const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
+  workdayStart: 0,
+  workdayEnd: 24,
+  gridStep: 15,
+  showWeekends: true,
+  showAllDay: true,
+  compactMode: false,
+  timezoneLabel: "Moscow, GMT+3",
 };
 
 const EVENT_COLOR_PALETTES = [
@@ -175,6 +217,22 @@ const EVENT_COLOR_PALETTES = [
     badge: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-200",
   },
 ] as const;
+const EVENT_COLOR_STORAGE_KEY = "streamdesk_event_colors_v1";
+
+const readEventColorMap = () => {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(EVENT_COLOR_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+};
+
+const normalizeHexColor = (value?: string | null) => {
+  const normalized = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : null;
+};
 
 function getEventTypeText(type?: string) {
   switch (type) {
@@ -205,6 +263,64 @@ function isKanbanEntry(entry: CalendarEntry | null): entry is KanbanEntry {
   return !!entry && entry.kind === "kanban";
 }
 
+function slotNumberToTime(slot: number) {
+  const hour = Math.floor(slot);
+  const minute = Math.round((slot - hour) * 60);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function roundDateToStep(value: Date, stepMinutes: number) {
+  const next = new Date(value);
+  const step = Math.max(1, stepMinutes);
+  const roundedMinutes = Math.floor(next.getMinutes() / step) * step;
+  next.setMinutes(roundedMinutes, 0, 0);
+  return next;
+}
+
+function addMinutesToDate(value: Date, minutes: number) {
+  return new Date(value.getTime() + minutes * 60 * 1000);
+}
+
+function loadCalendarSettings(): CalendarSettings {
+  if (typeof window === "undefined") return DEFAULT_CALENDAR_SETTINGS;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CALENDAR_SETTINGS_STORAGE_KEY) || "{}");
+    return {
+      ...DEFAULT_CALENDAR_SETTINGS,
+      ...parsed,
+      workdayStart: Number.isFinite(Number(parsed.workdayStart)) ? Number(parsed.workdayStart) : DEFAULT_CALENDAR_SETTINGS.workdayStart,
+      workdayEnd: Number.isFinite(Number(parsed.workdayEnd)) ? Number(parsed.workdayEnd) : DEFAULT_CALENDAR_SETTINGS.workdayEnd,
+      gridStep: [15, 30, 60].includes(Number(parsed.gridStep)) ? Number(parsed.gridStep) as 15 | 30 | 60 : DEFAULT_CALENDAR_SETTINGS.gridStep,
+    };
+  } catch {
+    return DEFAULT_CALENDAR_SETTINGS;
+  }
+}
+
+const isAllDayEntry = (entry: CalendarEntry) => {
+  const start = new Date(entry.startTime);
+  const end = new Date(entry.endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const durationHours = (end.getTime() - start.getTime()) / (60 * 60 * 1000);
+  return durationHours >= 23 || (
+    start.getHours() === 0 &&
+    start.getMinutes() === 0 &&
+    end.getHours() >= 23 &&
+    end.getMinutes() >= 45
+  );
+};
+
+const entryOverlapsDate = (entry: CalendarEntry, date: Date) => {
+  const start = new Date(entry.startTime);
+  const end = new Date(entry.endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setHours(23, 59, 59, 999);
+  return start.getTime() <= dayEnd.getTime() && end.getTime() >= dayStart.getTime();
+};
+
 export default function Calendar() {
   useWebSocket();
 
@@ -214,11 +330,21 @@ export default function Calendar() {
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null);
   const [draftSlot, setDraftSlot] = useState<{ startTime: string; endTime: string } | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "day" | "month" | "3days" | "list">("week");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>(() => loadCalendarSettings());
+  const [calendarPointerPreview, setCalendarPointerPreview] = useState<CalendarPointerPreview | null>(null);
   const [slotSelectStart, setSlotSelectStart] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [slotSelectEnd, setSlotSelectEnd] = useState<{ dayIndex: number; hour: number } | null>(null);
+  const [expandedNonWorkingRanges, setExpandedNonWorkingRanges] = useState<{ before: boolean; after: boolean }>({ before: false, after: false });
   const { toast } = useToast();
   const weekScrollRef = useRef<HTMLDivElement>(null);
   const threeDaysScrollRef = useRef<HTMLDivElement>(null);
+  const calendarPointerActionRef = useRef<{
+    mode: CalendarPointerMode;
+    entry: CalendarEntry;
+    startX: number;
+    startY: number;
+  } | null>(null);
 
   const { data: events = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -232,6 +358,7 @@ export default function Calendar() {
   const { data: users = [] } = useQuery<CalendarUser[]>({
     queryKey: ["/api/users"],
   });
+  const storedEventColors = useMemo(() => readEventColorMap(), [events]);
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -244,37 +371,60 @@ export default function Calendar() {
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd }).filter((day) => calendarSettings.showWeekends || day.getDay() !== 0 && day.getDay() !== 6);
+  const workdayStart = Math.max(0, Math.min(23, calendarSettings.workdayStart));
+  const workdayEnd = Math.max(workdayStart + 1, Math.min(24, calendarSettings.workdayEnd));
+  const HOUR_START = expandedNonWorkingRanges.before ? 0 : workdayStart;
+  const HOUR_END = expandedNonWorkingRanges.after ? 24 : workdayEnd;
+  const ROW_HEIGHT = calendarSettings.compactMode ? 40 : 48;
+  const visibleTimeSlots = useMemo(
+    () => CALENDAR_TIME_SLOTS.filter((time) => Number(time.slice(3, 5)) % calendarSettings.gridStep === 0),
+    [calendarSettings.gridStep],
+  );
+  const threeDays = eachDayOfInterval({ start: selectedDate, end: addDays(selectedDate, 2) }).filter((day) => calendarSettings.showWeekends || day.getDay() !== 0 && day.getDay() !== 6);
+  const weekColumnCount = Math.max(1, weekDays.length);
+  const threeDayColumnCount = Math.max(1, threeDays.length);
+  const todayColumnIndexWeek = weekDays.findIndex((d) => isSameDay(d, new Date()));
+  const todayColumnIndex3 = threeDays.findIndex((d) => isSameDay(d, new Date()));
+
+  useEffect(() => {
+    window.localStorage.setItem(CALENDAR_SETTINGS_STORAGE_KEY, JSON.stringify(calendarSettings));
+  }, [calendarSettings]);
 
   const handleSlotMouseUp = useCallback(() => {
     if (!slotSelectStart) return;
     const end = slotSelectEnd || slotSelectStart;
-    const dayStart = weekDays[slotSelectStart.dayIndex];
-    const dayEnd = weekDays[end.dayIndex];
-    const startTime = setMinutes(setHours(dayStart, slotSelectStart.hour), 0);
-    let endTime = setMinutes(setHours(dayEnd, end.hour), 0);
+    const slotDays = viewMode === "3days" ? threeDays : viewMode === "day" ? [selectedDate] : weekDays;
+    const dayStart = slotDays[slotSelectStart.dayIndex];
+    const dayEnd = slotDays[end.dayIndex];
+    const rangeStart = combineDateWithTime(dayStart, slotNumberToTime(slotSelectStart.hour));
+    const rangeEnd = combineDateWithTime(dayEnd, slotNumberToTime(end.hour));
+    const [startTime, selectedEndTime] = rangeStart.getTime() <= rangeEnd.getTime()
+      ? [rangeStart, rangeEnd]
+      : [rangeEnd, rangeStart];
+    let endTime = selectedEndTime;
     if (slotSelectStart.dayIndex === end.dayIndex && slotSelectStart.hour === end.hour) {
       endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
     } else {
-      endTime = new Date(endTime.getTime() + 60 * 60 * 1000);
+      endTime = new Date(endTime.getTime() + 15 * 60 * 1000);
     }
     setDraftSlot({ startTime: startTime.toISOString(), endTime: endTime.toISOString() });
     setSelectedEntry(null);
     setIsFormOpen(true);
     setSlotSelectStart(null);
     setSlotSelectEnd(null);
-  }, [slotSelectStart, slotSelectEnd, weekDays]);
+  }, [selectedDate, slotSelectStart, slotSelectEnd, threeDays, viewMode, weekDays]);
 
   useEffect(() => {
     if (!slotSelectStart) return;
     const onUp = () => handleSlotMouseUp();
     const onMove = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const dayIdx = target.getAttribute("data-day-index");
-      const hourStr = target.getAttribute("data-hour");
-      if (dayIdx != null && hourStr != null) {
-        setSlotSelectEnd({ dayIndex: parseInt(dayIdx, 10), hour: parseInt(hourStr, 10) });
-      }
+      const slot = getSlotElementFromPoint(e.clientX, e.clientY);
+      if (!slot) return;
+      const dayIdx = slot.getAttribute("data-day-index");
+      const hourStr = slot.getAttribute("data-hour");
+      if (dayIdx == null || hourStr == null) return;
+      setSlotSelectEnd({ dayIndex: parseInt(dayIdx, 10), hour: parseFloat(hourStr) });
     };
     document.addEventListener("mouseup", onUp);
     document.addEventListener("mousemove", onMove);
@@ -330,12 +480,43 @@ export default function Calendar() {
     },
   });
 
-  const HOUR_START = 0;
-  const HOUR_END = 24;
-  const ROW_HEIGHT = 48;
-  const threeDays = eachDayOfInterval({ start: selectedDate, end: addDays(selectedDate, 2) });
-  const todayColumnIndexWeek = weekDays.findIndex((d) => isSameDay(d, new Date()));
-  const todayColumnIndex3 = threeDays.findIndex((d) => isSameDay(d, new Date()));
+  const updateCalendarEntryRangeMutation = useMutation({
+    mutationFn: async ({ entry, start, end }: { entry: CalendarEntry; start: Date; end: Date }) => {
+      if (entry.kind === "event") {
+        const response = await apiRequest("PUT", `/api/events/${entry.id}`, {
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+        });
+        return response.json();
+      }
+
+      if (entry.kind === "kanban") {
+        const response = await apiRequest("PUT", `/api/kanban/boards/${entry.task.boardId}/cards/${entry.task.id}`, {
+          startDate: start.toISOString(),
+          dueDate: end.toISOString(),
+        });
+        return response.json();
+      }
+
+      const response = await apiRequest("PUT", `/api/tasks/${entry.task.id}`, {
+        startDate: start.toISOString(),
+        dueDate: end.toISOString(),
+      });
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      toast({
+        title: "Сохранено",
+        description: variables.entry.kind === "event" ? "Событие обновлено" : "Карточка обновлена",
+      });
+    },
+    onError: () => {
+      toast({ title: "Ошибка", description: "Не удалось обновить время", variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     const scrollToCurrentHour = (el: HTMLDivElement | null) => {
@@ -416,7 +597,7 @@ export default function Calendar() {
     return entries.filter((entry) => {
       if (!entry.startTime) return false;
       try {
-        return isSameDay(new Date(entry.startTime), date);
+        return isAllDayEntry(entry) ? entryOverlapsDate(entry, date) : isSameDay(new Date(entry.startTime), date);
       } catch {
         return false;
       }
@@ -436,11 +617,9 @@ export default function Calendar() {
   const showNowLine = showNowLineWeek || showNowLine3;
   const nowTop = showNowLine ? (now.getHours() - HOUR_START + now.getMinutes() / 60) * ROW_HEIGHT : 0;
   const nowColumnIndex = viewMode === "week" ? todayColumnIndexWeek : todayColumnIndex3;
-  const nowColumnCount = viewMode === "week" ? 7 : 3;
+  const nowColumnCount = viewMode === "week" ? weekColumnCount : threeDayColumnCount;
 
-  const getEventBlockStyle = (entry: CalendarEntry) => {
-    const start = new Date(entry.startTime);
-    const end = new Date(entry.endTime);
+  const getEventBlockStyleFromRange = (start: Date, end: Date) => {
     const startMinutes = start.getHours() * 60 + start.getMinutes() - HOUR_START * 60;
     const endMinutes = end.getHours() * 60 + end.getMinutes() - HOUR_START * 60;
     const top = Math.max(0, (startMinutes / 60) * ROW_HEIGHT);
@@ -448,27 +627,52 @@ export default function Calendar() {
     return { top: `${top}px`, height: `${Math.max(height, 24)}px` };
   };
 
+  const getEventBlockStyle = (entry: CalendarEntry) =>
+    getEventBlockStyleFromRange(new Date(entry.startTime), new Date(entry.endTime));
+
   const getEventLaneLayout = (dayEntries: CalendarEntry[]) => {
     const sorted = [...dayEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    const lanes: number[] = [];
     const result = new Map<string, { laneIndex: number; totalLanes: number }>();
+
+    const flushGroup = (group: CalendarEntry[]) => {
+      const lanes: number[] = [];
+      for (const entry of group) {
+        const start = new Date(entry.startTime);
+        const end = new Date(entry.endTime);
+        const startM = start.getHours() * 60 + start.getMinutes();
+        const endM = Math.max(startM + 15, end.getHours() * 60 + end.getMinutes());
+        let lane = 0;
+        for (; lane < lanes.length; lane++) {
+          if (lanes[lane] <= startM) break;
+        }
+        if (lane === lanes.length) lanes.push(0);
+        lanes[lane] = endM;
+        result.set(entry.id, { laneIndex: lane, totalLanes: 0 });
+      }
+      const totalLanes = Math.max(1, lanes.length);
+      group.forEach((entry) => {
+        const layout = result.get(entry.id);
+        if (layout) layout.totalLanes = totalLanes;
+      });
+    };
+
+    let group: CalendarEntry[] = [];
+    let groupEnd = -Infinity;
     for (const entry of sorted) {
       const start = new Date(entry.startTime);
       const end = new Date(entry.endTime);
       const startM = start.getHours() * 60 + start.getMinutes();
-      const endM = end.getHours() * 60 + end.getMinutes();
-      let lane = 0;
-      for (; lane < lanes.length; lane++) {
-        if (lanes[lane] <= startM) break;
+      const endM = Math.max(startM + 15, end.getHours() * 60 + end.getMinutes());
+      if (group.length > 0 && startM >= groupEnd) {
+        flushGroup(group);
+        group = [];
+        groupEnd = -Infinity;
       }
-      if (lane === lanes.length) lanes.push(0);
-      lanes[lane] = endM;
-      result.set(entry.id, { laneIndex: lane, totalLanes: 0 });
+      group.push(entry);
+      groupEnd = Math.max(groupEnd, endM);
     }
-    const totalLanes = lanes.length;
-    result.forEach((value) => {
-      value.totalLanes = totalLanes;
-    });
+    if (group.length > 0) flushGroup(group);
+
     return result;
   };
 
@@ -497,6 +701,30 @@ export default function Calendar() {
     return EVENT_COLOR_PALETTES[hash % EVENT_COLOR_PALETTES.length];
   };
 
+  const getManualEntryColor = (entry: CalendarEntry) => {
+    if (isEntryOverdue(entry)) return null;
+    if (entry.kind === "kanban") return normalizeHexColor(entry.task.listColor);
+    if (entry.kind === "event") return normalizeHexColor(entry.color) || normalizeHexColor(storedEventColors[entry.id]);
+    return null;
+  };
+
+  const getEntryColorStyle = (entry: CalendarEntry, strength: "card" | "inline" | "badge" = "card"): CSSProperties | undefined => {
+    const color = getManualEntryColor(entry);
+    if (!color) return undefined;
+    const mix = strength === "badge" ? 26 : strength === "inline" ? 20 : 22;
+    return {
+      borderColor: `color-mix(in srgb, ${color} 58%, hsl(var(--app-border)))`,
+      borderLeftColor: color,
+      background: `color-mix(in srgb, ${color} ${mix}%, var(--card))`,
+      color: "var(--foreground)",
+    };
+  };
+
+  const getEntryDotStyle = (entry: CalendarEntry): CSSProperties | undefined => {
+    const color = getManualEntryColor(entry);
+    return color ? { backgroundColor: color } : undefined;
+  };
+
   const getEventInlineClasses = (entry: CalendarEntry) => {
     const palette = getPalette(entry);
     return `border border-l-4 ${palette.inline}`;
@@ -518,6 +746,92 @@ export default function Calendar() {
     return parts.join(" • ");
   };
 
+  const renderTimedPointerPreview = (
+    days: Date[],
+    columnCount: number,
+    scope: "week" | "3days" | "day",
+  ) => {
+    if (!calendarPointerPreview) return null;
+
+    const start = new Date(calendarPointerPreview.startTime);
+    const end = new Date(calendarPointerPreview.endTime);
+    if (start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() >= 23 && end.getMinutes() >= 45) return null;
+    const dayIndex = days.findIndex((day) => isSameDay(day, start));
+    if (dayIndex < 0) return null;
+
+    const blockStyle = getEventBlockStyleFromRange(start, end);
+    const horizontalStyle =
+      scope === "day"
+        ? { left: "0.5rem", right: "0.5rem" }
+        : {
+            left: `calc(${(100 / columnCount) * dayIndex}% + 0.5rem)`,
+            width: `calc(${100 / columnCount}% - 1rem)`,
+          };
+
+    return (
+      <div
+        className={cn(
+          "pointer-events-none absolute z-30 rounded-xl border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25 backdrop-blur",
+                  (calendarPointerPreview.mode === "resize-start" || calendarPointerPreview.mode === "resize-end") && "border-dashed",
+        )}
+        style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
+      >
+        <div className="truncate font-semibold">{calendarPointerPreview.entry.title}</div>
+        <div className="truncate text-[10px] text-muted-foreground">
+          {format(start, "HH:mm")} - {format(end, "HH:mm")}
+        </div>
+      </div>
+    );
+  };
+
+  const getSlotSelectionRange = (days: Date[]) => {
+    if (!slotSelectStart) return null;
+    const end = slotSelectEnd || slotSelectStart;
+    const dayStart = days[slotSelectStart.dayIndex];
+    const dayEnd = days[end.dayIndex];
+    if (!dayStart || !dayEnd) return null;
+    const rangeStart = combineDateWithTime(dayStart, slotNumberToTime(slotSelectStart.hour));
+    const rangeEnd = combineDateWithTime(dayEnd, slotNumberToTime(end.hour));
+    const [start, selectedEnd] =
+      rangeStart.getTime() <= rangeEnd.getTime() ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
+    const isSingleSlot = slotSelectStart.dayIndex === end.dayIndex && slotSelectStart.hour === end.hour;
+    return {
+      start,
+      end: new Date(selectedEnd.getTime() + (isSingleSlot ? 60 : 15) * 60 * 1000),
+    };
+  };
+
+  const renderSlotSelectionPreview = (
+    days: Date[],
+    columnCount: number,
+    scope: "week" | "3days" | "day",
+  ) => {
+    const range = getSlotSelectionRange(days);
+    if (!range) return null;
+    const dayIndex = days.findIndex((day) => isSameDay(day, range.start));
+    if (dayIndex < 0) return null;
+    const blockStyle = getEventBlockStyleFromRange(range.start, range.end);
+    const horizontalStyle =
+      scope === "day"
+        ? { left: "0.5rem", right: "0.5rem" }
+        : {
+            left: `calc(${(100 / columnCount) * dayIndex}% + 0.5rem)`,
+            width: `calc(${100 / columnCount}% - 1rem)`,
+          };
+
+    return (
+      <div
+        className="pointer-events-none absolute z-20 rounded-xl border border-primary/60 bg-primary/15 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/20 backdrop-blur"
+        style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
+      >
+        <div className="truncate font-semibold">Новое событие</div>
+        <div className="truncate text-[10px] text-muted-foreground">
+          {format(range.start, "HH:mm")} - {format(range.end, "HH:mm")}
+        </div>
+      </div>
+    );
+  };
+
   const isEntryOverdue = (entry: CalendarEntry) => {
     if (entry.kind === "event") return false;
 
@@ -537,6 +851,222 @@ export default function Calendar() {
     setSelectedEntry(entry);
     setIsDetailOpen(true);
   };
+
+  const getPiercedElementFromPoint = (clientX: number, clientY: number, selectors: string[]) => {
+    const hidden: Array<{ node: HTMLElement; pointerEvents: string }> = [];
+    let element = document.elementFromPoint(clientX, clientY);
+
+    try {
+      while (element) {
+        const blocker = selectors
+          .map((selector) => element?.closest<HTMLElement>(selector))
+          .find((node): node is HTMLElement => Boolean(node));
+        if (!blocker) break;
+        hidden.push({ node: blocker, pointerEvents: blocker.style.pointerEvents });
+        blocker.style.pointerEvents = "none";
+        element = document.elementFromPoint(clientX, clientY);
+      }
+      return element;
+    } finally {
+      hidden.forEach(({ node, pointerEvents }) => {
+        node.style.pointerEvents = pointerEvents;
+      });
+    }
+  };
+
+  const getSlotElementFromPoint = (clientX: number, clientY: number) => {
+    const element = getPiercedElementFromPoint(clientX, clientY, ["[data-calendar-entry-block]"]);
+    const slot = element?.closest<HTMLElement>("[data-calendar-slot]");
+    if (slot) return slot;
+
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-calendar-slot]")).find((node) => {
+      const rect = node.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    }) || null;
+  };
+
+  const getSlotDateTimeFromPoint = (clientX: number, clientY: number) => {
+    const slot = getSlotElementFromPoint(clientX, clientY);
+    if (!slot) return null;
+    const dayIndex = Number(slot.dataset.dayIndex);
+    const hour = Number(slot.dataset.hour);
+    const scope = slot.dataset.scope;
+    const days = scope === "3days" ? threeDays : scope === "day" ? [selectedDate] : weekDays;
+    const day = days[dayIndex];
+    if (!day || !Number.isFinite(hour)) return null;
+    return combineDateWithTime(day, slotNumberToTime(hour));
+  };
+
+  const getAllDayDateFromPoint = (clientX: number, clientY: number) => {
+    const slot = Array.from(document.querySelectorAll<HTMLElement>("[data-calendar-all-day]")).find((node) => {
+      const rect = node.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    });
+    if (!slot) return null;
+    const dayIndex = Number(slot.dataset.dayIndex);
+    const scope = slot.dataset.scope;
+    const days = scope === "3days" ? threeDays : scope === "day" ? [selectedDate] : weekDays;
+    return days[dayIndex] || null;
+  };
+
+  const normalizeTimedResizeRange = (
+    entry: CalendarEntry,
+    targetDateTime: Date,
+    edge: "start" | "end",
+  ) => {
+    const start = roundDateToStep(new Date(entry.startTime), calendarSettings.gridStep);
+    const end = roundDateToStep(new Date(entry.endTime), calendarSettings.gridStep);
+    const target = roundDateToStep(targetDateTime, calendarSettings.gridStep);
+    const minMinutes = Math.max(15, calendarSettings.gridStep);
+    const minMs = minMinutes * 60 * 1000;
+
+    if (edge === "start") {
+      if (target.getTime() <= end.getTime() - minMs) {
+        return { start: target, end };
+      }
+      if (target.getTime() > end.getTime()) {
+        const nextEnd = target.getTime() - end.getTime() >= minMs ? target : addMinutesToDate(end, minMinutes);
+        return { start: end, end: nextEnd };
+      }
+      return { start: addMinutesToDate(end, -minMinutes), end };
+    }
+
+    if (target.getTime() >= start.getTime() + minMs) {
+      return { start, end: target };
+    }
+    if (target.getTime() < start.getTime()) {
+      const nextStart = start.getTime() - target.getTime() >= minMs ? target : addMinutesToDate(start, -minMinutes);
+      return { start: nextStart, end: start };
+    }
+    return { start, end: addMinutesToDate(start, minMinutes) };
+  };
+
+  const startCalendarEntryPointerAction = (
+    event: ReactPointerEvent,
+    entry: CalendarEntry,
+    mode: CalendarPointerMode,
+  ) => {
+    event.stopPropagation();
+    event.preventDefault();
+    calendarPointerActionRef.current = {
+      mode,
+      entry,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  };
+
+  useEffect(() => {
+    const buildPreview = (action: NonNullable<typeof calendarPointerActionRef.current>, clientX: number, clientY: number) => {
+      if (action.mode === "all-day-move") {
+        const targetDate = getAllDayDateFromPoint(clientX, clientY);
+        if (!targetDate) {
+          const targetDateTime = getSlotDateTimeFromPoint(clientX, clientY);
+          if (!targetDateTime) return null;
+          return {
+            start: targetDateTime,
+            end: new Date(targetDateTime.getTime() + 60 * 60 * 1000),
+          };
+        }
+        const current = normalizeDateRange(new Date(action.entry.startTime), new Date(action.entry.endTime), 60);
+        const duration = current.end.getTime() - current.start.getTime();
+        const nextStart = combineDateWithTime(targetDate, "00:00");
+        const nextEnd = new Date(nextStart.getTime() + duration);
+        return { start: nextStart, end: nextEnd };
+      }
+
+      if (action.mode === "all-day-resize-start" || action.mode === "all-day-resize-end") {
+        const targetDate = getAllDayDateFromPoint(clientX, clientY);
+        if (!targetDate) return null;
+
+        const currentStart = combineDateWithTime(new Date(action.entry.startTime), "00:00");
+        const currentEnd = combineDateWithTime(new Date(action.entry.endTime), "23:59");
+        const targetStart = combineDateWithTime(targetDate, "00:00");
+        const targetEnd = combineDateWithTime(targetDate, "23:59");
+
+        if (action.mode === "all-day-resize-start") {
+          if (targetStart.getTime() <= currentEnd.getTime()) {
+            return { start: targetStart, end: currentEnd };
+          }
+          return { start: combineDateWithTime(currentEnd, "00:00"), end: targetEnd };
+        }
+
+        if (targetEnd.getTime() >= currentStart.getTime()) {
+          return { start: currentStart, end: targetEnd };
+        }
+        return { start: targetStart, end: combineDateWithTime(currentStart, "23:59") };
+      }
+
+      const targetDateTime = getSlotDateTimeFromPoint(clientX, clientY);
+      if (!targetDateTime) {
+        if (action.mode !== "move") return null;
+        const targetDate = getAllDayDateFromPoint(clientX, clientY);
+        if (!targetDate) return null;
+        return {
+          start: combineDateWithTime(targetDate, "00:00"),
+          end: combineDateWithTime(targetDate, "23:59"),
+        };
+      }
+
+      if (action.mode === "resize-start" || action.mode === "resize-end") {
+        return normalizeTimedResizeRange(
+          action.entry,
+          targetDateTime,
+          action.mode === "resize-start" ? "start" : "end",
+        );
+      }
+
+      return moveDateRange(
+        { start: new Date(action.entry.startTime), end: new Date(action.entry.endTime) },
+        targetDateTime,
+      );
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const action = calendarPointerActionRef.current;
+      if (!action) return;
+
+      const distance = Math.hypot(event.clientX - action.startX, event.clientY - action.startY);
+      if (distance < 4) return;
+
+      const preview = buildPreview(action, event.clientX, event.clientY);
+      if (!preview) {
+        setCalendarPointerPreview(null);
+        return;
+      }
+
+      setCalendarPointerPreview({
+        entry: action.entry,
+        mode: action.mode,
+        startTime: preview.start.toISOString(),
+        endTime: preview.end.toISOString(),
+      });
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      const action = calendarPointerActionRef.current;
+      if (!action) return;
+      calendarPointerActionRef.current = null;
+      setCalendarPointerPreview(null);
+
+      const distance = Math.hypot(event.clientX - action.startX, event.clientY - action.startY);
+      if (distance < 4) {
+        handleEntryClick(action.entry);
+        return;
+      }
+
+      const nextRange = buildPreview(action, event.clientX, event.clientY);
+      if (!nextRange) return;
+      updateCalendarEntryRangeMutation.mutate({ entry: action.entry, start: nextRange.start, end: nextRange.end });
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    return () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [calendarSettings.gridStep, selectedDate, threeDays, updateCalendarEntryRangeMutation, weekDays]);
 
   const getTaskScheduleLabel = (task: { startDate?: string | Date | null; dueDate?: string | Date | null }) => {
     if (task.startDate && task.dueDate) {
@@ -576,6 +1106,169 @@ export default function Calendar() {
     </div>
   );
 
+  const shiftSelectedDate = (direction: -1 | 1) => {
+    const current = selectedDate;
+    if (viewMode === "month") {
+      setSelectedDate(new Date(current.getFullYear(), current.getMonth() + direction, 1));
+      return;
+    }
+    if (viewMode === "3days") {
+      setSelectedDate(addDays(current, direction * 3));
+      return;
+    }
+    if (viewMode === "day") {
+      setSelectedDate(addDays(current, direction));
+      return;
+    }
+    setSelectedDate(addDays(current, direction * 7));
+  };
+
+  const toolbarPeriodLabel = (() => {
+    if (viewMode === "month") return format(selectedDate, "LLLL yyyy", { locale: ru });
+    if (viewMode === "day") return format(selectedDate, "d MMM yyyy", { locale: ru });
+    if (viewMode === "3days") {
+      const end = addDays(selectedDate, 2);
+      return `${format(selectedDate, "d MMM", { locale: ru })} – ${format(end, "d MMM yyyy", { locale: ru })}`;
+    }
+    return `${format(weekStart, "d MMM", { locale: ru })} – ${format(weekEnd, "d MMM yyyy", { locale: ru })}`;
+  })();
+
+  const renderAllDayZone = (days: Date[], scope: "week" | "3days" | "day") => {
+    if (!calendarSettings.showAllDay) return null;
+    const allDayEntries = entries.filter((entry) => isAllDayEntry(entry) && days.some((day) => entryOverlapsDate(entry, day)));
+    const allDayPreview =
+      calendarPointerPreview &&
+      new Date(calendarPointerPreview.startTime).getHours() === 0 &&
+      new Date(calendarPointerPreview.startTime).getMinutes() === 0 &&
+      new Date(calendarPointerPreview.endTime).getHours() >= 23 &&
+      new Date(calendarPointerPreview.endTime).getMinutes() >= 45
+        ? calendarPointerPreview
+        : null;
+    const dayColumnTemplate = `repeat(${Math.max(1, days.length)}, minmax(0,1fr))`;
+    if (allDayEntries.length === 0 && !allDayPreview) {
+      return (
+        <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: `56px repeat(${Math.max(1, days.length)}, minmax(0,1fr))` }}>
+          <div className="border-r border-border/35 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+          {days.map((day, dayIndex) => (
+            <div
+              key={day.toISOString()}
+              data-calendar-all-day
+              data-scope={scope}
+              data-day-index={dayIndex}
+              className="min-h-10 border-r border-border/35 last:border-r-0"
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: `56px repeat(${Math.max(1, days.length)}, minmax(0,1fr))` }}>
+        <div className="border-r border-border/35 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+        <div
+          className="relative max-h-28 min-h-10 overflow-y-auto p-1"
+          style={{ gridColumn: `span ${Math.max(1, days.length)} / span ${Math.max(1, days.length)}` }}
+        >
+          <div className="absolute inset-1 grid gap-1" style={{ gridTemplateColumns: dayColumnTemplate }}>
+            {days.map((day, dayIndex) => (
+              <div
+                key={day.toISOString()}
+                data-calendar-all-day
+                data-scope={scope}
+                data-day-index={dayIndex}
+                className="min-h-8 rounded-lg border border-dashed border-border/25"
+              />
+            ))}
+          </div>
+          <div
+            className="relative grid gap-1"
+            style={{ gridTemplateColumns: dayColumnTemplate, gridAutoRows: "minmax(2rem, auto)" }}
+          >
+            {allDayEntries.map((entry, index) => {
+            const visibleIndexes = days.map((day, dayIndex) => entryOverlapsDate(entry, day) ? dayIndex : -1).filter((value) => value >= 0);
+            const first = visibleIndexes[0] ?? 0;
+            const last = visibleIndexes.at(-1) ?? first;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                data-calendar-all-day-entry
+                className={cn("relative z-10 min-w-0 cursor-grab rounded-lg border border-border/40 px-2 py-1 text-left text-xs shadow-sm", getEventCardClasses(entry))}
+                style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: index + 1, ...getEntryColorStyle(entry) }}
+                onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
+              >
+                <span
+                  aria-label="Изменить начало"
+                  className="absolute inset-y-0 left-0 z-20 w-6 cursor-ew-resize rounded-l-lg bg-primary/20 opacity-0 transition-opacity hover:opacity-100"
+                  onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-resize-start")}
+                />
+                <span className="block truncate font-medium">{entry.title}</span>
+                <span
+                  aria-label="Изменить окончание"
+                  className="absolute inset-y-0 right-0 z-20 w-6 cursor-ew-resize rounded-r-lg bg-primary/20 opacity-0 transition-opacity hover:opacity-100"
+                  onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-resize-end")}
+                />
+              </button>
+            );
+            })}
+            {allDayPreview && (() => {
+              const start = new Date(allDayPreview.startTime);
+              const end = new Date(allDayPreview.endTime);
+              const visibleIndexes = days
+                .map((day, dayIndex) => {
+                  const dayStart = combineDateWithTime(day, "00:00").getTime();
+                  const dayEnd = combineDateWithTime(day, "23:59").getTime();
+                  return start.getTime() <= dayEnd && end.getTime() >= dayStart ? dayIndex : -1;
+                })
+                .filter((value) => value >= 0);
+              const first = visibleIndexes[0] ?? 0;
+              const last = visibleIndexes.at(-1) ?? first;
+              return (
+                <div
+                  className="pointer-events-none relative z-20 min-w-0 rounded-lg border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25"
+                  style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: allDayEntries.length + 1 }}
+                >
+                  <span className="block truncate font-semibold">{allDayPreview.entry.title}</span>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCompressedHoursControl = (days: Date[], range: "before" | "after") => {
+    const startsAt = range === "before" ? 0 : workdayEnd;
+    const endsAt = range === "before" ? workdayStart : 24;
+    if (endsAt <= startsAt) return null;
+    const isExpanded = expandedNonWorkingRanges[range];
+
+    const entriesInRange = days.flatMap((day) =>
+      getEntriesForDate(day).filter((entry) => {
+        if (isAllDayEntry(entry)) return false;
+        const start = new Date(entry.startTime);
+        const hour = start.getHours() + start.getMinutes() / 60;
+        return hour >= startsAt && hour < endsAt;
+      }),
+    );
+
+    return (
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 border-b border-border/20 bg-muted/20 px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/35"
+        onClick={() => setExpandedNonWorkingRanges((prev) => ({ ...prev, [range]: !prev[range] }))}
+      >
+        <span>
+          {String(startsAt).padStart(2, "0")}:00 - {String(endsAt).padStart(2, "0")}:00 {isExpanded ? "раскрыто" : "сжато"}
+        </span>
+        <span className="rounded-full bg-muted px-2 py-0.5">
+          {isExpanded ? "Свернуть" : entriesInRange.length > 0 ? `${entriesInRange.length} внутри` : "Раскрыть"}
+        </span>
+      </button>
+    );
+  };
+
   if (isLoadingEvents || isLoadingTasks || isLoadingKanbanCards) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -585,8 +1278,8 @@ export default function Calendar() {
   }
 
   return (
-    <div className="space-y-1.5 sm:space-y-2 p-0 w-full min-w-0 max-w-full overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full min-w-0">
+    <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">
+      <div className="mb-3 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full min-w-0">
         <div className="flex items-center justify-between gap-2 min-w-0">
           <h2 className="text-base sm:text-lg font-bold text-foreground truncate">Календарь</h2>
           <Button
@@ -602,44 +1295,57 @@ export default function Calendar() {
           </Button>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border shrink-0" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}>←</Button>
+          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border/35 shrink-0" onClick={() => shiftSelectedDate(-1)}>←</Button>
           <span className="text-xs sm:text-sm font-medium text-foreground min-w-[90px] sm:min-w-[100px] text-center truncate">
-            {format(selectedDate, "LLLL yyyy", { locale: ru })}
+            {toolbarPeriodLabel}
           </span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border shrink-0" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}>→</Button>
+          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border/35 shrink-0" onClick={() => shiftSelectedDate(1)}>→</Button>
         </div>
-        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border text-xs shrink-0" onClick={() => setSelectedDate(new Date())}>
+        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border/35 text-xs shrink-0" onClick={() => setSelectedDate(new Date())}>
           Сегодня
         </Button>
-        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border text-xs shrink-0 hidden sm:flex" onClick={() => {}} title="Настройки и экспорт">
+        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border/35 text-xs shrink-0 hidden sm:flex" onClick={() => setSettingsOpen(true)} title="Настройки календаря">
           <Settings className="h-4 w-4 mr-1.5" />
           Настройки
         </Button>
         <div className="flex rounded-lg p-0.5 bg-muted/40 shrink-0 overflow-x-auto hide-scrollbar">
-          <Button variant={viewMode === "month" ? "default" : "ghost"} size="sm" className={cn("h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0", viewMode === "month" && "bg-background shadow-sm")} onClick={() => setViewMode("month")}>Месяц</Button>
-          <Button variant={viewMode === "week" ? "default" : "ghost"} size="sm" className={cn("h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0", viewMode === "week" && "bg-background shadow-sm")} onClick={() => setViewMode("week")}>Неделя</Button>
-          <Button variant={viewMode === "3days" ? "default" : "ghost"} size="sm" className={cn("h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0", viewMode === "3days" && "bg-background shadow-sm")} onClick={() => setViewMode("3days")}>3 дня</Button>
-          <Button variant={viewMode === "day" ? "default" : "ghost"} size="sm" className={cn("h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0", viewMode === "day" && "bg-background shadow-sm")} onClick={() => setViewMode("day")}>День</Button>
-          <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={cn("h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0", viewMode === "list" && "bg-background shadow-sm")} onClick={() => setViewMode("list")}>Список</Button>
+          {(["month", "week", "3days", "day", "list"] as const).map((mode) => (
+            <Button
+              key={mode}
+              variant={viewMode === mode ? "default" : "ghost"}
+              size="sm"
+              className={cn(
+                "h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0 border border-transparent",
+                viewMode === mode && "bg-primary text-primary-foreground border-primary/60 shadow-sm"
+              )}
+              onClick={() => setViewMode(mode)}
+            >
+              {mode === "month" && "Месяц"}
+              {mode === "week" && "Неделя"}
+              {mode === "3days" && "3 дня"}
+              {mode === "day" && "День"}
+              {mode === "list" && "Список"}
+            </Button>
+          ))}
         </div>
       </div>
 
       {viewMode === "month" ? (
         <div className="space-y-1.5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1 sm:gap-1.5 p-1.5 sm:p-2 bg-card rounded-xl border border-border w-full min-w-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1 sm:gap-1.5 p-2 sm:p-3 bg-card rounded-xl border border-border/40 w-full min-w-0">
             <div className="flex items-center gap-2 text-foreground shrink-0">
               <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               <span className="font-semibold text-base sm:text-lg truncate">{format(selectedDate, "LLLL yyyy", { locale: ru })}</span>
             </div>
             <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:w-auto min-w-0">
-              <Button variant="outline" size="sm" className="border-border text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}>← Пред</Button>
-              <Button variant="outline" size="sm" className="border-border text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
-              <Button variant="outline" size="sm" className="border-border text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}>След →</Button>
+              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}>← Пред</Button>
+              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
+              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}>След →</Button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-border overflow-hidden bg-card min-w-0">
-            <div className="grid grid-cols-7 border-b border-border">
+          <div className="rounded-xl border border-border/35 overflow-hidden bg-card min-w-0">
+            <div className="grid grid-cols-7 border-b border-border/30">
               {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
                 <div key={day} className="p-1 sm:p-1.5 text-center text-[10px] sm:text-xs font-semibold text-muted-foreground">{day}</div>
               ))}
@@ -660,7 +1366,7 @@ export default function Calendar() {
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border",
+                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30",
                         !isCurrentMonth ? "bg-muted/20 opacity-70" : "bg-card",
                         isToday && "ring-2 ring-inset ring-primary"
                       )}
@@ -674,6 +1380,7 @@ export default function Calendar() {
                             key={entry.id}
                             type="button"
                             className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-pointer", getEventInlineClasses(entry))}
+                            style={getEntryColorStyle(entry, "inline")}
                             onClick={() => handleEntryClick(entry)}
                           >
                             {entry.title}
@@ -690,13 +1397,15 @@ export default function Calendar() {
           </div>
         </div>
       ) : viewMode === "week" ? (
-        <div ref={weekScrollRef} className="rounded-xl border border-border bg-card overflow-hidden min-w-0 max-h-[70vh] sm:max-h-[75vh] overflow-y-auto overflow-x-auto">
-          <div className="grid min-w-0" style={{ gridTemplateColumns: "minmax(44px,56px) repeat(7, minmax(0,1fr))" }}>
-            <div className="border-b border-r border-border py-1.5 sm:py-2 pl-1.5 sm:pl-2 text-[10px] sm:text-xs font-medium text-foreground">Н{weekNumber}</div>
+        <div ref={weekScrollRef} className="rounded-xl border border-border/30 bg-card overflow-hidden min-w-0 max-h-[70vh] sm:max-h-[75vh] overflow-y-auto overflow-x-auto">
+          {renderAllDayZone(weekDays, "week")}
+          {renderCompressedHoursControl(weekDays, "before")}
+          <div className="grid min-w-0" style={{ gridTemplateColumns: `minmax(44px,56px) repeat(${weekColumnCount}, minmax(0,1fr))` }}>
+            <div className="border-b border-r border-border/35 py-1.5 sm:py-2 pl-1.5 sm:pl-2 text-[10px] sm:text-xs font-medium text-foreground">Н{weekNumber}</div>
             {weekDays.map((day) => {
               const isToday = isSameDay(day, new Date());
               return (
-                <div key={day.toISOString()} className="text-center py-1.5 sm:py-2 px-0.5 border-b border-r border-border last:border-r-0 min-w-[2.5rem] sm:min-w-0">
+                <div key={day.toISOString()} className="text-center py-1.5 sm:py-2 px-0.5 border-b border-r border-border/35 last:border-r-0 min-w-[2.5rem] sm:min-w-0">
                   <div className="text-[9px] sm:text-xs text-muted-foreground uppercase truncate">{format(day, "EEE", { locale: ru })}</div>
                   <div className={cn("text-xs sm:text-sm font-semibold rounded inline-block min-w-[1.25rem]", isToday && "bg-red-500 text-white px-1")}>{format(day, "d")}</div>
                 </div>
@@ -704,39 +1413,44 @@ export default function Calendar() {
             })}
             {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i).map((hour) => (
               <Fragment key={hour}>
-                <div className="flex items-start justify-end pr-0.5 sm:pr-1 text-[10px] sm:text-xs text-muted-foreground border-b border-r border-border shrink-0" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}>
-                  {format(setMinutes(setHours(new Date(), hour), 0), "HH:mm")}
+                <div className="flex items-start justify-end pr-0.5 sm:pr-1 text-[10px] sm:text-xs text-muted-foreground border-b border-r border-border/35 shrink-0" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}>
+                  {`${String(hour).padStart(2, "0")}:00`}
                 </div>
                 {weekDays.map((day) => (
-                  <div key={`${hour}-${day.toISOString()}`} className="border-b border-r border-border last:border-r-0 min-w-0" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }} />
+                  <div key={`${hour}-${day.toISOString()}`} className="border-b border-r border-border/35 last:border-r-0 min-w-0" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }} />
                 ))}
               </Fragment>
             ))}
           </div>
           <div className="relative pointer-events-none mt-0" style={{ marginTop: -(HOUR_END - HOUR_START) * ROW_HEIGHT }}>
-            <div className="grid min-w-0 pointer-events-auto" style={{ gridTemplateColumns: "minmax(44px,56px) repeat(7, minmax(0,1fr))" }}>
+            <div className="grid min-w-0 pointer-events-auto" style={{ gridTemplateColumns: `minmax(44px,56px) repeat(${weekColumnCount}, minmax(0,1fr))` }}>
               <div className="col-span-1" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT }} />
-              <div className="col-span-7 relative" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT, minHeight: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
+              <div className="relative" style={{ gridColumn: `span ${weekColumnCount} / span ${weekColumnCount}`, height: (HOUR_END - HOUR_START) * ROW_HEIGHT, minHeight: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
                 {weekDays.map((day, dayIndex) =>
-                  Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i).map((hour) => {
+                  visibleTimeSlots.map((time) => {
+                    const [hourPart, minutePart] = time.split(":").map(Number);
+                    const slot = hourPart + minutePart / 60;
+                    if (slot < HOUR_START || slot >= HOUR_END) return null;
                     const isSelected = slotSelectStart && slotSelectEnd && (() => {
                       const minD = Math.min(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
                       const maxD = Math.max(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
                       const minH = Math.min(slotSelectStart.hour, slotSelectEnd.hour);
                       const maxH = Math.max(slotSelectStart.hour, slotSelectEnd.hour);
-                      return dayIndex >= minD && dayIndex <= maxD && hour >= minH && hour <= maxH;
+                      return dayIndex >= minD && dayIndex <= maxD && slot >= minH && slot <= maxH;
                     })();
                     return (
                       <div
-                        key={`slot-${dayIndex}-${hour}`}
+                        key={`slot-${dayIndex}-${time}`}
+                        data-calendar-slot
+                        data-scope="week"
                         data-day-index={dayIndex}
-                        data-hour={hour}
-                        className={cn("absolute left-0 cursor-cell border-b border-border/50 transition-colors duration-150", isSelected && "bg-primary/40 dark:bg-primary/35 ring-2 ring-inset ring-primary/60")}
-                        style={{ left: `${(100 / 7) * dayIndex}%`, width: `${100 / 7}%`, top: (hour - HOUR_START) * ROW_HEIGHT, height: ROW_HEIGHT }}
+                        data-hour={slot}
+                        className={cn("absolute left-0 cursor-cell transition-colors duration-150 hover:bg-primary/10", isSelected && "bg-primary/40 ring-2 ring-inset ring-primary/60")}
+                        style={{ left: `${(100 / weekColumnCount) * dayIndex}%`, width: `${100 / weekColumnCount}%`, top: (slot - HOUR_START) * ROW_HEIGHT, height: CALENDAR_SLOT_HEIGHT }}
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          setSlotSelectStart({ dayIndex, hour });
-                          setSlotSelectEnd({ dayIndex, hour });
+                          setSlotSelectStart({ dayIndex, hour: slot });
+                          setSlotSelectEnd({ dayIndex, hour: slot });
                         }}
                       />
                     );
@@ -745,8 +1459,10 @@ export default function Calendar() {
                 {showNowLine && nowColumnIndex >= 0 && (
                   <div className="absolute h-px bg-red-500 z-10 pointer-events-none" style={{ top: nowTop, left: `${(100 / nowColumnCount) * nowColumnIndex}%`, width: `${100 / nowColumnCount}%` }} />
                 )}
+                {renderSlotSelectionPreview(weekDays, weekColumnCount, "week")}
                 {weekDays.map((day, dayIndex) => {
                   const dayEntries = getEntriesForDate(day).filter((entry) => {
+                    if (isAllDayEntry(entry)) return false;
                     const start = new Date(entry.startTime);
                     const end = new Date(entry.endTime);
                     const hStart = start.getHours() + start.getMinutes() / 60;
@@ -755,7 +1471,7 @@ export default function Calendar() {
                   });
                   const laneLayout = getEventLaneLayout(dayEntries);
                   return (
-                    <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border first:border-l-0 z-10" style={{ left: `${(100 / 7) * dayIndex}%`, width: `${100 / 7}%`, pointerEvents: "none" }}>
+                    <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border/30 first:border-l-0 z-10" style={{ left: `${(100 / weekColumnCount) * dayIndex}%`, width: `${100 / weekColumnCount}%`, pointerEvents: "none" }}>
                       {dayEntries.map((entry) => {
                         const style = getEventBlockStyle(entry);
                         const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
@@ -763,43 +1479,58 @@ export default function Calendar() {
                           <button
                             key={entry.id}
                             type="button"
-                            className={cn("absolute rounded-xl text-xs overflow-hidden cursor-pointer pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-white/10 dark:border-white/5 text-left", getEventCardClasses(entry))}
-                            style={{ ...style, ...overlapStyle, minHeight: 24 }}
-                            onClick={() => handleEntryClick(entry)}
+                            data-calendar-entry-block
+                            className={cn("absolute rounded-xl text-xs overflow-hidden cursor-grab active:cursor-grabbing pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-border/30 text-left", getEventCardClasses(entry))}
+                            style={{ ...style, ...overlapStyle, minHeight: 24, ...getEntryColorStyle(entry) }}
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "move")}
                           >
+                            <span
+                              aria-label="Изменить начало"
+                              className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                              onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
+                            />
                             <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
                             <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
                             <div className="px-1.5 pb-1.5 text-[10px] opacity-90 truncate flex items-center gap-0.5">
                               {entry.kind === "event" ? <MapPin className="w-3 h-3 shrink-0" /> : <UserRound className="w-3 h-3 shrink-0" />}
                               {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
                             </div>
+                            <span
+                              aria-label="Изменить длительность"
+                              className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                              onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
+                            />
                           </button>
                         );
                       })}
                     </div>
                   );
                 })}
+                {renderTimedPointerPreview(weekDays, weekColumnCount, "week")}
               </div>
             </div>
           </div>
+          {renderCompressedHoursControl(weekDays, "after")}
         </div>
       ) : viewMode === "3days" ? (
-        <div ref={threeDaysScrollRef} className="rounded-xl border border-border bg-card overflow-hidden min-w-0 max-h-[75vh] overflow-y-auto">
+        <div ref={threeDaysScrollRef} className="rounded-xl border border-border/30 bg-card overflow-hidden min-w-0 max-h-[75vh] overflow-y-auto">
+          {renderAllDayZone(threeDays, "3days")}
+          {renderCompressedHoursControl(threeDays, "before")}
           <div className="grid min-w-0" style={{ gridTemplateColumns: "56px 1fr 1fr 1fr" }}>
-            <div className="border-b border-r border-border py-2 pl-2 text-xs font-medium text-foreground">Неделя {getISOWeek(weekStart)}</div>
+            <div className="border-b border-r border-border/35 py-2 pl-2 text-xs font-medium text-foreground">Неделя {getISOWeek(weekStart)}</div>
             {threeDays.map((day) => {
               const isToday = isSameDay(day, new Date());
               return (
-                <div key={day.toISOString()} className="text-center py-2 px-1 border-b border-l border-border">
+                <div key={day.toISOString()} className="text-center py-2 px-1 border-b border-l border-border/30">
                   <div className="text-[10px] sm:text-xs text-muted-foreground uppercase">{format(day, "EEE", { locale: ru })}</div>
                   <div className={cn("text-sm font-semibold rounded-md inline-block min-w-[1.5rem]", isToday && "bg-red-500 text-white px-1")}>{format(day, "d")}</div>
                 </div>
               );
             })}
-            <div className="relative col-start-1 row-start-2 flex flex-col border-r border-border shrink-0" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT, minHeight: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
+            <div className="relative col-start-1 row-start-2 flex flex-col border-r border-border/35 shrink-0" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT, minHeight: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
               {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i).map((hour) => (
                 <div key={hour} className="flex items-start justify-end pr-1 text-xs text-muted-foreground shrink-0" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}>
-                  {format(setMinutes(setHours(new Date(), hour), 0), "HH:mm")}
+                  {`${String(hour).padStart(2, "0")}:00`}
                 </div>
               ))}
               {showNowLine3 && (
@@ -811,7 +1542,7 @@ export default function Calendar() {
             <div className="col-span-3 col-start-2 row-start-2 relative overflow-x-auto min-w-0" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT, minHeight: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
               <div className="absolute inset-0 grid grid-cols-3 min-w-[200px] sm:min-w-[280px] pointer-events-none">
                 {threeDays.map((day) => (
-                  <div key={day.toISOString()} className="relative border-r border-border/60 last:border-r-0">
+                  <div key={day.toISOString()} className="relative border-r border-border/30 last:border-r-0">
                     {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
                       <div key={i} className="border-b border-border/20" style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }} />
                     ))}
@@ -819,10 +1550,42 @@ export default function Calendar() {
                 ))}
               </div>
               {showNowLine3 && nowColumnIndex >= 0 && (
-                <div className="absolute h-px bg-red-500 z-10 pointer-events-none" style={{ top: nowTop, left: `${(100 / 3) * nowColumnIndex}%`, width: `${100 / 3}%` }} />
+                <div className="absolute h-px bg-red-500 z-10 pointer-events-none" style={{ top: nowTop, left: `${(100 / threeDayColumnCount) * nowColumnIndex}%`, width: `${100 / threeDayColumnCount}%` }} />
               )}
+              {threeDays.map((day, dayIndex) =>
+                visibleTimeSlots.map((time) => {
+                  const [hourPart, minutePart] = time.split(":").map(Number);
+                  const slot = hourPart + minutePart / 60;
+                  if (slot < HOUR_START || slot >= HOUR_END) return null;
+                  const isSelected = slotSelectStart && slotSelectEnd && (() => {
+                    const minD = Math.min(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
+                    const maxD = Math.max(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
+                    const minH = Math.min(slotSelectStart.hour, slotSelectEnd.hour);
+                    const maxH = Math.max(slotSelectStart.hour, slotSelectEnd.hour);
+                    return dayIndex >= minD && dayIndex <= maxD && slot >= minH && slot <= maxH;
+                  })();
+                  return (
+                    <div
+                      key={`three-slot-${day.toISOString()}-${time}`}
+                      data-calendar-slot
+                      data-scope="3days"
+                      data-day-index={dayIndex}
+                      data-hour={slot}
+                      className={cn("absolute cursor-cell transition-colors duration-150 hover:bg-primary/10", isSelected && "bg-primary/40 ring-2 ring-inset ring-primary/60")}
+                      style={{ left: `${(100 / threeDayColumnCount) * dayIndex}%`, width: `${100 / threeDayColumnCount}%`, top: (slot - HOUR_START) * ROW_HEIGHT, height: CALENDAR_SLOT_HEIGHT }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setSlotSelectStart({ dayIndex, hour: slot });
+                        setSlotSelectEnd({ dayIndex, hour: slot });
+                      }}
+                    />
+                  );
+                })
+              )}
+              {renderSlotSelectionPreview(threeDays, threeDayColumnCount, "3days")}
               {threeDays.map((day, dayIndex) => {
                 const dayEntries = getEntriesForDate(day).filter((entry) => {
+                  if (isAllDayEntry(entry)) return false;
                   const start = new Date(entry.startTime);
                   const end = new Date(entry.endTime);
                   const hStart = start.getHours() + start.getMinutes() / 60;
@@ -831,7 +1594,7 @@ export default function Calendar() {
                 });
                 const laneLayout = getEventLaneLayout(dayEntries);
                 return (
-                  <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border first:border-l-0" style={{ left: `${(100 / 3) * dayIndex}%`, width: `${100 / 3}%` }}>
+                  <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border/30 first:border-l-0" style={{ left: `${(100 / threeDayColumnCount) * dayIndex}%`, width: `${100 / threeDayColumnCount}%`, pointerEvents: "none" }}>
                     {dayEntries.map((entry) => {
                       const style = getEventBlockStyle(entry);
                       const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
@@ -839,28 +1602,41 @@ export default function Calendar() {
                         <button
                           key={entry.id}
                           type="button"
-                          className={cn("absolute rounded-xl text-xs overflow-hidden cursor-pointer shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-white/10 dark:border-white/5 text-left", getEventCardClasses(entry))}
-                          style={{ ...style, ...overlapStyle, minHeight: 24 }}
-                          onClick={() => handleEntryClick(entry)}
+                          data-calendar-entry-block
+                          className={cn("absolute rounded-xl text-xs overflow-hidden cursor-grab active:cursor-grabbing pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-border/30 text-left", getEventCardClasses(entry))}
+                          style={{ ...style, ...overlapStyle, minHeight: 24, ...getEntryColorStyle(entry) }}
+                          onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "move")}
                         >
+                          <span
+                            aria-label="Изменить начало"
+                            className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
+                          />
                           <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
                           <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
                           <div className="px-1.5 pb-1.5 text-[10px] opacity-90 truncate flex items-center gap-0.5">
                             {entry.kind === "event" ? <MapPin className="w-3 h-3 shrink-0" /> : <UserRound className="w-3 h-3 shrink-0" />}
                             {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
                           </div>
+                          <span
+                            aria-label="Изменить длительность"
+                            className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
+                          />
                         </button>
                       );
                     })}
                   </div>
                 );
               })}
+              {renderTimedPointerPreview(threeDays, threeDayColumnCount, "3days")}
             </div>
           </div>
+          {renderCompressedHoursControl(threeDays, "after")}
         </div>
       ) : viewMode === "list" ? (
-        <div className="rounded-xl border border-border bg-card overflow-hidden min-w-0">
-          <div className="p-2 sm:p-3 border-b border-border">
+        <div className="rounded-xl border border-border/30 bg-card overflow-hidden min-w-0">
+          <div className="p-2 sm:p-3 border-b border-border/30">
             <div className="flex items-center gap-2 text-foreground">
               <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
               <span className="font-semibold text-sm sm:text-base">
@@ -881,14 +1657,14 @@ export default function Calendar() {
                 );
               }
               return listEntries.map((entry) => (
-                <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => handleEntryClick(entry)}>
+                <Card key={entry.id} className={cn("rounded-xl border border-border/50 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
                   <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-sm sm:text-base break-words">{entry.title}</CardTitle>
                         {renderCardMeta(entry, entry._day)}
                       </div>
-                      <Badge className={cn("shrink-0", getEventBadgeClasses(entry), "text-xs sm:text-sm")}>{entry.badgeText}</Badge>
+                      <Badge className={cn("shrink-0", getEventBadgeClasses(entry), "text-xs sm:text-sm")} style={getEntryColorStyle(entry, "badge")}>{entry.badgeText}</Badge>
                     </div>
                   </CardHeader>
                   {entry.description && (
@@ -903,7 +1679,7 @@ export default function Calendar() {
         </div>
       ) : (
         <div className="space-y-2">
-          <Card className="rounded-xl border border-border">
+          <Card className="rounded-xl border border-border/35">
             <CardHeader className="p-2.5 sm:p-4">
               <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
                 <div className="flex items-center gap-1.5 text-sm sm:text-base">
@@ -911,57 +1687,107 @@ export default function Calendar() {
                   <span className="truncate">{format(selectedDate, "d MMMM yyyy, EEEE", { locale: ru })}</span>
                 </div>
                 <div className="flex flex-wrap gap-1 w-full sm:w-auto min-w-0">
-                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border" onClick={() => setSelectedDate(new Date(selectedDate.getTime() - 86400000))}>← Вчера</Button>
-                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
-                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border" onClick={() => setSelectedDate(new Date(selectedDate.getTime() + 86400000))}>Завтра →</Button>
+                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border/35" onClick={() => setSelectedDate(new Date(selectedDate.getTime() - 86400000))}>← Вчера</Button>
+                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border/35" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
+                  <Button variant="outline" size="sm" className="flex-1 min-w-0 sm:flex-initial text-xs px-2 rounded-lg border-border/35" onClick={() => setSelectedDate(new Date(selectedDate.getTime() + 86400000))}>Завтра →</Button>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-2.5 sm:p-4 pt-0">
-              <div className="space-y-1.5">
-                {getEntriesForDate(selectedDate).length === 0 ? (
-                  <div className="text-center py-6">
-                    <CalendarIcon className="w-10 h-10 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground text-sm">На этот день задачи и события не запланированы</p>
+            {renderAllDayZone([selectedDate], "day")}
+            {renderCompressedHoursControl([selectedDate], "before")}
+            <CardContent className="p-0">
+              <div className="grid max-h-[75vh] overflow-y-auto" style={{ gridTemplateColumns: "56px minmax(0,1fr)" }}>
+                <div className="relative border-r border-border/35" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
+                  {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i).map((hour) => (
+                    <div key={hour} className="flex items-start justify-end pr-1 text-xs text-muted-foreground" style={{ height: ROW_HEIGHT }}>
+                      {`${String(hour).padStart(2, "0")}:00`}
+                    </div>
+                  ))}
+                </div>
+                <div className="relative" style={{ height: (HOUR_END - HOUR_START) * ROW_HEIGHT }}>
+                  <div className="absolute inset-0 pointer-events-none">
+                    {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
+                      <div key={i} className="border-b border-border/30" style={{ height: ROW_HEIGHT }} />
+                    ))}
                   </div>
-                ) : (
-                  getEntriesForDate(selectedDate).map((entry) => (
-                    <Card key={entry.id} className={cn("rounded-xl border border-border shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} onClick={() => handleEntryClick(entry)}>
-                      <CardHeader className="pb-1.5 p-2.5 sm:p-3">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-sm sm:text-base break-words">{entry.title}</CardTitle>
-                            {renderCardMeta(entry)}
+                  {visibleTimeSlots.map((time) => {
+                    const [hourPart, minutePart] = time.split(":").map(Number);
+                    const slot = hourPart + minutePart / 60;
+                    if (slot < HOUR_START || slot >= HOUR_END) return null;
+                    const isSelected = slotSelectStart && slotSelectEnd && slotSelectStart.dayIndex === 0 && slotSelectEnd.dayIndex === 0 && slot >= Math.min(slotSelectStart.hour, slotSelectEnd.hour) && slot <= Math.max(slotSelectStart.hour, slotSelectEnd.hour);
+                    return (
+                      <div
+                        key={`day-slot-${time}`}
+                        data-calendar-slot
+                        data-scope="day"
+                        data-day-index={0}
+                        data-hour={slot}
+                        className={cn("absolute left-0 w-full cursor-cell transition-colors duration-150 hover:bg-primary/10", isSelected && "bg-primary/40 ring-2 ring-inset ring-primary/60")}
+                        style={{ top: (slot - HOUR_START) * ROW_HEIGHT, height: CALENDAR_SLOT_HEIGHT }}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setSlotSelectStart({ dayIndex: 0, hour: slot });
+                          setSlotSelectEnd({ dayIndex: 0, hour: slot });
+                        }}
+                      />
+                    );
+                  })}
+                  {renderSlotSelectionPreview([selectedDate], 1, "day")}
+                  {(() => {
+                    const dayEntries = getEntriesForDate(selectedDate).filter((entry) => !isAllDayEntry(entry));
+                    const laneLayout = getEventLaneLayout(dayEntries);
+                    return dayEntries.map((entry) => {
+                      const style = getEventBlockStyle(entry);
+                      const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          data-calendar-entry-block
+                          className={cn("absolute cursor-grab active:cursor-grabbing rounded-xl border border-border/40 p-2 text-left text-xs shadow-md transition hover:shadow-lg", getEventCardClasses(entry))}
+                          style={{ top: style.top, height: style.height, minHeight: 28, ...overlapStyle, ...getEntryColorStyle(entry) }}
+                          onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "move")}
+                        >
+                          <span
+                            aria-label="Изменить начало"
+                            className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
+                          />
+                          <div className="truncate font-medium">{entry.title}</div>
+                          <div className="truncate text-[10px] opacity-90">{getEntryMetaLine(entry)}</div>
+                          <div className="truncate text-[10px] opacity-90">
+                            {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
                           </div>
-                          <Badge className={cn("shrink-0", getEventBadgeClasses(entry), "text-xs sm:text-sm")}>{entry.badgeText}</Badge>
-                        </div>
-                      </CardHeader>
-                      {entry.description && (
-                        <CardContent className="p-2.5 sm:p-3 pt-0">
-                          <p className="text-xs opacity-90 break-words">{entry.description}</p>
-                        </CardContent>
-                      )}
-                    </Card>
-                  ))
-                )}
+                          <span
+                            aria-label="Изменить длительность"
+                            className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
+                          />
+                        </button>
+                      );
+                    });
+                  })()}
+                  {renderTimedPointerPreview([selectedDate], 1, "day")}
+                </div>
               </div>
             </CardContent>
+            {renderCompressedHoursControl([selectedDate], "after")}
           </Card>
         </div>
       )}
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-border bg-card p-0 overflow-hidden gap-0">
+        <DialogContent className="sm:max-w-md rounded-2xl border-border/50 bg-card p-0 overflow-hidden gap-0">
           {selectedEntry && (
             <div className="p-4 sm:p-5 space-y-4">
               {isTaskEntry(selectedEntry) || isKanbanEntry(selectedEntry) ? (
                 <>
                   <div className="flex items-start gap-3">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} />
+                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} style={getEntryDotStyle(selectedEntry)} />
                     <div className="space-y-2 min-w-0">
                       <h3 className="text-lg font-semibold text-foreground leading-tight break-words pr-6">{selectedEntry.title}</h3>
                       <div className="flex flex-wrap gap-2">
-                        <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")}>{selectedEntry.badgeText}</Badge>
+                        <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")} style={getEntryColorStyle(selectedEntry, "badge")}>{selectedEntry.badgeText}</Badge>
                         <Badge variant="secondary">{selectedEntry.statusLabel}</Badge>
                       </div>
                     </div>
@@ -996,6 +1822,28 @@ export default function Calendar() {
                         <span className="text-foreground">{selectedEntry.task.boardName}</span>
                       </div>
                     )}
+                    {isKanbanEntry(selectedEntry) && (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <Clock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+                          <span className="text-foreground">
+                            Старт: {formatDueDateLabel(selectedEntry.task.startDate) || "Не задан"}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <Clock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+                          <span className="text-foreground">
+                            Срок: {formatDueDateLabel(selectedEntry.task.dueDate) || "Не задан"}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <Flag className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+                          <span className="text-foreground">
+                            Статус срока: {getDueDateStatusLabel(getDueDateStatus(selectedEntry.task.dueDate, { isComplete: selectedEntry.task.listType === "closed" || selectedEntry.task.listType === "archive" || selectedEntry.task.listType === "trash" }))}
+                          </span>
+                        </div>
+                      </>
+                    )}
                     {selectedEntry.description && (
                       <div className="flex items-start gap-3">
                         <Users className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
@@ -1007,7 +1855,7 @@ export default function Calendar() {
                         <p className="text-foreground font-medium">Подзадачи</p>
                         <div className="space-y-1.5">
                           {selectedEntry.task.subtasks.map((subtask) => (
-                            <div key={subtask.id} className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-foreground">
+                            <div key={subtask.id} className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-foreground">
                               {subtask.completed ? "✓ " : ""}
                               {subtask.title}
                             </div>
@@ -1020,7 +1868,7 @@ export default function Calendar() {
                         <p className="text-foreground font-medium">Ссылки</p>
                         <div className="space-y-1.5">
                           {selectedEntry.task.links.map((link, index) => (
-                            <a key={`${link.url || index}`} href={link.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg border border-border px-3 py-2 text-primary hover:underline">
+                            <a key={`${link.url || index}`} href={link.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg border border-border/50 px-3 py-2 text-primary hover:underline">
                               {link.title || link.url}
                             </a>
                           ))}
@@ -1032,7 +1880,7 @@ export default function Calendar() {
                         <p className="text-foreground font-medium">Вложения</p>
                         <div className="space-y-1.5">
                           {selectedEntry.task.attachments.map((file, index) => (
-                            <div key={`${file.url || file.name || index}`} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-foreground">
+                            <div key={`${file.url || file.name || index}`} className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-foreground">
                               <Paperclip className="w-4 h-4 text-primary shrink-0" />
                               <span className="truncate">{file.name || file.url || "Файл"}</span>
                             </div>
@@ -1042,7 +1890,17 @@ export default function Calendar() {
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border/35">
+                    {isKanbanEntry(selectedEntry) && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          window.location.href = `/tasks?boardId=${encodeURIComponent(selectedEntry.task.boardId)}&cardId=${encodeURIComponent(selectedEntry.task.id)}`;
+                        }}
+                      >
+                        Открыть карточку
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
                       Закрыть
                     </Button>
@@ -1051,7 +1909,7 @@ export default function Calendar() {
               ) : (
                 <>
                   <div className="flex items-start gap-3">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} />
+                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} style={getEntryDotStyle(selectedEntry)} />
                     <h3 className="text-lg font-semibold text-foreground leading-tight break-words pr-6">{selectedEntry.title}</h3>
                   </div>
                   <div className="space-y-3 text-sm text-muted-foreground">
@@ -1109,10 +1967,10 @@ export default function Calendar() {
                       </div>
                     )}
                     <div className="flex items-center gap-2 pt-1">
-                      <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")}>{getEventTypeText(selectedEntry.type)}</Badge>
+                      <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")} style={getEntryColorStyle(selectedEntry, "badge")}>{getEventTypeText(selectedEntry.type)}</Badge>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border/35">
                     <Button
                       size="sm"
                       className="gap-2"
@@ -1146,6 +2004,84 @@ export default function Calendar() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl border-border/50 bg-card">
+          <DialogHeader>
+            <DialogTitle>Настройки календаря</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                <span className="text-muted-foreground">Начало рабочего дня</span>
+                <select
+                  className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+                  value={calendarSettings.workdayStart}
+                  onChange={(event) => setCalendarSettings((prev) => ({ ...prev, workdayStart: Number(event.target.value) }))}
+                >
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-muted-foreground">Конец рабочего дня</span>
+                <select
+                  className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+                  value={calendarSettings.workdayEnd}
+                  onChange={(event) => setCalendarSettings((prev) => ({ ...prev, workdayEnd: Number(event.target.value) }))}
+                >
+                  {Array.from({ length: 24 }, (_, index) => index + 1).map((hour) => (
+                    <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="grid gap-1 text-sm">
+              <span className="text-muted-foreground">Шаг сетки</span>
+              <select
+                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+                value={calendarSettings.gridStep}
+                onChange={(event) => setCalendarSettings((prev) => ({ ...prev, gridStep: Number(event.target.value) as 15 | 30 | 60 }))}
+              >
+                <option value={15}>15 минут</option>
+                <option value={30}>30 минут</option>
+                <option value={60}>60 минут</option>
+              </select>
+            </label>
+
+            <div className="grid gap-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+              {[
+                ["showWeekends", "Показывать выходные"],
+                ["showAllDay", "Показывать all-day зону"],
+                ["compactMode", "Компактный режим"],
+              ].map(([key, title]) => (
+                <label key={key} className="flex items-center justify-between gap-3 text-sm">
+                  <span>{title}</span>
+                  <Checkbox
+                    checked={Boolean(calendarSettings[key as keyof CalendarSettings])}
+                    onCheckedChange={(checked) => setCalendarSettings((prev) => ({ ...prev, [key]: checked === true }))}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <label className="grid gap-1 text-sm">
+              <span className="text-muted-foreground">Timezone label</span>
+              <input
+                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
+                value={calendarSettings.timezoneLabel}
+                onChange={(event) => setCalendarSettings((prev) => ({ ...prev, timezoneLabel: event.target.value }))}
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCalendarSettings(DEFAULT_CALENDAR_SETTINGS)}>Сбросить</Button>
+            <Button onClick={() => setSettingsOpen(false)}>Готово</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
