@@ -468,6 +468,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     name: z.string().trim().min(1, "Введите название доски").max(120, "Название слишком длинное").optional(),
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     visibility: z.enum(["personal", "company", "members"]).optional(),
+    customFields: z.array(z.record(z.unknown())).optional(),
+    labelGroups: z.array(z.record(z.unknown())).optional(),
   });
   const kanbanBoardMemberCreateSchema = z.object({
     userId: z.string().trim().min(1, "userId обязателен"),
@@ -503,6 +505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
+    customFieldValues: z.record(z.unknown()).optional(),
     subtasks: z.array(z.object({
       id: z.string().trim().min(1),
       title: z.string().trim().min(1).max(240),
@@ -519,6 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dueDate: z.string().trim().nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
+    customFieldValues: z.record(z.unknown()).optional(),
     subtasks: z.array(z.object({
       id: z.string().trim().min(1),
       title: z.string().trim().min(1).max(240),
@@ -532,7 +536,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const kanbanLabelPayloadSchema = z.object({
     name: z.string().trim().min(1, "Введите название метки").max(80, "Название слишком длинное"),
     color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
+    groupId: z.string().trim().min(1).nullable().optional(),
   });
+  const kanbanCustomFieldTypeSchema = z.enum([
+    "text",
+    "number",
+    "date",
+    "checkbox",
+    "select",
+    "multi-select",
+    "url",
+    "email",
+    "person",
+  ]);
+  const kanbanCustomFieldPayloadSchema = z.object({
+    name: z.string().trim().min(1, "Введите название поля").max(80, "Название слишком длинное"),
+    type: kanbanCustomFieldTypeSchema.default("text"),
+    options: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+    required: z.boolean().optional().default(false),
+    showOnCard: z.boolean().optional().default(true),
+    showInList: z.boolean().optional().default(true),
+  });
+  const kanbanLabelGroupPayloadSchema = z.object({
+    name: z.string().trim().min(1, "Введите название группы").max(80, "Название слишком длинное"),
+    color: z.string().trim().max(50, "Цвет слишком длинный").nullable().optional(),
+  });
+
+  const asPlainArray = (value: unknown) => (Array.isArray(value) ? value : []);
+  const normalizeKanbanCustomFields = (value: unknown) =>
+    asPlainArray(value)
+      .map((field: any, index) => ({
+        id: String(field?.id || crypto.randomUUID()),
+        name: String(field?.name || "").trim(),
+        type: kanbanCustomFieldTypeSchema.safeParse(field?.type).success ? field.type : "text",
+        options: Array.isArray(field?.options)
+          ? Array.from(new Set(field.options.map((option: unknown) => String(option).trim()).filter(Boolean)))
+          : [],
+        required: Boolean(field?.required),
+        showOnCard: field?.showOnCard !== false,
+        showInList: field?.showInList !== false,
+        position: Number.isFinite(Number(field?.position)) ? Number(field.position) : index,
+        archivedAt: field?.archivedAt ?? null,
+        createdAt: field?.createdAt ?? new Date().toISOString(),
+        updatedAt: field?.updatedAt ?? new Date().toISOString(),
+      }))
+      .filter((field) => field.name)
+      .sort((a, b) => Number(a.position) - Number(b.position));
+  const normalizeKanbanLabelGroups = (value: unknown) =>
+    asPlainArray(value)
+      .map((group: any) => ({
+        id: String(group?.id || crypto.randomUUID()),
+        name: String(group?.name || "").trim(),
+        color: group?.color ? String(group.color).trim() : null,
+        archivedAt: group?.archivedAt ?? null,
+        createdAt: group?.createdAt ?? new Date().toISOString(),
+        updatedAt: group?.updatedAt ?? new Date().toISOString(),
+      }))
+      .filter((group) => group.name);
 
   const buildKanbanBoardResponse = (
     board: any,
@@ -815,6 +875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lists = listLists.flat() as any[];
       const listNameById = new Map(lists.map((list) => [String(list.id), String(list.name || "Список")]));
       const listTypeById = new Map(lists.map((list) => [String(list.id), String(list.type || "active")]));
+      const listColorById = new Map(lists.map((list) => [String(list.id), list.color ? String(list.color) : null]));
       const boardNameById = new Map((boards as any[]).map((board) => [String(board.id), String(board.name || "Доска")]));
       const cardsWithLabels = await buildKanbanCardResponses(cards as any[]);
       res.json(
@@ -822,6 +883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...card,
           listName: listNameById.get(String(card.listId)) || "Список",
           listType: listTypeById.get(String(card.listId)) || "active",
+          listColor: listColorById.get(String(card.listId)) || null,
           boardName: boardNameById.get(String(card.boardId)) || "Доска",
         })),
       );
@@ -923,6 +985,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.visibility !== undefined) updateData.visibility = access.board.companyId ? parsed.visibility : "personal";
       if (parsed.projectId !== undefined) updateData.projectId = parsed.projectId;
+      if (parsed.customFields !== undefined) updateData.customFields = normalizeKanbanCustomFields(parsed.customFields);
+      if (parsed.labelGroups !== undefined) updateData.labelGroups = normalizeKanbanLabelGroups(parsed.labelGroups);
 
       const updated = await storage.updateKanbanBoard(access.board.id, updateData as any);
       if (!updated) return res.status(404).json({ message: "Доска не найдена" });
@@ -953,6 +1017,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Kanban] Failed to delete board:", error);
       res.status(500).json({ message: "Не удалось удалить доску" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:boardId/custom-fields", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      res.json(normalizeKanbanCustomFields((access.board as any).customFields));
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch custom fields:", error);
+      res.status(500).json({ message: "Не удалось загрузить поля доски" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/custom-fields", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления полями" });
+
+      const parsed = kanbanCustomFieldPayloadSchema.parse(req.body || {});
+      const fields = normalizeKanbanCustomFields((access.board as any).customFields);
+      if (fields.some((field) => !field.archivedAt && field.name.toLowerCase() === parsed.name.toLowerCase())) {
+        return res.status(409).json({ message: "Поле с таким названием уже существует" });
+      }
+      const now = new Date().toISOString();
+      const nextField = {
+        id: crypto.randomUUID(),
+        name: parsed.name,
+        type: parsed.type,
+        options: Array.from(new Set((parsed.options ?? []).map((option) => option.trim()).filter(Boolean))),
+        required: parsed.required,
+        showOnCard: parsed.showOnCard,
+        showInList: parsed.showInList,
+        position: fields.length,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const updated = await storage.updateKanbanBoard(access.board.id, { customFields: [...fields, nextField] } as any);
+      res.status(201).json(nextField);
+      if (updated) void updated;
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные поля", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create custom field:", error);
+      res.status(500).json({ message: "Не удалось создать поле" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:boardId/custom-fields/:fieldId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления полями" });
+
+      const parsed = kanbanCustomFieldPayloadSchema.partial().parse(req.body || {});
+      const fields = normalizeKanbanCustomFields((access.board as any).customFields);
+      const field = fields.find((item) => item.id === req.params.fieldId);
+      if (!field) return res.status(404).json({ message: "Поле не найдено" });
+      const nextName = parsed.name ?? field.name;
+      if (fields.some((item) => item.id !== field.id && !item.archivedAt && item.name.toLowerCase() === nextName.toLowerCase())) {
+        return res.status(409).json({ message: "Поле с таким названием уже существует" });
+      }
+      const nextFields = fields.map((item) => item.id === field.id
+        ? {
+            ...item,
+            ...parsed,
+            name: nextName,
+            options: parsed.options !== undefined
+              ? Array.from(new Set(parsed.options.map((option) => option.trim()).filter(Boolean)))
+              : item.options,
+            updatedAt: new Date().toISOString(),
+          }
+        : item);
+      await storage.updateKanbanBoard(access.board.id, { customFields: nextFields } as any);
+      res.json(nextFields.find((item) => item.id === field.id));
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные поля", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update custom field:", error);
+      res.status(500).json({ message: "Не удалось обновить поле" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/custom-fields/:fieldId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления полями" });
+      const fields = normalizeKanbanCustomFields((access.board as any).customFields);
+      const found = fields.some((field) => field.id === req.params.fieldId);
+      if (!found) return res.status(404).json({ message: "Поле не найдено" });
+      const now = new Date().toISOString();
+      await storage.updateKanbanBoard(access.board.id, {
+        customFields: fields.map((field) => field.id === req.params.fieldId
+          ? { ...field, archivedAt: now, updatedAt: now }
+          : field),
+      } as any);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to archive custom field:", error);
+      res.status(500).json({ message: "Не удалось архивировать поле" });
+    }
+  });
+
+  app.get("/api/kanban/boards/:boardId/label-groups", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      res.json(normalizeKanbanLabelGroups((access.board as any).labelGroups));
+    } catch (error) {
+      console.error("[Kanban] Failed to fetch label groups:", error);
+      res.status(500).json({ message: "Не удалось загрузить группы меток" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/label-groups", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления группами" });
+      const parsed = kanbanLabelGroupPayloadSchema.parse(req.body || {});
+      const groups = normalizeKanbanLabelGroups((access.board as any).labelGroups);
+      if (groups.some((group) => !group.archivedAt && group.name.toLowerCase() === parsed.name.toLowerCase())) {
+        return res.status(409).json({ message: "Группа с таким названием уже существует" });
+      }
+      const now = new Date().toISOString();
+      const group = {
+        id: crypto.randomUUID(),
+        name: parsed.name,
+        color: parsed.color?.trim() || null,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await storage.updateKanbanBoard(access.board.id, { labelGroups: [...groups, group] } as any);
+      res.status(201).json(group);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные группы", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to create label group:", error);
+      res.status(500).json({ message: "Не удалось создать группу" });
+    }
+  });
+
+  app.put("/api/kanban/boards/:boardId/label-groups/:groupId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления группами" });
+      const parsed = kanbanLabelGroupPayloadSchema.partial().parse(req.body || {});
+      const groups = normalizeKanbanLabelGroups((access.board as any).labelGroups);
+      const group = groups.find((item) => item.id === req.params.groupId);
+      if (!group) return res.status(404).json({ message: "Группа не найдена" });
+      const nextName = parsed.name ?? group.name;
+      if (groups.some((item) => item.id !== group.id && !item.archivedAt && item.name.toLowerCase() === nextName.toLowerCase())) {
+        return res.status(409).json({ message: "Группа с таким названием уже существует" });
+      }
+      const nextGroups = groups.map((item) => item.id === group.id
+        ? {
+            ...item,
+            name: nextName,
+            color: parsed.color !== undefined ? parsed.color?.trim() || null : item.color,
+            updatedAt: new Date().toISOString(),
+          }
+        : item);
+      await storage.updateKanbanBoard(access.board.id, { labelGroups: nextGroups } as any);
+      res.json(nextGroups.find((item) => item.id === group.id));
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные группы", errors: error.flatten?.() });
+      }
+      console.error("[Kanban] Failed to update label group:", error);
+      res.status(500).json({ message: "Не удалось обновить группу" });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/label-groups/:groupId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
+      if (!access.canManage) return res.status(403).json({ message: "Недостаточно прав для управления группами" });
+      const groups = normalizeKanbanLabelGroups((access.board as any).labelGroups);
+      const found = groups.some((group) => group.id === req.params.groupId);
+      if (!found) return res.status(404).json({ message: "Группа не найдена" });
+      const now = new Date().toISOString();
+      await storage.updateKanbanBoard(access.board.id, {
+        labelGroups: groups.map((group) => group.id === req.params.groupId
+          ? { ...group, archivedAt: now, updatedAt: now }
+          : group),
+      } as any);
+      const labels = await storage.getKanbanLabelsByBoardId(access.board.id).catch(() => []);
+      await Promise.all((labels as any[])
+        .filter((label) => String(label.groupId || "") === String(req.params.groupId))
+        .map((label) => storage.updateKanbanLabel(label.id, { groupId: null } as any)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Kanban] Failed to archive label group:", error);
+      res.status(500).json({ message: "Не удалось архивировать группу" });
     }
   });
 
@@ -1544,10 +1827,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const parsed = kanbanLabelPayloadSchema.parse(req.body || {});
+      const existingLabels = await storage.getKanbanLabelsByBoardId(access.board.id).catch(() => []);
+      if ((existingLabels as any[]).some((label) => !label.archivedAt && String(label.name || "").toLowerCase() === parsed.name.toLowerCase())) {
+        return res.status(409).json({ message: "Метка с таким названием уже существует" });
+      }
+      if (parsed.groupId) {
+        const groups = normalizeKanbanLabelGroups((access.board as any).labelGroups);
+        const group = groups.find((item) => item.id === parsed.groupId && !item.archivedAt);
+        if (!group) return res.status(400).json({ message: "Группа меток не найдена" });
+      }
       const labelData = insertKanbanLabelSchema.parse({
         boardId: access.board.id,
         name: parsed.name,
         color: parsed.color?.trim() || null,
+        groupId: parsed.groupId || null,
       });
       const label = await storage.createKanbanLabel(labelData);
       res.status(201).json(label);
@@ -1577,9 +1870,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const parsed = kanbanLabelPayloadSchema.parse(req.body || {});
+      const existingLabels = await storage.getKanbanLabelsByBoardId(access.board.id).catch(() => []);
+      if ((existingLabels as any[]).some((item) =>
+        String(item.id) !== String(label.id) &&
+        !item.archivedAt &&
+        String(item.name || "").toLowerCase() === parsed.name.toLowerCase()
+      )) {
+        return res.status(409).json({ message: "Метка с таким названием уже существует" });
+      }
+      if (parsed.groupId) {
+        const groups = normalizeKanbanLabelGroups((access.board as any).labelGroups);
+        const group = groups.find((item) => item.id === parsed.groupId && !item.archivedAt);
+        if (!group) return res.status(400).json({ message: "Группа меток не найдена" });
+      }
       const updated = await storage.updateKanbanLabel(label.id, {
         name: parsed.name,
         color: parsed.color?.trim() || null,
+        groupId: parsed.groupId || null,
       });
       if (!updated) return res.status(404).json({ message: "Метка не найдена" });
 
@@ -1656,6 +1963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate: parseOptionalKanbanDate(parsed.startDate),
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
         subtasks: normalizeKanbanSubtasks(parsed.subtasks),
+        customFieldValues: parsed.customFieldValues ?? {},
         creatorUserId: currentUser.id,
         assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
@@ -1707,6 +2015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.startDate !== undefined) updateData.startDate = parseOptionalKanbanDate(parsed.startDate);
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
+      if (parsed.customFieldValues !== undefined) updateData.customFieldValues = parsed.customFieldValues ?? {};
       if (parsed.assigneeUserId !== undefined) {
         const assigneeResolution = await resolveKanbanAssigneeUserId(access.board, currentUser, parsed.assigneeUserId);
         if (!assigneeResolution.ok) {
@@ -2500,7 +2809,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!(await hasWorkspaceAccess(req.user))) {
       return res.json({ onlineSystems: "0/0", activeStreams: 0, availableEquipment: "0/0", todayEvents: 0 });
     }
-    const [systems, equipment, streams, events] = await Promise.all([
+    const currentUser = req.user as any;
+    const [systems, equipment, streams, events, visibleBoardsResult] = await Promise.all([
       withDbTimeout(() => storage.getSystems(), 3000, []),
       withDbTimeout(() => storage.getEquipment(), 3000, []),
       withDbTimeout(() => storage.getActiveStreams(), 3000, []),
@@ -2508,16 +2818,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         new Date(new Date().setHours(0, 0, 0, 0)),
         new Date(new Date().setHours(23, 59, 59, 999))
       ), 3000, []),
+      withDbTimeout(() => getVisibleKanbanBoardsForUser(currentUser), 3000, { boards: [], membershipMap: new Map() }),
     ]);
 
     const onlineSystems = systems.filter((s: any) => s.status === "online").length;
     const availableEquipment = equipment.filter((e: any) => e.status === "available").length;
+    const dashboardBoards = Array.isArray((visibleBoardsResult as any).boards) ? (visibleBoardsResult as any).boards : [];
+    const boardIds = dashboardBoards.map((board: any) => String(board.id)).filter(Boolean);
+    const [kanbanCardGroups, kanbanListGroups] = await Promise.all([
+      Promise.all(boardIds.map((boardId: string) => withDbTimeout(() => storage.getKanbanCardsByBoardId(boardId), 2000, []))),
+      Promise.all(boardIds.map((boardId: string) => withDbTimeout(() => storage.getKanbanListsByBoardId(boardId), 2000, []))),
+    ]);
+    const kanbanCards = kanbanCardGroups.flat() as any[];
+    const kanbanLists = kanbanListGroups.flat() as any[];
+    const completeListIds = new Set(
+      kanbanLists
+        .filter((list) => list.type === "closed" || list.type === "archive")
+        .map((list) => String(list.id)),
+    );
+    const completedKanbanCards = kanbanCards.filter((card) => completeListIds.has(String(card.listId))).length;
+    const completionPercent = kanbanCards.length === 0
+      ? 0
+      : Math.round((completedKanbanCards / kanbanCards.length) * 100);
 
     res.json({
       onlineSystems: `${onlineSystems}/${systems.length}`,
       activeStreams: streams.length,
       availableEquipment: `${availableEquipment}/${equipment.length}`,
       todayEvents: events.length,
+      kanbanCompletion: {
+        total: kanbanCards.length,
+        completed: completedKanbanCards,
+        open: Math.max(kanbanCards.length - completedKanbanCards, 0),
+        percent: completionPercent,
+        boards: dashboardBoards.length,
+      },
     });
   });
 

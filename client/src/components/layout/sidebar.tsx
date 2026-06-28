@@ -205,7 +205,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       <div
         className={cn(
           "fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-in-out lg:translate-x-0 flex flex-col overflow-hidden",
-          "bg-slate-50 border-r border-slate-200 shadow-xl dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none dark:backdrop-blur-md",
+          "bg-card border-r border-border/40 shadow-xl dark:shadow-none dark:backdrop-blur-md",
           isOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-14 sm:w-16 lg:w-14 xl:w-16" : "w-[200px] sm:w-56 lg:w-[200px] xl:w-56 max-w-[80vw] lg:max-w-none"
         )}
@@ -222,7 +222,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           size="icon"
           aria-label={collapsed ? "Развернуть боковое меню" : "Свернуть боковое меню"}
           className={cn(
-            "absolute -right-2 top-1/2 z-10 hidden h-20 w-4 -translate-y-1/2 rounded-full border border-border/70 bg-card/90 p-0 shadow-sm lg:flex",
+            "absolute -right-2 top-1/2 z-10 hidden h-20 w-4 -translate-y-1/2 rounded-full border border-border/40 bg-card/90 p-0 shadow-sm lg:flex",
             "transition-colors hover:bg-primary/10 focus:bg-primary/10"
           )}
           onClick={toggleCollapse}
@@ -230,7 +230,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </Button>
 
-        <div className={cn("p-2 sm:p-3 border-b border-border", collapsed && "p-2")}>
+        <div className={cn("flex h-[var(--app-header-height)] items-center border-b border-border/40 px-2 sm:px-3", collapsed && "justify-center px-2")}>
           <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-2")}>
             <div className="relative w-8 h-8 sm:w-9 sm:h-9 bg-primary rounded-lg flex items-center justify-center shadow flex-shrink-0">
               <RadioTower className="text-primary-foreground h-4 w-4 sm:h-5 sm:w-5" />
@@ -261,7 +261,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           ))}
 
           {!isOwnerMode && canAccessTab("vmix-scheduler") && (
-            <div className="my-4 border-t border-border pt-4">
+            <div className="my-4 border-t border-border/40 pt-4">
               <Link
                 href="/vmix-scheduler"
                 onClick={onClose}
@@ -293,7 +293,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           {(isOwnerMode || visibleServiceNavigation.length > 0 || (canViewCompanyAdmin && !isOwnerMode)) && (
             <>
               {!collapsed && (
-                <div className="my-4 border-t border-border pt-4">
+                <div className="my-4 border-t border-border/40 pt-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">Управление</p>
                 </div>
               )}
@@ -339,7 +339,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           )}
         </nav>
 
-        <div className={cn("p-2 sm:p-3 border-t border-border", collapsed && "p-2")}>
+        <div className={cn("p-2 sm:p-3 border-t border-border/40", collapsed && "p-2")}>
           <div className="bg-muted/50 rounded-lg p-3">
             <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
               <Avatar className={cn("flex-shrink-0 touch-target", collapsed ? "w-8 h-8" : "w-10 h-10")}>
