@@ -713,7 +713,7 @@ export default function Calendar() {
     if (!color) return undefined;
     const mix = strength === "badge" ? 26 : strength === "inline" ? 20 : 22;
     return {
-      borderColor: `color-mix(in srgb, ${color} 58%, hsl(var(--border)))`,
+      borderColor: `color-mix(in srgb, ${color} 58%, hsl(var(--app-border)))`,
       borderLeftColor: color,
       background: `color-mix(in srgb, ${color} ${mix}%, var(--card))`,
       color: "var(--foreground)",

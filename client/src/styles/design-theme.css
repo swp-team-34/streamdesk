@@ -26,15 +26,6 @@
   --color-inh-inactive-rgb: 105 105 105; /* #696969 */
 }
 
-/* Compatibility helpers and small utilities */
-*,
-::after,
-::before,
-::backdrop,
-::file-selector-button {
-  border-color: hsl(var(--border) / 0.45);
-}
-
 @keyframes fake-progress {
   from { width: 0%; }
   5% { width: 40%; }
