@@ -18,3 +18,6 @@ We used LLM tools strategically to accelerate repetitive tasks, clarify complex 
 ### 4. Learning and Task Understanding
 - **Assignment clarification:** The team used LLM to break down complex assignment requirements, identify key deliverables, and understand the relationships between different process and repository requirements.
 - **Task decomposition:** LLM assisted in understanding technical requirements and breaking down large tasks into smaller, implementable subtasks.
+
+### 5. Presentation slides:
+-**Presentation structure:** LLM helped generate the initial structure and draft content for the presentation. The team then reviewed, edited, and adapted the material.
