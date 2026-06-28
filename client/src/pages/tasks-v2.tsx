@@ -4,6 +4,7 @@ import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropRe
 import {
   ArrowDown,
   ArrowLeft,
+  BarChart3,
   Building2,
   Check,
   ChevronDown,
@@ -35,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -216,6 +218,27 @@ interface KanbanCardCommentView {
   content: string;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
+}
+
+interface BoardCompletionSummary {
+  total: number;
+  completed: number;
+  percent: number;
+}
+
+interface BoardCompletionGroup {
+  id: string;
+  title: string;
+  hint?: string;
+  summary: BoardCompletionSummary;
+}
+
+interface BoardCompletionSection {
+  id: string;
+  title: string;
+  description: string;
+  emptyLabel: string;
+  groups: BoardCompletionGroup[];
 }
 
 interface KanbanCardAttachmentView {
@@ -445,6 +468,23 @@ const getKanbanHistoryActionLabel = (action: string) => {
 
 const normalizeLabelIds = (labelIds?: string[] | null) =>
   Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
+
+const getCompletionSummary = (
+  sourceCards: KanbanCardView[],
+  listById: Map<string, KanbanListView>,
+): BoardCompletionSummary => {
+  const total = sourceCards.length;
+  const completed = sourceCards.filter((card) => {
+    const list = listById.get(card.listId);
+    return list?.type === "closed" || list?.type === "archive";
+  }).length;
+
+  return {
+    total,
+    completed,
+    percent: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+};
 
 const normalizeCustomFieldDefinitions = (fields?: KanbanCustomFieldDefinition[] | null) =>
   (Array.isArray(fields) ? fields : [])
@@ -714,6 +754,7 @@ export default function TasksV2Page() {
   const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
   const [cardFilters, setCardFilters] = useState(EMPTY_FILTERS);
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
+  const [boardStatsOpen, setBoardStatsOpen] = useState(false);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
   const [detailCommentDraft, setDetailCommentDraft] = useState("");
   const [detailSubtaskDraft, setDetailSubtaskDraft] = useState("");
@@ -958,6 +999,126 @@ export default function TasksV2Page() {
     () => cards.filter((card) => getDueDateStatus(card.dueDate) === "overdue").length,
     [cards],
   );
+  const boardCompletionStats = useMemo(() => {
+    const listById = new Map(lists.map((list) => [list.id, list]));
+    const overview = getCompletionSummary(cards, listById);
+    const locationFields = activeCustomFields.filter((field) => {
+      const normalized = field.name.toLowerCase();
+      return ["location", "мест", "локац", "студ"].some((marker) => normalized.includes(marker));
+    });
+
+    const makeGroup = (
+      id: string,
+      title: string,
+      sourceCards: KanbanCardView[],
+      hint?: string,
+    ): BoardCompletionGroup => ({
+      id,
+      title,
+      hint,
+      summary: getCompletionSummary(sourceCards, listById),
+    });
+
+    const listGroups = lists.map((list) =>
+      makeGroup(list.id, list.name, cards.filter((card) => card.listId === list.id), LIST_TYPE_LABELS[list.type]),
+    );
+
+    const assigneeIds = Array.from(new Set(cards.map((card) => String(card.assigneeUserId || "unassigned"))));
+    const assigneeGroups = assigneeIds.map((assigneeId) =>
+      makeGroup(
+        assigneeId,
+        assigneeId === "unassigned" ? "Без исполнителя" : userById.get(assigneeId)?.name || assigneeId,
+        cards.filter((card) => String(card.assigneeUserId || "unassigned") === assigneeId),
+      ),
+    );
+
+    const locationGroups = locationFields.flatMap((field) => {
+      const values = Array.from(
+        new Set(cards.map((card) => formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)).filter(Boolean)),
+      );
+      return values.map((value) =>
+        makeGroup(
+          `${field.id}:${value}`,
+          value,
+          cards.filter((card) => formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById) === value),
+          field.name,
+        ),
+      );
+    });
+
+    const labelGroups = boardLabels.map((label) =>
+      makeGroup(
+        label.id,
+        label.name,
+        cards.filter((card) => normalizeLabelIds(card.labelIds).includes(label.id)),
+        label.groupId ? labelGroupById.get(label.groupId)?.name : "Метка",
+      ),
+    );
+    const groupedLabelGroups = activeLabelGroups.map((group) =>
+      makeGroup(
+        `group:${group.id}`,
+        group.name,
+        cards.filter((card) =>
+          normalizeLabelIds(card.labelIds).some((labelId) => String(labelById.get(labelId)?.groupId || "") === group.id),
+        ),
+        "Группа меток",
+      ),
+    );
+
+    const stageGroups = Object.entries(LIST_TYPE_LABELS).map(([type, label]) =>
+      makeGroup(
+        type,
+        label,
+        cards.filter((card) => listById.get(card.listId)?.type === type),
+      ),
+    );
+
+    const sections: BoardCompletionSection[] = [
+      {
+        id: "stream",
+        title: "Потоки / списки",
+        description: "Completion по каждому списку текущей доски.",
+        emptyLabel: "На доске пока нет списков.",
+        groups: listGroups,
+      },
+      {
+        id: "assignee",
+        title: "Исполнители",
+        description: "Completion по участникам, которым назначены карточки.",
+        emptyLabel: "Назначенных задач пока нет.",
+        groups: assigneeGroups,
+      },
+      {
+        id: "location",
+        title: "Локации",
+        description: "Completion по custom fields, похожим на место или локацию.",
+        emptyLabel: "Поле локации пока не найдено или не заполнено.",
+        groups: locationGroups,
+      },
+      {
+        id: "tags",
+        title: "Метки и группы",
+        description: "Completion по меткам и группам меток.",
+        emptyLabel: "Метки пока не назначены карточкам.",
+        groups: [...groupedLabelGroups, ...labelGroups],
+      },
+      {
+        id: "stage",
+        title: "Стадии проекта",
+        description: "Completion по типам списков: активные, закрытые, архив, корзина.",
+        emptyLabel: "Стадии пока не заполнены.",
+        groups: stageGroups,
+      },
+    ].map((section) => ({
+      ...section,
+      groups: section.groups
+        .filter((group) => group.summary.total > 0 || section.id === "stream" || section.id === "stage")
+        .sort((a, b) => b.summary.total - a.summary.total || a.title.localeCompare(b.title, "ru")),
+    }));
+
+    return { overview, sections };
+  }, [activeCustomFields, activeLabelGroups, boardLabels, cards, labelById, labelGroupById, lists, userById]);
+  const boardCompletionLoading = cardsLoading || listsLoading || boardLabelsLoading || boardCustomFieldsLoading || boardLabelGroupsLoading;
   const hasActiveFilters = useMemo(
     () =>
       cardFilters.search.trim() !== "" ||
@@ -2958,6 +3119,11 @@ export default function TasksV2Page() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel>Статистика</DropdownMenuLabel>
+              <DropdownMenuItem disabled={!selectedBoard} onClick={() => setBoardStatsOpen(true)}>
+                <BarChart3 className="h-4 w-4" />
+                Статистика доски
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem disabled>Всего досок: {boards.length}</DropdownMenuItem>
               <DropdownMenuItem disabled>Личных: {personalBoards.length}</DropdownMenuItem>
               <DropdownMenuItem disabled>Просрочено: {overdueCardsCount}</DropdownMenuItem>
@@ -4763,6 +4929,101 @@ export default function TasksV2Page() {
               })()}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={boardStatsOpen} onOpenChange={setBoardStatsOpen}>
+        <DialogContent className="max-h-[88vh] max-w-5xl overflow-y-auto border-border/45 bg-card p-0 text-card-foreground shadow-2xl">
+          <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Статистика доски
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBoard ? `${selectedBoard.name}: текущий completion level по карточкам доски.` : "Выберите доску, чтобы увидеть статистику."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 px-6 py-6">
+            {boardCompletionLoading ? (
+              <div className="space-y-4">
+                <div className="h-28 animate-pulse rounded-2xl bg-muted/40" />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="h-44 animate-pulse rounded-2xl bg-muted/30" />
+                  <div className="h-44 animate-pulse rounded-2xl bg-muted/30" />
+                </div>
+              </div>
+            ) : !selectedBoard ? (
+              <div className="rounded-2xl border border-border/40 bg-muted/20 p-6 text-sm text-muted-foreground">
+                Доска не выбрана.
+              </div>
+            ) : boardCompletionStats.overview.total === 0 ? (
+              <div className="rounded-2xl border border-border/40 bg-muted/20 p-6 text-sm text-muted-foreground">
+                На этой доске пока нет задач. Completion level появится после создания первой карточки.
+              </div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-border/40 bg-muted/20 p-5">
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Общий completion level</p>
+                      <div className="mt-1 text-4xl font-semibold">{boardCompletionStats.overview.percent}%</div>
+                    </div>
+                    <div className="text-right text-sm text-muted-foreground">
+                      <div className="font-medium text-foreground">
+                        {boardCompletionStats.overview.completed}/{boardCompletionStats.overview.total} завершено
+                      </div>
+                      <div>Completed = списки Closed или Archive</div>
+                    </div>
+                  </div>
+                  <Progress value={boardCompletionStats.overview.percent} className="mt-4 h-2 rounded-full" />
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {boardCompletionStats.sections.map((section) => (
+                    <div key={section.id} className="rounded-2xl border border-border/40 bg-muted/15 p-4">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold">{section.title}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">{section.description}</p>
+                      </div>
+
+                      {section.groups.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-border/35 bg-background/45 p-4 text-sm text-muted-foreground">
+                          {section.emptyLabel}
+                        </div>
+                      ) : (
+                        <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
+                          {section.groups.map((group) => (
+                            <div key={group.id} className="rounded-xl border border-border/30 bg-background/60 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-medium">{group.title}</div>
+                                  {group.hint && <div className="truncate text-xs text-muted-foreground">{group.hint}</div>}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <div className="text-sm font-semibold">{group.summary.percent}%</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {group.summary.completed}/{group.summary.total}
+                                  </div>
+                                </div>
+                              </div>
+                              <Progress value={group.summary.percent} className="mt-3 h-1.5 rounded-full" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border/35 bg-muted/15 px-6 py-4">
+            <Button variant="outline" className="rounded-xl" onClick={() => setBoardStatsOpen(false)}>
+              Закрыть
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
