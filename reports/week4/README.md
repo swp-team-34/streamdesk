@@ -36,7 +36,7 @@
 
 ## Documentation and Quality
 12. **Roadmap:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/roadmap.md)
-13. **Definition of Done:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/definition-of-done.md`)
+13. **Definition of Done:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/definition-of-done.md)
 14. **Quality Requirements:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirements.md)
 15. **Quality Requirement Tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md)
 16. **Testing:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/testing.md)
