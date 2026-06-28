@@ -23,10 +23,12 @@
 To address the gaps and friction identified during the Sprint Review, we have adapted the Product Backlog with the following actions:
 
 1. **Fix UI Stretching Bug:** We created a Bug PBI to investigate and fix the CSS/layout issue where calendar task cards stretch awkwardly with excessive text. 
-   *Link:* [Issue #XX - Fix calendar card overflow/stretching UI bug](link_to_issue)
+   *Link:* [Issue #90 - Bug: move of elements](https://github.com/swp-team-34/streamdesk/issues/90)
 2. **Implement Drag-and-Drop:** We added a new User Story to the backlog for implementing drag-and-drop functionality for moving and editing tasks directly on the calendar interface. Due to its complexity, it will be refined and prioritized for the next Sprint.
-   *Link:* [Issue #YY - Add drag-and-drop support for calendar tasks](link_to_issue)
+   *Link:* [Issue #112 - Add drag-and-drop support for calendar tasks](https://github.com/swp-team-34/streamdesk/issues/112)
 3. **Implement Deadline Color-Coding:** We created a User Story to evaluate and implement dynamic color-coding for calendar tasks based on deadline proximity.
-   *Link:* [Issue #ZZ - Add color-coding for tasks based on deadline proximity](link_to_issue)
-4. **Verify Task Overlap Rendering:** We created a QA/Testing PBI to add a specific manual UAT scenario (and an automated UI test if applicable) to verify that overlapping tasks shift and display correctly without visual clutter, closing the testing gap identified during the session.
-   *Link:* [Issue #WW - Add UAT and UI test for calendar task overlap rendering](link_to_issue)
+   *Link:* [Issue #114 - Add color-coding for tasks based on deadline proximity](https://github.com/swp-team-34/streamdesk/issues/114)
+4. **Implement task overlapping avoidance:** We captured Customer's wish to avoid task overlapping in calendar in a new User Story when the feature itself was already implemented to review the feature in the future for acceptance by the Customer.
+   *Link:* [Issue #113 - Avoid tasks UI overlapping](https://github.com/swp-team-34/streamdesk/issues/113)
+5. **Fix task description overflow bug:** We created a Bug PBI to investigate and fix the info overflow issue where the short info about the task doesn't fit into the task card in calendar.
+   *Link:* [Issue #113 - Bug: Text information overflow in task card at Calendar page](https://github.com/swp-team-34/streamdesk/issues/111)
