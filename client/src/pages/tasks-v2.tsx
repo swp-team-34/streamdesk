@@ -53,8 +53,9 @@ type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
 type KanbanCardPriority = "low" | "medium" | "high" | "urgent";
 type BoardViewMode = "kanban" | "list";
-type BoardListGrouping = "none" | "list" | "due" | "assignee" | "priority";
+type BoardListGrouping = "none" | "list" | "due" | "assignee" | "priority" | `field:${string}`;
 type DetailSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+type KanbanCustomFieldType = "text" | "number" | "date" | "checkbox" | "select" | "multi-select" | "url" | "email" | "person";
 
 interface CompanySummary {
   id: string;
@@ -103,11 +104,36 @@ interface KanbanBoardView {
   createdByUserId: string;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
+  customFields?: KanbanCustomFieldDefinition[];
+  labelGroups?: KanbanLabelGroupView[];
   canManage?: boolean;
   canEdit?: boolean;
   canComment?: boolean;
   isMember?: boolean;
   membershipRole?: string | null;
+}
+
+interface KanbanCustomFieldDefinition {
+  id: string;
+  name: string;
+  type: KanbanCustomFieldType;
+  options?: string[];
+  required?: boolean;
+  showOnCard?: boolean;
+  showInList?: boolean;
+  position?: number;
+  archivedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+interface KanbanLabelGroupView {
+  id: string;
+  name: string;
+  color?: string | null;
+  archivedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
 }
 
 interface KanbanBoardMemberView {
@@ -149,6 +175,7 @@ interface KanbanCardView {
   dueDate?: string | Date | null;
   labelIds?: string[];
   subtasks?: KanbanSubtask[];
+  customFieldValues?: Record<string, unknown>;
   creatorUserId: string;
   assigneeUserId?: string | null;
   createdAt?: string | Date | null;
@@ -166,6 +193,8 @@ interface KanbanLabelView {
   boardId: string;
   name: string;
   color?: string | null;
+  groupId?: string | null;
+  archivedAt?: string | Date | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -249,9 +278,25 @@ const EMPTY_CARD_FORM = {
   dueDate: "",
   assigneeUserId: "",
   labelIds: [] as string[],
+  customFieldValues: {} as Record<string, unknown>,
 };
 
 const EMPTY_LABEL_FORM = {
+  name: "",
+  color: "",
+  groupId: "",
+};
+
+const EMPTY_CUSTOM_FIELD_FORM = {
+  name: "",
+  type: "text" as KanbanCustomFieldType,
+  options: "",
+  required: false,
+  showOnCard: true,
+  showInList: true,
+};
+
+const EMPTY_LABEL_GROUP_FORM = {
   name: "",
   color: "",
 };
@@ -264,10 +309,13 @@ const EMPTY_MEMBER_FORM: MemberFormState = {
 
 const EMPTY_FILTERS = {
   search: "",
+  status: "all",
   assigneeUserId: "",
   priority: "all",
   dueStatus: "all",
   labelId: "",
+  labelGroupId: "",
+  customFieldValues: {} as Record<string, string>,
 };
 
 const LIST_TYPE_LABELS: Record<KanbanListType, string> = {
@@ -283,6 +331,23 @@ const CARD_PRIORITY_LABELS: Record<KanbanCardPriority, string> = {
   high: "Высокий",
   urgent: "Срочный",
 };
+
+const CUSTOM_FIELD_TYPE_LABELS: Record<KanbanCustomFieldType, string> = {
+  text: "Текст",
+  number: "Число",
+  date: "Дата",
+  checkbox: "Чекбокс",
+  select: "Select",
+  "multi-select": "Multi-select",
+  url: "URL",
+  email: "Email",
+  person: "Исполнитель",
+};
+
+const DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES = [
+  { name: "File Storage Location", type: "text" as KanbanCustomFieldType, showOnCard: true, showInList: true },
+  { name: "Recording Date", type: "date" as KanbanCustomFieldType, showOnCard: true, showInList: true },
+];
 
 const CARD_PRIORITY_BADGE_VARIANTS: Record<
   KanbanCardPriority,
@@ -381,6 +446,36 @@ const getKanbanHistoryActionLabel = (action: string) => {
 const normalizeLabelIds = (labelIds?: string[] | null) =>
   Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
 
+const normalizeCustomFieldDefinitions = (fields?: KanbanCustomFieldDefinition[] | null) =>
+  (Array.isArray(fields) ? fields : [])
+    .filter((field) => field && !field.archivedAt && field.name)
+    .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
+
+const normalizeLabelGroups = (groups?: KanbanLabelGroupView[] | null) =>
+  (Array.isArray(groups) ? groups : [])
+    .filter((group) => group && !group.archivedAt && group.name);
+
+const normalizeCustomFieldOptions = (value: string) =>
+  Array.from(new Set(value.split(",").map((option) => option.trim()).filter(Boolean)));
+
+const formatCustomFieldValue = (
+  field: KanbanCustomFieldDefinition,
+  value: unknown,
+  userById?: Map<string, UserSummary>,
+) => {
+  if (value === undefined || value === null || value === "") return "";
+  if (field.type === "checkbox") return value ? "Да" : "Нет";
+  if (field.type === "multi-select") {
+    return Array.isArray(value) ? value.map(String).filter(Boolean).join(", ") : String(value);
+  }
+  if (field.type === "person") {
+    const user = userById?.get(String(value));
+    return user?.name || String(value);
+  }
+  if (field.type === "date") return formatDueDateLabel(value as string | Date | null) || String(value);
+  return String(value);
+};
+
 const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
   JSON.stringify({
     listId: form.listId,
@@ -390,6 +485,7 @@ const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
     dueDate: form.dueDate || "",
     assigneeUserId: form.assigneeUserId || "",
     labelIds: normalizeLabelIds(form.labelIds).sort(),
+    customFieldValues: form.customFieldValues ?? {},
   });
 
 const formatFileSize = (value?: number | null) => {
@@ -495,6 +591,7 @@ interface SaveCardInput {
   dueDate?: string | null;
   assigneeUserId?: string | null;
   labelIds?: string[];
+  customFieldValues?: Record<string, unknown>;
   inlineListId?: string;
 }
 
@@ -502,7 +599,18 @@ interface SaveLabelInput {
   labelId?: string | null;
   name?: string;
   color?: string | null;
+  groupId?: string | null;
   attachToDetail?: boolean;
+}
+
+interface SaveCustomFieldInput {
+  fieldId?: string | null;
+  form?: typeof EMPTY_CUSTOM_FIELD_FORM;
+}
+
+interface SaveLabelGroupInput {
+  groupId?: string | null;
+  form?: typeof EMPTY_LABEL_GROUP_FORM;
 }
 
 interface SaveCardDetailInput {
@@ -617,8 +725,9 @@ export default function TasksV2Page() {
   const [listGrouping, setListGrouping] = useState<BoardListGrouping>(() => {
     if (typeof window === "undefined") return "list";
     const stored = window.localStorage.getItem(BOARD_LIST_GROUPING_STORAGE_KEY);
-    return stored === "none" || stored === "list" || stored === "due" || stored === "assignee" || stored === "priority"
-      ? stored
+    if (!stored) return "list";
+    return stored === "none" || stored === "list" || stored === "due" || stored === "assignee" || stored === "priority" || stored.startsWith("field:")
+      ? (stored as BoardListGrouping)
       : "list";
   });
   const [boardSettingsOpen, setBoardSettingsOpen] = useState(false);
@@ -636,6 +745,10 @@ export default function TasksV2Page() {
   const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
   const [editingSettingsLabelId, setEditingSettingsLabelId] = useState<string | null>(null);
   const [editingSettingsLabelName, setEditingSettingsLabelName] = useState("");
+  const [customFieldForm, setCustomFieldForm] = useState(EMPTY_CUSTOM_FIELD_FORM);
+  const [editingCustomFieldId, setEditingCustomFieldId] = useState<string | null>(null);
+  const [labelGroupForm, setLabelGroupForm] = useState(EMPTY_LABEL_GROUP_FORM);
+  const [editingLabelGroupId, setEditingLabelGroupId] = useState<string | null>(null);
   const [listViewDraftListId, setListViewDraftListId] = useState("");
   const [listViewGroupDrafts, setListViewGroupDrafts] = useState<Record<string, string>>({});
   const detailAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -709,6 +822,22 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: boardCustomFields = [], isLoading: boardCustomFieldsLoading } = useQuery<KanbanCustomFieldDefinition[]>({
+    queryKey: ["kanban-custom-fields", selectedBoardId],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/custom-fields`);
+      return await res.json();
+    },
+  });
+  const { data: boardLabelGroups = [], isLoading: boardLabelGroupsLoading } = useQuery<KanbanLabelGroupView[]>({
+    queryKey: ["kanban-label-groups", selectedBoardId],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/label-groups`);
+      return await res.json();
+    },
+  });
   const selectedDetailCardSummary = useMemo(
     () => cards.find((card) => card.id === detailCardId) ?? null,
     [cards, detailCardId],
@@ -769,6 +898,18 @@ export default function TasksV2Page() {
     () => new Map(boardLabels.map((label) => [label.id, label])),
     [boardLabels],
   );
+  const activeCustomFields = useMemo(
+    () => normalizeCustomFieldDefinitions(boardCustomFields.length > 0 ? boardCustomFields : selectedBoard?.customFields),
+    [boardCustomFields, selectedBoard?.customFields],
+  );
+  const activeLabelGroups = useMemo(
+    () => normalizeLabelGroups(boardLabelGroups.length > 0 ? boardLabelGroups : selectedBoard?.labelGroups),
+    [boardLabelGroups, selectedBoard?.labelGroups],
+  );
+  const labelGroupById = useMemo(
+    () => new Map(activeLabelGroups.map((group) => [group.id, group])),
+    [activeLabelGroups],
+  );
   const selectedCompanyItem = useMemo(
     () => companyItems.find((item) => item.company.id === selectedBoard?.companyId) ?? null,
     [companyItems, selectedBoard?.companyId],
@@ -820,19 +961,52 @@ export default function TasksV2Page() {
   const hasActiveFilters = useMemo(
     () =>
       cardFilters.search.trim() !== "" ||
+      cardFilters.status !== "all" ||
       cardFilters.assigneeUserId !== "" ||
       cardFilters.priority !== "all" ||
       cardFilters.dueStatus !== "all" ||
-      cardFilters.labelId !== "",
+      cardFilters.labelId !== "" ||
+      cardFilters.labelGroupId !== "" ||
+      Object.values(cardFilters.customFieldValues).some((value) => value.trim() !== ""),
     [cardFilters],
   );
   const filteredCards = useMemo(() => {
     const search = cardFilters.search.trim().toLowerCase();
+    const listById = new Map(lists.map((list) => [list.id, list]));
 
     return cards.filter((card) => {
       if (search) {
-        const haystack = [card.title, card.description || ""].join(" ").toLowerCase();
+        const list = listById.get(card.listId);
+        const labelTexts = normalizeLabelIds(card.labelIds).flatMap((labelId) => {
+          const label = labelById.get(labelId);
+          const group = label?.groupId ? labelGroupById.get(label.groupId) : null;
+          return [label?.name, group?.name].filter(Boolean) as string[];
+        });
+        const customFieldTexts = activeCustomFields
+          .filter((field) => field.showOnCard !== false || field.showInList !== false)
+          .map((field) => formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById))
+          .filter(Boolean);
+        const assignee = card.assigneeUserId ? userById.get(card.assigneeUserId)?.name : "";
+        const haystack = [
+          card.title,
+          card.description || "",
+          assignee || "",
+          list?.name || "",
+          list ? LIST_TYPE_LABELS[list.type] : "",
+          CARD_PRIORITY_LABELS[card.priority],
+          ...labelTexts,
+          ...customFieldTexts,
+        ].join(" ").toLowerCase();
         if (!haystack.includes(search)) return false;
+      }
+
+      if (cardFilters.status !== "all") {
+        const list = listById.get(card.listId);
+        if (cardFilters.status.startsWith("list:")) {
+          if (card.listId !== cardFilters.status.slice(5)) return false;
+        } else if (cardFilters.status.startsWith("type:")) {
+          if (list?.type !== cardFilters.status.slice(5)) return false;
+        }
       }
 
       if (cardFilters.assigneeUserId && String(card.assigneeUserId || "") !== cardFilters.assigneeUserId) {
@@ -847,8 +1021,25 @@ export default function TasksV2Page() {
         return false;
       }
 
+      if (cardFilters.labelGroupId) {
+        const hasGroup = normalizeLabelIds(card.labelIds).some((labelId) => {
+          const label = labelById.get(labelId);
+          return String(label?.groupId || "") === cardFilters.labelGroupId;
+        });
+        if (!hasGroup) return false;
+      }
+
+      for (const [fieldId, rawNeedle] of Object.entries(cardFilters.customFieldValues)) {
+        const needle = rawNeedle.trim().toLowerCase();
+        if (!needle) continue;
+        const field = activeCustomFields.find((item) => item.id === fieldId);
+        if (!field) continue;
+        const value = formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById).toLowerCase();
+        if (!value.includes(needle)) return false;
+      }
+
       if (cardFilters.dueStatus !== "all") {
-        const list = lists.find((item) => item.id === card.listId);
+        const list = listById.get(card.listId);
         const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
         if (dueStatus !== cardFilters.dueStatus) return false;
@@ -856,7 +1047,7 @@ export default function TasksV2Page() {
 
       return true;
     });
-  }, [cardFilters, cards, lists]);
+  }, [activeCustomFields, cardFilters, cards, labelById, labelGroupById, lists, userById]);
 
   const filteredCardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
@@ -923,6 +1114,14 @@ export default function TasksV2Page() {
         continue;
       }
 
+      if (listGrouping.startsWith("field:")) {
+        const fieldId = listGrouping.slice("field:".length);
+        const field = activeCustomFields.find((item) => item.id === fieldId);
+        const value = field ? formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById) : "";
+        addCard(value || "empty", value ? `${field?.name || "Поле"}: ${value}` : `${field?.name || "Поле"}: пусто`, card);
+        continue;
+      }
+
       addCard(card.priority, CARD_PRIORITY_LABELS[card.priority], card);
     }
 
@@ -934,8 +1133,19 @@ export default function TasksV2Page() {
       }
     }
 
-    return Array.from(groups.values());
-  }, [filteredCards, listGrouping, lists, userById]);
+    return Array.from(groups.values()).map((group) => ({
+      ...group,
+      cards: [...group.cards].sort((a, b) => {
+        if (!listGrouping.startsWith("field:")) return Number(a.position) - Number(b.position);
+        const fieldId = listGrouping.slice("field:".length);
+        const field = activeCustomFields.find((item) => item.id === fieldId);
+        if (!field) return Number(a.position) - Number(b.position);
+        const left = formatCustomFieldValue(field, a.customFieldValues?.[field.id], userById);
+        const right = formatCustomFieldValue(field, b.customFieldValues?.[field.id], userById);
+        return left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" });
+      }),
+    }));
+  }, [activeCustomFields, filteredCards, listGrouping, lists, userById]);
 
   const getListNameById = (listId: unknown) => {
     const normalized = String(listId || "").trim();
@@ -1130,6 +1340,7 @@ export default function TasksV2Page() {
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
+      customFieldValues: selectedDetailCard.customFieldValues || {},
     };
     setDetailCardForm(nextForm);
     detailLastSavedSignatureRef.current = serializeCardForm(nextForm);
@@ -1350,6 +1561,7 @@ export default function TasksV2Page() {
         dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
         assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
         labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
+        customFieldValues: input?.customFieldValues ?? cardForm.customFieldValues ?? {},
       };
 
       if (targetCardId) {
@@ -1444,6 +1656,7 @@ export default function TasksV2Page() {
           dueDate: form.dueDate || null,
           assigneeUserId: form.assigneeUserId || null,
           labelIds: normalizeLabelIds(form.labelIds),
+          customFieldValues: form.customFieldValues ?? {},
         },
       );
       return await res.json();
@@ -1466,6 +1679,7 @@ export default function TasksV2Page() {
         dueDate: toDateTimeLocalValue(card.dueDate),
         assigneeUserId: card.assigneeUserId || "",
         labelIds: normalizeLabelIds(card.labelIds),
+        customFieldValues: card.customFieldValues || {},
       });
       setDetailSaveStatus("saved");
       setDetailSaveError("");
@@ -1480,6 +1694,7 @@ export default function TasksV2Page() {
           dueDate: toDateTimeLocalValue(card.dueDate),
           assigneeUserId: card.assigneeUserId || "",
           labelIds: normalizeLabelIds(card.labelIds),
+          customFieldValues: card.customFieldValues || {},
         });
       }
 
@@ -1708,6 +1923,7 @@ export default function TasksV2Page() {
       const payload = {
         name: (input?.name ?? labelForm.name).trim(),
         color: input?.color !== undefined ? (input.color?.trim() || null) : (labelForm.color.trim() || null),
+        groupId: input?.groupId !== undefined ? input.groupId || null : labelForm.groupId || null,
       };
 
       if (targetLabelId) {
@@ -1744,6 +1960,105 @@ export default function TasksV2Page() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const saveLabelGroupMutation = useMutation({
+    mutationFn: async (input?: SaveLabelGroupInput) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      const form = input?.form ?? labelGroupForm;
+      const payload = {
+        name: form.name.trim(),
+        color: form.color.trim() || null,
+      };
+      if (!payload.name) throw new Error("Название группы не может быть пустым");
+      const targetGroupId = input?.groupId ?? editingLabelGroupId;
+      const res = await apiRequest(
+        targetGroupId ? "PUT" : "POST",
+        targetGroupId
+          ? `/api/kanban/boards/${selectedBoardId}/label-groups/${targetGroupId}`
+          : `/api/kanban/boards/${selectedBoardId}/label-groups`,
+        payload,
+      );
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-label-groups", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      setEditingLabelGroupId(null);
+      setLabelGroupForm(EMPTY_LABEL_GROUP_FORM);
+      toast({ title: "Группа меток сохранена", description: "Структура меток обновлена." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось сохранить группу", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteLabelGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      await apiRequest("DELETE", `/api/kanban/boards/${selectedBoardId}/label-groups/${groupId}`);
+      return groupId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-label-groups", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-labels", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      toast({ title: "Группа архивирована", description: "Метки остались на доске." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось архивировать группу", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const saveCustomFieldMutation = useMutation({
+    mutationFn: async (input?: SaveCustomFieldInput) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      const form = input?.form ?? customFieldForm;
+      const payload = {
+        name: form.name.trim(),
+        type: form.type,
+        options: normalizeCustomFieldOptions(form.options),
+        required: form.required,
+        showOnCard: form.showOnCard,
+        showInList: form.showInList,
+      };
+      if (!payload.name) throw new Error("Название поля не может быть пустым");
+      const targetFieldId = input?.fieldId ?? editingCustomFieldId;
+      const res = await apiRequest(
+        targetFieldId ? "PUT" : "POST",
+        targetFieldId
+          ? `/api/kanban/boards/${selectedBoardId}/custom-fields/${targetFieldId}`
+          : `/api/kanban/boards/${selectedBoardId}/custom-fields`,
+        payload,
+      );
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-custom-fields", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      setEditingCustomFieldId(null);
+      setCustomFieldForm(EMPTY_CUSTOM_FIELD_FORM);
+      toast({ title: "Поле сохранено", description: "Карточки получили новое свойство." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось сохранить поле", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCustomFieldMutation = useMutation({
+    mutationFn: async (fieldId: string) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      await apiRequest("DELETE", `/api/kanban/boards/${selectedBoardId}/custom-fields/${fieldId}`);
+      return fieldId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-custom-fields", selectedBoardId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] });
+      toast({ title: "Поле архивировано", description: "Значения на карточках сохранены в истории данных." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось архивировать поле", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1929,6 +2244,7 @@ export default function TasksV2Page() {
       dueDate: toDateTimeLocalValue(card.dueDate),
       assigneeUserId: card.assigneeUserId || "",
       labelIds: normalizeLabelIds(card.labelIds),
+      customFieldValues: card.customFieldValues || {},
     });
   };
 
@@ -1980,6 +2296,7 @@ export default function TasksV2Page() {
     setLabelForm({
       name: label.name,
       color: label.color || "",
+      groupId: label.groupId || "",
     });
   };
 
@@ -2030,7 +2347,8 @@ export default function TasksV2Page() {
         dueDate: null,
         assigneeUserId: null,
         labelIds: [],
-      inlineListId: listId,
+        customFieldValues: {},
+        inlineListId: listId,
     });
   };
 
@@ -2063,6 +2381,7 @@ export default function TasksV2Page() {
       dueDate: card.dueDate ? toDateTimeLocalValue(card.dueDate) : null,
       assigneeUserId: card.assigneeUserId || null,
       labelIds: normalizeLabelIds(card.labelIds),
+      customFieldValues: card.customFieldValues || {},
     });
   };
 
@@ -2098,7 +2417,7 @@ export default function TasksV2Page() {
     if (!name || saveLabelMutation.isPending) return;
     const color = LABEL_COLOR_PRESETS[boardLabels.length % LABEL_COLOR_PRESETS.length].value;
     saveLabelMutation.mutate(
-      { name, color },
+      { name, color, groupId: null },
       { onSuccess: () => setSettingsLabelDraft("") },
     );
   };
@@ -2120,9 +2439,42 @@ export default function TasksV2Page() {
       return;
     }
     saveLabelMutation.mutate(
-      { labelId: label.id, name, color: label.color || null },
+      { labelId: label.id, name, color: label.color || null, groupId: label.groupId || null },
       { onSuccess: handleCancelSettingsLabelEdit },
     );
+  };
+
+  const handleEditLabelGroup = (group: KanbanLabelGroupView) => {
+    setEditingLabelGroupId(group.id);
+    setLabelGroupForm({
+      name: group.name,
+      color: group.color || "",
+    });
+  };
+
+  const handleEditCustomField = (field: KanbanCustomFieldDefinition) => {
+    setEditingCustomFieldId(field.id);
+    setCustomFieldForm({
+      name: field.name,
+      type: field.type,
+      options: (field.options ?? []).join(", "),
+      required: Boolean(field.required),
+      showOnCard: field.showOnCard !== false,
+      showInList: field.showInList !== false,
+    });
+  };
+
+  const handleCreateDefaultCustomFieldTemplates = () => {
+    DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES
+      .filter((template) => !activeCustomFields.some((field) => field.name.toLowerCase() === template.name.toLowerCase()))
+      .forEach((template) => {
+        saveCustomFieldMutation.mutate({
+          form: {
+            ...EMPTY_CUSTOM_FIELD_FORM,
+            ...template,
+          },
+        });
+      });
   };
 
   const handleSubmitListViewGroupCard = (groupId: string, listId?: string | null) => {
@@ -2140,6 +2492,7 @@ export default function TasksV2Page() {
         dueDate: null,
         assigneeUserId: null,
         labelIds: [],
+        customFieldValues: {},
       },
       {
         onSuccess: () => setListViewGroupDrafts((prev) => ({ ...prev, [groupId]: "" })),
@@ -2210,6 +2563,113 @@ export default function TasksV2Page() {
     });
   };
 
+  const updateDetailCustomFieldValue = (fieldId: string, value: unknown) => {
+    setDetailCardForm((prev) => ({
+      ...prev,
+      customFieldValues: {
+        ...(prev.customFieldValues ?? {}),
+        [fieldId]: value,
+      },
+    }));
+  };
+
+  const renderCustomFieldEditor = (field: KanbanCustomFieldDefinition) => {
+    const value = detailCardForm.customFieldValues?.[field.id];
+    const commonId = `kanban-detail-custom-field-${field.id}`;
+
+    if (field.type === "checkbox") {
+      return (
+        <label className="flex items-center gap-2 rounded-xl border border-border/30 bg-background px-3 py-2 text-sm">
+          <input
+            id={commonId}
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(event) => updateDetailCustomFieldValue(field.id, event.target.checked)}
+            disabled={!canEditSelectedBoard}
+          />
+          {field.name}
+        </label>
+      );
+    }
+
+    if (field.type === "select") {
+      return (
+        <select
+          id={commonId}
+          className={KANBAN_PANEL_SELECT_CLASS}
+          value={String(value ?? "")}
+          onChange={(event) => updateDetailCustomFieldValue(field.id, event.target.value)}
+          disabled={!canEditSelectedBoard}
+        >
+          <option value="">Не выбрано</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === "multi-select") {
+      const values = Array.isArray(value) ? value.map(String) : [];
+      return (
+        <div className="flex flex-wrap gap-2">
+          {(field.options ?? []).map((option) => {
+            const selected = values.includes(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                className={[
+                  "rounded-full border px-3 py-1 text-sm transition",
+                  selected ? "border-primary bg-primary text-primary-foreground" : "border-border/35 bg-background text-muted-foreground hover:bg-muted/50",
+                ].join(" ")}
+                onClick={() => updateDetailCustomFieldValue(
+                  field.id,
+                  selected ? values.filter((item) => item !== option) : [...values, option],
+                )}
+                disabled={!canEditSelectedBoard}
+              >
+                {option}
+              </button>
+            );
+          })}
+          {(field.options ?? []).length === 0 && (
+            <span className="text-sm text-muted-foreground">Добавь варианты в настройках доски.</span>
+          )}
+        </div>
+      );
+    }
+
+    if (field.type === "person") {
+      return (
+        <select
+          id={commonId}
+          className={KANBAN_PANEL_SELECT_CLASS}
+          value={String(value ?? "")}
+          onChange={(event) => updateDetailCustomFieldValue(field.id, event.target.value)}
+          disabled={!canEditSelectedBoard}
+        >
+          <option value="">Не выбрано</option>
+          {availableAssignees.map((user) => (
+            <option key={user.id} value={user.id}>{user.name}</option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <Input
+        id={commonId}
+        type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "url" ? "url" : "text"}
+        value={String(value ?? "")}
+        onChange={(event) => updateDetailCustomFieldValue(field.id, event.target.value)}
+        placeholder={CUSTOM_FIELD_TYPE_LABELS[field.type]}
+        className={KANBAN_PANEL_INPUT_CLASS}
+        disabled={!canEditSelectedBoard}
+      />
+    );
+  };
+
   const renderListViewCardRow = (card: KanbanCardView) => {
     const list = lists.find((item) => item.id === card.listId);
     const assigneeName = card.assigneeUserId ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId : "Без исполнителя";
@@ -2253,6 +2713,21 @@ export default function TasksV2Page() {
             </button>
           )}
           {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
+          {activeCustomFields.some((field) => field.showInList !== false && formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)) && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+              {activeCustomFields
+                .filter((field) => field.showInList !== false)
+                .map((field) => {
+                  const value = formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById);
+                  if (!value) return null;
+                  return (
+                    <span key={field.id} className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                      {field.name}: {value}
+                    </span>
+                  );
+                })}
+            </div>
+          )}
         </div>
         <select
           className={`${KANBAN_PANEL_SELECT_CLASS} min-w-0`}
@@ -2591,6 +3066,10 @@ export default function TasksV2Page() {
                       <option value="due">По сроку</option>
                       <option value="assignee">По исполнителю</option>
                       <option value="priority">По приоритету</option>
+                      {activeCustomFields.length > 0 && <option disabled>──────────</option>}
+                      {activeCustomFields.map((field) => (
+                        <option key={field.id} value={`field:${field.id}`}>По полю: {field.name}</option>
+                      ))}
                     </select>
                   )}
                 </div>
@@ -3060,6 +3539,22 @@ export default function TasksV2Page() {
                                                         ))}
                                                       </div>
                                                     )}
+
+                                                    {activeCustomFields.some((field) => field.showOnCard !== false && formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)) && (
+                                                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                        {activeCustomFields
+                                                          .filter((field) => field.showOnCard !== false)
+                                                          .map((field) => {
+                                                            const value = formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById);
+                                                            if (!value) return null;
+                                                            return (
+                                                              <span key={field.id} className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                                                                {field.name}: {value}
+                                                              </span>
+                                                            );
+                                                          })}
+                                                      </div>
+                                                    )}
                                                   </div>
 
                                                   <div className="flex shrink-0 flex-col items-center gap-2 border-l border-slate-500/10 pl-2 dark:border-slate-700/60">
@@ -3303,6 +3798,24 @@ export default function TasksV2Page() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-status">Статус / список</label>
+              <select
+                id="kanban-mobile-filter-status"
+                className={KANBAN_PANEL_SELECT_CLASS}
+                value={cardFilters.status}
+                onChange={(event) => setCardFilters((prev) => ({ ...prev, status: event.target.value }))}
+              >
+                <option value="all">Все статусы</option>
+                {Object.entries(LIST_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={`type:${value}`}>{label}</option>
+                ))}
+                {lists.length > 0 && <option disabled>──────────</option>}
+                {lists.map((list) => (
+                  <option key={list.id} value={`list:${list.id}`}>{list.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-assignee">Исполнитель</label>
               <select
                 id="kanban-mobile-filter-assignee"
@@ -3357,11 +3870,57 @@ export default function TasksV2Page() {
                 onChange={(event) => setCardFilters((prev) => ({ ...prev, labelId: event.target.value }))}
               >
                 <option value="">Все</option>
-                {boardLabels.map((label) => (
+                {boardLabels.filter((label) => !label.archivedAt).map((label) => (
                   <option key={label.id} value={label.id}>{label.name}</option>
                 ))}
               </select>
             </div>
+            {activeLabelGroups.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label-group">Группа меток</label>
+                <select
+                  id="kanban-mobile-filter-label-group"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.labelGroupId}
+                  onChange={(event) => setCardFilters((prev) => ({ ...prev, labelGroupId: event.target.value }))}
+                >
+                  <option value="">Все группы</option>
+                  {activeLabelGroups.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {activeCustomFields.length > 0 && (
+              <div className="space-y-2 rounded-2xl border border-border/30 bg-muted/15 p-3">
+                <div>
+                  <h4 className="text-sm font-semibold">Поля карточек</h4>
+                  <p className="text-xs text-muted-foreground">Фильтр ищет по значениям выбранных custom fields.</p>
+                </div>
+                <div className="grid gap-2">
+                  {activeCustomFields.map((field) => (
+                    <div key={field.id} className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground" htmlFor={`kanban-filter-field-${field.id}`}>{field.name}</label>
+                      <Input
+                        id={`kanban-filter-field-${field.id}`}
+                        value={cardFilters.customFieldValues[field.id] || ""}
+                        onChange={(event) =>
+                          setCardFilters((prev) => ({
+                            ...prev,
+                            customFieldValues: {
+                              ...prev.customFieldValues,
+                              [field.id]: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder={CUSTOM_FIELD_TYPE_LABELS[field.type]}
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2">
             {hasActiveFilters && (
@@ -3758,6 +4317,64 @@ export default function TasksV2Page() {
                           </Button>
                         )}
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold">Поля карточки</h3>
+                      <p className="text-xs text-muted-foreground">Custom fields доски, как в Notion.</p>
+                    </div>
+                    {boardCustomFieldsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                  </div>
+
+                  {activeCustomFields.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-3 py-4 text-sm text-muted-foreground">
+                      Полей пока нет. Создай первое поле здесь или в настройках доски.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {activeCustomFields.map((field) => (
+                        <div key={field.id} className="space-y-1">
+                          <label className="text-xs font-medium text-muted-foreground" htmlFor={`kanban-detail-custom-field-${field.id}`}>
+                            {field.name}
+                            {field.required ? " *" : ""}
+                          </label>
+                          {renderCustomFieldEditor(field)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {canEditSelectedBoard && (
+                    <div className="grid gap-2 rounded-2xl border border-border/30 bg-muted/15 p-3 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
+                      <Input
+                        value={customFieldForm.name}
+                        onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, name: event.target.value }))}
+                        placeholder="Новое поле"
+                        className={KANBAN_PANEL_INPUT_CLASS}
+                        disabled={saveCustomFieldMutation.isPending}
+                      />
+                      <select
+                        className={KANBAN_PANEL_SELECT_CLASS}
+                        value={customFieldForm.type}
+                        onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, type: event.target.value as KanbanCustomFieldType }))}
+                        disabled={saveCustomFieldMutation.isPending}
+                      >
+                        {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                      <Button
+                        className="rounded-xl"
+                        onClick={() => saveCustomFieldMutation.mutate(undefined)}
+                        disabled={!customFieldForm.name.trim() || saveCustomFieldMutation.isPending}
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Добавить
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -4295,6 +4912,97 @@ export default function TasksV2Page() {
             <div className={KANBAN_DETAIL_SECTION_CLASS}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
+                  <h3 className="text-sm font-semibold">Группы меток</h3>
+                  <p className="text-sm text-muted-foreground">Группируй теги по смыслу и фильтруй задачи по целой группе.</p>
+                </div>
+                {boardLabelGroupsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+              </div>
+
+              {canEditSelectedBoard && (
+                <div className="mt-4 grid gap-2 rounded-2xl border border-border/30 bg-muted/15 p-3 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
+                  <Input
+                    value={labelGroupForm.name}
+                    onChange={(event) => setLabelGroupForm((prev) => ({ ...prev, name: event.target.value }))}
+                    placeholder="Например: Production или Recording"
+                    className={KANBAN_PANEL_INPUT_CLASS}
+                    disabled={saveLabelGroupMutation.isPending}
+                  />
+                  <Input
+                    value={labelGroupForm.color}
+                    onChange={(event) => setLabelGroupForm((prev) => ({ ...prev, color: event.target.value }))}
+                    placeholder="#8b5cf6"
+                    className={KANBAN_PANEL_INPUT_CLASS}
+                    disabled={saveLabelGroupMutation.isPending}
+                  />
+                  <div className="flex gap-2">
+                    {editingLabelGroupId && (
+                      <Button
+                        variant="ghost"
+                        className="rounded-xl"
+                        onClick={() => {
+                          setEditingLabelGroupId(null);
+                          setLabelGroupForm(EMPTY_LABEL_GROUP_FORM);
+                        }}
+                      >
+                        Отмена
+                      </Button>
+                    )}
+                    <Button
+                      className="rounded-xl"
+                      onClick={() => saveLabelGroupMutation.mutate(undefined)}
+                      disabled={!labelGroupForm.name.trim() || saveLabelGroupMutation.isPending}
+                    >
+                      {editingLabelGroupId ? "Сохранить" : "Добавить"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 space-y-2">
+                {activeLabelGroups.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
+                    Групп меток пока нет.
+                  </div>
+                ) : (
+                  activeLabelGroups.map((group) => (
+                    <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/30 bg-muted/15 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color || "hsl(var(--primary))" }} />
+                        <div>
+                          <div className="font-medium">{group.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {boardLabels.filter((label) => label.groupId === group.id).length} меток
+                          </div>
+                        </div>
+                      </div>
+                      {canEditSelectedBoard && (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => handleEditLabelGroup(group)}>
+                            Изменить
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                            onClick={() => {
+                              if (!confirmDelete(`Архивировать группу "${group.name}"? Метки останутся.`)) return;
+                              deleteLabelGroupMutation.mutate(group.id);
+                            }}
+                            disabled={deleteLabelGroupMutation.isPending}
+                          >
+                            Архивировать
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className={KANBAN_DETAIL_SECTION_CLASS}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
                   <h3 className="text-sm font-semibold">Метки доски</h3>
                   <p className="text-sm text-muted-foreground">
                     Новые метки создаются прямо в карточке. Здесь можно поменять цвет через палитру или удалить метку.
@@ -4394,7 +5102,24 @@ export default function TasksV2Page() {
                       </div>
 
                       {canEditSelectedBoard && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-3 space-y-3">
+                          <select
+                            className={`${KANBAN_PANEL_SELECT_CLASS} max-w-[260px]`}
+                            value={label.groupId || ""}
+                            onChange={(event) => saveLabelMutation.mutate({
+                              labelId: label.id,
+                              name: label.name,
+                              color: label.color || null,
+                              groupId: event.target.value || null,
+                            })}
+                            disabled={saveLabelMutation.isPending}
+                          >
+                            <option value="">Без группы</option>
+                            {activeLabelGroups.map((group) => (
+                              <option key={group.id} value={group.id}>{group.name}</option>
+                            ))}
+                          </select>
+                          <div className="flex flex-wrap gap-2">
                           {LABEL_COLOR_PRESETS.map((preset) => (
                             <button
                               key={preset.value}
@@ -4406,10 +5131,147 @@ export default function TasksV2Page() {
                               style={{ backgroundColor: preset.value }}
                               title={preset.label}
                               aria-label={`Цвет метки ${preset.label}`}
-                              onClick={() => saveLabelMutation.mutate({ labelId: label.id, name: label.name, color: preset.value })}
+                              onClick={() => saveLabelMutation.mutate({ labelId: label.id, name: label.name, color: preset.value, groupId: label.groupId || null })}
                               disabled={saveLabelMutation.isPending}
                             />
                           ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className={KANBAN_DETAIL_SECTION_CLASS}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold">Поля карточек</h3>
+                  <p className="text-sm text-muted-foreground">Создавай поля доски: текст, дата, checkbox, select, person и другие.</p>
+                </div>
+                {boardCustomFieldsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+              </div>
+
+              {canEditSelectedBoard && (
+                <div className="mt-4 space-y-3 rounded-2xl border border-border/30 bg-muted/15 p-3">
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)]">
+                    <Input
+                      value={customFieldForm.name}
+                      onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, name: event.target.value }))}
+                      placeholder="Название поля"
+                      className={KANBAN_PANEL_INPUT_CLASS}
+                      disabled={saveCustomFieldMutation.isPending}
+                    />
+                    <select
+                      className={KANBAN_PANEL_SELECT_CLASS}
+                      value={customFieldForm.type}
+                      onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, type: event.target.value as KanbanCustomFieldType }))}
+                      disabled={saveCustomFieldMutation.isPending}
+                    >
+                      {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                    <Input
+                      value={customFieldForm.options}
+                      onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, options: event.target.value }))}
+                      placeholder="Опции через запятую"
+                      className={KANBAN_PANEL_INPUT_CLASS}
+                      disabled={saveCustomFieldMutation.isPending || !["select", "multi-select"].includes(customFieldForm.type)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={customFieldForm.required}
+                          onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, required: event.target.checked }))}
+                        />
+                        Required
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={customFieldForm.showOnCard}
+                          onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, showOnCard: event.target.checked }))}
+                        />
+                        На карточке
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={customFieldForm.showInList}
+                          onChange={(event) => setCustomFieldForm((prev) => ({ ...prev, showInList: event.target.checked }))}
+                        />
+                        В списке
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {editingCustomFieldId && (
+                        <Button
+                          variant="ghost"
+                          className="rounded-xl"
+                          onClick={() => {
+                            setEditingCustomFieldId(null);
+                            setCustomFieldForm(EMPTY_CUSTOM_FIELD_FORM);
+                          }}
+                        >
+                          Отмена
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={handleCreateDefaultCustomFieldTemplates}
+                        disabled={saveCustomFieldMutation.isPending}
+                      >
+                        File/Recording шаблон
+                      </Button>
+                      <Button
+                        className="rounded-xl"
+                        onClick={() => saveCustomFieldMutation.mutate(undefined)}
+                        disabled={!customFieldForm.name.trim() || saveCustomFieldMutation.isPending}
+                      >
+                        {editingCustomFieldId ? "Сохранить" : "Добавить поле"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 space-y-2">
+                {activeCustomFields.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
+                    Полей пока нет.
+                  </div>
+                ) : (
+                  activeCustomFields.map((field) => (
+                    <div key={field.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/30 bg-muted/15 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="font-medium">{field.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {CUSTOM_FIELD_TYPE_LABELS[field.type]} · {field.showOnCard !== false ? "card" : "hidden card"} · {field.showInList !== false ? "list" : "hidden list"}
+                        </div>
+                      </div>
+                      {canEditSelectedBoard && (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => handleEditCustomField(field)}>
+                            Изменить
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                            onClick={() => {
+                              if (!confirmDelete(`Архивировать поле "${field.name}"? Значения останутся в данных карточек.`)) return;
+                              deleteCustomFieldMutation.mutate(field.id);
+                            }}
+                            disabled={deleteCustomFieldMutation.isPending}
+                          >
+                            Архивировать
+                          </Button>
                         </div>
                       )}
                     </div>
