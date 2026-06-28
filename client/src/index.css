@@ -8,14 +8,14 @@
 @tailwind utilities;
 
 @layer utilities {
-  .border-border\/20 { border-color: hsl(var(--border) / 0.20) !important; }
-  .border-border\/30 { border-color: hsl(var(--border) / 0.30) !important; }
-  .border-border\/35 { border-color: hsl(var(--border) / 0.35) !important; }
-  .border-border\/40 { border-color: hsl(var(--border) / 0.40) !important; }
-  .border-border\/45 { border-color: hsl(var(--border) / 0.45) !important; }
-  .border-border\/50 { border-color: hsl(var(--border) / 0.50) !important; }
-  .border-border\/60 { border-color: hsl(var(--border) / 0.60) !important; }
-  .border-border\/70 { border-color: hsl(var(--border) / 0.70) !important; }
+  .border-border\/20 { border-color: hsl(var(--app-border) / 0.20) !important; }
+  .border-border\/30 { border-color: hsl(var(--app-border) / 0.30) !important; }
+  .border-border\/35 { border-color: hsl(var(--app-border) / 0.35) !important; }
+  .border-border\/40 { border-color: hsl(var(--app-border) / 0.40) !important; }
+  .border-border\/45 { border-color: hsl(var(--app-border) / 0.45) !important; }
+  .border-border\/50 { border-color: hsl(var(--app-border) / 0.50) !important; }
+  .border-border\/60 { border-color: hsl(var(--app-border) / 0.60) !important; }
+  .border-border\/70 { border-color: hsl(var(--app-border) / 0.70) !important; }
   .border-input\/35 { border-color: hsl(var(--input) / 0.35) !important; }
   .border-input\/40 { border-color: hsl(var(--input) / 0.40) !important; }
 }
@@ -219,7 +219,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(222, 47%, 11%);
   --card: hsl(0, 0%, 100%);
   --card-foreground: hsl(222, 47%, 11%);
-  --border: 220 13% 88%;
+  --app-border: 220 13% 88%;
   --input: 220 13% 88%;
   --primary: hsl(270, 100%, 64%);
   --primary-foreground: hsl(0, 0%, 100%);
@@ -257,7 +257,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(213, 31%, 91%);
   --card: hsl(224, 34%, 9%);
   --card-foreground: hsl(213, 31%, 91%);
-  --border: 218 28% 22%;
+  --app-border: 218 28% 22%;
   --input: 218 28% 22%;
   --primary: hsl(270, 100%, 64%);
   --primary-foreground: hsl(0, 0%, 100%);
@@ -292,7 +292,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(213, 31%, 95%);
   --card: hsl(224, 47%, 4%);
   --card-foreground: hsl(213, 31%, 95%);
-  --border: 180 100% 30%;
+  --app-border: 180 100% 30%;
   --input: 216 34% 15%;
   --primary: hsl(180, 100%, 60%);
   --primary-foreground: hsl(222, 47%, 1.2%);
@@ -327,7 +327,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(180, 100%, 95%);
   --card: hsl(200, 100%, 5%);
   --card-foreground: hsl(180, 100%, 95%);
-  --border: 180 100% 40%;
+  --app-border: 180 100% 40%;
   --input: 200 100% 10%;
   --primary: hsl(180, 100%, 60%);
   --primary-foreground: hsl(200, 100%, 5%);
@@ -362,7 +362,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(280, 100%, 95%);
   --card: hsl(280, 100%, 5%);
   --card-foreground: hsl(280, 100%, 95%);
-  --border: 280 100% 40%;
+  --app-border: 280 100% 40%;
   --input: 280 100% 10%;
   --primary: hsl(280, 100%, 70%);
   --primary-foreground: hsl(280, 100%, 5%);
@@ -397,7 +397,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(320, 100%, 95%);
   --card: hsl(320, 100%, 5%);
   --card-foreground: hsl(320, 100%, 95%);
-  --border: 320 100% 40%;
+  --app-border: 320 100% 40%;
   --input: 320 100% 10%;
   --primary: hsl(320, 100%, 70%);
   --primary-foreground: hsl(320, 100%, 5%);
@@ -432,7 +432,7 @@ body::-webkit-scrollbar,
   --popover-foreground: hsl(0, 0%, 95%);
   --card: hsl(0, 0%, 4%);
   --card-foreground: hsl(0, 0%, 95%);
-  --border: 180 100% 40%;
+  --app-border: 180 100% 40%;
   --input: 0 0% 10%;
   --primary: hsl(180, 100%, 60%);
   --primary-foreground: hsl(0, 0%, 5%);
@@ -459,7 +459,7 @@ body::-webkit-scrollbar,
 
 @layer base {
   * {
-    border-color: hsl(var(--border) / 0.45);
+    border-color: hsl(var(--app-border) / 0.24);
   }
 
   body {
@@ -638,7 +638,7 @@ body::-webkit-scrollbar,
   }
 
   .dark .kanban-column {
-    border: 1px solid hsl(var(--border) / 0.5);
+    border: 1px solid hsl(var(--app-border) / 0.5);
   }
 
   .task-card {
@@ -647,7 +647,7 @@ body::-webkit-scrollbar,
 
   .dark .task-card {
     @apply bg-card;
-    border: 1px solid hsl(var(--border) / 0.5);
+    border: 1px solid hsl(var(--app-border) / 0.5);
   }
   
   .dark .task-card:hover {
@@ -959,7 +959,7 @@ body::-webkit-scrollbar,
 .high-contrast [class*="Card"],
 .sepia .card,
 .sepia [class*="Card"] {
-  border: 1px solid hsl(var(--border)) !important;
+  border: 1px solid hsl(var(--app-border)) !important;
   transition: all 0.3s ease !important;
 }
 
