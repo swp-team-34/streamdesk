@@ -95,6 +95,7 @@ attached_assets/
 *.doc
 *.docx
 !reports/week2/images/*.png
+!reports/week4/images/*.png
 
 # ============================================
 # База данных
