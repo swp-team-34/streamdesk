@@ -116,7 +116,7 @@
     - SemVer release: ![Release](images/version.png), [Release2](images/next-part.png)
     - Example reviewed issue-linked PR/MR: ![PR example](images/pr-example.png)
 42. **Additional relevant screenshots:**
-    - Product Backlog: ![Product Backlog](images/product-backlog.png) READY
-    - Sprint Backlog: ![Sprint Backlog](images/sprint-backlog.png) READY
+    - Product Backlog: ![Product Backlog](images/product-backlog.png)
+    - Sprint Backlog: ![Sprint Backlog](images/sprint-backlog.png)
     - Deployed product: ![Statistic](images/tg_image_523947626.png), ![Settings of the board](images/tg_image_1353012353.png), ![Edit event](images/tg_image_1357133084.png), ![Task manager](images/tg_image_1613182004.png), ![Task edit](images/tg_image_1681588848.png), ![Settings of board](images/tg_image_1873359177.png), ![Dashboard](images/tg_image_2491747447.png), ![Calendar type1](images/tg_image_3394806835.png), ![Calendar type1](images/tg_image_3394806835.png), ![Calendar type2](images/tg_image_3724288249.png), ![Filters](images/tg_image_4072074126.png)
     - 
