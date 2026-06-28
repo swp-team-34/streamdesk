@@ -459,7 +459,7 @@ body::-webkit-scrollbar,
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border) / 0.45);
   }
 
   body {
