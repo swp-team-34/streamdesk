@@ -2,7 +2,7 @@
 
 ## Learning points
 - **From responding to customer feedback**: we learned some technical details ([customer feedback RT](customer%20feedback%20RT.md))
-- **From defining quality requirements**: We learned how to prevent bugs during the developing by writing the quality requirements.
+- **From defining quality requirements**: We learned how to prevent bugs during development by writing the quality requirements.
 - **From configuring CI**: We learned how to prevent merging code with bugs.
 
 ## Validated assumptions
@@ -31,4 +31,4 @@ To address the gaps and friction identified during the Sprint Review, we have ad
 4. **Implement task overlapping avoidance:** We captured Customer's wish to avoid task overlapping in calendar in a new User Story when the feature itself was already implemented to review the feature in the future for acceptance by the Customer.
    *Link:* [Issue #113 - Avoid tasks UI overlapping](https://github.com/swp-team-34/streamdesk/issues/113)
 5. **Fix task description overflow bug:** We created a Bug PBI to investigate and fix the info overflow issue where the short info about the task doesn't fit into the task card in calendar.
-   *Link:* [Issue #113 - Bug: Text information overflow in task card at Calendar page](https://github.com/swp-team-34/streamdesk/issues/111)
+   *Link:* [Issue #111 - Bug: Text information overflow in task card at Calendar page](https://github.com/swp-team-34/streamdesk/issues/111)
