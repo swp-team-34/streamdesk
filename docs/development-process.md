@@ -154,7 +154,43 @@ We do not enforce a strict conventional commit standard, but we aim for meaningf
 
 ## 3. Gitgraph Diagram
 
-- The following **Mermaid** diagram illustrates our branching and merging flow.
+The following **Mermaid** diagram shows our real branching and merging flow (based on recent commits).
+
+```mermaid
+gitGraph
+   commit id: "initial"
+   branch "84-fix-production-border-opacity"
+   checkout "84-fix-production-border-opacity"
+   commit id: "fix: production border opacity"
+   checkout main
+   merge "84-fix-production-border-opacity" tag: "PR #126 merged"
+
+   branch "94-task-manager-calendar-fix"
+   checkout "94-task-manager-calendar-fix"
+   commit id: "feat: add board completion statistics modal"
+   commit id: "feat: add Kanban custom fields and tag groups"
+   checkout main
+   merge "94-task-manager-calendar-fix" tag: "PR #121 merged"
+
+   branch "118-fix-roadmap"
+   checkout "118-fix-roadmap"
+   commit id: "docs: update roadmap"
+   checkout main
+   merge "118-fix-roadmap" tag: "PR #119 merged"
+
+   branch "105-assignment-report"
+   checkout "105-assignment-report"
+   commit id: "docs: add report and images"
+   commit id: "docs: customer review summary and transcript"
+   checkout main
+   merge "105-assignment-report" tag: "PR #127 merged"
+
+   branch "129-update-roadmap"
+   checkout "129-update-roadmap"
+   commit id: "docs: described roadmap"
+   checkout main
+   merge "129-update-roadmap" tag: "PR #131 merged"
+```
 
 
 ## 4. Configuration and Secrets Management
