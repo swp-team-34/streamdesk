@@ -241,7 +241,13 @@ MIT
 - [Week 2 report index](reports/week2/README.md)
 - [MVP v0 report](reports/week2/mvp-v0-report.md)
 - [Repository workflow](docs/repository-workflow.md)
-- TODO: Add MVP v1 deployment/access link after it is available.
+- MVP v1 deployment: [team34.ru](https://team34.ru/)
+- [Development Process](docs/development-process.md)
+- [Definition of Done](docs/definition-of-done.md)
+- [Quality Requirements](docs/quality-requirements.md)
+- [Quality Requirement Tests](docs/quality-requirement-tests.md)
+- [Testing](docs/testing.md)
+- [User Acceptance Tests](docs/user-acceptance-tests.md)
 - [MIT License](LICENSE)
 
 Do not commit `.env` files or real credentials. Use `.env.example` for placeholders.
