@@ -1,0 +1,13 @@
+
+
+| Feedback point | Resulting PBI or issue | Status | Response |
+|---|---|---|---|
+|The customer requested the ability to add custom tags and sub-groups. Tracking where files are stored and when they were recorded is a priority.| [#94](https://github.com/swp-team-34/streamdesk/issues/94) | Done |Adding custom tags and sub groups to file details and filters to track storage location and recording date |
+| Task manager and calendar are the core deliverables | Not applicable | Done | Sprint scope prioritises task manager and calendar features |
+| Design modernization is not a priority| Not applicable | Done | Design modernisation deferred to later sprints |
+| Building on existing StreamDesk codebase is appropriate | Not applicable | Done | StreamDesk codebase reused as foundation |
+| Customer confirmed that calendar all-day tasks, drag‑and‑drop, deadline‑based colors, and multiple layout views work as expected. | [#112](https://github.com/swp-team-34/streamdesk/issues/112), [#114](https://github.com/swp-team-34/streamdesk/issues/114), [#95](https://github.com/swp-team-34/streamdesk/issues/95) | Done | Features implemented, showcased, and verified during Sprint Review; minor polishing left |
+| Customer approved local calendar configuration and understood they are per‑user settings. | Not applicable | Done | Local settings implemented and accepted by customer |
+| Customer accepted a less cluttered Task Manager interface – complex filters hidden. | [#87](https://github.com/swp-team-34/streamdesk/issues/87), [#94](https://github.com/swp-team-34/streamdesk/issues/94) | Done | Filter panel simplified; excessive filters hidden to reduce visual noise |
+| Minor column‑dragging bugs observed in Task Manager and customer expects a fix before heavy use. | [#112](https://github.com/swp-team-34/streamdesk/issues/112) | To Do | Identified root cause and fix planned in current sprint alongside other high‑priority bugs |
+| Warehouse feature development planned for the upcoming sprint; customer accepted that timeline may shift slightly if critical Task Manager / Calendar stability fixes take priority. | [#31](https://github.com/swp-team-34/streamdesk/issues/31), [#53](https://github.com/swp-team-34/streamdesk/issues/53), [#58](https://github.com/swp-team-34/streamdesk/issues/58), [#60](https://github.com/swp-team-34/streamdesk/issues/60), [#62](https://github.com/swp-team-34/streamdesk/issues/62) | To Do | Warehouse stories refined and assigned to next sprint; delivery order communicated to customer |
