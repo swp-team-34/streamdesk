@@ -1,0 +1,140 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam nodeStyle rectangle
+
+title StreamDesk - Deployment Diagram (Deployment View)
+
+' Internet Zone
+cloud "Internet" as Internet
+
+' Client Devices
+node "Client Devices" as Clients {
+  [Desktop Browser\\n(Chrome, Firefox, Safari)] as DesktopBrowser
+  [Mobile Browser\\n(Responsive UI)] as MobileBrowser
+}
+
+' CDN / Static Files
+node "CDN / Static Hosting\\n(Optional)" as CDN {
+  [Built Frontend Assets\\n(Vite build output)] as StaticAssets
+}
+
+' Production Server
+node "Production VPS\\n(Ubuntu/Debian)" as VPS {
+  
+  node "Nginx\\n(Reverse Proxy)" as Nginx {
+    [SSL Termination\\n(Let's Encrypt)] as SSL
+    [Static File Server\\n(/client/dist)] as StaticServer
+    [API Proxy\\n(/api -> Node.js)] as APIProxy
+    [WebSocket Proxy\\n(/ws -> Node.js)] as WSProxy
+  }
+  
+  node "Node.js Application\\n(PM2 Managed)" as NodeApp {
+    [Express Server\\n(Port 5000)] as Express
+    [WebSocket Server\\n(Path: /ws)] as WSServer
+    [Background Jobs\\n(YouGile Sync)] as BackgroundJobs
+  }
+  
+  node "PostgreSQL Database" as PostgresNode {
+    [Main Database\\n(streamdesk)] as MainDB
+    [Connection Pool\\n(postgres.js)] as ConnPool
+  }
+  
+  node "File Storage\\n(Local or S3)" as Storage {
+    [Uploaded Files\\n(Multer)] as Uploads
+    [Generated Documents\\n(PDF, DOCX)] as Documents
+  }
+}
+
+' External Services
+cloud "External Services" as ExternalServices {
+  [YouGile API\\n(Task Sync)] as YouGileAPI
+  [Hugging Face\\nInference API] as HuggingFaceAPI
+  [Telegram Bot API] as TelegramAPI
+  [YouTube Data API] as YouTubeAPI
+  [VK API] as VKAPI
+  [Neon Serverless\\n(PostgreSQL)] as NeonDB
+}
+
+' Local Network (Broadcast Equipment)
+node "Local Network\\n(Studio/Broadcast)" as LocalNetwork {
+  [vMix\\n(Video Mixing)] as vMix
+  [OBS Studio\\n(Broadcasting)] as OBS
+  [Other Broadcast\\nEquipment] as BroadcastEquip
+}
+
+' Relationships
+Internet --> Clients
+Clients --> Nginx : HTTPS (443)
+Clients --> WebSocket : WSS (443)
+
+Nginx --> StaticServer : Serve static files
+Nginx --> APIProxy : Proxy /api/*
+Nginx --> WSProxy : Proxy /ws
+
+APIProxy --> Express : HTTP (5000)
+WSProxy --> WSServer : WebSocket
+
+Express --> MainDB : SQL queries
+WSServer --> MainDB : Poll data (10s)
+BackgroundJobs --> MainDB : Read/Write
+
+MainDB --> ConnPool : Connection management
+ConnPool --> NeonDB : Optional cloud DB
+
+Express --> Uploads : Save files
+Express --> Documents : Generate docs
+
+BackgroundJobs --> YouGileAPI : Sync tasks\\n(every 2min)
+Express --> HuggingFaceAPI : AI inference
+Express --> TelegramAPI : Send notifications
+Express --> YouTubeAPI : Get stream stats
+Express --> VKAPI : Get stream stats
+
+vMix --> Express : HTTP API\\n(Local network)
+OBS --> Express : WebSocket/HTTP\\n(Local network)
+BroadcastEquip --> Express : Monitoring data
+
+note right of VPS
+  **Deployment Details:**
+  - PM2 manages Node.js process
+  - Auto-restart on crash
+  - Log rotation
+  - Cluster mode (optional)
+  
+  **Security:**
+  - Firewall: only 80, 443 open
+  - SSH access (restricted)
+  - Environment variables in .env
+  - Secrets not in repository
+end note
+
+note right of Nginx
+  **Nginx Configuration:**
+  - SSL termination
+  - Gzip compression
+  - Static file caching
+  - Rate limiting
+  - Request logging
+end note
+
+note bottom of PostgresNode
+  **Database Options:**
+  1. Local PostgreSQL (default)
+  2. Neon Serverless (cloud)
+  
+  **Backups:**
+  - Daily automated backups
+  - Point-in-time recovery
+  - Off-site storage
+end note
+
+note right of LocalNetwork
+  **Broadcast Integration:**
+  - vMix/OBS run on local machines
+  - StreamDesk monitors status
+  - Can trigger actions remotely
+  - Low-latency local network
+end note
+
+@enduml

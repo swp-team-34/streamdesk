@@ -1,0 +1,133 @@
+@startuml
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title StreamDesk - Creating and Managing a Kanban Task (Dynamic View)
+
+actor User
+participant "Browser\n(React App)" as Browser
+participant "TanStack Query\n(Client Cache)" as Query
+participant "Express API\n(Routes)" as API
+participant "Auth Middleware" as Auth
+participant "Zod Validator" as Validator
+participant "Database Layer\n(Drizzle ORM)" as DB
+participant "PostgreSQL" as Postgres
+participant "WebSocket Server" as WS
+participant "Other Connected\nClients" as Others
+
+== Task Creation Flow ==
+
+User -> Browser: Click "Create Task"\non Kanban Board
+activate Browser
+
+Browser -> Query: mutate('/api/kanban/cards',\n{title, description, listId})
+activate Query
+
+note right of Query
+  Optimistic update:
+  UI shows new task immediately
+  before server response
+end note
+
+Query -> API: POST /api/kanban/cards
+activate API
+
+API -> Auth: Check session
+activate Auth
+Auth --> API: Session valid ✓
+deactivate Auth
+
+API -> Validator: Validate request body
+activate Validator
+Validator --> API: Valid ✓
+deactivate Validator
+
+API -> DB: insertTask(taskData)
+activate DB
+
+DB -> Postgres: INSERT INTO kanban_cards
+activate Postgres
+Postgres --> DB: Return inserted task
+deactivate Postgres
+
+DB --> API: Return created task\n(with id, timestamps)
+deactivate DB
+
+API --> Query: 201 Created\n{task object}
+deactivate API
+
+Query --> Browser: Update cache\nwith new task
+deactivate Query
+
+Browser --> User: Show task in UI
+deactivate Browser
+
+== Real-time Synchronization ==
+
+note over WS
+  WebSocket polls database
+  every 10 seconds
+end note
+
+WS -> DB: getKanbanCards()
+activate DB
+DB -> Postgres: SELECT * FROM kanban_cards
+activate Postgres
+Postgres --> DB: Return all cards
+deactivate Postgres
+DB --> WS: Return updated cards
+deactivate DB
+
+WS -> Others: Broadcast 'tasks_update'\n{cards: [...]}
+activate Others
+Others -> Others: Update local cache\nand re-render UI
+deactivate Others
+
+== Error Handling Scenario ==
+
+User -> Browser: Try to create task\nwith invalid data
+activate Browser
+
+Browser -> Query: mutate('/api/kanban/cards',\n{title: ""})
+activate Query
+
+Query -> API: POST /api/kanban/cards
+activate API
+
+API -> Validator: Validate request body
+activate Validator
+Validator --> API: Validation failed ✗\n"Title is required"
+deactivate Validator
+
+API --> Query: 400 Bad Request\n{error: "Title is required"}
+deactivate API
+
+Query --> Browser: Show error toast
+deactivate Query
+
+Browser --> User: Display validation error
+deactivate Browser
+
+== WebSocket Disconnection Handling ==
+
+note over WS
+  If WebSocket disconnects,
+  system falls back to
+  REST API polling
+end note
+
+WS -> WS: Connection lost
+WS -> WS: Attempt reconnect\n(exponential backoff)
+
+Others -> API: Fallback: GET /api/kanban/cards\n(every 30 seconds)
+activate API
+API -> DB: getKanbanCards()
+activate DB
+DB --> API: Return cards
+deactivate DB
+API --> Others: Return current state
+deactivate API
+
+@enduml
+
