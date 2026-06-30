@@ -157,8 +157,23 @@ The diagram shows a single VPS running Nginx, a Node.js process managed by PM2, 
 
 ## Architecture Decision Records
 
-The maintained ADR set is stored in [`docs/architecture/adr/`](./adr/). Each ADR uses a stable ID in the form `ADR-NNN` and is linked to the quality requirements it addresses.
+The following ADRs document the most important architectural decisions made for the core features developed by our team (Equipment, Admin Panel, Access Control, and Testing infrastructure). Each ADR is linked to the quality requirements it addresses.
 
-The ADR index home is this section of `docs/architecture/README.md`; a separate `docs/architecture/adr/README.md` is not used.
+- [ADR-001: Centralized Equipment Permission Evaluator](./adr/ADR-001-centralized-equipment-permissions.md)
+- [ADR-002: Declarative Protected Route Wrapper](./adr/ADR-002-declarative-protected-route-wrapper.md)
+- [ADR-003: Unified Monorepo Test and Coverage Configuration](./adr/ADR-003-unified-monorepo-coverage.md)
 
-*The concrete set of ADRs will be added once the team finalizes the decisions to be recorded. Each ADR will be linked from this section and will reference the relevant quality requirements in `docs/quality-requirements.md`.*
+### How the decisions fit together
+
+These three decisions form the foundation of our team's approach to **security, functional correctness, and maintainability** for the Equipment, Admin, and shared modules:
+
+1. **Functional Correctness & Security (QR-01, QR-02):** 
+   - **ADR-001** ensures that complex business rules for equipment access (create, edit, reserve) are evaluated consistently and correctly by centralizing the logic. 
+   - **ADR-002** complements this at the UI/routing layer by declaratively protecting pages, ensuring that users cannot access restricted areas without proper authentication and permissions.
+   - Together, they create a defense-in-depth approach: the UI prevents unauthorized navigation (ADR-002), and the centralized evaluator guarantees that the underlying business logic and API endpoints enforce the correct permissions (ADR-001).
+
+2. **Maintainability & Testability (QR-03):**
+   - **ADR-003** ensures that the entire monorepo (client, server, and shared logic like the permission evaluator from ADR-001) is covered by a unified automated testing and coverage pipeline. 
+   - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.
+
+All three decisions directly support the team's Quality Requirements by isolating critical logic, making it testable, and enforcing that testability through automated CI gates.
