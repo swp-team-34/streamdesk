@@ -1,0 +1,103 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Create a Calendar Event
+
+actor "User" as User
+participant "Calendar UI\n(React)" as UI
+participant "HTTP Client" as HTTP
+participant "Shared Zod schema\n(shared/schema.ts)" as Schema
+participant "Express route\n(/api/calendar/events)" as Route
+participant "Passport auth\nmiddleware" as Auth
+participant "Zod request validation" as Val
+participant "Calendar handlers\n(business logic)" as BL
+participant "Drizzle ORM" as ORM
+participant "PostgreSQL\n(events,\nevent_participants)" as DB
+
+== Step 1 — User opens the "Create event" form ==
+
+User -> UI: Click "New event"
+UI -> Schema: Load event form schema\n(title, startDate, endDate,\nparticipants[])
+Schema --> UI: Field definitions + validators
+UI --> User: Render event form
+
+== Step 2 — User submits the new event ==
+
+User -> UI: Fill event details,\nselect participants,\nclick "Create"
+UI -> Schema: Validate form locally
+alt Form is invalid
+  Schema --> UI: Validation errors
+  UI --> User: Show inline errors
+else Form is valid
+  UI -> HTTP: POST /api/calendar/events\n{ title, startDate, endDate,\n  participantUserIds[] }
+end
+
+== Step 3 — Server receives the request ==
+
+HTTP -> Route: HTTP request + session cookie
+Route -> Auth: Check session / company membership
+alt Not authenticated
+  Auth --> Route: Reject
+  Route --> HTTP: 401 Unauthorized
+  HTTP --> UI: Show "please log in"
+else Authenticated
+  Auth --> Route: user + company context
+end
+
+== Step 4 — Validate the request body ==
+
+Route -> Val: Validate body against\neventInsertSchema
+alt Invalid payload
+  Val --> Route: Zod error
+  Route --> HTTP: 400 Bad Request\n{ issues: [...] }
+  HTTP --> UI: Show validation errors
+else Valid payload
+  Val --> Route: Parsed event data
+end
+
+== Step 5 — Apply Calendar business rules ==
+
+Route -> BL: createEvent(userId, companyId, data)
+
+BL -> ORM: Validate that all participantUserIds\nbelong to the same company
+ORM -> DB: SQL
+DB --> ORM: participant rows
+ORM --> BL: participants | missing[]
+
+alt Some participants do not belong to the company
+  BL --> Route: Throw BadRequest
+  Route --> HTTP: 400 Bad Request\n{ reason: "invalid participants" }
+  HTTP --> UI: Show "invalid participants"
+else All participants valid
+  BL -> ORM: BEGIN TRANSACTION
+  ORM -> DB: SQL
+  DB --> ORM: OK
+
+  BL -> ORM: INSERT INTO events
+  ORM -> DB: SQL
+  DB --> ORM: inserted event
+  ORM --> BL: event
+
+  BL -> ORM: INSERT INTO event_participants\n(for each participant)
+  ORM -> DB: SQL
+  DB --> ORM: inserted participants
+  ORM --> BL: participants
+
+  BL -> ORM: COMMIT
+  ORM -> DB: SQL
+  DB --> ORM: OK
+  ORM --> BL: event + participants
+
+  BL --> Route: event + participants
+end
+
+== Step 6 — Respond to the client ==
+
+Route --> HTTP: 201 Created\n{ event, participants }
+HTTP --> UI: Update local state
+UI --> User: Show the new event\nin the calendar
+
+@enduml

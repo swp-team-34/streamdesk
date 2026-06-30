@@ -1,140 +1,84 @@
 @startuml
 !theme plain
+skinparam backgroundColor #FEFEFE
 skinparam componentStyle rectangle
 skinparam nodeStyle rectangle
 
-title StreamDesk - Deployment Diagram (Deployment View)
+title StreamDesk Deployment Diagram
 
-' Internet Zone
-cloud "Internet" as Internet
+node "Single VPS\n(Ubuntu, managed by the team)" as VPS {
 
-' Client Devices
-node "Client Devices" as Clients {
-  [Desktop Browser\\n(Chrome, Firefox, Safari)] as DesktopBrowser
-  [Mobile Browser\\n(Responsive UI)] as MobileBrowser
-}
+  [Nginx\n(reverse proxy,\nTLS termination)] as Nginx
 
-' CDN / Static Files
-node "CDN / Static Hosting\\n(Optional)" as CDN {
-  [Built Frontend Assets\\n(Vite build output)] as StaticAssets
-}
-
-' Production Server
-node "Production VPS\\n(Ubuntu/Debian)" as VPS {
-  
-  node "Nginx\\n(Reverse Proxy)" as Nginx {
-    [SSL Termination\\n(Let's Encrypt)] as SSL
-    [Static File Server\\n(/client/dist)] as StaticServer
-    [API Proxy\\n(/api -> Node.js)] as APIProxy
-    [WebSocket Proxy\\n(/ws -> Node.js)] as WSProxy
+  node "Node.js process\n(managed by PM2)" as NodeApp {
+    artifact "Express server\n(port 5000, localhost)" as Express
+    artifact "REST API routes\n(routes.ts)" as API
+    artifact "YouGile background sync\n(in-process)" as Sync
   }
-  
-  node "Node.js Application\\n(PM2 Managed)" as NodeApp {
-    [Express Server\\n(Port 5000)] as Express
-    [WebSocket Server\\n(Path: /ws)] as WSServer
-    [Background Jobs\\n(YouGile Sync)] as BackgroundJobs
+
+  node "PostgreSQL 15\n(local instance)" as Postgres {
+    artifact "streamdesk database" as DB
+    artifact "Drizzle-managed schema\nand migrations" as Schema
   }
-  
-  node "PostgreSQL Database" as PostgresNode {
-    [Main Database\\n(streamdesk)] as MainDB
-    [Connection Pool\\n(postgres.js)] as ConnPool
-  }
-  
-  node "File Storage\\n(Local or S3)" as Storage {
-    [Uploaded Files\\n(Multer)] as Uploads
-    [Generated Documents\\n(PDF, DOCX)] as Documents
-  }
+
+  [Local filesystem\n/uploads] as Uploads
 }
 
-' External Services
-cloud "External Services" as ExternalServices {
-  [YouGile API\\n(Task Sync)] as YouGileAPI
-  [Hugging Face\\nInference API] as HuggingFaceAPI
-  [Telegram Bot API] as TelegramAPI
-  [YouTube Data API] as YouTubeAPI
-  [VK API] as VKAPI
-  [Neon Serverless\\n(PostgreSQL)] as NeonDB
+node "Staff browsers" as Browsers {
+  artifact "Chrome / Firefox / Safari\n(React SPA)" as Browser
 }
 
-' Local Network (Broadcast Equipment)
-node "Local Network\\n(Studio/Broadcast)" as LocalNetwork {
-  [vMix\\n(Video Mixing)] as vMix
-  [OBS Studio\\n(Broadcasting)] as OBS
-  [Other Broadcast\\nEquipment] as BroadcastEquip
+cloud "External services" as External {
+  artifact "YouGile REST API\n(task sync)" as YouGile
 }
 
-' Relationships
-Internet --> Clients
-Clients --> Nginx : HTTPS (443)
-Clients --> WebSocket : WSS (443)
+' === Connections ===
+Browser --> Nginx : HTTPS (443)
 
-Nginx --> StaticServer : Serve static files
-Nginx --> APIProxy : Proxy /api/*
-Nginx --> WSProxy : Proxy /ws
+Nginx --> Uploads : serve static\nfrontend build
+Nginx --> Express : proxy /api/*\nto localhost:5000
 
-APIProxy --> Express : HTTP (5000)
-WSProxy --> WSServer : WebSocket
+Express --> Postgres : TCP 5432\n(local socket)
+Express --> Uploads : read/write files
+Express --> YouGile : HTTPS\nREST API
 
-Express --> MainDB : SQL queries
-WSServer --> MainDB : Poll data (10s)
-BackgroundJobs --> MainDB : Read/Write
+Sync --> YouGile : periodic\nHTTPS calls
 
-MainDB --> ConnPool : Connection management
-ConnPool --> NeonDB : Optional cloud DB
-
-Express --> Uploads : Save files
-Express --> Documents : Generate docs
-
-BackgroundJobs --> YouGileAPI : Sync tasks\\n(every 2min)
-Express --> HuggingFaceAPI : AI inference
-Express --> TelegramAPI : Send notifications
-Express --> YouTubeAPI : Get stream stats
-Express --> VKAPI : Get stream stats
-
-vMix --> Express : HTTP API\\n(Local network)
-OBS --> Express : WebSocket/HTTP\\n(Local network)
-BroadcastEquip --> Express : Monitoring data
-
-note right of VPS
-  **Deployment Details:**
-  - PM2 manages Node.js process
-  - Auto-restart on crash
-  - Log rotation
-  - Cluster mode (optional)
-  
-  **Security:**
-  - Firewall: only 80, 443 open
-  - SSH access (restricted)
-  - Environment variables in .env
-  - Secrets not in repository
-end note
-
+' === Notes ===
 note right of Nginx
-  **Nginx Configuration:**
-  - SSL termination
-  - Gzip compression
-  - Static file caching
-  - Rate limiting
-  - Request logging
+  Nginx is the only
+  internet-facing component.
+  It terminates TLS, serves
+  the static SPA from
+  /client/dist, and
+  reverse-proxies /api/* to
+  the Node.js process.
 end note
 
-note bottom of PostgresNode
-  **Database Options:**
-  1. Local PostgreSQL (default)
-  2. Neon Serverless (cloud)
-  
-  **Backups:**
-  - Daily automated backups
-  - Point-in-time recovery
-  - Off-site storage
+note right of NodeApp
+  A single Node.js process
+  hosts both the REST API
+  and the YouGile sync job.
+  PM2 watches the process
+  and restarts it on crash.
 end note
 
-note right of LocalNetwork
-  **Broadcast Integration:**
-  - vMix/OBS run on local machines
-  - StreamDesk monitors status
-  - Can trigger actions remotely
-  - Low-latency local network
+note right of Postgres
+  PostgreSQL runs on the
+  same host as the app.
+  Backups are expected to
+  be performed externally
+  (e.g. pg_dump + cron).
+end note
+
+note bottom of VPS
+  This is a single-host
+  deployment chosen for
+  MVP v2. It is simple and
+  cheap, but introduces a
+  single point of failure
+  and limits horizontal
+  scalability.
 end note
 
 @enduml

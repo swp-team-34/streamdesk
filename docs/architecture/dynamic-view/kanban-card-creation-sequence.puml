@@ -1,0 +1,93 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Create a Kanban Card
+
+actor "User" as User
+participant "Task Manager UI\n(React)" as UI
+participant "HTTP Client" as HTTP
+participant "Shared Zod schema\n(shared/schema.ts)" as Schema
+participant "Express route\n(/api/kanban/cards)" as Route
+participant "Passport auth\nmiddleware" as Auth
+participant "Zod request validation" as Val
+participant "Kanban handlers\n(business logic)" as BL
+participant "Drizzle ORM" as ORM
+participant "PostgreSQL\n(kanban_boards,\nkanban_lists,\nkanban_cards,\nkanban_card_history)" as DB
+
+== Step 1 — User opens the "Create card" form ==
+
+User -> UI: Click "Add card"\nin a Kanban list
+UI -> Schema: Load card form schema\n(title, description, listId, boardId)
+Schema --> UI: Field definitions + validators
+UI --> User: Render card form
+
+== Step 2 — User submits the new card ==
+
+User -> UI: Fill title/description,\nclick "Create"
+UI -> Schema: Validate form locally
+alt Form is invalid
+  Schema --> UI: Validation errors
+  UI --> User: Show inline errors
+else Form is valid
+  UI -> HTTP: POST /api/kanban/cards\n{ title, description, listId, boardId }
+end
+
+== Step 3 — Server receives the request ==
+
+HTTP -> Route: HTTP request + session cookie
+Route -> Auth: Check session / company membership
+alt Not authenticated
+  Auth --> Route: Reject
+  Route --> HTTP: 401 Unauthorized
+  HTTP --> UI: Show "please log in"
+else Authenticated
+  Auth --> Route: user + company context
+end
+
+== Step 4 — Validate the request body ==
+
+Route -> Val: Validate body against\ncardInsertSchema
+alt Invalid payload
+  Val --> Route: Zod error
+  Route --> HTTP: 400 Bad Request\n{ issues: [...] }
+  HTTP --> UI: Show validation errors
+else Valid payload
+  Val --> Route: Parsed card data
+end
+
+== Step 5 — Apply Kanban business rules ==
+
+Route -> BL: createCard(userId, companyId, data)
+
+BL -> ORM: SELECT list WHERE id = :listId\nAND board_id IN (boards of company)
+ORM -> DB: SQL
+DB --> ORM: list row
+ORM --> BL: list | null
+
+alt List not found or does not belong to the company
+  BL --> Route: Throw NotFound / Forbidden
+  Route --> HTTP: 404 / 403
+else List found
+  BL -> ORM: INSERT INTO kanban_cards
+  ORM -> DB: SQL
+  DB --> ORM: inserted card
+  ORM --> BL: card
+
+  BL -> ORM: INSERT INTO kanban_card_history\n(action: 'created')
+  ORM -> DB: SQL
+  DB --> ORM: inserted history row
+  ORM --> BL: history
+
+  BL --> Route: card + history
+end
+
+== Step 6 — Respond to the client ==
+
+Route --> HTTP: 201 Created\n{ card }
+HTTP --> UI: Update local state
+UI --> User: Show the new card\nin the Kanban list
+
+@enduml

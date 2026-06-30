@@ -1,98 +1,98 @@
 @startuml
 !theme plain
 skinparam componentStyle rectangle
-skinparam defaultTextAlignment center
-skinparam packageStyle frame
+skinparam backgroundColor #FEFEFE
 
-title StreamDesk - Component Diagram (Static View)
+title StreamDesk Component Diagram (Static View)
 
-' Frontend Components
-package "Frontend (React 18 + TypeScript)" as Frontend {
-  [Pages\n(29 pages)] as Pages
-  [Components\n(Radix UI + Tailwind)] as Components
-  [Lib\n(Utilities & Hooks)] as Lib
-  [State Management\n(TanStack Query)] as StateMgmt
+' === Client layer ===
+package "Client (React + TypeScript)" as Client {
+  [Task Manager UI\n(Kanban)] as TaskUI
+  [Calendar UI] as CalendarUI
+  [Equipment UI\n(Warehouse)] as EquipmentUI
+  [Admin Panel UI\n(Dashboard)] as AdminUI
+
+  [HTTP Client\n(fetch / axios)] as HTTP
+  [Shared Zod schemas\n(shared/schema.ts)] as ClientSchemas
 }
 
-' Backend Components
-package "Backend (Node.js + Express)" as Backend {
-  [Routes\n(REST API)] as Routes
-  [Services\n(Business Logic)] as Services
-  [Auth\n(Passport + Sessions)] as Auth
-  [Database Layer\n(Drizzle ORM)] as DbLayer
-  [WebSocket Server\n(Real-time Updates)] as WebSocket
-  
-  package "External Integrations" as Integrations {
-    [YouGile Sync] as YouGile
-    [Hugging Face AI] as HuggingFace
-    [Telegram Bot] as Telegram
-    [Document Generator] as DocGen
-    [WhisperX Client] as WhisperX
-  }
+' === Server layer ===
+package "Server (Node.js + Express)" as Server {
+  [Route Handlers\n(Kanban, Calendar,\nEquipment, Admin)\nin routes.ts] as Handlers
+
+  [Zod validation\n(shared schemas)] as Val
+  [Passport.js\n(session auth)] as Auth
+
+  [Drizzle ORM] as ORM
+
+  [YouGile sync\n(background job)] as YouGileSync
 }
 
-' Database
-database "PostgreSQL\n(Drizzle Schema)" as DB {
-  [Users & Companies]
-  [Tasks & Projects]
-  [Kanban Boards]
-  [Equipment & Events]
-  [Streams & Systems]
-  [Chat Sessions]
-  [YouGile Cache]
+' === Data layer ===
+database "PostgreSQL" as DB {
+  [kanban_boards\nkanban_lists\nkanban_cards] as KanbanDB
+  [events\nevent_participants] as CalendarDB
+  [equipment\nequipment_reservations\nequipment_checkout_requests] as EquipmentDB
+  [users\ncompanies\ncompany_members\nroles] as AdminDB
 }
 
-' External Systems
-cloud "YouGile API" as YouGileAPI
-cloud "Hugging Face\nInference API" as HFAPI
-cloud "Telegram Bot API" as TelegramAPI
-cloud "vMix / OBS" as Broadcast
-cloud "YouTube / VK" as Streaming
+' === External systems ===
+cloud "External" as External {
+  [YouGile API] as YouGile
+  [Browser clients\n(staff, admins)] as Users
+}
 
-' User
-actor "User\n(Browser)" as User
+' === Client connections ===
+Users --> HTTP : HTTPS / JSON
+TaskUI --> HTTP
+CalendarUI --> HTTP
+EquipmentUI --> HTTP
+AdminUI --> HTTP
 
-' Relationships
-User --> Frontend : HTTP/HTTPS
-Pages --> Components : uses
-Pages --> Lib : uses
-Pages --> StateMgmt : manages state
+HTTP --> ClientSchemas : uses for\nform validation
 
-Frontend --> Backend : REST API\n(HTTP/JSON)
-Frontend --> WebSocket : Real-time\n(WebSocket)
+' === Client -> Server ===
+HTTP --> Handlers : REST API\n(JSON over HTTP)
 
-Routes --> Services : calls
-Routes --> Auth : validates
-Routes --> DbLayer : queries
-Services --> Integrations : integrates
-Services --> DbLayer : queries
+' === Inside the server ===
+Handlers --> Val : validate\nrequest body
+Handlers --> Auth : check session\nand permissions
+Handlers --> ORM : read / write\ndata
 
-DbLayer --> DB : SQL\n(Drizzle ORM)
+YouGileSync --> ORM : sync tasks
 
-WebSocket --> DbLayer : polls data\n(every 10s)
+' === Server -> Data ===
+ORM --> KanbanDB
+ORM --> CalendarDB
+ORM --> EquipmentDB
+ORM --> AdminDB
 
-YouGile --> YouGileAPI : sync\n(every 2min)
-HuggingFace --> HFAPI : inference
-Telegram --> TelegramAPI : messages
-Broadcast --> Backend : monitoring
-Streaming --> Backend : stats
+' === External integrations ===
+YouGileSync --> YouGile : HTTPS / REST
 
-note right of Frontend
-  Vite for dev/build
-  Wouter for routing
-  Tailwind CSS + DaisyUI
+' === Notes ===
+note right of Handlers
+  All route handlers currently
+  live in a single **routes.ts**
+  file (~9000 lines). This is
+  the main maintainability
+  risk of the server layer.
 end note
 
-note right of Backend
-  Express.js framework
-  Express-session for auth
-  Zod for validation
-  PM2 for production
+note bottom of EquipmentDB
+  The Equipment module
+  (warehouse) is treated as
+  **stable**: its architecture
+  is not expected to change
+  in the near term.
 end note
 
-note bottom of DB
-  Neon Serverless compatible
-  Migrations via Drizzle Kit
+note right of ClientSchemas
+  The same Zod schemas in
+  **shared/schema.ts** are used
+  by the client (forms) and
+  by the server (request
+  validation).
 end note
 
 @enduml
