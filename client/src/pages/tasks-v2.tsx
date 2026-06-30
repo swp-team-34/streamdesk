@@ -50,6 +50,7 @@ import {
   normalizeDateRange,
   toDateTimeLocalValue,
 } from "@/lib/task-dates";
+import { formatPluralRu } from "@/lib/plural-ru";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -3124,9 +3125,9 @@ export default function TasksV2Page() {
                 Статистика доски
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>Всего досок: {boards.length}</DropdownMenuItem>
-              <DropdownMenuItem disabled>Личных: {personalBoards.length}</DropdownMenuItem>
-              <DropdownMenuItem disabled>Просрочено: {overdueCardsCount}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Всего: {formatPluralRu(boards.length, "доска", "доски", "досок")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Личных: {formatPluralRu(personalBoards.length, "доска", "доски", "досок")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Просрочено: {formatPluralRu(overdueCardsCount, "карточка", "карточки", "карточек")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => selectedBoard && handleEditBoard(selectedBoard)}>
                 <Pencil className="h-4 w-4" />
@@ -5232,7 +5233,12 @@ export default function TasksV2Page() {
                         <div>
                           <div className="font-medium">{group.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {boardLabels.filter((label) => label.groupId === group.id).length} меток
+                            {formatPluralRu(
+                              boardLabels.filter((label) => label.groupId === group.id).length,
+                              "метка",
+                              "метки",
+                              "меток",
+                            )}
                           </div>
                         </div>
                       </div>
