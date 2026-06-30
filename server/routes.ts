@@ -3548,6 +3548,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: body.notes && String(body.notes).trim() ? String(body.notes).trim() : undefined,
         status: body.status && String(body.status).trim() ? String(body.status).trim() : "available",
         location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        storageLocation: body.storageLocation && String(body.storageLocation).trim() ? String(body.storageLocation).trim() : undefined,
+        responsiblePerson: body.responsiblePerson && String(body.responsiblePerson).trim() ? String(body.responsiblePerson).trim() : undefined,
+        responsibleContact: body.responsibleContact && String(body.responsibleContact).trim() ? String(body.responsibleContact).trim() : undefined,
         photos: Array.isArray(body.photos) ? body.photos : [],
       };
       if (sanitized.barcode) {

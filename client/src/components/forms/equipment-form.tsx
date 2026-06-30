@@ -221,6 +221,9 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
       notes: equipment?.notes || "",
       status: equipment?.status || "available",
       location: equipment?.location || "",
+      storageLocation: equipment?.storageLocation || "",
+      responsiblePerson: equipment?.responsiblePerson || "",
+      responsibleContact: equipment?.responsibleContact || "",
     },
   });
 
@@ -236,6 +239,9 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
         notes: equipment.notes || "",
         status: equipment.status || "available",
         location: equipment.location || "",
+        storageLocation: equipment.storageLocation || "",
+        responsiblePerson: equipment.responsiblePerson || "",
+        responsibleContact: equipment.responsibleContact || "",
       });
     } else if (!equipment && isOpen) {
       form.reset({
@@ -248,6 +254,9 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
         notes: "",
         status: "available",
         location: "",
+        storageLocation: "",
+        responsiblePerson: "",
+        responsibleContact: "",
       });
     }
   }, [equipment, isOpen, form]);
@@ -702,6 +711,63 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
                         className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="storageLocation"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Место хранения</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Комната 204, стеллаж B, полка 3"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="responsiblePerson"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Ответственный</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Имя ответственного"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="responsibleContact"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Контакт ответственного</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="+7 900 000-00-00, Telegram или email"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
                       />
                     </FormControl>
                     <FormMessage />

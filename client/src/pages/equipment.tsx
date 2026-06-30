@@ -169,6 +169,18 @@ function getEquipmentComments(item: Equipment | null | undefined): EquipmentComm
     .filter((comment) => comment.text);
 }
 
+function getEquipmentStorageLocation(item: Equipment | null | undefined) {
+  return String(item?.storageLocation || item?.location || "").trim();
+}
+
+function getEquipmentResponsiblePerson(item: Equipment | null | undefined) {
+  return String(item?.responsiblePerson || "").trim();
+}
+
+function getEquipmentResponsibleContact(item: Equipment | null | undefined) {
+  return String(item?.responsibleContact || "").trim();
+}
+
 function isSuperPosition(item: Equipment | null | undefined) {
   const specs = asRecord(item?.specifications);
   return specs.isSuperPosition === true || specs.bundleType === "super_position";
@@ -558,6 +570,9 @@ export default function EquipmentPage() {
       "Инв. номер",
       "Штрихкод",
       "Место",
+      "Место хранения",
+      "Ответственный",
+      "Контакт ответственного",
       "Тех. характеристики",
       "Комментарий",
     ];
@@ -575,6 +590,9 @@ export default function EquipmentPage() {
           item.inventoryNumber ?? "",
           String(item.barcode ?? "").trim(),
           item.location ?? "",
+          getEquipmentStorageLocation(item),
+          getEquipmentResponsiblePerson(item),
+          getEquipmentResponsibleContact(item),
           getSpecificationEntries(item.specifications).map(([key, value]) => `${key}: ${value}`).join("\n"),
           String(item.notes ?? "").trim(),
         ];
@@ -1196,8 +1214,21 @@ export default function EquipmentPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="h-8 w-48 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+          <div className="h-10 w-32 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-900/[0.02] p-3 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-56 animate-pulse rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1905,6 +1936,9 @@ export default function EquipmentPage() {
                 getSpecificationEntries(item.specifications).length > 0,
             );
             const itemComments = getEquipmentComments(item);
+            const storageLocation = getEquipmentStorageLocation(item);
+            const responsiblePerson = getEquipmentResponsiblePerson(item);
+            const responsibleContact = getEquipmentResponsibleContact(item);
             const canRequestThisItem = !userCanReserve && !canReturnOwnItem && canRequestEquipmentItem(item, projectInfo);
 
             return (
@@ -2208,11 +2242,20 @@ export default function EquipmentPage() {
                       <span className="max-w-full min-w-0 break-all text-left font-medium sm:max-w-[68%] sm:text-right">{item.inventoryNumber}</span>
                     </div>
                   )}
-                  {item.location && (
+                  {storageLocation && (
                     <div className="flex items-start gap-1.5">
                       <MapPin className="w-3 h-3 text-slate-400 mt-1 shrink-0" />
-                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Место:</span>
-                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">{item.location}</span>
+                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Хранение:</span>
+                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">{storageLocation}</span>
+                    </div>
+                  )}
+                  {(responsiblePerson || responsibleContact) && (
+                    <div className="flex items-start gap-1.5">
+                      <User className="w-3 h-3 text-slate-400 mt-1 shrink-0" />
+                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Ответственный:</span>
+                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">
+                        {[responsiblePerson, responsibleContact].filter(Boolean).join(" · ")}
+                      </span>
                     </div>
                   )}
                   {itemComments.length > 0 && (
@@ -2581,6 +2624,42 @@ export default function EquipmentPage() {
                     Входит в сборку: <span className="font-medium">{getParentBundleName(detailsEquipment)}</span>
                   </div>
                 )}
+
+                {(() => {
+                  const storageLocation = getEquipmentStorageLocation(detailsEquipment);
+                  const responsiblePerson = getEquipmentResponsiblePerson(detailsEquipment);
+                  const responsibleContact = getEquipmentResponsibleContact(detailsEquipment);
+                  if (!storageLocation && !responsiblePerson && !responsibleContact) return null;
+
+                  return (
+                    <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                        Хранение и ответственность
+                      </div>
+                      <div className="space-y-2">
+                        {storageLocation && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs text-slate-500 dark:text-slate-400">Место хранения</div>
+                              <div className="break-words font-medium">{storageLocation}</div>
+                            </div>
+                          </div>
+                        )}
+                        {(responsiblePerson || responsibleContact) && (
+                          <div className="flex items-start gap-2">
+                            <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs text-slate-500 dark:text-slate-400">Ответственный</div>
+                              {responsiblePerson && <div className="break-words font-medium">{responsiblePerson}</div>}
+                              {responsibleContact && <div className="break-words text-slate-600 dark:text-slate-300">{responsibleContact}</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {detailsEquipment.status === "in-use" && getAssignedUserName(detailsEquipment.assignedTo) && (
                   <div className="rounded-md border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">

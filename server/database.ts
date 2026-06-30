@@ -1879,11 +1879,11 @@ class StubStorage implements IStorage {
     } as User);
     // Тестовые карточки оборудования для локального теста (склад)
     const seedEq: Equipment[] = [
-      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
-      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", location: "Подкаст зона", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", location: "Мобильная съёмка", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Техническая", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
+      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", location: "Подкаст зона", storageLocation: "Подкаст зона", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", location: "Мобильная съёмка", storageLocation: "Мобильная съёмка", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Техническая", storageLocation: "Техническая", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
     ];
     seedEq.forEach((e) => this.equipment.set(e.id, e));
     // Тестовый проект для локального теста (корзина → проект)
@@ -2016,7 +2016,14 @@ class StubStorage implements IStorage {
   }
   async createEquipment(data: InsertEquipment): Promise<Equipment> {
     const id = this.uid();
-    const eq = { ...data, id, createdAt: this.now() } as Equipment;
+    const eq = {
+      ...data,
+      id,
+      storageLocation: data.storageLocation ?? null,
+      responsiblePerson: data.responsiblePerson ?? null,
+      responsibleContact: data.responsibleContact ?? null,
+      createdAt: this.now(),
+    } as Equipment;
     this.equipment.set(id, eq);
     return eq;
   }
@@ -2877,6 +2884,13 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS archived_at timestamp`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить Kanban V2 schema:", schemaErr);
+      }
+      try {
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS storage_location text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_person text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_contact text`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось обновить equipment responsibility schema:", schemaErr);
       }
       try {
         await db!.select().from(users).limit(0);
