@@ -102,6 +102,7 @@ export const equipment = pgTable("equipment", {
   specifications: jsonb("specifications"),
   notes: text("notes"),
   status: text("status").notNull().default("available"),
+  operabilityStatus: text("operability_status").default("working"),
   location: text("location"),
   storageLocation: text("storage_location"),
   responsiblePerson: text("responsible_person"),

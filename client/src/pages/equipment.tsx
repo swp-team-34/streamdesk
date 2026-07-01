@@ -181,6 +181,14 @@ function getEquipmentResponsibleContact(item: Equipment | null | undefined) {
   return String(item?.responsibleContact || "").trim();
 }
 
+function getEquipmentOperabilityStatus(item: Equipment | null | undefined) {
+  const explicit = String(item?.operabilityStatus || "").trim();
+  if (explicit) return explicit;
+  if (item?.status === "broken") return "broken";
+  if (item?.status === "maintenance") return "on_repair";
+  return "working";
+}
+
 function isSuperPosition(item: Equipment | null | undefined) {
   const specs = asRecord(item?.specifications);
   return specs.isSuperPosition === true || specs.bundleType === "super_position";
@@ -225,6 +233,7 @@ function getBundleComponents(item: Equipment | null | undefined, allEquipment: E
 export default function EquipmentPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [operabilityFilter, setOperabilityFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -470,6 +479,10 @@ export default function EquipmentPage() {
   });
 
   const addToCart = (item: Equipment) => {
+    if (!isEquipmentOperable(item)) {
+      toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+      return;
+    }
     if (cart.some((e) => e.id === item.id)) return;
     setCart((prev) => [...prev, item]);
     toast({ title: "В корзине", description: `${item.name} добавлено в корзину` });
@@ -506,9 +519,10 @@ export default function EquipmentPage() {
                          item.inventoryNumber?.toLowerCase().includes(searchLower) ||
                          item.barcode?.toLowerCase().includes(searchLower);
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesOperability = operabilityFilter === "all" || getEquipmentOperabilityStatus(item) === operabilityFilter;
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     
-    return matchesSearch && matchesStatus && matchesType && matchesEmployeeFilter(item);
+    return matchesSearch && matchesStatus && matchesOperability && matchesType && matchesEmployeeFilter(item);
   });
 
   const getStatusColor = (status: string) => {
@@ -529,6 +543,34 @@ export default function EquipmentPage() {
       case "broken": return "Сломано";
       default: return status;
     }
+  };
+
+  const getOperabilityColor = (status: string) => {
+    switch (status) {
+      case "working": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+      case "broken": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+      case "on_repair": return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
+      default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+    }
+  };
+
+  const getOperabilityText = (status: string) => {
+    switch (status) {
+      case "working": return "Исправно";
+      case "broken": return "Неисправно";
+      case "on_repair": return "В ремонте";
+      default: return status || "Исправно";
+    }
+  };
+
+  const isEquipmentOperable = (item: Equipment | null | undefined) =>
+    getEquipmentOperabilityStatus(item) === "working";
+
+  const getInoperableMessage = (item: Equipment | null | undefined) => {
+    const status = getEquipmentOperabilityStatus(item);
+    return status === "broken"
+      ? "Оборудование помечено как неисправное и недоступно для выдачи."
+      : "Оборудование находится в ремонте и недоступно для выдачи.";
   };
 
   const getTypeIcon = (type: string) => {
@@ -564,6 +606,7 @@ export default function EquipmentPage() {
       "Название",
       "Модель",
       "Статус",
+      "Исправность",
       "Сотрудник",
       "Проект",
       "Серийный номер",
@@ -584,6 +627,7 @@ export default function EquipmentPage() {
           item.name ?? "",
           item.model ?? "",
           getStatusText(item.status ?? ""),
+          getOperabilityText(getEquipmentOperabilityStatus(item)),
           getAssignedUserName(item.assignedTo),
           projectInfo?.projectName ?? "",
           item.serialNumber ?? "",
@@ -598,7 +642,7 @@ export default function EquipmentPage() {
         ];
       })
       .sort((left, right) =>
-        `${left[0]}|${left[4]}|${left[1]}`.localeCompare(`${right[0]}|${right[4]}|${right[1]}`, "ru"),
+        `${left[0]}|${left[5]}|${left[1]}`.localeCompare(`${right[0]}|${right[5]}|${right[1]}`, "ru"),
       );
     const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
     const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8" });
@@ -1197,6 +1241,7 @@ export default function EquipmentPage() {
   const overdueCount = equipmentOnProjects.filter((x) => isReturnOverdue(x.returnDate, x.returnTime)).length;
   const activeFilterCount =
     Number(statusFilter !== "all") +
+    Number(operabilityFilter !== "all") +
     Number(typeFilter !== "all") +
     Number(Boolean(searchTerm.trim())) +
     Number(canApproveCheckout && employeeFilter !== "all");
@@ -1599,6 +1644,18 @@ export default function EquipmentPage() {
                 </SelectContent>
               </Select>
 
+              <Select value={operabilityFilter} onValueChange={setOperabilityFilter}>
+                <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectValue placeholder="Исправность" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любая исправность</SelectItem>
+                  <SelectItem value="working">Исправно</SelectItem>
+                  <SelectItem value="broken">Неисправно</SelectItem>
+                  <SelectItem value="on_repair">В ремонте</SelectItem>
+                </SelectContent>
+              </Select>
+
               {canApproveCheckout && (
                 <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
                   <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
@@ -1628,6 +1685,7 @@ export default function EquipmentPage() {
                   onClick={() => {
                     setSearchTerm("");
                     setStatusFilter("all");
+                    setOperabilityFilter("all");
                     setTypeFilter("all");
                     setEmployeeFilter("all");
                   }}
@@ -1720,6 +1778,18 @@ export default function EquipmentPage() {
           </SelectContent>
         </Select>
 
+        <Select value={operabilityFilter} onValueChange={setOperabilityFilter}>
+          <SelectTrigger className="w-full sm:w-[155px] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+            <SelectValue placeholder="Исправность" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Исправность</SelectItem>
+            <SelectItem value="working">Исправно</SelectItem>
+            <SelectItem value="broken">Неисправно</SelectItem>
+            <SelectItem value="on_repair">В ремонте</SelectItem>
+          </SelectContent>
+        </Select>
+
         {canApproveCheckout && (
           <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
             <SelectTrigger className="w-full sm:w-[190px] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
@@ -1748,6 +1818,7 @@ export default function EquipmentPage() {
           onClick={() => {
             setSearchTerm("");
             setStatusFilter("all");
+            setOperabilityFilter("all");
             setTypeFilter("all");
             setEmployeeFilter("all");
           }}
@@ -1939,6 +2010,7 @@ export default function EquipmentPage() {
             const storageLocation = getEquipmentStorageLocation(item);
             const responsiblePerson = getEquipmentResponsiblePerson(item);
             const responsibleContact = getEquipmentResponsibleContact(item);
+            const operabilityStatus = getEquipmentOperabilityStatus(item);
             const canRequestThisItem = !userCanReserve && !canReturnOwnItem && canRequestEquipmentItem(item, projectInfo);
 
             return (
@@ -1990,6 +2062,9 @@ export default function EquipmentPage() {
                         Сборка
                       </Badge>
                     )}
+                    <Badge className={`${getOperabilityColor(operabilityStatus)} text-[11px]`}>
+                      {getOperabilityText(operabilityStatus)}
+                    </Badge>
                     {getParentBundleName(item) && (
                       <Badge className="bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
                         В сборке
@@ -2073,6 +2148,10 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (item.status !== "in-use" && !isEquipmentOperable(item)) {
+                            toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+                            return;
+                          }
                           setSelectedEquipment(item);
                           setFormMode("take_return");
                           setIsFormOpen(true);
@@ -2105,6 +2184,10 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (!isEquipmentOperable(item)) {
+                            toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+                            return;
+                          }
                           setRequestEquipment(item);
                           setRequestLocation(item.location || "");
                           setRequestNote("");
@@ -2323,6 +2406,12 @@ export default function EquipmentPage() {
         onClose={() => setIsScannerOpen(false)}
         onEquipmentFound={(foundEquipment: Equipment) => {
           if (userCanReserve) {
+            if (foundEquipment.status !== "in-use" && !isEquipmentOperable(foundEquipment)) {
+              toast({ title: "Недоступно для выдачи", description: getInoperableMessage(foundEquipment), variant: "destructive" });
+              setDetailsEquipment(foundEquipment);
+              setIsScannerOpen(false);
+              return;
+            }
             setSelectedEquipment(foundEquipment);
             setFormMode("take_return");
             setIsFormOpen(true);
@@ -2331,6 +2420,12 @@ export default function EquipmentPage() {
             setFormMode("full");
             setIsFormOpen(true);
           } else if (canRequestEquipmentItem(foundEquipment, getOnProjectInfo(foundEquipment.id))) {
+            if (!isEquipmentOperable(foundEquipment)) {
+              toast({ title: "Недоступно для выдачи", description: getInoperableMessage(foundEquipment), variant: "destructive" });
+              setDetailsEquipment(foundEquipment);
+              setIsScannerOpen(false);
+              return;
+            }
             setRequestEquipment(foundEquipment);
             setRequestLocation(foundEquipment.location || "");
             setRequestNote("");
@@ -2467,6 +2562,9 @@ export default function EquipmentPage() {
                 {requestEquipment.model && (
                   <div className="text-sm text-slate-500 dark:text-slate-400">{requestEquipment.model}</div>
                 )}
+                <Badge className={`mt-2 ${getOperabilityColor(getEquipmentOperabilityStatus(requestEquipment))}`}>
+                  {getOperabilityText(getEquipmentOperabilityStatus(requestEquipment))}
+                </Badge>
               </div>
 
               {getCheckoutRequestType(undefined, requestEquipment) === "transfer" && requestEquipment.assignedTo && (
@@ -2515,16 +2613,20 @@ export default function EquipmentPage() {
                 <Button
                   type="button"
                   className="flex-1"
-                  disabled={!primaryCompanyId || requestCheckoutMutation.isPending}
-                  onClick={() =>
+                  disabled={!primaryCompanyId || requestCheckoutMutation.isPending || !isEquipmentOperable(requestEquipment)}
+                  onClick={() => {
+                    if (!isEquipmentOperable(requestEquipment)) {
+                      toast({ title: "Недоступно для выдачи", description: getInoperableMessage(requestEquipment), variant: "destructive" });
+                      return;
+                    }
                     requestCheckoutMutation.mutate({
                       equipmentId: requestEquipment.id,
                       location: requestLocation,
                       note: requestNote,
                       companyId: primaryCompanyId,
                       requestType: getCheckoutRequestType(undefined, requestEquipment),
-                    })
-                  }
+                    });
+                  }}
                 >
                   {requestCheckoutMutation.isPending
                     ? "Отправка..."
@@ -2624,6 +2726,15 @@ export default function EquipmentPage() {
                     Входит в сборку: <span className="font-medium">{getParentBundleName(detailsEquipment)}</span>
                   </div>
                 )}
+
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                    Исправность
+                  </div>
+                  <Badge className={getOperabilityColor(getEquipmentOperabilityStatus(detailsEquipment))}>
+                    {getOperabilityText(getEquipmentOperabilityStatus(detailsEquipment))}
+                  </Badge>
+                </div>
 
                 {(() => {
                   const storageLocation = getEquipmentStorageLocation(detailsEquipment);

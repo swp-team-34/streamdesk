@@ -94,6 +94,7 @@ export class MemStorage implements IStorage {
       specifications: null,
       notes: null,
       status: "available",
+      operabilityStatus: equipment.status === "broken" ? "broken" : equipment.status === "maintenance" ? "on_repair" : "working",
       location: null,
       storageLocation: null,
       responsiblePerson: null,

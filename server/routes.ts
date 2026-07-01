@@ -3547,6 +3547,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         notes: body.notes && String(body.notes).trim() ? String(body.notes).trim() : undefined,
         status: body.status && String(body.status).trim() ? String(body.status).trim() : "available",
+        operabilityStatus: body.operabilityStatus && String(body.operabilityStatus).trim()
+          ? String(body.operabilityStatus).trim()
+          : body.status === "broken"
+            ? "broken"
+            : body.status === "maintenance"
+              ? "on_repair"
+              : "working",
         location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
         storageLocation: body.storageLocation && String(body.storageLocation).trim() ? String(body.storageLocation).trim() : undefined,
         responsiblePerson: body.responsiblePerson && String(body.responsiblePerson).trim() ? String(body.responsiblePerson).trim() : undefined,
