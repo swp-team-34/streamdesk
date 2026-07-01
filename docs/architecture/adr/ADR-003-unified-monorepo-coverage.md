@@ -36,4 +36,4 @@ This unified script is integrated as a mandatory automated quality requirement t
 
 ## Quality Requirements Addressed
 
-- **QR-03 (Automated Regression Coverage):** The unified configuration ensures that changes covered by the configured CI triggers run automated tests with coverage reporting for the configured client, server, and shared TypeScript sources, providing repeatable evidence of testability.
+- **QR-003 (Automated Regression Coverage):** The unified configuration ensures that changes covered by the configured CI triggers run automated tests with coverage reporting for the configured client, server, and shared TypeScript sources, providing repeatable evidence of testability.

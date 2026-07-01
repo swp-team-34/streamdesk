@@ -40,4 +40,4 @@ A future refactor should extract server-side equipment authorization into a shar
 
 ## Quality Requirements Addressed
 
-- **QR-01 (Equipment Permission Correctness):** The centralized client-side evaluator ensures that UI permission decisions strictly match the user's role, workspace ownership, and explicit permissions, and provides a dedicated, testable module for automated verification. Server-side route-local checks enforce the same rules at the API boundary.
+- **QR-001 (Equipment Permission Correctness):** The centralized client-side evaluator ensures that UI permission decisions strictly match the user's role, workspace ownership, and explicit permissions, and provides a dedicated, testable module for automated verification. Server-side route-local checks enforce the same rules at the API boundary.

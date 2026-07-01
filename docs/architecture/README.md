@@ -104,11 +104,11 @@ The following ADRs document the most important architectural decisions made for 
 
 These three decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
 
-1. **Functional Correctness & Security (QR-01, QR-02):** 
+1. **Functional Correctness & Security (QR-001, QR-002):**
    - **ADR-001** ensures that complex business rules for equipment access are evaluated consistently on the client side, while server-side route-local checks enforce authorization at the API boundary. 
    - **ADR-002** complements this at the UI/routing layer by declaratively protecting pages, ensuring that users cannot access restricted areas without proper authentication and tab-level permissions.
    - Together, they create a defense-in-depth approach: the UI prevents unauthorized navigation, and the server enforces permissions before modifying data.
 
-2. **Maintainability & Testability (QR-03):**
+2. **Maintainability & Testability (QR-003):**
    - **ADR-003** ensures that the entire monorepo (client, server, and shared logic) is covered by a unified automated testing and coverage pipeline. 
    - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.

@@ -35,4 +35,4 @@ Instead of automatically redirecting anonymous users, it **blocks anonymous user
 
 ## Quality Requirements Addressed
 
-- **QR-02 (Protected Route Access Control):** The declarative wrapper ensures that protected pages correctly handle anonymous users (by blocking them with a sign-in prompt), unauthorized users (by showing an access restriction), and authorized users (by rendering the protected content), including tab-level permission checks.
+- **QR-002 (Protected Route Access Control):** The declarative wrapper ensures that protected pages correctly handle anonymous users (by blocking them with a sign-in prompt), unauthorized users (by showing an access restriction), and authorized users (by rendering the protected content), including tab-level permission checks.
