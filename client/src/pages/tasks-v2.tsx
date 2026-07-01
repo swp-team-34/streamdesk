@@ -13,6 +13,7 @@ import {
   Layers3,
   LayoutList,
   MoreHorizontal,
+  Package,
   Paperclip,
   Pencil,
   Plus,
@@ -250,6 +251,27 @@ interface KanbanCardAttachmentView {
   fileUrl: string;
   mimeType?: string | null;
   fileSize?: number | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+interface EquipmentSummaryView {
+  id: string;
+  name: string;
+  model?: string | null;
+}
+
+interface EquipmentCheckoutRequestView {
+  id: string;
+  equipmentId: string;
+  requestedBy: string;
+  kanbanCardId?: string | null;
+  taskId?: string | null;
+  quantity?: number | null;
+  status: string;
+  requestType?: string | null;
+  location?: string | null;
+  note?: string | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -602,6 +624,22 @@ const getSubtaskProgress = (subtasks?: KanbanSubtask[] | null) => {
   return { total: normalized.length, completed };
 };
 
+const getEquipmentRequestStatusLabel = (status: string | null | undefined) => {
+  switch (status) {
+    case "pending": return "Ожидает";
+    case "approved": return "Подтвержден";
+    case "rejected": return "Отклонен";
+    case "cancelled": return "Отменен";
+    default: return status || "Запрос";
+  }
+};
+
+const getEquipmentRequestStatusVariant = (status: string | null | undefined): "default" | "destructive" | "outline" => {
+  if (status === "approved") return "default";
+  if (status === "rejected" || status === "cancelled") return "destructive";
+  return "outline";
+};
+
 interface KanbanCardMoveInput {
   boardId: string;
   cardId: string;
@@ -880,6 +918,22 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: equipment = [] } = useQuery<EquipmentSummaryView[]>({
+    queryKey: ["/api/equipment"],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/equipment");
+      return await res.json();
+    },
+  });
+  const { data: equipmentCheckoutRequests = [], isLoading: equipmentRequestsLoading } = useQuery<EquipmentCheckoutRequestView[]>({
+    queryKey: ["/api/equipment-checkout-requests"],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/equipment-checkout-requests");
+      return await res.json();
+    },
+  });
   const selectedDetailCardSummary = useMemo(
     () => cards.find((card) => card.id === detailCardId) ?? null,
     [cards, detailCardId],
@@ -940,6 +994,21 @@ export default function TasksV2Page() {
     () => new Map(boardLabels.map((label) => [label.id, label])),
     [boardLabels],
   );
+  const equipmentById = useMemo(
+    () => new Map(equipment.map((item) => [item.id, item])),
+    [equipment],
+  );
+  const equipmentRequestsByCardId = useMemo(() => {
+    const grouped = new Map<string, EquipmentCheckoutRequestView[]>();
+    for (const request of equipmentCheckoutRequests) {
+      const cardId = String(request.kanbanCardId || "").trim();
+      if (!cardId) continue;
+      const existing = grouped.get(cardId) ?? [];
+      existing.push(request);
+      grouped.set(cardId, existing);
+    }
+    return grouped;
+  }, [equipmentCheckoutRequests]);
   const activeCustomFields = useMemo(
     () => normalizeCustomFieldDefinitions(boardCustomFields.length > 0 ? boardCustomFields : selectedBoard?.customFields),
     [boardCustomFields, selectedBoard?.customFields],
@@ -2841,6 +2910,7 @@ export default function TasksV2Page() {
     const cardLabels = normalizeLabelIds(card.labelIds)
       .map((labelId) => labelById.get(labelId))
       .filter((label): label is KanbanLabelView => Boolean(label));
+    const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
 
     return (
       <div className="grid gap-2 rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center">
@@ -2875,6 +2945,11 @@ export default function TasksV2Page() {
             </button>
           )}
           {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
+          {equipmentRequestCount > 0 && (
+            <Badge variant="outline" className="mt-2 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+              Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
+            </Badge>
+          )}
           {activeCustomFields.some((field) => field.showInList !== false && formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)) && (
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {activeCustomFields
@@ -3574,6 +3649,7 @@ export default function TasksV2Page() {
                                       const cardLabels = normalizeLabelIds(card.labelIds)
                                         .map((labelId) => labelById.get(labelId))
                                         .filter((label): label is KanbanLabelView => Boolean(label));
+                                      const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
 
                                       return (
                                         <Draggable
@@ -3685,6 +3761,11 @@ export default function TasksV2Page() {
                                                       {subtaskProgress.total > 0 && (
                                                         <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                                           Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
+                                                        </span>
+                                                      )}
+                                                      {equipmentRequestCount > 0 && (
+                                                        <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                                                          Оборудование: {equipmentRequestCount}
                                                         </span>
                                                       )}
                                                     </div>
@@ -4242,6 +4323,7 @@ export default function TasksV2Page() {
                   selectedDetailList?.type === "trash";
                 const dueDateStatus = getDueDateStatus(selectedDetailCard.dueDate, { isComplete: isCompleteLikeList });
                 const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
+                const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
 
                 return (
                   <>
@@ -4578,6 +4660,65 @@ export default function TasksV2Page() {
                           >
                             {label.name}
                           </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">Запросы оборудования</h3>
+                      <p className="text-xs text-muted-foreground">Связанные заявки на выдачу или перенос техники.</p>
+                    </div>
+                    {equipmentRequestsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                  </div>
+
+                  {detailEquipmentRequests.length === 0 ? (
+                    <div className="mt-3 rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                      К этой карточке пока не привязаны запросы оборудования.
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid gap-3">
+                      {detailEquipmentRequests.map((request) => {
+                        const equipmentItem = equipmentById.get(request.equipmentId);
+                        const requester = userById.get(request.requestedBy);
+                        const quantity = Math.max(1, Number(request.quantity || 1));
+
+                        return (
+                          <div
+                            key={request.id}
+                            className="rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 font-medium">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                  <span className="break-words">
+                                    {equipmentItem?.name || request.equipmentId}
+                                  </span>
+                                </div>
+                                {equipmentItem?.model && (
+                                  <div className="mt-1 text-xs text-muted-foreground">{equipmentItem.model}</div>
+                                )}
+                              </div>
+                              <Badge variant={getEquipmentRequestStatusVariant(request.status)} className="rounded-full">
+                                {getEquipmentRequestStatusLabel(request.status)}
+                              </Badge>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                              <span>Запросил: {requester?.name || requester?.username || request.requestedBy}</span>
+                              <span>Количество: {quantity}</span>
+                              {request.location && <span>Локация: {request.location}</span>}
+                              {request.createdAt && <span>Создан: {formatDueDateLabel(request.createdAt) || "Неизвестно"}</span>}
+                            </div>
+                            {request.note && (
+                              <div className="mt-3 rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                                {request.note}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

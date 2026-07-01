@@ -2169,6 +2169,9 @@ class StubStorage implements IStorage {
       companyId: data.companyId ?? null,
       equipmentId: data.equipmentId,
       requestedBy: data.requestedBy,
+      kanbanCardId: data.kanbanCardId ?? null,
+      taskId: data.taskId ?? null,
+      quantity: data.quantity ?? 1,
       requestType: data.requestType ?? "checkout",
       currentHolder: data.currentHolder ?? null,
       reviewedBy: data.reviewedBy ?? null,
@@ -2907,6 +2910,9 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS storage_location text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_person text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_contact text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS kanban_card_id text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS task_id text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 1`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить equipment schema:", schemaErr);
       }

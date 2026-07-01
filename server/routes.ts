@@ -3676,10 +3676,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const requestType = body.requestType === "transfer" ? "transfer" : "checkout";
+      const rawQuantity = Math.trunc(Number(body.quantity || 1));
+      const quantity = Number.isFinite(rawQuantity) && rawQuantity > 0 ? rawQuantity : 1;
       const requestData = insertEquipmentCheckoutRequestSchema.parse({
         companyId: companyId || undefined,
         equipmentId,
         requestedBy: currentUser.id,
+        kanbanCardId: body.kanbanCardId && String(body.kanbanCardId).trim() ? String(body.kanbanCardId).trim() : undefined,
+        taskId: body.taskId && String(body.taskId).trim() ? String(body.taskId).trim() : undefined,
+        quantity,
         requestType,
         currentHolder: requestType === "transfer" ? item.assignedTo || null : null,
         status: "pending",
