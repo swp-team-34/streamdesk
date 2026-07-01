@@ -336,6 +336,7 @@ export default function Calendar() {
   const [slotSelectStart, setSlotSelectStart] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [slotSelectEnd, setSlotSelectEnd] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [expandedNonWorkingRanges, setExpandedNonWorkingRanges] = useState<{ before: boolean; after: boolean }>({ before: false, after: false });
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const { toast } = useToast();
   const weekScrollRef = useRef<HTMLDivElement>(null);
   const threeDaysScrollRef = useRef<HTMLDivElement>(null);
@@ -390,6 +391,11 @@ export default function Calendar() {
   useEffect(() => {
     window.localStorage.setItem(CALENDAR_SETTINGS_STORAGE_KEY, JSON.stringify(calendarSettings));
   }, [calendarSettings]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleSlotMouseUp = useCallback(() => {
     if (!slotSelectStart) return;
@@ -686,12 +692,21 @@ export default function Calendar() {
   };
 
   const getPalette = (entry: CalendarEntry) => {
-    if (isEntryOverdue(entry)) {
+    const urgency = getEntryDeadlineUrgency(entry);
+    if (urgency === "overdue") {
       return {
         card: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
         inline: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
         dot: "bg-red-400",
         badge: getDueDateStatusClasses("overdue").badge,
+      };
+    }
+    if (urgency === "soon") {
+      return {
+        card: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
+        inline: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
+        dot: "bg-amber-400",
+        badge: getDueDateStatusClasses("soon").badge,
       };
     }
     if (entry.kind === "task") return EVENT_COLOR_PALETTES[3];
@@ -702,7 +717,7 @@ export default function Calendar() {
   };
 
   const getManualEntryColor = (entry: CalendarEntry) => {
-    if (isEntryOverdue(entry)) return null;
+    if (getEntryDeadlineUrgency(entry) !== "none") return null;
     if (entry.kind === "kanban") return normalizeHexColor(entry.task.listColor);
     if (entry.kind === "event") return normalizeHexColor(entry.color) || normalizeHexColor(storedEventColors[entry.id]);
     return null;
@@ -740,7 +755,8 @@ export default function Calendar() {
 
   const getEntryMetaLine = (entry: CalendarEntry) => {
     const parts = [format(new Date(entry.startTime), "HH:mm")];
-    if (isEntryOverdue(entry)) parts.push(getDueDateStatusLabel("overdue"));
+    const urgency = getEntryDeadlineUrgency(entry);
+    if (urgency !== "none") parts.push(getDueDateStatusLabel(urgency));
     if (entry.statusLabel) parts.push(entry.statusLabel);
     if (entry.responsibleLabel) parts.push(entry.responsibleLabel);
     return parts.join(" • ");
@@ -832,19 +848,29 @@ export default function Calendar() {
     );
   };
 
-  const isEntryOverdue = (entry: CalendarEntry) => {
-    if (entry.kind === "event") return false;
+  const getEntryDeadlineUrgency = (entry: CalendarEntry): "overdue" | "soon" | "none" => {
+    if (entry.kind === "event") return "none";
+
+    const dueDateValue = entry.task.dueDate;
+    if (!dueDateValue) return "none";
+    const dueDate = new Date(dueDateValue);
+    if (Number.isNaN(dueDate.getTime())) return "none";
 
     if (entry.kind === "task") {
-      const isComplete = entry.task.status === "done" || entry.task.status === "cancelled";
-      return getDueDateStatus(entry.task.dueDate, { isComplete }) === "overdue";
+      const status = String(entry.task.status || "");
+      if (status === "done" || status === "completed" || status === "cancelled") return "none";
+    } else {
+      const isCompleteLikeList =
+        entry.task.listType === "closed" ||
+        entry.task.listType === "archive" ||
+        entry.task.listType === "trash";
+      if (isCompleteLikeList) return "none";
     }
 
-    const isCompleteLikeList =
-      entry.task.listType === "closed" ||
-      entry.task.listType === "archive" ||
-      entry.task.listType === "trash";
-    return getDueDateStatus(entry.task.dueDate, { isComplete: isCompleteLikeList }) === "overdue";
+    const diffMs = dueDate.getTime() - currentTime.getTime();
+    if (diffMs < 0) return "overdue";
+    if (diffMs <= 24 * 60 * 60 * 1000) return "soon";
+    return "none";
   };
 
   const handleEntryClick = (entry: CalendarEntry) => {
