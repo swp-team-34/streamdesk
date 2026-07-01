@@ -10,6 +10,7 @@ import VmixScheduler from "@/components/dashboard/vmix-scheduler";
 import DashboardProfileCard from "@/components/dashboard/dashboard-profile-card";
 import DashboardCountdownWidget from "@/components/dashboard/dashboard-countdown-widget";
 import DashboardServicesSection from "@/components/dashboard/dashboard-services-section";
+import WorkProgressWidget from "@/components/dashboard/work-progress-widget";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { tabPermission } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -100,6 +101,8 @@ export default function Dashboard() {
       </div>
 
       <StatusCards stats={stats} user={currentUser} />
+
+      {canAccessTab(currentUser, "tasks") && <WorkProgressWidget />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 w-full min-w-0">
         <div className="lg:col-span-2 space-y-1 sm:space-y-1.5 min-w-0">
