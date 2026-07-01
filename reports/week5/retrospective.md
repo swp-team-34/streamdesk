@@ -28,5 +28,6 @@
 
 **Strict deadlines for start of the code developing**
 - The frontend/backend project developing will allways start immediately after publication of current sprint tasks.
+- 
 **Buffer for review**
 - Reviewers check open PRs at least once per day, even if it's just 15–30 minutes, to avoid blocking the team.
