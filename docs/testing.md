@@ -1,82 +1,66 @@
 # Testing
 
-This document describes the Assignment 4 testing strategy for issue #81.
+This document describes the current maintained testing and QA evidence for StreamDesk MVP v2.
 
-## Critical Modules
+## Critical Modules and Coverage
 
-The first critical module is `client/src/lib/equipment-permissions.ts`. It decides whether a user can create, edit, or reserve equipment. A defect here can grant the wrong inventory action or block an allowed user.
+| Critical module | Why critical | Required line coverage | Current line coverage | Evidence |
+| --- | --- | ---: | ---: | --- |
+| `client/src/lib/equipment-permissions.ts` | Controls equipment create, edit, and reserve permission decisions for inventory workflows. | 30% | 100% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
+| `client/src/components/protected-route.tsx` | Controls access to protected application areas for anonymous, unauthorized, and authorized users. | 30% | 73.33% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
+| `client/src/lib/task-dates.ts` | Supports MVP v2 calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination. | 30% | 55.71% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
 
-The second critical module is `client/src/components/protected-route.tsx`. It decides whether protected page content is shown, blocked, or redirected to sign-in. A defect here can expose protected pages or block valid users.
+Critical modules are selected by product risk: permission checks, access control, inventory operations, calendar/task scheduling, user data access, and flows that many users depend on.
 
-Critical modules are selected by product risk: permission checks, access control, inventory operations, user data access, and flows that many users depend on.
+## Automated Test Status
 
-## Unit Tests
+| Check | Command or workflow | Current purpose | Evidence |
+| --- | --- | --- | --- |
+| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | `Quality` workflow and local verification before completion. |
+| Unit tests | `npm test` | Runs Vitest unit tests for isolated product logic such as equipment permissions and task date helpers. | `Quality` workflow and local verification before completion. |
+| Component/integration tests | `npm test` | Runs Vitest component tests such as `ProtectedRoute`. | `Quality` workflow and local verification before completion. |
+| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | `Quality` workflow and local verification before completion. |
+| Build | `npm run build` | Verifies the production client and server build. | `Quality` workflow and local verification before completion. |
+| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | `Quality` workflow and local verification before completion. |
+| Link checking | `Link Check` workflow | Runs Lychee against repository links using `lychee.toml`. | GitHub Actions link-check workflow. |
 
-Unit tests cover `client/src/lib/equipment-permissions.ts` in `client/src/lib/equipment-permissions.test.ts`.
-
-The tests verify:
-
-- equipment super users can create, edit, and reserve equipment;
-- explicit equipment permissions grant only their matching actions;
-- equipment edit permission also allows reservation;
-- missing, unrelated, and malformed permissions are denied.
-
-## Integration and Component Tests
-
-Component integration tests cover `ProtectedRoute` in `client/src/components/protected-route.test.tsx`.
-
-The tests verify:
-
-- anonymous users see the sign-in prompt and the login action routes to `/login`;
-- users without the required permission see an access restriction;
-- users with the required permission and tab access see protected content.
-
-## QRT Mapping
+## Quality Requirement Test Mapping
 
 | QRT | QR | Automated check |
 | --- | --- | --- |
-| QRT-01 | QR-01 | `npm test -- client/src/lib/equipment-permissions.test.ts` |
-| QRT-02 | QR-02 | `npm test -- client/src/components/protected-route.test.tsx` |
-| QRT-03 | QR-03 | `npm run coverage` |
+| [QRT-001](quality-requirement-tests.md#qrt-001-equipment-permission-unit-test) | [QR-001](quality-requirements.md#qr-001-equipment-permission-correctness) | `npm test -- client/src/lib/equipment-permissions.test.ts` |
+| [QRT-002](quality-requirement-tests.md#qrt-002-protected-route-component-test) | [QR-002](quality-requirements.md#qr-002-protected-route-access-control) | `npm test -- client/src/components/protected-route.test.tsx` |
+| [QRT-003](quality-requirement-tests.md#qrt-003-coverage-gate) | [QR-003](quality-requirements.md#qr-003-automated-regression-coverage) | `npm run coverage` |
+| [QRT-004](quality-requirement-tests.md#qrt-004-calendar-date-helper-tests) | [QR-004](quality-requirements.md#qr-004-calendar-date-manipulation-correctness) | `npm test -- client/src/lib/task-dates.test.ts` |
 
-Full details are maintained in `docs/quality-requirement-tests.md`.
+Full quality requirement test details are maintained in `docs/quality-requirement-tests.md`.
 
-## Coverage
+## Additional QA Checks
 
-Coverage command:
-
-```bash
-npm run coverage
-```
-
-Coverage target: the configured Vitest coverage run must complete successfully for the current critical modules and report coverage for client, server, and shared TypeScript sources configured in `vitest.config.ts`.
-
-Coverage evidence should be taken from the `npm run coverage` output in local verification and CI. Do not claim a specific percentage unless the command was run and the reported number is copied from real output.
-
-## Additional QA Check
-
-The additional QA check is:
+The additional QA check beyond Lychee is:
 
 ```bash
 npm audit --audit-level=critical
 ```
 
-The initial `npm audit --audit-level=high` check found existing dependency issues. The current CI gate uses the critical threshold to keep an automated security check without mass-updating dependencies in this Assignment 4 change.
+Lychee is a link-checking CI gate. It does not count as the additional QA check and does not count as a QRT unless it is directly linked to a measurable quality requirement.
 
-## CI Location
+## Link Checking
 
-The planned CI workflow location is `.github/workflows/quality.yml`.
+Lychee runs through `.github/workflows/lychee.yml` on pull requests, pushes to `main`, and manual workflow dispatch.
 
-The workflow must run:
+The `lychee.toml` file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission. This document does not claim manual verification of excluded links unless that evidence is recorded in the PR or linked workflow evidence.
 
-- `npm run check`;
-- `npm test`;
-- `npm run coverage`;
-- `npm run build`;
-- `npm audit --audit-level=critical`.
+## CI and QA Check Status
+
+- Latest protected-default-branch `Quality` run: [successful `main` run from 2026-07-01](https://github.com/swp-team-34/streamdesk/actions/runs/28548554181).
+- Latest protected-default-branch `Link Check` run: [successful `main` run from 2026-07-01](https://github.com/swp-team-34/streamdesk/actions/runs/28548554209).
+- Local coverage evidence: `npm run coverage` passed with 3 test files and 13 tests; line coverage was 100% for `equipment-permissions.ts`, 73.33% for `protected-route.tsx`, and 55.71% for `task-dates.ts`.
 
 ## Limitations and Follow-up
 
-The current automated tests focus on equipment permissions and protected route access control. They do not yet provide end-to-end browser coverage for complete user journeys.
-
-Future follow-up should add tests for API routes, persistence behavior, and high-value workflows such as equipment checkout and reservation updates.
+- Full browser end-to-end workflows are not covered.
+- Server-side equipment checkout approval and rejection flows need additional tests if they become part of the protected Sprint 3 completion evidence.
+- Kanban creation server validation, persistence, and realtime updates need additional tests.
+- Calendar event participant and notification side effects need additional tests.
+- API route and persistence integration tests are recommended as the next major automated testing step.

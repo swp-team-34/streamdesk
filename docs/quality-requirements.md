@@ -1,36 +1,58 @@
 # Quality Requirements
 
-This document defines measurable quality requirements for Assignment 4, issue #81.
+This document defines maintained measurable quality requirements for StreamDesk MVP v2.
 
-## QR-01 Equipment Permission Correctness
+## Table of Contents
 
-- **ISO/IEC 25010 characteristic:** Functional suitability.
-- **ISO/IEC 25010 sub-characteristic:** Functional correctness.
-- **Scenario:** when equipment create, edit, and reserve decisions are evaluated for a user, the decision must match the user's role, workspace ownership, and explicit equipment permissions.
-- **Pass condition:** `npm test` passes the automated permission tests in `client/src/lib/equipment-permissions.test.ts`.
-- **Rationale:** equipment actions affect inventory integrity and must not be granted or denied incorrectly.
-- **Traceability:** #81.
-- **Verification:** QRT-01.
-- **Linked architecture decisions:** [ADR-001: Centralized Equipment Permission Evaluator](architecture/adr/ADR-001-centralized-equipment-permissions.md)
+- [QR-001: Equipment permission correctness](#qr-001-equipment-permission-correctness)
+- [QR-002: Protected route access control](#qr-002-protected-route-access-control)
+- [QR-003: Automated regression coverage](#qr-003-automated-regression-coverage)
+- [QR-004: Calendar date manipulation correctness](#qr-004-calendar-date-manipulation-correctness)
 
-## QR-02 Protected Route Access Control
+## QR-001: Equipment permission correctness
 
-- **ISO/IEC 25010 characteristic:** Security.
-- **ISO/IEC 25010 sub-characteristic:** Authenticity.
-- **Scenario:** when a protected page is rendered, anonymous users must be sent to sign in, users without the required permission must see an access restriction, and authorized users must see the protected content.
-- **Pass condition:** `npm test` passes the protected route component tests in `client/src/components/protected-route.test.tsx`.
-- **Rationale:** users must not access protected application areas without a valid authenticated identity and required permissions.
-- **Traceability:** #81.
-- **Verification:** QRT-002.
-- **Linked architecture decisions:** [ADR-002: Declarative Protected Route Wrapper](architecture/adr/ADR-002-declarative-protected-route-wrapper.md)
+**ISO/IEC 25010 sub-characteristic:** Functional correctness
 
-## QR-03 Automated Regression Coverage
+**Scenario:** When a workspace user attempts to create, edit, or reserve equipment under the normal web application environment, the equipment permission evaluator shall return permission decisions matching the user's role, workspace ownership, and explicit equipment permissions for 100% of automated permission test cases.
 
-- **ISO/IEC 25010 characteristic:** Maintainability.
-- **ISO/IEC 25010 sub-characteristic:** Testability.
-- **Scenario:** every change submitted through CI must run automated tests with coverage reporting for the configured client, server, and shared TypeScript sources.
-- **Pass condition:** `npm run coverage` completes successfully and publishes a coverage summary for the configured source set.
-- **Rationale:** maintainers need repeatable automated evidence that critical permission and access-control behavior remains testable over time.
-- **Traceability:** #81.
-- **Verification:** QRT-03.
-- **Linked architecture decisions:** [ADR-003: Unified Monorepo Test and Coverage Configuration](architecture/adr/ADR-003-unified-monorepo-coverage.md)
+**Why this matters:** Equipment actions affect inventory integrity and must not be granted or denied incorrectly.
+
+**Linked quality requirement tests:** [QRT-001](quality-requirement-tests.md#qrt-001-equipment-permission-unit-test)
+
+**Linked architecture decisions:** [ADR-001](architecture/adr/ADR-001-centralized-equipment-permissions.md)
+
+## QR-002: Protected route access control
+
+**ISO/IEC 25010 sub-characteristic:** Authenticity
+
+**Scenario:** When a user opens a protected application route under the normal web application environment, the protected route wrapper shall block anonymous users, show an access restriction for users without the required permission, and render the protected content for authorized users for 100% of automated protected-route test cases.
+
+**Why this matters:** Users must not access protected application areas without a valid authenticated identity and required permissions.
+
+**Linked quality requirement tests:** [QRT-002](quality-requirement-tests.md#qrt-002-protected-route-component-test)
+
+**Linked architecture decisions:** [ADR-002](architecture/adr/ADR-002-declarative-protected-route-wrapper.md)
+
+## QR-003: Automated regression coverage
+
+**ISO/IEC 25010 sub-characteristic:** Testability
+
+**Scenario:** When a change is submitted through the protected repository workflow under the standard GitHub Actions CI environment, the test and coverage configuration shall run automated tests and produce coverage output for the configured client, server, and shared TypeScript source set before the change is considered Done.
+
+**Why this matters:** Maintainers need repeatable automated evidence that critical permission, access-control, and scheduling behavior remains testable over time.
+
+**Linked quality requirement tests:** [QRT-003](quality-requirement-tests.md#qrt-003-coverage-gate)
+
+**Linked architecture decisions:** [ADR-003](architecture/adr/ADR-003-unified-monorepo-coverage.md)
+
+## QR-004: Calendar date manipulation correctness
+
+**ISO/IEC 25010 sub-characteristic:** Functional correctness
+
+**Scenario:** When a user creates, moves, resizes, or edits a scheduled task or calendar item under the normal web application environment, the calendar date helper module shall preserve the intended date range, quarter-hour alignment, and minimum duration for 100% of automated date-helper test cases.
+
+**Why this matters:** Calendar and task scheduling are core MVP v2 workflows. Incorrect date calculations can place tasks in the wrong time slot or corrupt task planning.
+
+**Linked quality requirement tests:** [QRT-004](quality-requirement-tests.md#qrt-004-calendar-date-helper-tests)
+
+**Linked architecture decisions:** [ADR-003](architecture/adr/ADR-003-unified-monorepo-coverage.md)
