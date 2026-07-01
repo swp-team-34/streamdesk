@@ -4,100 +4,73 @@ skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowThickness 2
 skinparam roundcorner 10
 
-title Sequence Diagram: Create a Calendar Event
+title Sequence Diagram: Calendar Event Creation
 
 actor "User" as User
 participant "Calendar UI\n(React)" as UI
 participant "HTTP Client" as HTTP
-participant "Shared Zod schema\n(shared/schema.ts)" as Schema
-participant "Express route\n(/api/calendar/events)" as Route
-participant "Passport auth\nmiddleware" as Auth
-participant "Zod request validation" as Val
+participant "Express route\n(/api/events)" as Route
+participant "Express session auth" as Auth
+participant "Zod validation" as Val
 participant "Calendar handlers\n(business logic)" as BL
 participant "Drizzle ORM" as ORM
-participant "PostgreSQL\n(events,\nevent_participants)" as DB
+participant "PostgreSQL\n(events, event_participants,\nnotifications)" as DB
+participant "WebSocket Gateway\n(/ws)" as WS
 
-== Step 1 — User opens the "Create event" form ==
+== Step 1 — User creates an event ==
 
-User -> UI: Click "New event"
-UI -> Schema: Load event form schema\n(title, startDate, endDate,\nparticipants[])
-Schema --> UI: Field definitions + validators
-UI --> User: Render event form
-
-== Step 2 — User submits the new event ==
-
-User -> UI: Fill event details,\nselect participants,\nclick "Create"
-UI -> Schema: Validate form locally
-alt Form is invalid
-  Schema --> UI: Validation errors
-  UI --> User: Show inline errors
-else Form is valid
-  UI -> HTTP: POST /api/calendar/events\n{ title, startDate, endDate,\n  participantUserIds[] }
-end
-
-== Step 3 — Server receives the request ==
-
+User -> UI: Fill event details,\nselect participants[]
+UI -> HTTP: POST /api/events\n{ title, startDate, endDate, participants[] }
 HTTP -> Route: HTTP request + session cookie
-Route -> Auth: Check session / company membership
-alt Not authenticated
-  Auth --> Route: Reject
-  Route --> HTTP: 401 Unauthorized
-  HTTP --> UI: Show "please log in"
-else Authenticated
-  Auth --> Route: user + company context
-end
+Route -> Auth: Check session
+Auth --> Route: ✓ Authenticated
+Route -> Val: Validate body
+Val --> Route: ✓ Valid
 
-== Step 4 — Validate the request body ==
+== Step 2 -- Event persistence (non-atomic) ==
 
-Route -> Val: Validate body against\neventInsertSchema
-alt Invalid payload
-  Val --> Route: Zod error
-  Route --> HTTP: 400 Bad Request\n{ issues: [...] }
-  HTTP --> UI: Show validation errors
-else Valid payload
-  Val --> Route: Parsed event data
-end
+Route -> BL: createEvent(userId, data)
 
-== Step 5 — Apply Calendar business rules ==
-
-Route -> BL: createEvent(userId, companyId, data)
-
-BL -> ORM: Validate that all participantUserIds\nbelong to the same company
+BL -> ORM: 1. INSERT INTO events
 ORM -> DB: SQL
-DB --> ORM: participant rows
-ORM --> BL: participants | missing[]
+DB --> ORM: event row
 
-alt Some participants do not belong to the company
-  BL --> Route: Throw BadRequest
-  Route --> HTTP: 400 Bad Request\n{ reason: "invalid participants" }
-  HTTP --> UI: Show "invalid participants"
-else All participants valid
-  BL -> ORM: BEGIN TRANSACTION
+note right of BL
+  The event is persisted first.
+  Participant rows and notifications
+  are created afterwards.
+  Individual participant/notification
+  failures are logged and do not
+  rollback the created event.
+end note
+
+loop For each participant in participants[]
+  BL -> ORM: 2. INSERT INTO event_participants
   ORM -> DB: SQL
-  DB --> ORM: OK
-
-  BL -> ORM: INSERT INTO events
+  alt Success
+    DB --> ORM: participant row
+  else Failure (e.g., invalid user)
+    BL -> BL: Log error, continue loop
+  end
+  
+  BL -> ORM: 3. INSERT INTO notifications
   ORM -> DB: SQL
-  DB --> ORM: inserted event
-  ORM --> BL: event
-
-  BL -> ORM: INSERT INTO event_participants\n(for each participant)
-  ORM -> DB: SQL
-  DB --> ORM: inserted participants
-  ORM --> BL: participants
-
-  BL -> ORM: COMMIT
-  ORM -> DB: SQL
-  DB --> ORM: OK
-  ORM --> BL: event + participants
-
-  BL --> Route: event + participants
+  alt Success
+    DB --> ORM: notification row
+  else Failure
+    BL -> BL: Log error, continue loop
+  end
 end
 
-== Step 6 — Respond to the client ==
+BL --> Route: Return created event
 
-Route --> HTTP: 201 Created\n{ event, participants }
-HTTP --> UI: Update local state
-UI --> User: Show the new event\nin the calendar
+== Step 3 -- Respond and notify ==
+
+Route --> HTTP: 200 OK\n{ event }
+HTTP --> UI: Update state with new event
+UI --> User: Show new event in calendar
+
+Route -> WS: emit('calendar:event:created', event)
+WS --> UI: (Other connected clients)\nRealtime update / query invalidation
 
 @enduml

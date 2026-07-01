@@ -14,7 +14,7 @@ If coverage is fragmented, maintainers cannot easily see the overall testability
 
 We configured a **unified test and coverage script** (`npm run coverage`) that executes tests across the client, server, and shared modules and aggregates the results into a single coverage summary. 
 
-This unified script is integrated as a mandatory automated quality requirement test in the CI pipeline, ensuring that every change submitted through CI is evaluated against a holistic coverage baseline.
+This unified script is integrated as a mandatory automated quality requirement test in the CI pipeline for **changes covered by the configured CI triggers** (pull requests and configured branches), ensuring that submitted changes are evaluated against a holistic coverage baseline.
 
 ### Alternatives considered
 
@@ -31,9 +31,9 @@ This unified script is integrated as a mandatory automated quality requirement t
 
 ### Negative
 
-- **Execution time:** The unified coverage command might take longer to execute than individual commands, though this is mitigated by CI caching and parallelization where possible.
-- **Configuration complexity:** Requires the test runner configuration (e.g., Vitest, Jest) to correctly resolve paths and collect coverage across the monorepo boundaries.
+- **Execution time:** The unified coverage command might take longer to execute than individual commands, though this is mitigated by CI caching.
+- **Current test focus:** The coverage command is unified, but the current automated tests are concentrated around critical client/shared logic (like equipment permissions and protected route access control). Broader API and workflow-level coverage remains a follow-up.
 
 ## Quality Requirements Addressed
 
-- **QR-03 (Automated Regression Coverage):** The unified configuration ensures that every change submitted through CI runs automated tests with coverage reporting for the configured client, server, and shared TypeScript sources, providing repeatable evidence of testability.
+- **QR-03 (Automated Regression Coverage):** The unified configuration ensures that changes covered by the configured CI triggers run automated tests with coverage reporting for the configured client, server, and shared TypeScript sources, providing repeatable evidence of testability.

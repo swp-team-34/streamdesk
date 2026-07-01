@@ -1,163 +1,100 @@
 # StreamDesk Architecture
 
-StreamDesk is a workspace platform for event and production teams, combining a Task Manager (Kanban), a Calendar, an Equipment warehouse, and an Admin dashboard, with multi-tenant isolation between companies.
+StreamDesk is a workspace platform for event and production teams. It brings together a task manager (Kanban), a calendar, an equipment warehouse, and an admin dashboard into a single interface, with multi-tenant isolation between companies.
 
-This document is the canonical maintained architecture index. It describes the current delivered architecture and links the supporting architecture artifacts.
+This document is the canonical index for the maintained architecture of StreamDesk. It describes the current delivered architecture and links the supporting architecture artifacts.
+
+## Architecture Overview
+
+StreamDesk is built as a **monorepo** with three logical layers:
+
+1. **Client layer** — a React + TypeScript single-page application.
+2. **Server layer** — a Node.js + Express REST API and WebSocket gateway.
+3. **Data layer** — a PostgreSQL database accessed through Drizzle ORM.
+
+A `shared/` directory contains TypeScript types and Zod validation schemas used by both the client and the server. Our team focuses on the architecture and implementation of the **Task Manager (Kanban)**, **Calendar**, **Equipment (Warehouse)**, and **Admin Panel** modules.
 
 ## Architecture Views
 
-The maintained architecture is organized into three view directories:
+### Static View
 
-- Static view: [`docs/architecture/static-view/`](./static-view/)
-- Dynamic view: [`docs/architecture/dynamic-view/`](./dynamic-view/)
-- Deployment view: [`docs/architecture/deployment-view/`](./deployment-view/)
-
-Each view directory contains PlantUML source files (`.puml`) and rendered SVG diagrams. The rendered SVGs are embedded below for readability; the source files are the maintained artifacts.
-
-## Static View
-
-The static view shows the main internal components, external systems, and communication paths of StreamDesk.
+The static view shows the main components of the system, the external systems it interacts with, and the communication paths between them.
 
 ![Component Diagram](./static-view/component-diagram.svg)
-*Source: [`component-diagram.puml`](./static-view/component-diagram.puml)*
 
-**What the diagram shows**
+*Source: [`static-view/component-diagram.puml`](./static-view/component-diagram.puml)*
 
-The diagram shows three internal layers (Client, Server, Data) and the external YouGile integration. The Server layer exposes a single "Route Handlers" component that encapsulates all domain handlers (Kanban, Calendar, Equipment, Admin) behind a shared validation and authentication boundary. All database access goes through a single Drizzle ORM component, which hides the per-table details from the handlers.
+The diagram shows three internal layers (Client, Server, Data) and the external integrations (YouGile, browser clients). 
 
-**Coupling**
+**Key architectural boundaries:**
+- **Authentication boundary:** Handled via `express-session` and a custom middleware that populates `req.user` from `req.session.userId`.
+- **Realtime boundary:** The server exposes a `/ws` WebSocket endpoint used for realtime updates and React Query invalidation for systems, streams, tasks, calendar events, and integration stats.
+- **Equipment module:** The Equipment module is stable, but its current primary state-changing workflow is **checkout requests and approve/reject handling**. The older `equipment_reservations` route still exists as legacy, but it is not the main warehouse workflow.
 
-- **Between layers**: low — the client talks to the server only through REST/JSON, and the server talks to the database only through Drizzle ORM.
-- **Inside the server**: high — almost all route handlers and business logic live in a single `routes.ts` file (~9000 lines).
+**Coupling and cohesion:**
+- **Coupling between layers is low.** The client talks to the server only through REST over HTTP/JSON and WebSocket. 
+- **Cohesion of domain modules is high.** Critical access-control logic (like equipment permissions) is isolated into dedicated, pure modules on the client side rather than scattered across UI components.
 
-**Cohesion**
+**Maintainability implications:**
+- Centralizing business rules (e.g., permission evaluators) makes the system easier to reason about and modify without introducing regressions in unrelated modules.
+- The monolithic `routes.ts` file on the server remains a maintainability risk, as server-side authorization checks are currently route-local rather than centralized.
 
-- **Equipment module**: high — its handlers, schema, and reservations form a self-contained, stable unit.
-- **Kanban and Calendar modules**: moderate — they share more state and cross-cut handlers than Equipment.
-- **Server as a whole**: low — the monolithic `routes.ts` mixes unrelated domains in one file.
+### Dynamic View
 
-**Maintainability implications**
+The dynamic view shows how components interact over time for non-trivial workflows. We maintain sequence diagrams for the most critical scenarios across our core modules.
 
-- Extending the stable Equipment module is straightforward because its area inside `routes.ts` is already self-contained in practice.
-- Adding cross-cutting server features (new permissions, new notification types) requires touching `routes.ts` in many places, which increases regression risk.
-- Unit testing of server business logic is hard because handlers are tightly coupled to request/response objects and database calls.
+#### Equipment Checkout Workflow
 
-**Quality requirements supported or constrained**
+![Equipment Checkout Sequence](./dynamic-view/equipment-checkout-sequence.svg)
 
-- The layered client/server/data structure supports **Interoperability** and layer-level **Modifiability**.
-- The monolithic `routes.ts` constrains server-level **Modifiability** and **Testability**.
-- The shared `shared/schema.ts` between client and server supports **Interoperability** by giving both sides a single source of truth for types.
+*Source: [`dynamic-view/equipment-checkout-sequence.puml`](./dynamic-view/equipment-checkout-sequence.puml)*
 
-## Dynamic View
+**Scenario:** A staff user requests equipment checkout from the warehouse, and a manager approves or rejects it.
+**Why it matters:** This is the current primary state-changing workflow for the Equipment module. It illustrates how the system enforces business rules (workspace access, equipment operability) and manages state transitions (pending -> approved/rejected) without relying on date-range availability checks.
 
-The dynamic view shows how components interact over time for non-trivial workflows.
+#### Kanban Card Creation
 
-### Equipment reservation
+![Kanban Card Creation Sequence](./dynamic-view/kanban-card-creation-sequence.svg)
 
-![Equipment Reservation Sequence Diagram](./dynamic-view/equipment-reservation-sequence.svg)
-*Source: [`equipment-reservation-sequence.puml`](./dynamic-view/equipment-reservation-sequence.puml)*
+*Source: [`dynamic-view/kanban-card-creation-sequence.puml`](./dynamic-view/kanban-card-creation-sequence.puml)*
 
-**What the diagram shows**
+**Scenario:** A user creates a new card in a Kanban board.
+**Why it matters:** This scenario demonstrates the strict server-side validation and permission checks required for task management. It shows how the system verifies board access, list membership, resolves assignees and labels, creates history entries, and optionally triggers notifications, all before emitting a realtime update via the WebSocket gateway.
 
-The diagram shows the full flow of a staff user reserving a piece of equipment: client-side form validation with shared Zod schemas, REST request to the server, authentication, Zod request validation, business rules (availability and date conflicts), database write through Drizzle ORM, and structured response back to the UI.
+#### Calendar Event Creation
 
-**Scenario represented**
+![Calendar Event Creation Sequence](./dynamic-view/calendar-event-creation-sequence.svg)
 
-A staff user reserves equipment from the warehouse for a date range.
+*Source: [`dynamic-view/calendar-event-creation-sequence.puml`](./dynamic-view/calendar-event-creation-sequence.puml)*
 
-**Why this scenario is important**
+**Scenario:** A user creates a calendar event and invites participants.
+**Why it matters:** This scenario highlights a deliberate architectural choice regarding fault tolerance. The event is persisted first. Participant invitation rows and notifications are created afterwards. This approach is tolerant to individual participant/notification failures (which are logged but do not rollback the created event), prioritizing the creation of the core event over the atomicity of all side-effects.
 
-The Equipment warehouse is one of the stable core features of StreamDesk, and reservation is its primary state-changing workflow. This scenario exercises all main architectural boundaries (client → server → database) and shows how the system enforces business rules before persisting anything.
-
-**What it helps reason about**
-
-- The **integration boundary** between client and server: all state changes go through REST, the client never touches the database directly.
-- The **validation boundary**: input is validated with Zod before any business logic runs.
-- **Security**: invalid or unauthorized reservation requests are rejected before any database write.
-- **Fault tolerance**: if the database write fails, the API returns a structured error and the UI can react without corrupting state.
-
-### Kanban card creation
-
-![Kanban Card Creation Sequence Diagram](./dynamic-view/kanban-card-creation-sequence.svg)
-*Source: [`kanban-card-creation-sequence.puml`](./dynamic-view/kanban-card-creation-sequence.puml)*
-
-**What the diagram shows**
-
-The diagram shows the flow of a user creating a new Kanban card in a list: client-side form validation, REST POST to `/api/kanban/cards`, authentication, Zod validation, business logic that creates the card and records history, database write through Drizzle ORM, and response back to the UI.
-
-**Scenario represented**
-
-A user creates a new task card in a Kanban list.
-
-**Why this scenario is important**
-
-The Task Manager is one of the main features your team owns, and card creation is its most frequent write operation. This scenario shows how Kanban-specific business rules (board/list membership, history tracking) are enforced on top of the same shared validation and persistence stack used by other modules.
-
-**What it helps reason about**
-
-- The **shared validation boundary**: Kanban uses the same Zod + `shared/schema.ts` mechanism as Equipment and Calendar.
-- The **history boundary**: every card mutation is recorded in `kanban_card_history`, which is important for auditability and later "what changed" features.
-- **Modifiability**: adding a new card field requires touching `shared/schema.ts`, the Drizzle table, and the Kanban handlers in `routes.ts`, but no other module.
-- **Testability**: the same integration-test approach used for Equipment applies here.
-
-### Calendar event creation
-
-![Calendar Event Creation Sequence Diagram](./dynamic-view/calendar-event-creation-sequence.svg)
-*Source: [`calendar-event-creation-sequence.puml`](./dynamic-view/calendar-event-creation-sequence.puml)*
-
-**What the diagram shows**
-
-The diagram shows the flow of a user creating a calendar event: client-side form validation, REST POST to `/api/calendar/events`, authentication, Zod validation, business logic that creates the event and participant rows in a single transaction, database write through Drizzle ORM, and response back to the UI.
-
-**Scenario represented**
-
-A user creates a calendar event and invites participants.
-
-**Why this scenario is important**
-
-The Calendar is the second feature your team owns, and event creation is its main write workflow. This scenario shows how the Calendar module coordinates two related tables (`events` and `event_participants`) inside a single transaction, which is a different shape from the single-row writes in Equipment and Kanban.
-
-**What it helps reason about**
-
-- The **transaction boundary**: event + participants are created atomically, so a failure does not leave orphan participants.
-- The **shared validation boundary**: Calendar uses the same Zod + `shared/schema.ts` mechanism as the other modules.
-- **Fault tolerance**: if the transaction fails, no partial event is visible to other users.
-- **Modifiability**: adding a new event field or a new participant attribute follows the same pattern as in Equipment and Kanban.
-
-## Deployment View
+### Deployment View
 
 The deployment view shows where the system runs and how users reach it.
 
 ![Deployment Diagram](./deployment-view/deployment-diagram.svg)
-*Source: [`deployment-diagram.puml`](./deployment-view/deployment-diagram.puml)*
 
-**What the diagram shows**
+*Source: [`deployment-view/deployment-diagram.puml`](./deployment-view/deployment-diagram.puml)*
 
-The diagram shows a single VPS running Nginx, a Node.js process managed by PM2, and a local PostgreSQL instance. Nginx terminates TLS, serves the static frontend build, and reverse-proxies `/api/*` to the Node.js process. The Node.js process hosts the Express REST API and the YouGile sync job in the same process. Staff browsers reach the product over HTTPS through Nginx.
+**What the diagram shows:**
+- A single VPS running Nginx, a Node.js process managed by PM2, and a local PostgreSQL instance.
+- **Nginx** terminates TLS and routes browser traffic to the StreamDesk runtime. It proxies both REST API (`/api/*`) and WebSocket (`/ws`) traffic to the Node.js process. Depending on server configuration, static assets may be served directly by Nginx or by the Express production static handler from `dist/public`.
+- **Node.js process** hosts the REST API, the WebSocket gateway, and background jobs (e.g., YouGile sync) in the same process.
+- **PostgreSQL** uses Drizzle schema definitions combined with runtime schema guards (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) rather than a strict migration workflow.
 
-**Why this deployment model was chosen**
-
-- For MVP v2 with a small user base and a small team, a single VPS is the simplest model that satisfies availability and cost constraints.
+**Why this deployment model was chosen:**
+- For the current stage of the product (MVP v2, small user base, small team), a single VPS is the simplest model that satisfies availability and cost constraints.
 - PM2 provides process supervision (automatic restart on crash) without introducing a container orchestrator.
-- Keeping the database on the same host removes a network hop and simplifies backups.
 
-**How it supports or constrains the product**
-
-- **Supports Availability**: PM2 restarts the process on crash, and Nginx serves the frontend even if the API is briefly unavailable.
-- **Supports Deployability**: a single `git push` plus `pm2 restart` is enough to deploy a new version.
-- **Constrains Scalability and Fault tolerance**: the VPS is a single point of failure, and horizontal scaling would require reworking the deployment and session handling.
-- **Constrains Operability**: there is no automated backup or monitoring beyond what PM2 and Nginx provide out of the box.
-
-**What must be considered when operating it**
-
-- Regular PostgreSQL backups (e.g. `pg_dump` via cron) with off-host storage.
-- Log rotation for both Nginx and PM2.
-- TLS certificate renewal (e.g. via Let's Encrypt / Certbot).
-- A plan for migrating to a managed database and/or containerized deployment before the user base outgrows a single VPS.
+**How it supports or constrains the product:**
+- **Supports Availability:** PM2 restarts the process on crash.
+- **Constrains Scalability and Fault Tolerance:** The VPS is a single point of failure, and horizontal scaling would require reworking the deployment and session handling.
 
 ## Architecture Decision Records
 
-The following ADRs document the most important architectural decisions made for the core features developed by our team (Equipment, Admin Panel, Access Control, and Testing infrastructure). Each ADR is linked to the quality requirements it addresses.
+The following ADRs document the most important architectural decisions made for the core features developed by our team. Each ADR is linked to the quality requirements it addresses.
 
 - [ADR-001: Centralized Equipment Permission Evaluator](./adr/ADR-001-centralized-equipment-permissions.md)
 - [ADR-002: Declarative Protected Route Wrapper](./adr/ADR-002-declarative-protected-route-wrapper.md)
@@ -165,15 +102,13 @@ The following ADRs document the most important architectural decisions made for 
 
 ### How the decisions fit together
 
-These three decisions form the foundation of our team's approach to **security, functional correctness, and maintainability** for the Equipment, Admin, and shared modules:
+These three decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
 
 1. **Functional Correctness & Security (QR-01, QR-02):** 
-   - **ADR-001** ensures that complex business rules for equipment access (create, edit, reserve) are evaluated consistently and correctly by centralizing the logic. 
-   - **ADR-002** complements this at the UI/routing layer by declaratively protecting pages, ensuring that users cannot access restricted areas without proper authentication and permissions.
-   - Together, they create a defense-in-depth approach: the UI prevents unauthorized navigation (ADR-002), and the centralized evaluator guarantees that the underlying business logic and API endpoints enforce the correct permissions (ADR-001).
+   - **ADR-001** ensures that complex business rules for equipment access are evaluated consistently on the client side, while server-side route-local checks enforce authorization at the API boundary. 
+   - **ADR-002** complements this at the UI/routing layer by declaratively protecting pages, ensuring that users cannot access restricted areas without proper authentication and tab-level permissions.
+   - Together, they create a defense-in-depth approach: the UI prevents unauthorized navigation, and the server enforces permissions before modifying data.
 
 2. **Maintainability & Testability (QR-03):**
-   - **ADR-003** ensures that the entire monorepo (client, server, and shared logic like the permission evaluator from ADR-001) is covered by a unified automated testing and coverage pipeline. 
+   - **ADR-003** ensures that the entire monorepo (client, server, and shared logic) is covered by a unified automated testing and coverage pipeline. 
    - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.
-
-All three decisions directly support the team's Quality Requirements by isolating critical logic, making it testable, and enforcing that testability through automated CI gates.

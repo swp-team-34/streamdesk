@@ -13,17 +13,24 @@ package "Client (React + TypeScript)" as Client {
   [Admin Panel UI\n(Dashboard)] as AdminUI
 
   [HTTP Client\n(fetch / axios)] as HTTP
+  [WebSocket Client\n(/ws)] as WSClient
   [Shared Zod schemas\n(shared/schema.ts)] as ClientSchemas
+  [Equipment Permission Evaluator\n(client/src/lib)] as ClientPerms
 }
 
 ' === Server layer ===
 package "Server (Node.js + Express)" as Server {
-  [Route Handlers\n(Kanban, Calendar,\nEquipment, Admin)\nin routes.ts] as Handlers
+  [Express application\n(routes.ts)] as Routes
 
+  [Kanban handlers] as KanbanH
+  [Calendar handlers] as CalendarH
+  [Equipment handlers\n(stable module)] as EquipmentH
+  [Admin / Auth handlers] as AdminH
+
+  [Express session auth\n(req.session + req.user)] as Auth
   [Zod validation\n(shared schemas)] as Val
-  [Passport.js\n(session auth)] as Auth
-
-  [Drizzle ORM] as ORM
+  
+  [WebSocket Gateway\n(/ws realtime updates)] as WSGateway
 
   [YouGile sync\n(background job)] as YouGileSync
 }
@@ -32,7 +39,11 @@ package "Server (Node.js + Express)" as Server {
 database "PostgreSQL" as DB {
   [kanban_boards\nkanban_lists\nkanban_cards] as KanbanDB
   [events\nevent_participants] as CalendarDB
-  [equipment\nequipment_reservations\nequipment_checkout_requests] as EquipmentDB
+  
+  [equipment] as EquipmentDB
+  [equipment_reservations\n(legacy/direct route)] as ReservationsDB
+  [equipment_checkout_requests\n(current workflow)] as CheckoutDB
+  
   [users\ncompanies\ncompany_members\nroles] as AdminDB
 }
 
@@ -49,50 +60,70 @@ CalendarUI --> HTTP
 EquipmentUI --> HTTP
 AdminUI --> HTTP
 
+Users <--> WSClient : WebSocket /ws\n(realtime updates /\nquery invalidation)
+
 HTTP --> ClientSchemas : uses for\nform validation
+EquipmentUI --> ClientPerms : uses for\nUI gating
 
 ' === Client -> Server ===
-HTTP --> Handlers : REST API\n(JSON over HTTP)
+HTTP --> Routes : REST API\n(JSON over HTTP)
+WSClient <--> WSGateway : WebSocket /ws
 
 ' === Inside the server ===
-Handlers --> Val : validate\nrequest body
-Handlers --> Auth : check session\nand permissions
-Handlers --> ORM : read / write\ndata
+Routes --> KanbanH
+Routes --> CalendarH
+Routes --> EquipmentH
+Routes --> AdminH
 
-YouGileSync --> ORM : sync tasks
+KanbanH --> Auth
+CalendarH --> Auth
+EquipmentH --> Auth
+AdminH --> Auth
+
+KanbanH --> Val
+CalendarH --> Val
+EquipmentH --> Val
+AdminH --> Val
+
+KanbanH --> WSGateway : emit events
+CalendarH --> WSGateway : emit events
+
+KanbanH --> YouGileSync : triggers\nbackground sync
 
 ' === Server -> Data ===
-ORM --> KanbanDB
-ORM --> CalendarDB
-ORM --> EquipmentDB
-ORM --> AdminDB
+KanbanH --> KanbanDB : Drizzle ORM
+CalendarH --> CalendarDB : Drizzle ORM
+EquipmentH --> EquipmentDB : Drizzle ORM
+EquipmentH --> ReservationsDB : Drizzle ORM
+EquipmentH --> CheckoutDB : Drizzle ORM
+AdminH --> AdminDB : Drizzle ORM
 
 ' === External integrations ===
 YouGileSync --> YouGile : HTTPS / REST
 
 ' === Notes ===
-note right of Handlers
-  All route handlers currently
-  live in a single **routes.ts**
-  file (~9000 lines). This is
-  the main maintainability
-  risk of the server layer.
+note right of Auth
+  Authentication is handled
+  via **express-session** and
+  a custom middleware that
+  populates **req.user** from
+  **req.session.userId**.
 end note
 
-note bottom of EquipmentDB
-  The Equipment module
-  (warehouse) is treated as
-  **stable**: its architecture
-  is not expected to change
-  in the near term.
+note right of ClientPerms
+  Client-side permission
+  evaluator is centralized.
+  Server-side checks are
+  currently route-local.
+  See **ADR-001**.
 end note
 
-note right of ClientSchemas
-  The same Zod schemas in
-  **shared/schema.ts** are used
-  by the client (forms) and
-  by the server (request
-  validation).
+note bottom of CheckoutDB
+  The current primary
+  warehouse workflow uses
+  **equipment_checkout_requests**.
+  The older **equipment_reservations**
+  route still exists as legacy.
 end note
 
 @enduml

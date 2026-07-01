@@ -4,90 +4,76 @@ skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowThickness 2
 skinparam roundcorner 10
 
-title Sequence Diagram: Create a Kanban Card
+title Sequence Diagram: Kanban Card Creation
 
 actor "User" as User
 participant "Task Manager UI\n(React)" as UI
 participant "HTTP Client" as HTTP
-participant "Shared Zod schema\n(shared/schema.ts)" as Schema
-participant "Express route\n(/api/kanban/cards)" as Route
-participant "Passport auth\nmiddleware" as Auth
-participant "Zod request validation" as Val
+participant "Express route\n(/api/kanban/boards/:boardId/cards)" as Route
+participant "Express session auth" as Auth
+participant "Zod validation\n(kanbanCardCreateSchema)" as Val
 participant "Kanban handlers\n(business logic)" as BL
 participant "Drizzle ORM" as ORM
-participant "PostgreSQL\n(kanban_boards,\nkanban_lists,\nkanban_cards,\nkanban_card_history)" as DB
+participant "PostgreSQL\n(kanban_boards, kanban_lists,\nkanban_cards, kanban_card_history)" as DB
+participant "WebSocket Gateway\n(/ws)" as WS
 
-== Step 1 — User opens the "Create card" form ==
+== Step 1 — User creates a card ==
 
-User -> UI: Click "Add card"\nin a Kanban list
-UI -> Schema: Load card form schema\n(title, description, listId, boardId)
-Schema --> UI: Field definitions + validators
-UI --> User: Render card form
-
-== Step 2 — User submits the new card ==
-
-User -> UI: Fill title/description,\nclick "Create"
-UI -> Schema: Validate form locally
-alt Form is invalid
-  Schema --> UI: Validation errors
-  UI --> User: Show inline errors
-else Form is valid
-  UI -> HTTP: POST /api/kanban/cards\n{ title, description, listId, boardId }
-end
-
-== Step 3 — Server receives the request ==
-
+User -> UI: Click "Create Card"\nin a specific list
+UI -> HTTP: POST /api/kanban/boards/:boardId/cards\n{ listId, title, description, assigneeUserId, labelIds }
 HTTP -> Route: HTTP request + session cookie
-Route -> Auth: Check session / company membership
-alt Not authenticated
-  Auth --> Route: Reject
-  Route --> HTTP: 401 Unauthorized
-  HTTP --> UI: Show "please log in"
-else Authenticated
-  Auth --> Route: user + company context
-end
 
-== Step 4 — Validate the request body ==
+== Step 2 — Server-side checks and creation ==
 
-Route -> Val: Validate body against\ncardInsertSchema
-alt Invalid payload
-  Val --> Route: Zod error
-  Route --> HTTP: 400 Bad Request\n{ issues: [...] }
-  HTTP --> UI: Show validation errors
-else Valid payload
-  Val --> Route: Parsed card data
-end
+Route -> Auth: 1. Get current user from session
+Auth --> Route: ✓ user context
 
-== Step 5 — Apply Kanban business rules ==
+Route -> BL: 2. Get board access for boardId
+BL -> ORM: SELECT board WHERE id = :boardId
+ORM --> BL: board
+Route -> BL: 3. Check whether user can edit this board
+BL --> Route: ✓ Edit permission granted
 
-Route -> BL: createCard(userId, companyId, data)
+Route -> Val: 4. Parse body with kanbanCardCreateSchema
+Val --> Route: ✓ Valid payload
 
-BL -> ORM: SELECT list WHERE id = :listId\nAND board_id IN (boards of company)
+Route -> BL: 5. Load target list by listId
+BL -> ORM: SELECT list WHERE id = :listId
+ORM --> BL: list
+Route -> BL: 6. Check that list belongs to selected board
+BL --> Route: ✓ List belongs to board
+
+Route -> BL: 7. Compute next card position inside list
+Route -> BL: 8. Resolve assignee user id
+Route -> BL: 9. Resolve label ids
+
+Route -> BL: 10. Create card
+BL -> ORM: INSERT INTO kanban_cards
 ORM -> DB: SQL
-DB --> ORM: list row
-ORM --> BL: list | null
+DB --> ORM: card row
 
-alt List not found or does not belong to the company
-  BL --> Route: Throw NotFound / Forbidden
-  Route --> HTTP: 404 / 403
-else List found
-  BL -> ORM: INSERT INTO kanban_cards
-  ORM -> DB: SQL
-  DB --> ORM: inserted card
-  ORM --> BL: card
+Route -> BL: 11. Attach labels
+BL -> ORM: INSERT INTO kanban_card_labels
+ORM -> DB: SQL
 
-  BL -> ORM: INSERT INTO kanban_card_history\n(action: 'created')
-  ORM -> DB: SQL
-  DB --> ORM: inserted history row
-  ORM --> BL: history
+Route -> BL: 12. Create kanban_card_history entry\n(action: 'created')
+BL -> ORM: INSERT INTO kanban_card_history
+ORM -> DB: SQL
 
-  BL --> Route: card + history
-end
+Route -> BL: 13. Optionally create notification\nif assigned to another user
+BL -> ORM: INSERT INTO notifications
+ORM -> DB: SQL
 
-== Step 6 — Respond to the client ==
+BL --> Route: Return raw card data
 
-Route --> HTTP: 201 Created\n{ card }
-HTTP --> UI: Update local state
-UI --> User: Show the new card\nin the Kanban list
+== Step 3 — Respond and notify ==
+
+Route -> Route: buildKanbanCardResponse(card)\n(enriched card view)
+Route --> HTTP: 201 Created\n{ enriched card view }
+HTTP --> UI: Update state with new card
+UI --> User: Show new card in UI
+
+Route -> WS: emit('kanban:card:created', enrichedCard)
+WS --> UI: (Other connected clients)\nRealtime update / query invalidation
 
 @enduml

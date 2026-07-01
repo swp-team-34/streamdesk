@@ -8,20 +8,26 @@ title StreamDesk Deployment Diagram
 
 node "Single VPS\n(Ubuntu, managed by the team)" as VPS {
 
-  [Nginx\n(reverse proxy,\nTLS termination)] as Nginx
+  node "Nginx\n(reverse proxy, TLS termination)" as Nginx {
+    artifact "TLS certificate\n(Let's Encrypt)" as TLS
+  }
 
   node "Node.js process\n(managed by PM2)" as NodeApp {
-    artifact "Express server\n(port 5000, localhost)" as Express
+    artifact "Express server\n(PORT=5000 by default,\nbinds 0.0.0.0)" as Express
     artifact "REST API routes\n(routes.ts)" as API
+    artifact "WebSocket Gateway\n(/ws)" as WebSocket
+    artifact "Production static handler\n(dist/public)" as StaticHandler
     artifact "YouGile background sync\n(in-process)" as Sync
   }
 
   node "PostgreSQL 15\n(local instance)" as Postgres {
     artifact "streamdesk database" as DB
-    artifact "Drizzle-managed schema\nand migrations" as Schema
+    artifact "Drizzle schema +\nruntime schema guards\n(ALTER TABLE ADD COLUMN\nIF NOT EXISTS)" as Schema
   }
 
-  [Local filesystem\n/uploads] as Uploads
+  node "Local filesystem" as FS {
+    artifact "/uploads\n(equipment photos,\nattachments)" as Uploads
+  }
 }
 
 node "Staff browsers" as Browsers {
@@ -35,8 +41,19 @@ cloud "External services" as External {
 ' === Connections ===
 Browser --> Nginx : HTTPS (443)
 
-Nginx --> Uploads : serve static\nfrontend build
-Nginx --> Express : proxy /api/*\nto localhost:5000
+Nginx --> Express : proxy /api/*\nand /ws to\nStreamDesk Node process
+
+note right of Nginx
+  Nginx terminates TLS and
+  routes browser traffic to
+  the StreamDesk runtime.
+  Depending on server
+  configuration, static assets
+  may be served directly by
+  Nginx or by the Express
+  production static handler
+  from dist/public.
+end note
 
 Express --> Postgres : TCP 5432\n(local socket)
 Express --> Uploads : read/write files
@@ -45,20 +62,11 @@ Express --> YouGile : HTTPS\nREST API
 Sync --> YouGile : periodic\nHTTPS calls
 
 ' === Notes ===
-note right of Nginx
-  Nginx is the only
-  internet-facing component.
-  It terminates TLS, serves
-  the static SPA from
-  /client/dist, and
-  reverse-proxies /api/* to
-  the Node.js process.
-end note
-
 note right of NodeApp
   A single Node.js process
-  hosts both the REST API
-  and the YouGile sync job.
+  hosts the REST API,
+  WebSocket Gateway, and
+  the YouGile sync job.
   PM2 watches the process
   and restarts it on crash.
 end note
@@ -66,9 +74,11 @@ end note
 note right of Postgres
   PostgreSQL runs on the
   same host as the app.
-  Backups are expected to
-  be performed externally
-  (e.g. pg_dump + cron).
+  Schema migrations are
+  handled via runtime
+  schema guards rather
+  than a strict migration
+  workflow.
 end note
 
 note bottom of VPS
