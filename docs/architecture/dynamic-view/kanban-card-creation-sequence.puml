@@ -1,0 +1,79 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Kanban Card Creation
+
+actor "User" as User
+participant "Task Manager UI\n(React)" as UI
+participant "HTTP Client" as HTTP
+participant "Express route\n(/api/kanban/boards/:boardId/cards)" as Route
+participant "Express session auth" as Auth
+participant "Zod validation\n(kanbanCardCreateSchema)" as Val
+participant "Kanban handlers\n(business logic)" as BL
+participant "Drizzle ORM" as ORM
+participant "PostgreSQL\n(kanban_boards, kanban_lists,\nkanban_cards, kanban_card_history)" as DB
+participant "WebSocket Gateway\n(/ws)" as WS
+
+== Step 1 — User creates a card ==
+
+User -> UI: Click "Create Card"\nin a specific list
+UI -> HTTP: POST /api/kanban/boards/:boardId/cards\n{ listId, title, description, assigneeUserId, labelIds }
+HTTP -> Route: HTTP request + session cookie
+
+== Step 2 — Server-side checks and creation ==
+
+Route -> Auth: 1. Get current user from session
+Auth --> Route: ✓ user context
+
+Route -> BL: 2. Get board access for boardId
+BL -> ORM: SELECT board WHERE id = :boardId
+ORM --> BL: board
+Route -> BL: 3. Check whether user can edit this board
+BL --> Route: ✓ Edit permission granted
+
+Route -> Val: 4. Parse body with kanbanCardCreateSchema
+Val --> Route: ✓ Valid payload
+
+Route -> BL: 5. Load target list by listId
+BL -> ORM: SELECT list WHERE id = :listId
+ORM --> BL: list
+Route -> BL: 6. Check that list belongs to selected board
+BL --> Route: ✓ List belongs to board
+
+Route -> BL: 7. Compute next card position inside list
+Route -> BL: 8. Resolve assignee user id
+Route -> BL: 9. Resolve label ids
+
+Route -> BL: 10. Create card
+BL -> ORM: INSERT INTO kanban_cards
+ORM -> DB: SQL
+DB --> ORM: card row
+
+Route -> BL: 11. Attach labels
+BL -> ORM: INSERT INTO kanban_card_labels
+ORM -> DB: SQL
+
+Route -> BL: 12. Create kanban_card_history entry\n(action: 'created')
+BL -> ORM: INSERT INTO kanban_card_history
+ORM -> DB: SQL
+
+Route -> BL: 13. Optionally create notification\nif assigned to another user
+BL -> ORM: INSERT INTO notifications
+ORM -> DB: SQL
+
+BL --> Route: Return raw card data
+
+== Step 3 — Respond and notify ==
+
+Route -> Route: buildKanbanCardResponse(card)\n(enriched card view)
+Route --> HTTP: 201 Created\n{ enriched card view }
+HTTP --> UI: Update state with new card
+UI --> User: Show new card in UI
+
+Route -> WS: emit('kanban:card:created', enrichedCard)
+WS --> UI: (Other connected clients)\nRealtime update / query invalidation
+
+@enduml

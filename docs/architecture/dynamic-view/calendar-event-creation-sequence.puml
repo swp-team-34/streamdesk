@@ -1,0 +1,76 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Calendar Event Creation
+
+actor "User" as User
+participant "Calendar UI\n(React)" as UI
+participant "HTTP Client" as HTTP
+participant "Express route\n(/api/events)" as Route
+participant "Express session auth" as Auth
+participant "Zod validation" as Val
+participant "Calendar handlers\n(business logic)" as BL
+participant "Drizzle ORM" as ORM
+participant "PostgreSQL\n(events, event_participants,\nnotifications)" as DB
+participant "WebSocket Gateway\n(/ws)" as WS
+
+== Step 1 — User creates an event ==
+
+User -> UI: Fill event details,\nselect participants[]
+UI -> HTTP: POST /api/events\n{ title, startDate, endDate, participants[] }
+HTTP -> Route: HTTP request + session cookie
+Route -> Auth: Check session
+Auth --> Route: ✓ Authenticated
+Route -> Val: Validate body
+Val --> Route: ✓ Valid
+
+== Step 2 -- Event persistence (non-atomic) ==
+
+Route -> BL: createEvent(userId, data)
+
+BL -> ORM: 1. INSERT INTO events
+ORM -> DB: SQL
+DB --> ORM: event row
+
+note right of BL
+  The event is persisted first.
+  Participant rows and notifications
+  are created afterwards.
+  Individual participant/notification
+  failures are logged and do not
+  rollback the created event.
+end note
+
+loop For each participant in participants[]
+  BL -> ORM: 2. INSERT INTO event_participants
+  ORM -> DB: SQL
+  alt Success
+    DB --> ORM: participant row
+  else Failure (e.g., invalid user)
+    BL -> BL: Log error, continue loop
+  end
+  
+  BL -> ORM: 3. INSERT INTO notifications
+  ORM -> DB: SQL
+  alt Success
+    DB --> ORM: notification row
+  else Failure
+    BL -> BL: Log error, continue loop
+  end
+end
+
+BL --> Route: Return created event
+
+== Step 3 -- Respond and notify ==
+
+Route --> HTTP: 200 OK\n{ event }
+HTTP --> UI: Update state with new event
+UI --> User: Show new event in calendar
+
+Route -> WS: emit('calendar:event:created', event)
+WS --> UI: (Other connected clients)\nRealtime update / query invalidation
+
+@enduml
