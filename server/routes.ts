@@ -13,6 +13,7 @@ import {
   insertStreamSchema,
   insertNotificationSchema,
   insertEquipmentReservationSchema,
+  insertEquipmentCheckoutRequestSchema,
   insertTelegramUserSchema,
   insertObsConnectionSchema,
   insertAnalyticsEventSchema,
@@ -3610,6 +3611,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(equipment);
     } catch (error) {
       res.status(500).json({ message: "Failed to update equipment" });
+    }
+  });
+
+  app.get("/api/equipment-checkout-requests", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+
+      const currentUser = req.user as any;
+      const userCompanyIds = await getUserCompanyIds(currentUser);
+      const manageableCompanyIds = (
+        await Promise.all(userCompanyIds.map(async (companyId) =>
+          (await canManageCompany(currentUser, companyId).catch(() => false)) ? companyId : "",
+        ))
+      ).filter(Boolean);
+      const requests = await storage.getEquipmentCheckoutRequests().catch(() => []);
+
+      if (currentUser?.role === "admin") {
+        return res.json(requests);
+      }
+
+      res.json((requests as any[]).filter((request) => {
+        const companyId = String(request.companyId || "").trim();
+        return request.requestedBy === currentUser?.id ||
+          (companyId && manageableCompanyIds.includes(companyId));
+      }));
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось загрузить запросы на оборудование" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const body = req.body || {};
+      const equipmentId = String(body.equipmentId || "").trim();
+      if (!equipmentId) {
+        return res.status(400).json({ message: "Выберите оборудование для запроса" });
+      }
+
+      const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      if (operabilityStatus !== "working") {
+        return res.status(400).json({
+          message: operabilityStatus === "broken"
+            ? "Оборудование неисправно и недоступно для выдачи"
+            : "Оборудование находится в ремонте и недоступно для выдачи",
+        });
+      }
+
+      const userCompanyIds = await getUserCompanyIds(currentUser);
+      const requestedCompanyId = String(body.companyId || "").trim();
+      const companyId = requestedCompanyId || userCompanyIds[0] || "";
+      if (requestedCompanyId && !userCompanyIds.includes(requestedCompanyId)) {
+        return res.status(403).json({ message: "Нет доступа к этой компании" });
+      }
+
+      const requestType = body.requestType === "transfer" ? "transfer" : "checkout";
+      const requestData = insertEquipmentCheckoutRequestSchema.parse({
+        companyId: companyId || undefined,
+        equipmentId,
+        requestedBy: currentUser.id,
+        requestType,
+        currentHolder: requestType === "transfer" ? item.assignedTo || null : null,
+        status: "pending",
+        location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        note: body.note && String(body.note).trim() ? String(body.note).trim() : undefined,
+      });
+
+      const request = await storage.createEquipmentCheckoutRequest(requestData);
+      res.json(request);
+    } catch (error: any) {
+      res.status(400).json({ message: error?.message || "Не удалось создать запрос на оборудование" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests/:id/approve", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
+      if (!request) return res.status(404).json({ message: "Запрос не найден" });
+      if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
+
+      const companyId = String(request.companyId || "").trim();
+      const canApprove = currentUser?.role === "admin" ||
+        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (!canApprove) return res.status(403).json({ message: "Нет прав на подтверждение запроса" });
+
+      const item = await storage.getEquipmentById(request.equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") return res.status(404).json({ message: "Оборудование не найдено" });
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      if (operabilityStatus !== "working") {
+        return res.status(400).json({ message: "Оборудование сейчас недоступно для выдачи" });
+      }
+
+      const updatedEquipment = await storage.updateEquipment(request.equipmentId, {
+        status: "in-use",
+        assignedTo: request.requestedBy,
+        location: request.location || item.location,
+        lastUsed: new Date(),
+      } as any);
+      const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+        status: "approved",
+        reviewedBy: currentUser.id,
+        reviewedAt: new Date(),
+      } as any);
+
+      res.json({ request: updatedRequest, equipment: updatedEquipment });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось подтвердить запрос" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests/:id/reject", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
+      if (!request) return res.status(404).json({ message: "Запрос не найден" });
+      if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
+
+      const companyId = String(request.companyId || "").trim();
+      const canReject = currentUser?.role === "admin" ||
+        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (!canReject) return res.status(403).json({ message: "Нет прав на отклонение запроса" });
+
+      const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+        status: "rejected",
+        reviewedBy: currentUser.id,
+        reviewedAt: new Date(),
+        decisionNote: req.body?.decisionNote ? String(req.body.decisionNote).trim() : undefined,
+      } as any);
+
+      res.json({ request: updatedRequest });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось отклонить запрос" });
     }
   });
 
