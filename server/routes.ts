@@ -3369,6 +3369,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(status ? list : list.filter((item: any) => item.status !== "archived"));
   });
 
+  app.get("/api/equipment/:id", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const id = String(req.params.id || "").trim();
+      if (!id) return res.status(400).json({ message: "Некорректный идентификатор оборудования" });
+
+      const item = await storage.getEquipmentById(id).catch((error) => {
+        console.error("[Equipment] Failed to load equipment details:", error);
+        throw error;
+      });
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      res.json({ ...item, operabilityStatus });
+    } catch (error: any) {
+      const message = error?.message || "Не удалось загрузить оборудование";
+      console.error("[Equipment] Details error:", message);
+      res.status(500).json({ message });
+    }
+  });
+
   app.post("/api/equipment/labels/print", async (req, res) => {
     try {
       if (!(await hasWorkspaceAccess(req.user))) {

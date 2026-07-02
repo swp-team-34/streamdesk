@@ -1,0 +1,82 @@
+import express from "express";
+import { describe, expect, it } from "vitest";
+import { registerRoutes } from "./routes";
+import { storage } from "./database";
+
+async function createAppWithRoutes() {
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: false }));
+  await registerRoutes(app);
+  return app;
+}
+
+function registeredRoutes(app: express.Express) {
+  return ((app as any)._router?.stack || [])
+    .filter((layer: any) => layer.route)
+    .flatMap((layer: any) => Object.keys(layer.route.methods).map((method) => ({
+      method: method.toUpperCase(),
+      path: layer.route.path,
+    })));
+}
+
+function routeHandler(app: express.Express, method: string, path: string) {
+  const layer = ((app as any)._router?.stack || [])
+    .find((item: any) => item.route?.path === path && item.route?.methods?.[method.toLowerCase()]);
+  return layer?.route?.stack?.[0]?.handle as ((req: any, res: any) => Promise<void>) | undefined;
+}
+
+function createJsonResponse() {
+  return {
+    statusCode: 200,
+    body: undefined as unknown,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload: unknown) {
+      this.body = payload;
+      return this;
+    },
+  };
+}
+
+describe("equipment detail route registration", () => {
+  it("registers GET /api/equipment/:id for item details", async () => {
+    const app = await createAppWithRoutes();
+
+    expect(registeredRoutes(app)).toContainEqual({
+      method: "GET",
+      path: "/api/equipment/:id",
+    });
+  });
+
+  it("returns equipment details with an operability fallback", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "GET", "/api/equipment/:id");
+    const [item] = await storage.getEquipment();
+    const res = createJsonResponse();
+
+    await handler!({ user: { id: "admin-stub-default-id", role: "admin" }, params: { id: item.id } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      id: item.id,
+      name: item.name,
+      operabilityStatus: expect.any(String),
+    });
+  });
+
+  it("returns 404 for missing equipment ids", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "GET", "/api/equipment/:id");
+    const res = createJsonResponse();
+
+    await handler!({ user: { id: "admin-stub-default-id", role: "admin" }, params: { id: "missing" } }, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toMatchObject({
+      message: expect.any(String),
+    });
+  });
+});
