@@ -3623,21 +3623,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/equipment/:id", async (req, res) => {
     try {
       const { id } = req.params;
-
-      // Only admins can update/promote barcodes (Cr-codes)
-      if (req.body.barcode) {
-        // In production, check user session/role here
-        // For now, allow but log for security
-        console.log("Barcode update/promotion attempted:", req.body.barcode);
+      const body = req.body || {};
+      const existing = await storage.getEquipmentById(id).catch(() => undefined);
+      if (!existing) {
+        return res.status(404).json({ message: "Equipment not found" });
       }
 
-      const equipment = await storage.updateEquipment(id, req.body);
+      // Only admins can update/promote barcodes (Cr-codes)
+      if (body.barcode) {
+        // In production, check user session/role here
+        // For now, allow but log for security
+        console.log("Barcode update/promotion attempted:", body.barcode);
+      }
+
+      const currentOperability = String((existing as any).operabilityStatus || "").trim() ||
+        (existing.status === "broken" ? "broken" : existing.status === "maintenance" ? "on_repair" : "working");
+      if (body.status === "in-use" && currentOperability !== "working") {
+        return res.status(400).json({
+          message: currentOperability === "broken"
+            ? "Оборудование неисправно и недоступно для выдачи"
+            : "Оборудование находится в ремонте и недоступно для выдачи",
+        });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      const copyFields = [
+        "name",
+        "type",
+        "model",
+        "serialNumber",
+        "inventoryNumber",
+        "barcode",
+        "specifications",
+        "notes",
+        "status",
+        "operabilityStatus",
+        "location",
+        "storageLocation",
+        "responsiblePerson",
+        "responsibleContact",
+        "assignedTo",
+        "photos",
+      ];
+      for (const field of copyFields) {
+        if (Object.prototype.hasOwnProperty.call(body, field)) {
+          updateData[field] = body[field];
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "lastUsed")) {
+        if (body.lastUsed === null || body.lastUsed === "") {
+          updateData.lastUsed = null;
+        } else {
+          const lastUsed = body.lastUsed instanceof Date ? body.lastUsed : new Date(body.lastUsed);
+          if (Number.isNaN(lastUsed.getTime())) {
+            return res.status(400).json({ message: "Некорректная дата последнего использования" });
+          }
+          updateData.lastUsed = lastUsed;
+        }
+      }
+
+      const parsed = insertEquipmentSchema.partial().safeParse(updateData);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Проверьте данные оборудования", errors: parsed.error.flatten() });
+      }
+
+      const equipment = await storage.updateEquipment(id, parsed.data as any);
       if (!equipment) {
         return res.status(404).json({ message: "Equipment not found" });
       }
       res.json(equipment);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update equipment" });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to update equipment" });
     }
   });
 

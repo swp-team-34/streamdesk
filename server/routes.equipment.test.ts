@@ -80,3 +80,58 @@ describe("equipment detail route registration", () => {
     });
   });
 });
+
+describe("equipment request actions", () => {
+  it("normalizes direct take payloads from JSON before updating equipment", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "PUT", "/api/equipment/:id");
+    const [item] = await storage.getEquipment();
+    const res = createJsonResponse();
+    const lastUsed = new Date("2026-07-01T20:00:00.000Z").toISOString();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: item.id },
+      body: {
+        status: "in-use",
+        assignedTo: "admin-stub-default-id",
+        location: "У сотрудника Tim",
+        lastUsed,
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      id: item.id,
+      status: "in-use",
+      assignedTo: "admin-stub-default-id",
+      location: "У сотрудника Tim",
+    });
+    expect(res.body.lastUsed).toBeInstanceOf(Date);
+  });
+
+  it("blocks direct take actions for non-working equipment", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "PUT", "/api/equipment/:id");
+    const [item] = await storage.getEquipment();
+    await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "broken" } as any);
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: item.id },
+      body: {
+        status: "in-use",
+        assignedTo: "admin-stub-default-id",
+        lastUsed: new Date("2026-07-01T20:00:00.000Z").toISOString(),
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({
+      message: expect.stringContaining("недоступно"),
+    });
+
+    await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "working" } as any);
+  });
+});
