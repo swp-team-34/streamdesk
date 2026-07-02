@@ -2063,9 +2063,9 @@ export default function EquipmentPage() {
                 }}
                 className="cursor-pointer overflow-hidden border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700 dark:bg-slate-800/90 dark:hover:border-slate-600"
               >
-              <CardHeader className="space-y-2 p-3 pb-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-2">
+              <CardHeader className="space-y-3 p-3 pb-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 pr-0 sm:pr-2">
                     <div
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
@@ -2079,36 +2079,36 @@ export default function EquipmentPage() {
                       />
                     </div>
                     {projectInfo ? (
-                      <Badge className="max-w-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                      <Badge className="max-w-full rounded-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
                         На проекте
                       </Badge>
                     ) : pendingRequest ? (
-                      <Badge className="max-w-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                      <Badge className="max-w-full rounded-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                         {requestedByMe
                           ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
                           : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
                       </Badge>
                     ) : (
-                      <Badge className={`${getStatusColor(item.status)} text-[11px]`}>
+                      <Badge className={`${getStatusColor(item.status)} max-w-full rounded-full text-[11px]`}>
                         {getStatusText(item.status)}
                       </Badge>
                     )}
                     {isSuperPosition(item) && (
-                      <Badge className="bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      <Badge className="max-w-full rounded-full bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
                         Сборка
                       </Badge>
                     )}
-                    <Badge className={`${getOperabilityColor(operabilityStatus)} text-[11px]`}>
+                    <Badge className={`${getOperabilityColor(operabilityStatus)} max-w-full rounded-full text-[11px]`}>
                       {getOperabilityText(operabilityStatus)}
                     </Badge>
                     {getParentBundleName(item) && (
-                      <Badge className="bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                      <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
                         В сборке
                       </Badge>
                     )}
                   </div>
 
-                  <div className="flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:max-w-[220px]">
+                  <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:w-auto sm:max-w-[248px] sm:justify-end">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2362,17 +2362,17 @@ export default function EquipmentPage() {
                     </div>
                   )}
                   {storageLocation && (
-                    <div className="flex items-start gap-1.5">
-                      <MapPin className="w-3 h-3 text-slate-400 mt-1 shrink-0" />
-                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Хранение:</span>
-                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">{storageLocation}</span>
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                      <MapPin className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
+                      <span className="text-slate-500 dark:text-slate-400">Хранение:</span>
+                      <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">{storageLocation}</span>
                     </div>
                   )}
                   {(responsiblePerson || responsibleContact) && (
-                    <div className="flex items-start gap-1.5">
-                      <User className="w-3 h-3 text-slate-400 mt-1 shrink-0" />
-                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Ответственный:</span>
-                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                      <User className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
+                      <span className="text-slate-500 dark:text-slate-400">Ответственный:</span>
+                      <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
                         {[responsiblePerson, responsibleContact].filter(Boolean).join(" · ")}
                       </span>
                     </div>
