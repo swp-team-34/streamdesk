@@ -313,6 +313,7 @@ const LABEL_COLOR_PRESETS = [
 
 const BOARD_VIEW_MODE_STORAGE_KEY = "streamdesk.tasks.v2.viewMode";
 const BOARD_LIST_GROUPING_STORAGE_KEY = "streamdesk.tasks.v2.listGrouping";
+const LIST_VIEW_ALL_DROPPABLE_ID = "list-view:all";
 const DETAIL_AUTOSAVE_DELAY_MS = 700;
 
 const EMPTY_CARD_FORM = {
@@ -2764,13 +2765,30 @@ export default function TasksV2Page() {
     if (moveCardMutation.isPending) return;
 
     const cardId = draggableId.startsWith("card:") ? draggableId.slice("card:".length) : draggableId;
+    const movingCard = cards.find((card) => card.id === cardId);
+    let targetListId = destination.droppableId;
+    let targetPosition = destination.index;
+
+    if (destination.droppableId === LIST_VIEW_ALL_DROPPABLE_ID) {
+      const visibleCards = [...(listViewGroups.find((group) => group.id === "all")?.cards ?? [])];
+      const [visibleMovingCard] = visibleCards.splice(source.index, 1);
+
+      if (!visibleMovingCard || visibleMovingCard.id !== cardId) return;
+
+      visibleCards.splice(destination.index, 0, visibleMovingCard);
+      targetListId = String(movingCard?.listId || visibleMovingCard.listId);
+      targetPosition = visibleCards
+        .slice(0, destination.index)
+        .filter((card) => String(card.listId) === targetListId)
+        .length;
+    }
 
     scheduleAfterDndDrop(() => {
       moveCardMutation.mutate({
         boardId: selectedBoardId,
         cardId,
-        targetListId: destination.droppableId,
-        targetPosition: destination.index,
+        targetListId,
+        targetPosition,
       });
     });
   };
@@ -3938,7 +3956,12 @@ export default function TasksV2Page() {
 	                  <div className="space-y-3">
 	                      <DragDropContext onDragEnd={handleBoardDragEnd}>
 	                        {listViewGroups.map((group) => {
-	                          const canDropInGroup = listGrouping === "list" && Boolean(group.droppableListId);
+	                          const listViewDroppableId =
+                              listGrouping === "list" && group.droppableListId
+                                ? group.droppableListId
+                                : listGrouping === "none" && group.id === "all"
+                                  ? LIST_VIEW_ALL_DROPPABLE_ID
+                                  : null;
 	                          const draftValue = listViewGroupDrafts[group.id] || "";
 	                          const draftListId = group.droppableListId || listViewDraftListId || lists[0]?.id || "";
 	                          return (
@@ -3990,8 +4013,8 @@ export default function TasksV2Page() {
 	                                  </Button>
 	                                </div>
 	                              )}
-	                              {canDropInGroup ? (
-	                                <Droppable droppableId={group.droppableListId!} type="CARD">
+	                              {listViewDroppableId ? (
+	                                <Droppable droppableId={listViewDroppableId} type="CARD">
 	                                  {(provided) => (
 	                                    <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[96px] space-y-2 p-3">
 	                                      {group.cards.map((card, index) => (
