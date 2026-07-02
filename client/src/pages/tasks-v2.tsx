@@ -3150,7 +3150,7 @@ export default function TasksV2Page() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-6 p-4 pt-5 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--primary)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--primary)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-6 sm:pt-6">
+    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-6 p-4 pt-5 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-6 sm:pt-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <DropdownMenu>
@@ -3431,7 +3431,7 @@ export default function TasksV2Page() {
                                 className={[
                                   "h-full overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
                                   snapshot.isDraggingOver || listDragSnapshot.isDragging
-                                    ? "border-sky-400/70 shadow-lg shadow-sky-900/10 ring-2 ring-sky-300/30 dark:border-blue-400/60 dark:ring-blue-400/20"
+                                    ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
                                     : "hover:border-border/70 hover:shadow-md",
                                 ].join(" ").trim()}
                                 style={{
@@ -3681,7 +3681,7 @@ export default function TasksV2Page() {
 	                                  <div
 	                                    ref={provided.innerRef}
 	                                    {...provided.droppableProps}
-	                                    className={["space-y-3 min-h-[180px] transition-colors", snapshot.isDraggingOver ? "rounded-2xl bg-primary/5" : ""].join(" ")}
+	                                    className={["space-y-3 min-h-[180px] transition-colors", snapshot.isDraggingOver ? "rounded-2xl bg-muted/30" : ""].join(" ")}
 	                                  >
                                     {listCards.length === 0 && !snapshot.isDraggingOver && (
                                       <div className="rounded-[18px] border border-dashed border-border/45 bg-muted/20 px-3 py-5 text-sm leading-6 text-muted-foreground">
@@ -3729,9 +3729,9 @@ export default function TasksV2Page() {
                                                   "group rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none text-card-foreground",
                                                   dueDateStatusClasses.card,
                                                   dragSnapshot.isDragging
-                                                    ? "border-sky-300/80 shadow-xl shadow-black/10 ring-2 ring-sky-300/30 dark:border-blue-400/70 dark:ring-blue-400/20"
+                                                    ? "border-border/70 shadow-xl shadow-black/10 ring-2 ring-border/35"
                                                     : dragSnapshot.isDropAnimating
-                                                      ? "border-sky-200/70 shadow-lg shadow-black/10 dark:border-blue-400/50"
+                                                      ? "border-border/60 shadow-lg shadow-black/10"
                                                       : "hover:border-border hover:shadow-md dark:hover:border-border",
                                                 ].join(" ").trim()}
                                                 style={{
