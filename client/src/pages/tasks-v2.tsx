@@ -4325,7 +4325,7 @@ export default function TasksV2Page() {
       </Dialog>
 
       <Dialog open={!!detailCardId} onOpenChange={(open) => !open && handleCloseCardDetail()}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
+        <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
           {!selectedDetailCard ? (
             <>
               <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
@@ -4367,7 +4367,7 @@ export default function TasksV2Page() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6 px-6 py-6">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pb-28">
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
