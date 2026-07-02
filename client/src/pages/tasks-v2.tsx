@@ -452,20 +452,17 @@ const KANBAN_BOARD_GHOST_BADGE_CLASS =
 const toSoftColor = (value?: string | null, alpha = 0.12) => {
   const normalized = String(value || "").trim();
   if (!normalized) return undefined;
+  const percent = Math.min(100, Math.max(0, Math.round(alpha * 100)));
 
   const shortHexMatch = normalized.match(/^#([\da-fA-F]{3})$/);
   if (shortHexMatch) {
-    const [r, g, b] = shortHexMatch[1].split("").map((part) => parseInt(part + part, 16));
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    const hex = shortHexMatch[1].split("").map((part) => part + part).join("");
+    return `color-mix(in srgb, #${hex} ${percent}%, var(--card))`;
   }
 
   const fullHexMatch = normalized.match(/^#([\da-fA-F]{6})$/);
   if (fullHexMatch) {
-    const hex = fullHexMatch[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    return `color-mix(in srgb, #${fullHexMatch[1]} ${percent}%, var(--card))`;
   }
 
   return undefined;
