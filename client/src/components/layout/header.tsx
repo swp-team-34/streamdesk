@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { queryClient } from "@/lib/queryClient";
+import { MANUAL_SYNC_COOLDOWN_MS, runManualSync } from "@/lib/manual-sync";
 
 interface HeaderProps {
   onMobileMenuClick: () => void;
@@ -83,15 +84,15 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
     ? lastSyncedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
     : null;
   const syncLabel = isSyncing
-    ? "Синхронизация..."
+    ? "Синхронизация данных..."
     : syncStatus === "error"
       ? isSyncCooldown
         ? `Ошибка синхронизации. Повтор через ${syncCooldownSeconds} с.`
-        : "Ошибка синхронизации"
+        : "Ошибка синхронизации. Нажмите, чтобы повторить."
       : isSyncCooldown
-        ? `${lastSyncedLabel ? `Синхронизировано в ${lastSyncedLabel}. ` : ""}Повтор через ${syncCooldownSeconds} с.`
+        ? `${lastSyncedLabel ? `Синхронизировано в ${lastSyncedLabel}. ` : ""}Можно повторить через ${syncCooldownSeconds} с.`
         : lastSyncedLabel
-          ? `Синхронизировано в ${lastSyncedLabel}`
+          ? `Синхронизировано в ${lastSyncedLabel}. Можно синхронизировать снова.`
           : "Синхронизировать данные";
 
   const handleManualSync = async () => {
@@ -99,14 +100,13 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
     setSyncStatus("syncing");
 
     try {
-      await queryClient.invalidateQueries();
-      await queryClient.refetchQueries({ type: "active" });
+      await runManualSync(queryClient);
       setLastSyncedAt(new Date());
       setSyncStatus("synced");
     } catch {
       setSyncStatus("error");
     } finally {
-      setSyncCooldownUntil(Date.now() + 45_000);
+      setSyncCooldownUntil(Date.now() + MANUAL_SYNC_COOLDOWN_MS);
     }
   };
 
@@ -143,10 +143,19 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
               <Button
                 variant="ghost"
                 size="icon"
-                className={`relative h-7 w-7 sm:h-8 sm:w-8 touch-target hover:bg-muted/60 focus:ring-2 focus:ring-ring shrink-0 ${syncDisabled ? "cursor-not-allowed opacity-70" : ""}`}
+                className={`relative h-7 w-7 sm:h-8 sm:w-8 touch-target hover:bg-muted/60 focus:ring-2 focus:ring-ring shrink-0 ${
+                  isSyncing
+                    ? "cursor-wait bg-primary/10 text-primary"
+                    : syncStatus === "error"
+                      ? "bg-destructive/10 text-destructive"
+                      : isSyncCooldown
+                        ? "bg-muted/60"
+                        : ""
+                }`}
                 onClick={handleManualSync}
                 aria-disabled={syncDisabled}
                 aria-label={syncLabel}
+                title={syncLabel}
                 data-testid="button-global-sync"
               >
                 {syncStatus === "error" ? (
@@ -155,6 +164,11 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                 ) : (
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+                )}
+                {isSyncCooldown && !isSyncing && (
+                  <span className="absolute -bottom-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-background border border-border text-[9px] leading-4 text-muted-foreground shadow-sm">
+                    {syncCooldownSeconds}
+                  </span>
                 )}
               </Button>
             </TooltipTrigger>
