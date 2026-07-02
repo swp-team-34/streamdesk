@@ -947,6 +947,10 @@ export default function Calendar() {
       return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
     });
     if (!slot) return null;
+    if (slot.dataset.scope === "month" && slot.dataset.date) {
+      const date = new Date(slot.dataset.date);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
     const dayIndex = Number(slot.dataset.dayIndex);
     const scope = slot.dataset.scope;
     const days = scope === "3days" ? threeDays : scope === "day" ? [selectedDate] : weekDays;
@@ -1100,7 +1104,14 @@ export default function Calendar() {
       }
 
       const nextRange = buildPreview(action, event.clientX, event.clientY);
-      if (!nextRange) return;
+      if (!nextRange) {
+        toast({
+          title: "Нельзя переместить сюда",
+          description: "Отпустите карточку внутри дня или временного слота календаря.",
+          variant: "destructive",
+        });
+        return;
+      }
       updateCalendarEntryRangeMutation.mutate({ entry: action.entry, start: nextRange.start, end: nextRange.end });
     };
 
@@ -1406,13 +1417,20 @@ export default function Calendar() {
                   const dayEntries = getEntriesForDate(day);
                   const isToday = isSameDay(day, new Date());
                   const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
+                  const isPointerPreviewDay = calendarPointerPreview
+                    ? isSameDay(new Date(calendarPointerPreview.startTime), day)
+                    : false;
                   return (
                     <div
                       key={day.toISOString()}
+                      data-calendar-all-day
+                      data-scope="month"
+                      data-date={day.toISOString()}
                       className={cn(
-                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30",
+                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30 transition-colors",
                         !isCurrentMonth ? "bg-muted/20 opacity-70" : "bg-card",
-                        isToday && "ring-2 ring-inset ring-primary"
+                        isToday && "ring-2 ring-inset ring-primary",
+                        isPointerPreviewDay && "bg-primary/10 ring-2 ring-inset ring-primary/50"
                       )}
                     >
                       <div className={cn("text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1", isToday ? "text-primary" : isCurrentMonth ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500")}>
@@ -1423,9 +1441,10 @@ export default function Calendar() {
                           <button
                             key={entry.id}
                             type="button"
-                            className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-pointer", getEventInlineClasses(entry))}
+                            data-calendar-entry-block
+                            className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-grab active:cursor-grabbing", getEventInlineClasses(entry))}
                             style={getEntryColorStyle(entry, "inline")}
-                            onClick={() => handleEntryClick(entry)}
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
                           >
                             {entry.title}
                             <span className="ml-1 opacity-80">· {getEntryMetaLine(entry)}</span>
