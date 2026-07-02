@@ -4449,7 +4449,7 @@ export default function TasksV2Page() {
                 </div>
               </DialogHeader>
 
-              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pb-28">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -4505,7 +4505,7 @@ export default function TasksV2Page() {
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="kanban-detail-priority">
                       Приоритет
@@ -5179,22 +5179,23 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-	                <div className="sticky bottom-0 -mx-6 mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-border/35 bg-card/95 px-6 py-4 backdrop-blur">
-	                  <div className="text-sm text-muted-foreground">
-	                    {detailSaveStatus === "saving" && "Сохраняется..."}
-	                    {detailSaveStatus === "saved" && "Сохранено"}
-	                    {detailSaveStatus === "dirty" && (detailCardForm.title.trim() ? "Есть несохраненные изменения" : "Введите название, чтобы сохранить")}
-	                    {detailSaveStatus === "error" && `Ошибка сохранения: ${detailSaveError}`}
-	                    {detailSaveStatus === "idle" && "Изменения сохраняются автоматически"}
-	                  </div>
-	                  <div className="flex flex-wrap justify-end gap-2">
-	                    <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
-	                      Закрыть
-	                    </Button>
-	                  </div>
-	                </div>
+	              </div>
+
+              <div className="flex shrink-0 flex-col gap-3 border-t border-border/35 bg-card px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-sm text-muted-foreground">
+                  {detailSaveStatus === "saving" && "Сохраняется..."}
+                  {detailSaveStatus === "saved" && "Сохранено"}
+                  {detailSaveStatus === "dirty" && (detailCardForm.title.trim() ? "Есть несохраненные изменения" : "Введите название, чтобы сохранить")}
+                  {detailSaveStatus === "error" && `Ошибка сохранения: ${detailSaveError}`}
+                  {detailSaveStatus === "idle" && "Изменения сохраняются автоматически"}
+                </div>
+                <div className="flex shrink-0 justify-end gap-2">
+                  <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
+                    Закрыть
+                  </Button>
+                </div>
               </div>
-                  </>
+	                  </>
                 );
               })()}
             </>
