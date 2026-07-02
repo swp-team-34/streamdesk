@@ -379,6 +379,50 @@ const CARD_PRIORITY_LABELS: Record<KanbanCardPriority, string> = {
   urgent: "Срочный",
 };
 
+const CARD_PRIORITY_WEIGHT: Record<KanbanCardPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+const getDeadlineSortBucket = (card: KanbanCardView, listById: Map<string, KanbanListView>) => {
+  const list = listById.get(card.listId);
+  const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
+  if (!card.dueDate || isCompleteLikeList) return 2;
+  return getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList }) === "overdue" ? 0 : 1;
+};
+
+const getTimeValue = (value?: string | Date | null) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? Number.POSITIVE_INFINITY : date.getTime();
+};
+
+const compareCardsByDeadline = (
+  left: KanbanCardView,
+  right: KanbanCardView,
+  listById: Map<string, KanbanListView>,
+) => {
+  const leftBucket = getDeadlineSortBucket(left, listById);
+  const rightBucket = getDeadlineSortBucket(right, listById);
+  if (leftBucket !== rightBucket) return leftBucket - rightBucket;
+
+  const leftDue = getTimeValue(left.dueDate);
+  const rightDue = getTimeValue(right.dueDate);
+  if (leftDue !== rightDue) return leftDue - rightDue;
+
+  const leftPriority = CARD_PRIORITY_WEIGHT[left.priority] ?? CARD_PRIORITY_WEIGHT.medium;
+  const rightPriority = CARD_PRIORITY_WEIGHT[right.priority] ?? CARD_PRIORITY_WEIGHT.medium;
+  if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+
+  const leftCreated = getTimeValue(left.createdAt);
+  const rightCreated = getTimeValue(right.createdAt);
+  if (leftCreated !== rightCreated) return leftCreated - rightCreated;
+
+  return String(left.title || "").localeCompare(String(right.title || ""), "ru", { numeric: true, sensitivity: "base" });
+};
+
 const CUSTOM_FIELD_TYPE_LABELS: Record<KanbanCustomFieldType, string> = {
   text: "Текст",
   number: "Число",
@@ -1068,6 +1112,23 @@ export default function TasksV2Page() {
     () => cards.filter((card) => getDueDateStatus(card.dueDate) === "overdue").length,
     [cards],
   );
+  const taskWorkloadStats = useMemo(() => {
+    const listById = new Map(lists.map((list) => [list.id, list]));
+    const isCompleteLike = (card: KanbanCardView) => {
+      const list = listById.get(card.listId);
+      return list?.type === "closed" || list?.type === "archive";
+    };
+    const isTrash = (card: KanbanCardView) => listById.get(card.listId)?.type === "trash";
+    const active = cards.filter((card) => !isCompleteLike(card) && !isTrash(card)).length;
+    const completed = cards.filter(isCompleteLike).length;
+    const inProgress = cards.filter((card) => listById.get(card.listId)?.type === "active").length;
+    const overdue = cards.filter((card) => {
+      if (isCompleteLike(card) || isTrash(card)) return false;
+      return getDueDateStatus(card.dueDate) === "overdue";
+    }).length;
+
+    return { active, completed, overdue, inProgress };
+  }, [cards, lists]);
   const boardCompletionStats = useMemo(() => {
     const listById = new Map(lists.map((list) => [list.id, list]));
     const overview = getCompletionSummary(cards, listById);
@@ -1312,6 +1373,7 @@ export default function TasksV2Page() {
 
   const listViewGroups = useMemo(() => {
     const groups = new Map<string, { id: string; title: string; cards: KanbanCardView[]; droppableListId?: string }>();
+    const listById = new Map(lists.map((list) => [list.id, list]));
     const addCard = (id: string, title: string, card: KanbanCardView, droppableListId?: string) => {
       const group = groups.get(id) ?? { id, title, cards: [], droppableListId };
       group.cards.push(card);
@@ -1325,13 +1387,13 @@ export default function TasksV2Page() {
       }
 
       if (listGrouping === "list") {
-        const list = lists.find((item) => item.id === card.listId);
+        const list = listById.get(card.listId);
         addCard(card.listId || "no-list", list?.name || "Без списка", card, card.listId || undefined);
         continue;
       }
 
       if (listGrouping === "due") {
-        const list = lists.find((item) => item.id === card.listId);
+        const list = listById.get(card.listId);
         const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
         addCard(dueStatus, getDueDateStatusLabel(dueStatus), card);
@@ -1366,10 +1428,11 @@ export default function TasksV2Page() {
     return Array.from(groups.values()).map((group) => ({
       ...group,
       cards: [...group.cards].sort((a, b) => {
-        if (!listGrouping.startsWith("field:")) return Number(a.position) - Number(b.position);
+        const deadlineOrder = compareCardsByDeadline(a, b, listById);
+        if (deadlineOrder !== 0 || !listGrouping.startsWith("field:")) return deadlineOrder;
         const fieldId = listGrouping.slice("field:".length);
         const field = activeCustomFields.find((item) => item.id === fieldId);
-        if (!field) return Number(a.position) - Number(b.position);
+        if (!field) return deadlineOrder;
         const left = formatCustomFieldValue(field, a.customFieldValues?.[field.id], userById);
         const right = formatCustomFieldValue(field, b.customFieldValues?.[field.id], userById);
         return left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" });
@@ -3372,6 +3435,24 @@ export default function TasksV2Page() {
               </div>
             )}
           </div>
+          {selectedBoard && (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Активные", value: taskWorkloadStats.active },
+                { label: "Выполненные", value: taskWorkloadStats.completed },
+                { label: "Просроченные", value: taskWorkloadStats.overdue },
+                { label: "В работе", value: taskWorkloadStats.inProgress },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-border/35 bg-muted/20 px-3 py-2"
+                >
+                  <div className="text-xs text-muted-foreground">{item.label}</div>
+                  <div className="mt-1 text-xl font-semibold text-foreground">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="min-w-0 overflow-visible">
           {!selectedBoard ? (
