@@ -820,6 +820,7 @@ export default function TasksV2Page() {
   const [detailLabelQuery, setDetailLabelQuery] = useState("");
   const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
   const [detailSaveError, setDetailSaveError] = useState("");
+  const [detailHistoryExpanded, setDetailHistoryExpanded] = useState(false);
   const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
   const [editingSettingsLabelId, setEditingSettingsLabelId] = useState<string | null>(null);
   const [editingSettingsLabelName, setEditingSettingsLabelName] = useState("");
@@ -1523,6 +1524,7 @@ export default function TasksV2Page() {
     setDetailCardForm(EMPTY_CARD_FORM);
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailHistoryExpanded(false);
     detailLastSavedSignatureRef.current = "";
     if (detailAutosaveTimerRef.current) {
       clearTimeout(detailAutosaveTimerRef.current);
@@ -2486,6 +2488,7 @@ export default function TasksV2Page() {
   };
 
   const handleOpenCardDetail = (cardId: string) => {
+    setDetailHistoryExpanded(false);
     setDetailCardId(cardId);
   };
 
@@ -2518,6 +2521,7 @@ export default function TasksV2Page() {
     setDetailSubtaskDraft("");
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailHistoryExpanded(false);
   };
 
   const handleEditLabel = (label: KanbanLabelView) => {
@@ -4344,6 +4348,8 @@ export default function TasksV2Page() {
                 const dueDateStatus = getDueDateStatus(selectedDetailCard.dueDate, { isComplete: isCompleteLikeList });
                 const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
                 const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
+                const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
+                const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
 
                 return (
                   <>
@@ -4946,10 +4952,36 @@ export default function TasksV2Page() {
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                   <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold">Activity Log</h3>
-                    {detailCardHistoryLoading && (
-                      <span className="text-xs text-muted-foreground">Обновляем историю...</span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold">Activity Log</h3>
+                      {detailCardHistory.length > 0 && (
+                        <Badge variant="outline" className="rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+                          {detailCardHistory.length}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {detailCardHistoryLoading && (
+                        <span className="text-xs text-muted-foreground">Обновляем историю...</span>
+                      )}
+                      {detailCardHistory.length > 3 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-xl text-xs text-muted-foreground"
+                          onClick={() => setDetailHistoryExpanded((prev) => !prev)}
+                        >
+                          {detailHistoryExpanded ? "Свернуть" : `Показать все (${hiddenHistoryCount})`}
+                          <ChevronDown
+                            className={[
+                              "ml-1 h-3.5 w-3.5 transition-transform",
+                              detailHistoryExpanded ? "rotate-180" : "",
+                            ].join(" ")}
+                          />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {detailCardHistory.length === 0 ? (
@@ -4958,7 +4990,7 @@ export default function TasksV2Page() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {detailCardHistory.map((entry) => {
+                      {visibleHistoryEntries.map((entry) => {
                         const changeLines = getHistoryChangeLines(entry);
 
                         return (
