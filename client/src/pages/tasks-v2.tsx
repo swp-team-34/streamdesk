@@ -3334,7 +3334,7 @@ export default function TasksV2Page() {
                   </Card>
                 ) : boardViewMode === "kanban" ? (
                   <DragDropContext onDragEnd={handleBoardDragEnd}>
-                    <div className="kanban-board-scroll w-full max-w-full min-w-0 overflow-x-auto overflow-y-visible px-1 pb-3 pr-6">
+                    <div className="kanban-board-scroll w-full max-w-full min-w-0 overflow-visible px-1 pb-3 pr-6">
                       <Droppable droppableId="board-lists" direction="horizontal" type="LIST">
                         {(listDropProvided) => (
                           <div
