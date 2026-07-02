@@ -2844,22 +2844,7 @@ export default function TasksV2Page() {
       return;
     }
 
-    if (type === "LIST") {
-      if (moveListMutation.isPending) return;
-      const sourceIndex = source.index;
-      const destinationIndex = destination.index;
-      const reorderedIds = lists.map((list) => list.id);
-      const [movedId] = reorderedIds.splice(sourceIndex, 1);
-      if (!movedId) return;
-      reorderedIds.splice(destinationIndex, 0, movedId);
-      scheduleAfterDndDrop(() => {
-        moveListMutation.mutate({
-          boardId: selectedBoardId,
-          listIds: reorderedIds,
-        });
-      });
-      return;
-    }
+    if (type === "LIST") return;
 
     if (moveCardMutation.isPending) return;
 
@@ -3470,13 +3455,7 @@ export default function TasksV2Page() {
                 ) : boardViewMode === "kanban" ? (
                   <DragDropContext onDragEnd={handleBoardDragEnd}>
                     <div className="kanban-board-scroll w-full max-w-full min-w-0 px-1 pb-3 pr-6">
-                      <Droppable droppableId="board-lists" direction="horizontal" type="LIST" ignoreContainerClipping>
-                        {(listDropProvided) => (
-                          <div
-	                            ref={listDropProvided.innerRef}
-	                            {...listDropProvided.droppableProps}
-	                            className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible"
-	                          >
+                      <div className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible">
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
 	                        const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
@@ -3484,23 +3463,10 @@ export default function TasksV2Page() {
 	                        const listCardTint = toSoftColor(list.color, 0.05);
 
                         return (
-                          <Draggable
+                          <div
                             key={list.id}
-                            draggableId={`list:${list.id}`}
-                            index={listIndex}
-                            isDragDisabled={!canEditSelectedBoard || isListPending}
+                            className="task-board-column h-full w-[320px] shrink-0"
                           >
-                            {(listDragProvided, listDragSnapshot) => {
-                              const listNode = (
-                              <div
-                                ref={listDragProvided.innerRef}
-                                {...listDragProvided.draggableProps}
-                                className={["task-board-column h-full w-[320px] shrink-0", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
-                                style={getDraggableCardStyle(listDragProvided.draggableProps.style, {
-                                  isDragging: listDragSnapshot.isDragging,
-                                  isDropAnimating: listDragSnapshot.isDropAnimating,
-                                })}
-                              >
                           <Droppable
                             droppableId={list.id}
                             type="CARD"
@@ -3511,7 +3477,7 @@ export default function TasksV2Page() {
                               <Card
                                 className={[
                                   "h-full overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
-                                  snapshot.isDraggingOver || listDragSnapshot.isDragging
+                                  snapshot.isDraggingOver
                                     ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
                                     : "hover:border-border/70 hover:shadow-md",
                                 ].join(" ").trim()}
@@ -3567,16 +3533,6 @@ export default function TasksV2Page() {
                                     <div className="flex flex-wrap items-center justify-end gap-2">
                                       {canEditSelectedBoard && (
                                         <>
-                                          <div
-                                            role="button"
-                                            tabIndex={0}
-                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground active:cursor-grabbing"
-                                            aria-label="Перетащить список"
-                                            title="Перетащить список"
-                                            {...listDragProvided.dragHandleProps}
-                                          >
-                                            <GripVertical className="h-4 w-4" />
-                                          </div>
                                           <Button
                                             variant="ghost"
                                             size="icon"
@@ -3998,14 +3954,9 @@ export default function TasksV2Page() {
                               </Card>
                             )}
                           </Droppable>
-                              </div>
-                              );
-                              return listNode;
-                            }}
-                          </Draggable>
+                          </div>
 	                        );
 	                      })}
-	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
                         <Card className="flex h-auto min-h-[220px] w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
                           <CardContent className="flex w-full flex-col justify-start p-4">
@@ -4065,8 +4016,6 @@ export default function TasksV2Page() {
 	                        </Card>
 	                      )}
 	                    </div>
-                        )}
-                      </Droppable>
                     </div>
 		                  </DragDropContext>
 	                ) : (
