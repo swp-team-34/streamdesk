@@ -6,7 +6,7 @@
 - The team started the sprint earlier that allowed to continue process with deeping into the details of tasks
 
 **Decisions were made before the start of the task, not during it.**
-- If they saw several paths, they quickly discussed and chose one. They immediately prescribed clear acceptance criteria, without vague formulations, and in the sprint they no longer wasted time thinking about it.
+- If team members saw several paths, they quickly discussed and chose one. They immediately prescribed clear acceptance criteria, without vague formulations, and in the sprint they no longer wasted time thinking about it.
 
 **The statuses were updated every day**
 - Everyone moved their card daily, and the team leader saw the real picture.
