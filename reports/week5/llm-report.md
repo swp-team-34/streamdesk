@@ -8,6 +8,7 @@ We used LLM tools strategically to accelerate repetitive tasks, clarify complex 
 - **Build process troubleshooting:** LLM provided guidance on resolving build errors, dependency conflicts, and CI/CD configuration issues.
 
 ### 2. Documentation and Reporting
+-**Architecture analysis**: identifying and clarifying key architecture decisions
 - **Documentation templates:** LLM assisted in structuring documentation files (e.g. `development-process.md`, `docs/architecture/README.md`) according to course requirements and best practices.
 - **Text clarification and editing:** LLM helped refine technical writing, improve clarity, and ensure consistent terminology across reports and documentation.
 - **Meeting summary generation:** LLM processed the raw meeting transcript and generated a structured summary, which the team then reviewed, corrected, and sanitized to remove sensitive information.
