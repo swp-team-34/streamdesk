@@ -60,6 +60,7 @@ type CalendarEvent = {
   location?: string | null;
   participants?: Array<{ id: string; userId: string; userName?: string; status?: string }>;
   type?: string;
+  status?: string | null;
   color?: string | null;
 };
 
@@ -540,6 +541,21 @@ export default function Calendar() {
   }, [viewMode]);
 
   const entries = useMemo<CalendarEntry[]>(() => {
+    const taskTitles = new Set(tasks.map((task) => String(task?.title || "").trim()).filter(Boolean));
+    const isLegacyTaskDeadlineEvent = (event: CalendarEvent) => {
+      const title = String(event?.title || "").trim();
+      if (!title.startsWith("Дедлайн: ")) return false;
+      const taskTitle = title.slice("Дедлайн: ".length).trim();
+      if (!taskTitle || !taskTitles.has(taskTitle)) return false;
+      const description = String(event.description || "");
+      return (
+        event.type === "meeting" &&
+        event.status === "scheduled" &&
+        event.location === "Офис" &&
+        (!description || description === `Задача: ${taskTitle}` || description.includes(taskTitle))
+      );
+    };
+
     const taskEntries: TaskEntry[] = tasks
       .filter((task) => task?.dueDate || task?.startDate)
       .map((task) => {
@@ -588,13 +604,15 @@ export default function Calendar() {
         };
       });
 
-    const eventEntries: EventEntry[] = events.map((event) => ({
-      ...event,
-      kind: "event",
-      badgeText: getEventTypeText(event.type),
-      statusLabel: null,
-      responsibleLabel: null,
-    }));
+    const eventEntries: EventEntry[] = events
+      .filter((event) => !isLegacyTaskDeadlineEvent(event))
+      .map((event) => ({
+        ...event,
+        kind: "event",
+        badgeText: getEventTypeText(event.type),
+        statusLabel: null,
+        responsibleLabel: null,
+      }));
 
     return [...eventEntries, ...taskEntries, ...kanbanEntries];
   }, [events, kanbanCards, tasks, userNameById]);

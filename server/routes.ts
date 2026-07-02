@@ -6094,41 +6094,6 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         // Не прерываем создание задачи, если история не создалась
       }
 
-      // Автоматическое создание события в календаре для задачи с дедлайном
-      if (task.dueDate) {
-        try {
-          const dueDate = new Date(task.dueDate);
-          const startTime = new Date(dueDate);
-          startTime.setHours(9, 0, 0, 0); // Начало в 9:00
-          const endTime = new Date(dueDate);
-          endTime.setHours(18, 0, 0, 0); // Конец в 18:00
-
-          // Проверяем, нет ли уже события для этой задачи
-          const existingEvents = await storage.getEvents();
-          const taskEventExists = existingEvents.some(e =>
-            e.title === `Дедлайн: ${task.title}` &&
-            new Date(e.startTime).toDateString() === dueDate.toDateString()
-          );
-
-          if (!taskEventExists) {
-            await storage.createEvent({
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`,
-              startTime: startTime,
-              endTime: endTime,
-              location: "Офис",
-              organizerId: taskData.creatorId,
-              type: "meeting",
-              status: "scheduled"
-            });
-            console.log("[Tasks] Calendar event created for task deadline:", task.id);
-          }
-        } catch (eventError) {
-          console.warn("[Tasks] Failed to create calendar event:", eventError);
-          // Не прерываем создание задачи, если событие не создалось
-        }
-      }
-
       // Уведомление исполнителю, если задача назначена
       if (task.assigneeId) {
         try {
@@ -6270,46 +6235,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         }
       }
 
-      // Обновление/создание события в календаре для задачи с дедлайном
-      if (task?.dueDate) {
-        try {
-          const dueDate = new Date(task.dueDate);
-          const startTime = new Date(dueDate);
-          startTime.setHours(9, 0, 0, 0);
-          const endTime = new Date(dueDate);
-          endTime.setHours(18, 0, 0, 0);
-
-          const existingEvents = await storage.getEvents();
-          const taskEvent = existingEvents.find(e =>
-            e.title === `Дедлайн: ${task.title}` ||
-            (e.title?.includes(`Дедлайн: ${oldTask.title}`) && oldTask.title === task.title)
-          );
-
-          if (taskEvent) {
-            // Обновляем существующее событие
-            await storage.updateEvent(taskEvent.id, {
-              startTime: startTime,
-              endTime: endTime,
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`
-            });
-          } else {
-            // Создаем новое событие
-            await storage.createEvent({
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`,
-              startTime: startTime,
-              endTime: endTime,
-              location: "Офис",
-              organizerId: task.creatorId,
-              type: "meeting",
-              status: "scheduled"
-            });
-          }
-        } catch (eventError) {
-          console.warn("[Tasks] Failed to update/create calendar event:", eventError);
-        }
-      } else if (oldTask?.dueDate && !task?.dueDate) {
+      if (oldTask?.dueDate && !task?.dueDate) {
         // Если дедлайн удален, удаляем событие из календаря
         try {
           const existingEvents = await storage.getEvents();
