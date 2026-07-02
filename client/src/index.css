@@ -137,8 +137,6 @@ body::-webkit-scrollbar,
 .task-dragging,
 .task-dragging .task-drag-card {
   cursor: grabbing;
-  transition: none !important;
-  will-change: transform;
 }
 .task-dragging .task-drag-card {
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);

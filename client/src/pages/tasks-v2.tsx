@@ -607,35 +607,8 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const getDraggableCardStyle = (
   style: DraggableStyle | undefined,
-  options: { isDragging: boolean; isDropAnimating: boolean },
 ): CSSProperties | undefined => {
-  if (!style) return style;
-
-  return {
-    ...(style as CSSProperties),
-    transition: options.isDragging
-      ? "none"
-      : options.isDropAnimating
-        ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease"
-        : "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)",
-    willChange: options.isDragging || options.isDropAnimating
-      ? "transform"
-      : (style as CSSProperties).willChange,
-    zIndex: options.isDragging ? 70 : (style as CSSProperties).zIndex,
-    pointerEvents: options.isDragging ? "none" : (style as CSSProperties).pointerEvents,
-    opacity: options.isDragging ? 1 : (style as CSSProperties).opacity,
-  };
-};
-
-const scheduleAfterDndDrop = (callback: () => void) => {
-  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-    callback();
-    return;
-  }
-
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(callback);
-  });
+  return style as CSSProperties | undefined;
 };
 
 const stopInteractiveEvent = (event: {
@@ -873,6 +846,7 @@ export default function TasksV2Page() {
   const [labelGroupForm, setLabelGroupForm] = useState(EMPTY_LABEL_GROUP_FORM);
   const [editingLabelGroupId, setEditingLabelGroupId] = useState<string | null>(null);
   const [listViewDraftListId, setListViewDraftListId] = useState("");
+  const [dndResetKey, setDndResetKey] = useState(0);
   const [listViewGroupDrafts, setListViewGroupDrafts] = useState<Record<string, string>>({});
   const detailAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detailLastSavedSignatureRef = useRef("");
@@ -2831,7 +2805,18 @@ export default function TasksV2Page() {
     );
   };
 
+  const queueDndReset = () => {
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      setDndResetKey((value) => value + 1);
+      return;
+    }
+
+    window.requestAnimationFrame(() => setDndResetKey((value) => value + 1));
+  };
+
   const handleBoardDragEnd = (result: DropResult) => {
+    queueDndReset();
+
     if (!selectedBoardId || !canEditSelectedBoard || isCardEditPending) return;
 
     const { destination, source, draggableId, type } = result;
@@ -2844,7 +2829,20 @@ export default function TasksV2Page() {
       return;
     }
 
-    if (type === "LIST") return;
+    if (type === "LIST") {
+      if (moveListMutation.isPending) return;
+      const sourceIndex = source.index;
+      const destinationIndex = destination.index;
+      const reorderedIds = lists.map((list) => list.id);
+      const [movedId] = reorderedIds.splice(sourceIndex, 1);
+      if (!movedId) return;
+      reorderedIds.splice(destinationIndex, 0, movedId);
+      moveListMutation.mutate({
+        boardId: selectedBoardId,
+        listIds: reorderedIds,
+      });
+      return;
+    }
 
     if (moveCardMutation.isPending) return;
 
@@ -2867,13 +2865,11 @@ export default function TasksV2Page() {
         .length;
     }
 
-    scheduleAfterDndDrop(() => {
-      moveCardMutation.mutate({
-        boardId: selectedBoardId,
-        cardId,
-        targetListId,
-        targetPosition,
-      });
+    moveCardMutation.mutate({
+      boardId: selectedBoardId,
+      cardId,
+      targetListId,
+      targetPosition,
     });
   };
 
@@ -3453,9 +3449,15 @@ export default function TasksV2Page() {
                     </CardContent>
                   </Card>
                 ) : boardViewMode === "kanban" ? (
-                  <DragDropContext onDragEnd={handleBoardDragEnd}>
+                  <DragDropContext key={`kanban-${selectedBoardId}-${dndResetKey}`} onDragEnd={handleBoardDragEnd}>
                     <div className="kanban-board-scroll w-full max-w-full min-w-0 px-1 pb-3 pr-6">
-                      <div className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible">
+                      <Droppable droppableId="board-lists" direction="horizontal" type="LIST" ignoreContainerClipping>
+                        {(listDropProvided) => (
+                          <div
+	                            ref={listDropProvided.innerRef}
+	                            {...listDropProvided.droppableProps}
+	                            className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible"
+	                          >
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
 	                        const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
@@ -3463,10 +3465,20 @@ export default function TasksV2Page() {
 	                        const listCardTint = toSoftColor(list.color, 0.05);
 
                         return (
-                          <div
+                          <Draggable
                             key={list.id}
-                            className="task-board-column h-full w-[320px] shrink-0"
+                            draggableId={`list:${list.id}`}
+                            index={listIndex}
+                            isDragDisabled={!canEditSelectedBoard || isListPending}
                           >
+                            {(listDragProvided, listDragSnapshot) => {
+                              const listNode = (
+                              <div
+                                ref={listDragProvided.innerRef}
+                                {...listDragProvided.draggableProps}
+                                className={["task-board-column h-full w-[320px] shrink-0", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                style={getDraggableCardStyle(listDragProvided.draggableProps.style)}
+                              >
                           <Droppable
                             droppableId={list.id}
                             type="CARD"
@@ -3477,7 +3489,7 @@ export default function TasksV2Page() {
                               <Card
                                 className={[
                                   "h-full overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
-                                  snapshot.isDraggingOver
+                                  snapshot.isDraggingOver || listDragSnapshot.isDragging
                                     ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
                                     : "hover:border-border/70 hover:shadow-md",
                                 ].join(" ").trim()}
@@ -3533,6 +3545,16 @@ export default function TasksV2Page() {
                                     <div className="flex flex-wrap items-center justify-end gap-2">
                                       {canEditSelectedBoard && (
                                         <>
+                                          <div
+                                            role="button"
+                                            tabIndex={0}
+                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                                            aria-label="Перетащить список"
+                                            title="Перетащить список"
+                                            {...listDragProvided.dragHandleProps}
+                                          >
+                                            <GripVertical className="h-4 w-4" />
+                                          </div>
                                           <Button
                                             variant="ghost"
                                             size="icon"
@@ -3756,10 +3778,7 @@ export default function TasksV2Page() {
                                               {...dragProvided.draggableProps}
                                               {...dragProvided.dragHandleProps}
                                               className={["task-drag-card", dragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
-                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
-                                                isDragging: dragSnapshot.isDragging,
-                                                isDropAnimating: dragSnapshot.isDropAnimating,
-                                              })}
+                                              style={getDraggableCardStyle(dragProvided.draggableProps.style)}
                                             >
                                               <div
                                                 className={[
@@ -3954,9 +3973,14 @@ export default function TasksV2Page() {
                               </Card>
                             )}
                           </Droppable>
-                          </div>
+                              </div>
+                              );
+                              return listNode;
+                            }}
+                          </Draggable>
 	                        );
 	                      })}
+	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
                         <Card className="flex h-auto min-h-[220px] w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
                           <CardContent className="flex w-full flex-col justify-start p-4">
@@ -4016,11 +4040,13 @@ export default function TasksV2Page() {
 	                        </Card>
 	                      )}
 	                    </div>
+                        )}
+                      </Droppable>
                     </div>
 		                  </DragDropContext>
 	                ) : (
 	                  <div className="space-y-3">
-	                      <DragDropContext onDragEnd={handleBoardDragEnd}>
+	                      <DragDropContext key={`list-${selectedBoardId}-${dndResetKey}`} onDragEnd={handleBoardDragEnd}>
 	                        {listViewGroups.map((group) => {
 	                          const listViewDroppableId =
                               listGrouping === "list" && group.droppableListId
@@ -4090,10 +4116,7 @@ export default function TasksV2Page() {
 	                                              ref={dragProvided.innerRef}
 	                                              {...dragProvided.draggableProps}
 	                                              {...dragProvided.dragHandleProps}
-	                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
-	                                                isDragging: dragSnapshot.isDragging,
-	                                                isDropAnimating: dragSnapshot.isDropAnimating,
-	                                              })}
+	                                              style={getDraggableCardStyle(dragProvided.draggableProps.style)}
 	                                            >
 	                                              {renderListViewCardRow(card)}
 	                                            </div>
