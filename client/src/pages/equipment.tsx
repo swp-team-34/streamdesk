@@ -2065,7 +2065,7 @@ export default function EquipmentPage() {
               >
               <CardHeader className="space-y-3 p-3 pb-2">
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 pr-0 sm:pr-2">
+                  <div className="flex min-w-0 items-center pr-0 sm:pr-2">
                     <div
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
@@ -2078,34 +2078,6 @@ export default function EquipmentPage() {
                         title="Выбрать для выгрузки в Excel"
                       />
                     </div>
-                    {projectInfo ? (
-                      <Badge className="max-w-full rounded-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
-                        На проекте
-                      </Badge>
-                    ) : pendingRequest ? (
-                      <Badge className="max-w-full rounded-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        {requestedByMe
-                          ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
-                          : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
-                      </Badge>
-                    ) : (
-                      <Badge className={`${getStatusColor(item.status)} max-w-full rounded-full text-[11px]`}>
-                        {getStatusText(item.status)}
-                      </Badge>
-                    )}
-                    {isSuperPosition(item) && (
-                      <Badge className="max-w-full rounded-full bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        Сборка
-                      </Badge>
-                    )}
-                    <Badge className={`${getOperabilityColor(operabilityStatus)} max-w-full rounded-full text-[11px]`}>
-                      {getOperabilityText(operabilityStatus)}
-                    </Badge>
-                    {getParentBundleName(item) && (
-                      <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                        В сборке
-                      </Badge>
-                    )}
                   </div>
 
                   <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:w-auto sm:max-w-[248px] sm:justify-end">
@@ -2415,6 +2387,36 @@ export default function EquipmentPage() {
                       </div>
                     </div>
                   )}
+                  <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
+                    {projectInfo ? (
+                      <Badge className="max-w-full rounded-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                        На проекте
+                      </Badge>
+                    ) : pendingRequest ? (
+                      <Badge className="max-w-full rounded-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        {requestedByMe
+                          ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
+                          : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
+                      </Badge>
+                    ) : (
+                      <Badge className={`${getStatusColor(item.status)} max-w-full rounded-full text-[11px]`}>
+                        {getStatusText(item.status)}
+                      </Badge>
+                    )}
+                    {isSuperPosition(item) && (
+                      <Badge className="max-w-full rounded-full bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Сборка
+                      </Badge>
+                    )}
+                    <Badge className={`${getOperabilityColor(operabilityStatus)} max-w-full rounded-full text-[11px]`}>
+                      {getOperabilityText(operabilityStatus)}
+                    </Badge>
+                    {getParentBundleName(item) && (
+                      <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        В сборке
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardContent>
               </Card>
