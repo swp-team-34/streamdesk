@@ -146,6 +146,12 @@ body::-webkit-scrollbar,
 .dnd-board-root [data-rfd-placeholder-context-id] {
   transition: none !important;
 }
+.kanban-board-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
 @media (max-width: 639px) {
   .dnd-board-root {
     scroll-snap-type: none;
