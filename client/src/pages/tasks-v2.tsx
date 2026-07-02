@@ -1435,28 +1435,63 @@ export default function TasksV2Page() {
     }
 
     if (entry.action === "updated" || entry.action === "created") {
-      const fieldLines: Array<[boolean, string]> = [
-        [oldValue?.title !== newValue?.title && newValue?.title !== undefined, `Название: ${String(newValue?.title || "Без названия")}`],
-        [oldValue?.description !== newValue?.description && newValue?.description !== undefined, `Описание обновлено`],
-        [oldValue?.priority !== newValue?.priority && newValue?.priority !== undefined, `Приоритет: ${CARD_PRIORITY_LABELS[String(newValue?.priority) as KanbanCardPriority] || String(newValue?.priority)}`],
-        [oldValue?.listId !== newValue?.listId && newValue?.listId !== undefined, `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue?.listId)}`],
-        [oldValue?.assigneeUserId !== newValue?.assigneeUserId && newValue?.assigneeUserId !== undefined, `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue?.assigneeUserId)}`],
-        [String(oldValue?.startDate || "") !== String(newValue?.startDate || "") && newValue?.startDate !== undefined, `Старт: ${formatDueDateLabel(oldValue?.startDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.startDate as string | Date | null) || "Не задан"}`],
-        [String(oldValue?.dueDate || "") !== String(newValue?.dueDate || "") && newValue?.dueDate !== undefined, `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.dueDate as string | Date | null) || "Не задан"}`],
-      ];
+      const isCreated = entry.action === "created";
+      const oldDescription = String(oldValue?.description || "").trim();
+      const newDescription = String(newValue?.description || "").trim();
+      const oldStartDate = String(oldValue?.startDate || "");
+      const newStartDate = String(newValue?.startDate || "");
+      const oldDueDate = String(oldValue?.dueDate || "");
+      const newDueDate = String(newValue?.dueDate || "");
 
-      for (const [shouldAdd, text] of fieldLines) {
-        if (shouldAdd) lines.push(text);
+      if (newValue?.title !== undefined && (isCreated || oldValue?.title !== newValue.title)) {
+        lines.push(`Название: ${String(newValue.title || "Без названия")}`);
+      }
+
+      if (newValue?.description !== undefined && oldDescription !== newDescription) {
+        if (newDescription) {
+          lines.push(isCreated ? "Описание добавлено" : "Описание обновлено");
+        } else if (!isCreated && oldDescription) {
+          lines.push("Описание очищено");
+        }
+      }
+
+      if (
+        newValue?.priority !== undefined &&
+        (isCreated ? newValue.priority && newValue.priority !== "medium" : oldValue?.priority !== newValue.priority)
+      ) {
+        lines.push(`Приоритет: ${CARD_PRIORITY_LABELS[String(newValue.priority) as KanbanCardPriority] || String(newValue.priority)}`);
+      }
+
+      if (newValue?.listId !== undefined && (isCreated ? newValue.listId : oldValue?.listId !== newValue.listId)) {
+        lines.push(isCreated ? `Список: ${getListNameById(newValue.listId)}` : `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue.listId)}`);
+      }
+
+      if (
+        newValue?.assigneeUserId !== undefined &&
+        (isCreated ? newValue.assigneeUserId : oldValue?.assigneeUserId !== newValue.assigneeUserId)
+      ) {
+        lines.push(isCreated ? `Исполнитель: ${getUserNameById(newValue.assigneeUserId)}` : `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue.assigneeUserId)}`);
+      }
+
+      if (newValue?.startDate !== undefined && (isCreated ? newStartDate : oldStartDate !== newStartDate)) {
+        lines.push(isCreated ? `Старт: ${formatDueDateLabel(newValue.startDate as string | Date | null) || "Не задан"}` : `Старт: ${formatDueDateLabel(oldValue?.startDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue.startDate as string | Date | null) || "Не задан"}`);
+      }
+
+      if (newValue?.dueDate !== undefined && (isCreated ? newDueDate : oldDueDate !== newDueDate)) {
+        lines.push(isCreated ? `Срок: ${formatDueDateLabel(newValue.dueDate as string | Date | null) || "Не задан"}` : `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue.dueDate as string | Date | null) || "Не задан"}`);
       }
 
       if (entry.action === "created" && !lines.length) {
         lines.push("Карточка создана и готова к работе");
       }
 
-      if (oldValue?.subtasks !== newValue?.subtasks && newValue?.subtasks !== undefined) {
+      if (newValue?.subtasks !== undefined) {
         const before = getSubtaskProgress(oldValue?.subtasks as KanbanSubtask[] | null);
         const after = getSubtaskProgress(newValue?.subtasks as KanbanSubtask[] | null);
-        lines.push(`Подзадачи: ${before.completed}/${before.total} -> ${after.completed}/${after.total}`);
+        const subtaskProgressChanged = before.completed !== after.completed || before.total !== after.total;
+        if ((isCreated && after.total > 0) || (!isCreated && subtaskProgressChanged)) {
+          lines.push(`Подзадачи: ${before.completed}/${before.total} -> ${after.completed}/${after.total}`);
+        }
       }
     }
 
