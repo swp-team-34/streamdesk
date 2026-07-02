@@ -52,6 +52,11 @@ import {
   toDateTimeLocalValue,
 } from "@/lib/task-dates";
 import { formatPluralRu } from "@/lib/plural-ru";
+import {
+  getTaskManagerLocationValue,
+  matchesTaskManagerWorkloadFilter,
+  type TaskManagerWorkloadFilter,
+} from "@/lib/task-manager-filters";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -360,6 +365,8 @@ const EMPTY_FILTERS = {
   assigneeUserId: "",
   priority: "all",
   dueStatus: "all",
+  workload: "all" as TaskManagerWorkloadFilter,
+  location: "",
   labelId: "",
   labelGroupId: "",
   customFieldValues: {} as Record<string, string>,
@@ -1229,18 +1236,33 @@ export default function TasksV2Page() {
       cardFilters.assigneeUserId !== "" ||
       cardFilters.priority !== "all" ||
       cardFilters.dueStatus !== "all" ||
+      cardFilters.workload !== "all" ||
+      cardFilters.location !== "" ||
       cardFilters.labelId !== "" ||
       cardFilters.labelGroupId !== "" ||
       Object.values(cardFilters.customFieldValues).some((value) => value.trim() !== ""),
     [cardFilters],
   );
+
+  const locationFilterOptions = useMemo(() => {
+    const locations = new Set<string>();
+    for (const card of cards) {
+      const location = getTaskManagerLocationValue(card.customFieldValues, activeCustomFields);
+      if (location) locations.add(location);
+    }
+    return Array.from(locations).sort((left, right) => left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" }));
+  }, [activeCustomFields, cards]);
+
   const filteredCards = useMemo(() => {
     const search = cardFilters.search.trim().toLowerCase();
     const listById = new Map(lists.map((list) => [list.id, list]));
+    const now = new Date();
 
     return cards.filter((card) => {
+      const list = listById.get(card.listId);
+      const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
+
       if (search) {
-        const list = listById.get(card.listId);
         const labelTexts = normalizeLabelIds(card.labelIds).flatMap((labelId) => {
           const label = labelById.get(labelId);
           const group = label?.groupId ? labelGroupById.get(label.groupId) : null;
@@ -1265,7 +1287,6 @@ export default function TasksV2Page() {
       }
 
       if (cardFilters.status !== "all") {
-        const list = listById.get(card.listId);
         if (cardFilters.status.startsWith("list:")) {
           if (card.listId !== cardFilters.status.slice(5)) return false;
         } else if (cardFilters.status.startsWith("type:")) {
@@ -1303,10 +1324,21 @@ export default function TasksV2Page() {
       }
 
       if (cardFilters.dueStatus !== "all") {
-        const list = listById.get(card.listId);
-        const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
         if (dueStatus !== cardFilters.dueStatus) return false;
+      }
+
+      if (!matchesTaskManagerWorkloadFilter(
+        { assigneeUserId: card.assigneeUserId, dueDate: card.dueDate, listType: list?.type },
+        cardFilters.workload,
+        now,
+      )) {
+        return false;
+      }
+
+      if (cardFilters.location) {
+        const location = getTaskManagerLocationValue(card.customFieldValues, activeCustomFields);
+        if (location !== cardFilters.location) return false;
       }
 
       return true;
@@ -3465,7 +3497,10 @@ export default function TasksV2Page() {
                                 ref={listDragProvided.innerRef}
                                 {...listDragProvided.draggableProps}
                                 className={["task-board-column flex w-[320px] shrink-0 self-start", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
-                                style={getDraggableCardStyle(listDragProvided.draggableProps.style)}
+                                style={{
+                                  ...getDraggableCardStyle(listDragProvided.draggableProps.style),
+                                  borderRadius: 24,
+                                }}
                               >
                           <Droppable
                             droppableId={list.id}
@@ -3488,7 +3523,7 @@ export default function TasksV2Page() {
                                 }}
                               >
                                 <CardHeader
-                                  className="space-y-4 border-b border-border/35"
+                                  className="space-y-4 rounded-t-[24px] border-b border-border/35"
                                   style={{ backgroundColor: listHeaderTint || listTint || "var(--kanban-list-header)" }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
@@ -4139,7 +4174,7 @@ export default function TasksV2Page() {
 	      </Card>
 
       <Dialog open={filtersDialogOpen} onOpenChange={setFiltersDialogOpen}>
-        <DialogContent className="max-w-md border-border/50 bg-card text-card-foreground">
+        <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
           <DialogHeader>
             <DialogTitle>Фильтры</DialogTitle>
             <DialogDescription>Быстрые срезы по карточкам текущей доски.</DialogDescription>
@@ -4206,6 +4241,48 @@ export default function TasksV2Page() {
                   <option value="upcoming">Запланировано</option>
                   <option value="complete">Завершено</option>
                   <option value="none">Без срока</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-workload">Нагрузка</label>
+                <select
+                  id="kanban-mobile-filter-workload"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.workload}
+                  onChange={(event) =>
+                    setCardFilters((prev) => ({
+                      ...prev,
+                      workload: event.target.value as TaskManagerWorkloadFilter,
+                    }))
+                  }
+                >
+                  <option value="all">Любая нагрузка</option>
+                  <option value="overdue">Просроченные</option>
+                  <option value="due-soon">Горят в 24 часа</option>
+                  <option value="in-progress">В работе</option>
+                  <option value="completed">Выполненные</option>
+                  <option value="unassigned">Без исполнителя</option>
+                  <option value="no-deadline">Без срока</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-location">Локация</label>
+                <select
+                  id="kanban-mobile-filter-location"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.location}
+                  onChange={(event) => setCardFilters((prev) => ({ ...prev, location: event.target.value }))}
+                >
+                  <option value="">Все локации</option>
+                  {locationFilterOptions.length === 0 ? (
+                    <option value="__empty" disabled>Локации не найдены</option>
+                  ) : (
+                    locationFilterOptions.map((location) => (
+                      <option key={location} value={location}>{location}</option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>

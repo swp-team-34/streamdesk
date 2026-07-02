@@ -152,9 +152,13 @@ body::-webkit-scrollbar,
   transition: height 180ms ease, width 180ms ease, margin 180ms ease !important;
 }
 .task-board-column {
+  border-radius: 1.5rem;
   height: clamp(380px, calc(100vh - 260px), 760px);
+  overflow: visible;
 }
 .task-drop-zone {
+  padding-bottom: 1.5rem;
+  scroll-padding-bottom: 1.5rem;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
