@@ -134,4 +134,50 @@ describe("equipment request actions", () => {
 
     await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "working" } as any);
   });
+
+  it("requires a positive integer quantity for checkout requests", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const [item] = await storage.getEquipment();
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: "",
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({
+      message: expect.stringContaining("Количество"),
+    });
+  });
+
+  it("stores checkout request quantity and task links", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const [item] = await storage.getEquipment();
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: "2",
+        kanbanCardId: "card-123",
+        taskId: "task-456",
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      equipmentId: item.id,
+      quantity: 2,
+      kanbanCardId: "card-123",
+      taskId: "task-456",
+      status: "pending",
+    });
+  });
 });

@@ -261,6 +261,8 @@ export default function EquipmentPage() {
   const [requestEquipment, setRequestEquipment] = useState<Equipment | null>(null);
   const [requestLocation, setRequestLocation] = useState<string>("");
   const [requestNote, setRequestNote] = useState<string>("");
+  const [requestQuantity, setRequestQuantity] = useState<string>("1");
+  const [requestLinkId, setRequestLinkId] = useState<string>("none");
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
   const [bundleType, setBundleType] = useState("computer");
@@ -286,6 +288,22 @@ export default function EquipmentPage() {
 
   const { data: projects = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["/api/projects"],
+  });
+
+  const { data: tasks = [] } = useQuery<Array<{ id: string; title: string; status?: string | null }>>({
+    queryKey: ["/api/tasks"],
+    enabled: Boolean(currentUser?.id),
+  });
+
+  const { data: kanbanCards = [] } = useQuery<Array<{
+    id: string;
+    title: string;
+    boardName?: string | null;
+    listName?: string | null;
+    listType?: string | null;
+  }>>({
+    queryKey: ["/api/kanban/cards"],
+    enabled: Boolean(currentUser?.id),
   });
 
   const { data: equipmentOnProjects = [] } = useQuery<Array<{ equipmentId: string; projectId: string; projectName?: string; sentAt?: string; returnDate: string; returnTime?: string; assignedByName: string; assignedByUserId?: string }>>({
@@ -315,6 +333,9 @@ export default function EquipmentPage() {
     location?: string | null;
     note?: string | null;
     decisionNote?: string | null;
+    kanbanCardId?: string | null;
+    taskId?: string | null;
+    quantity?: number | null;
     createdAt?: string;
     updatedAt?: string;
     reviewedAt?: string | null;
@@ -865,12 +886,18 @@ export default function EquipmentPage() {
       note,
       companyId,
       requestType,
+      quantity,
+      kanbanCardId,
+      taskId,
     }: {
       equipmentId: string;
       location?: string;
       note?: string;
       companyId?: string;
       requestType?: "checkout" | "transfer";
+      quantity: number;
+      kanbanCardId?: string;
+      taskId?: string;
     }) => {
       const response = await apiRequest("POST", "/api/equipment-checkout-requests", {
         equipmentId,
@@ -878,6 +905,9 @@ export default function EquipmentPage() {
         note,
         companyId,
         requestType,
+        quantity,
+        kanbanCardId,
+        taskId,
       });
       return response.json();
     },
@@ -893,6 +923,8 @@ export default function EquipmentPage() {
       setRequestEquipment(null);
       setRequestLocation("");
       setRequestNote("");
+      setRequestQuantity("1");
+      setRequestLinkId("none");
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось отправить запрос", variant: "destructive" });
@@ -996,6 +1028,7 @@ export default function EquipmentPage() {
           : apiRequest("POST", "/api/equipment-checkout-requests", {
               equipmentId: item.id,
               companyId: primaryCompanyId,
+              quantity: 1,
               location: item.location || `У сотрудника ${currentUser?.name || currentUser?.username || ""}`.trim(),
             }),
       );
@@ -1904,6 +1937,9 @@ export default function EquipmentPage() {
                     <div className="text-sm text-slate-500 dark:text-slate-400">
                       {requestType === "transfer" ? "Просит перенести" : "Запросил"}: {requester || "Сотрудник"}
                     </div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                      Количество: {Math.max(1, Number(request.quantity || 1))}
+                    </div>
                     {requestType === "transfer" && currentHolderName && (
                       <div className="text-sm text-slate-500 dark:text-slate-400">
                         Сейчас у сотрудника: {currentHolderName}
@@ -2538,6 +2574,8 @@ export default function EquipmentPage() {
             setRequestEquipment(null);
             setRequestLocation("");
             setRequestNote("");
+            setRequestQuantity("1");
+            setRequestLinkId("none");
           }
         }}
       >
@@ -2584,6 +2622,55 @@ export default function EquipmentPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Количество *</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={requestQuantity}
+                    onChange={(event) => setRequestQuantity(event.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Связать с задачей
+                  </label>
+                  <Select value={requestLinkId} onValueChange={setRequestLinkId}>
+                    <SelectTrigger className="bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Без связи" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Без связи</SelectItem>
+                      {kanbanCards.length > 0 && (
+                        <SelectItem value="cards-heading" disabled>
+                          Карточки Kanban
+                        </SelectItem>
+                      )}
+                      {kanbanCards.slice(0, 50).map((card) => (
+                        <SelectItem key={`card-${card.id}`} value={`card:${card.id}`}>
+                          {card.title || "Карточка"}{card.boardName ? ` · ${card.boardName}` : ""}
+                        </SelectItem>
+                      ))}
+                      {tasks.length > 0 && (
+                        <SelectItem value="tasks-heading" disabled>
+                          Задачи
+                        </SelectItem>
+                      )}
+                      {tasks.slice(0, 50).map((task) => (
+                        <SelectItem key={`task-${task.id}`} value={`task:${task.id}`}>
+                          {task.title || "Задача"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Комментарий</label>
                 <Input
@@ -2606,6 +2693,8 @@ export default function EquipmentPage() {
                     setRequestEquipment(null);
                     setRequestLocation("");
                     setRequestNote("");
+                    setRequestQuantity("1");
+                    setRequestLinkId("none");
                   }}
                 >
                   Отмена
@@ -2619,12 +2708,29 @@ export default function EquipmentPage() {
                       toast({ title: "Недоступно для выдачи", description: getInoperableMessage(requestEquipment), variant: "destructive" });
                       return;
                     }
+                    const quantity = Number(requestQuantity);
+                    if (!requestQuantity.trim() || !Number.isInteger(quantity) || quantity <= 0) {
+                      toast({
+                        title: "Проверьте количество",
+                        description: "Укажите положительное целое число.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    const linkPayload =
+                      requestLinkId.startsWith("card:")
+                        ? { kanbanCardId: requestLinkId.slice("card:".length) }
+                        : requestLinkId.startsWith("task:")
+                          ? { taskId: requestLinkId.slice("task:".length) }
+                          : {};
                     requestCheckoutMutation.mutate({
                       equipmentId: requestEquipment.id,
                       location: requestLocation,
                       note: requestNote,
                       companyId: primaryCompanyId,
                       requestType: getCheckoutRequestType(undefined, requestEquipment),
+                      quantity,
+                      ...linkPayload,
                     });
                   }}
                 >
