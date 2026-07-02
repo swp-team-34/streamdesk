@@ -381,6 +381,7 @@ function App() {
             className={cn(
               "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
               isTasksWorkspace ? "overflow-visible" : "overflow-x-hidden",
+              isTasksWorkspace && "tasks-dnd-layout",
             )}
           >
             {showWorkspaceChrome && mobileNavOpen && (

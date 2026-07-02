@@ -63,6 +63,13 @@ body {
   overflow-x: hidden;
   width: 100%;
 }
+body:has(.tasks-dnd-layout),
+body:has(.tasks-dnd-layout) #root,
+.tasks-dnd-layout,
+.tasks-dnd-layout #main-content,
+.tasks-dnd-layout #main-content main {
+  overflow: visible;
+}
 #main-content main {
   max-width: 1400px;
   margin-left: auto;

@@ -846,7 +846,6 @@ export default function TasksV2Page() {
   const [labelGroupForm, setLabelGroupForm] = useState(EMPTY_LABEL_GROUP_FORM);
   const [editingLabelGroupId, setEditingLabelGroupId] = useState<string | null>(null);
   const [listViewDraftListId, setListViewDraftListId] = useState("");
-  const [dndResetKey, setDndResetKey] = useState(0);
   const [listViewGroupDrafts, setListViewGroupDrafts] = useState<Record<string, string>>({});
   const detailAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detailLastSavedSignatureRef = useRef("");
@@ -2805,18 +2804,7 @@ export default function TasksV2Page() {
     );
   };
 
-  const queueDndReset = () => {
-    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-      setDndResetKey((value) => value + 1);
-      return;
-    }
-
-    window.requestAnimationFrame(() => setDndResetKey((value) => value + 1));
-  };
-
   const handleBoardDragEnd = (result: DropResult) => {
-    queueDndReset();
-
     if (!selectedBoardId || !canEditSelectedBoard || isCardEditPending) return;
 
     const { destination, source, draggableId, type } = result;
@@ -3449,7 +3437,7 @@ export default function TasksV2Page() {
                     </CardContent>
                   </Card>
                 ) : boardViewMode === "kanban" ? (
-                  <DragDropContext key={`kanban-${selectedBoardId}-${dndResetKey}`} onDragEnd={handleBoardDragEnd}>
+                  <DragDropContext onDragEnd={handleBoardDragEnd}>
                     <div className="kanban-board-scroll w-full max-w-full min-w-0 px-1 pb-3 pr-6">
                       <Droppable droppableId="board-lists" direction="horizontal" type="LIST" ignoreContainerClipping>
                         {(listDropProvided) => (
@@ -4046,7 +4034,7 @@ export default function TasksV2Page() {
 		                  </DragDropContext>
 	                ) : (
 	                  <div className="space-y-3">
-	                      <DragDropContext key={`list-${selectedBoardId}-${dndResetKey}`} onDragEnd={handleBoardDragEnd}>
+	                      <DragDropContext onDragEnd={handleBoardDragEnd}>
 	                        {listViewGroups.map((group) => {
 	                          const listViewDroppableId =
                               listGrouping === "list" && group.droppableListId
