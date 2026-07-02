@@ -3444,7 +3444,7 @@ export default function TasksV2Page() {
                           <div
 	                            ref={listDropProvided.innerRef}
 	                            {...listDropProvided.droppableProps}
-	                            className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible"
+	                            className="dnd-board-root flex w-max min-w-full items-start gap-4 overflow-visible"
 	                          >
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
@@ -3464,7 +3464,7 @@ export default function TasksV2Page() {
                               <div
                                 ref={listDragProvided.innerRef}
                                 {...listDragProvided.draggableProps}
-                                className={["task-board-column h-full w-[320px] shrink-0", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                className={["task-board-column flex w-[320px] shrink-0 self-start", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
                                 style={getDraggableCardStyle(listDragProvided.draggableProps.style)}
                               >
                           <Droppable
@@ -3476,7 +3476,7 @@ export default function TasksV2Page() {
                             {(provided, snapshot) => (
                               <Card
                                 className={[
-                                  "h-full overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
+                                  "flex h-full min-h-[360px] w-full flex-col overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
                                   snapshot.isDraggingOver || listDragSnapshot.isDragging
                                     ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
                                     : "hover:border-border/70 hover:shadow-md",
@@ -3658,7 +3658,7 @@ export default function TasksV2Page() {
                                     </div>
                                   </div>
                                 </CardHeader>
-                                <CardContent className="space-y-4 p-4">
+                                <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 p-4">
                                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                     <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                       Тип: {LIST_TYPE_LABELS[list.type]}
@@ -3728,7 +3728,7 @@ export default function TasksV2Page() {
 	                                  <div
 	                                    ref={provided.innerRef}
 	                                    {...provided.droppableProps}
-	                                    className={["space-y-3 min-h-[180px] transition-colors", snapshot.isDraggingOver ? "rounded-2xl bg-muted/30" : ""].join(" ")}
+	                                    className={["task-drop-zone min-h-[180px] flex-1 space-y-3 overflow-y-auto pr-1 transition-[background-color,border-color] duration-150", snapshot.isDraggingOver ? "rounded-2xl bg-muted/30" : ""].join(" ")}
 	                                  >
                                     {listCards.length === 0 && !snapshot.isDraggingOver && (
                                       <div className="rounded-[18px] border border-dashed border-border/45 bg-muted/20 px-3 py-5 text-sm leading-6 text-muted-foreground">
@@ -3765,12 +3765,12 @@ export default function TasksV2Page() {
                                               ref={dragProvided.innerRef}
                                               {...dragProvided.draggableProps}
                                               {...dragProvided.dragHandleProps}
-                                              className={["task-drag-card", dragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                              className={["task-drag-card w-full", dragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
                                               style={getDraggableCardStyle(dragProvided.draggableProps.style)}
                                             >
                                               <div
                                                 className={[
-                                                  "group rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none text-card-foreground",
+                                                  "group w-full rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none text-card-foreground",
                                                   dueDateStatusClasses.card,
                                                   dragSnapshot.isDragging
                                                     ? "border-border/70 shadow-xl shadow-black/10 ring-2 ring-border/35"
@@ -3970,7 +3970,7 @@ export default function TasksV2Page() {
 	                      })}
 	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
-                        <Card className="flex h-auto min-h-[220px] w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
+                        <Card className="task-board-column flex w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
                           <CardContent className="flex w-full flex-col justify-start p-4">
                             {inlineListOpen ? (
                               <div className="space-y-3">

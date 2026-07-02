@@ -149,7 +149,15 @@ body::-webkit-scrollbar,
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
 }
 .dnd-board-root [data-rfd-placeholder-context-id] {
-  transition: none !important;
+  transition: height 180ms ease, width 180ms ease, margin 180ms ease !important;
+}
+.task-board-column {
+  height: clamp(380px, calc(100vh - 260px), 760px);
+}
+.task-drop-zone {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .kanban-board-scroll {
   overflow-x: auto;
