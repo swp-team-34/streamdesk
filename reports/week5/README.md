@@ -35,13 +35,13 @@
     Extract some points from the customer feedback and link PBI
     | Feedback point | Resulting PBI or issue | Status | Response |
     |---|---|---|---|
-    | Task Manager card action buttons overlap on smaller screens or high card density. | `#145` *(замени на реальный)* | Backlog | Added to backlog for responsive design improvements in Task Manager UI. |
-    | Task Manager mobile view needs optimization (one card per screen, menu repositioning). | `#146` *(замени на реальный)* | Backlog | Added to backlog for future mobile UI/UX refinement. |
-    | Warehouse: "Send to project" button UI glitch (flew off). | `#147` *(замени на реальный)* | Backlog | Added to backlog as a UI bug fix. |
-    | Warehouse: Tasks failing to attach to checkout requests. | `#148` *(замени на реальный)* | Backlog | Added to backlog as a critical functional bug to investigate and fix. |
-    | Warehouse: Minor quantity/count discrepancy in equipment list. | `#149` *(замени на реальный)* | Backlog | Added to backlog to investigate and fix inventory count logic. |
-    | Dashboard: Implement drag-and-drop interactivity for widgets. | `#150` *(замени на реальный)* | Backlog | Deferred to the next sprint; current sprint focused on adding statistics widgets. |
-    | Database: Ensure safe deployments to existing databases without data loss. | `#151` *(замени на реальный)* | Backlog | Added to backlog to implement proper database migration workflows. |
+    | Task Manager card action buttons overlap on smaller screens or high card density. | [#154](https://github.com/swp-team-34/streamdesk/issues/154) | Backlog | Added to backlog for responsive design improvements in Task Manager UI. |
+    | Task Manager mobile view needs optimization (one card per screen, menu repositioning). | [#155](https://github.com/swp-team-34/streamdesk/issues/155) | Backlog | Added to backlog for future mobile UI/UX refinement. |
+    | Warehouse: "Send to project" button UI glitch (flew off). | [#156](https://github.com/swp-team-34/streamdesk/issues/156) | Backlog | Added to backlog as a UI bug fix. |
+    | Warehouse: Tasks failing to attach to checkout requests. | [#157](https://github.com/swp-team-34/streamdesk/issues/157) | Backlog | Added to backlog as a critical functional bug to investigate and fix. |
+    | Warehouse: Minor quantity/count discrepancy in equipment list. | [#158](https://github.com/swp-team-34/streamdesk/issues/158) | Backlog | Added to backlog to investigate and fix inventory count logic. |
+    | Dashboard: Implement drag-and-drop interactivity for widgets. | [#159](https://github.com/swp-team-34/streamdesk/issues/159) | Backlog | Deferred to the next sprint; current sprint focused on adding statistics widgets. |
+    | Database: Ensure safe deployments to existing databases without data loss. | [#160](https://github.com/swp-team-34/streamdesk/issues/160) | Backlog | Added to backlog to implement proper database migration workflows. |
 11.   **Explanation of feedback not addressed:** All customer feedback points received during the review have been addressed.
 
 ## Documentation and Quality
@@ -92,7 +92,7 @@
 ## Release and Demo
 27. **SemVer release:** [Link](https://example.com) TODO: @TimBqs @aitovaskar
 28. **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
-29. **Public sanitized demo video:** [Link](https://example.com) TODO: @TimBqs
+29. **Public sanitized demo video:** [Link](https://disk.yandex.ru/i/l8QNbtsvjXRFag)
 
 ## Customer Review and documentation website
 30. **Public sanitized UAT results summary**:
@@ -103,9 +103,9 @@
     - **UAT-008 (Calendar Drag-and-Drop and Views):** Passed. The customer tested drag-and-drop functionality across different views (3 days, month). Overdue tasks correctly displayed in red. Invalid drag-and-drop actions correctly triggered an error state without breaking the UI. The customer approved the overall convenience and usability (*"Yeah, it's convenient, everything is fine"*).
     - All feedback points have been converted into traceable PBIs and added to the Product Backlog (see Customer Feedback section above).
 31. **Documentation website:** [Link](https://swp-team-34.github.io/streamdesk/)
-32. **Customer review transcript:** [Link](https://example.com) TODO: @TimBqs
+32. **Customer review transcript:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week5/sprint-review-transcript.md)
 33. **Differs from the expected default:** No artifacts, evidence patterns, or access arrangements differ from the expected default.
-34. **Review summary:** [Link](https://example.com) TODO: @TimBqs
+34. **Review summary:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week5/sprint-review-summary.md)
 
 ## Reflection and Reports
 35. **Reflection:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/reports/week5/reflection.md)
