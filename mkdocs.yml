@@ -1,0 +1,77 @@
+site_name: StreamDesk Documentation
+site_description: StreamDesk Project Documentation
+site_url: https://swp-team-34.github.io/streamdesk/
+
+repo_url: https://github.com/swp-team-34/streamdesk
+repo_name: swp-team-34/streamdesk
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+
+  - Product:
+      - Roadmap: roadmap.md
+      - User Stories: user-stories.md
+      - Development Process: development-process.md
+      - Repository Workflow: repository-workflow.md
+      - Definition of Done: definition-of-done.md
+
+  - Architecture:
+      - Overview: architecture/README.md
+      - Static View: architecture/static-view/index.md
+      - Dynamic View: architecture/dynamic-view/index.md
+      - Deployment View: architecture/deployment-view/index.md
+
+      - ADRs:
+          - Overview: architecture/adr/index.md
+          - ADR-001: architecture/adr/ADR-001-centralized-equipment-permissions.md
+          - ADR-002: architecture/adr/ADR-002-declarative-protected-route-wrapper.md
+          - ADR-003: architecture/adr/ADR-003-unified-monorepo-coverage.md
+          
+  - Quality:
+      - Testing Overview: testing.md
+      - Quality Requirements: quality-requirements.md
+      - Quality Requirement Tests: quality-requirement-tests.md
+      - User Acceptance Tests: user-acceptance-tests.md
+
+  - Notes:
+      - Platform Rebuild Notes: platform-rebuild-notes.md
