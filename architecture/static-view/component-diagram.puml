@@ -1,0 +1,129 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam backgroundColor #FEFEFE
+
+title StreamDesk Component Diagram (Static View)
+
+' === Client layer ===
+package "Client (React + TypeScript)" as Client {
+  [Task Manager UI\n(Kanban)] as TaskUI
+  [Calendar UI] as CalendarUI
+  [Equipment UI\n(Warehouse)] as EquipmentUI
+  [Admin Panel UI\n(Dashboard)] as AdminUI
+
+  [HTTP Client\n(fetch / axios)] as HTTP
+  [WebSocket Client\n(/ws)] as WSClient
+  [Shared Zod schemas\n(shared/schema.ts)] as ClientSchemas
+  [Equipment Permission Evaluator\n(client/src/lib)] as ClientPerms
+}
+
+' === Server layer ===
+package "Server (Node.js + Express)" as Server {
+  [Express application\n(routes.ts)] as Routes
+
+  [Kanban handlers] as KanbanH
+  [Calendar handlers] as CalendarH
+  [Equipment handlers\n(stable module)] as EquipmentH
+  [Admin / Auth handlers] as AdminH
+
+  [Express session auth\n(req.session + req.user)] as Auth
+  [Zod validation\n(shared schemas)] as Val
+  
+  [WebSocket Gateway\n(/ws realtime updates)] as WSGateway
+
+  [YouGile sync\n(background job)] as YouGileSync
+}
+
+' === Data layer ===
+database "PostgreSQL" as DB {
+  [kanban_boards\nkanban_lists\nkanban_cards] as KanbanDB
+  [events\nevent_participants] as CalendarDB
+  
+  [equipment] as EquipmentDB
+  [equipment_reservations\n(legacy/direct route)] as ReservationsDB
+  [equipment_checkout_requests\n(current workflow)] as CheckoutDB
+  
+  [users\ncompanies\ncompany_members\nroles] as AdminDB
+}
+
+' === External systems ===
+cloud "External" as External {
+  [YouGile API] as YouGile
+  [Browser clients\n(staff, admins)] as Users
+}
+
+' === Client connections ===
+Users --> HTTP : HTTPS / JSON
+TaskUI --> HTTP
+CalendarUI --> HTTP
+EquipmentUI --> HTTP
+AdminUI --> HTTP
+
+Users <--> WSClient : WebSocket /ws\n(realtime updates /\nquery invalidation)
+
+HTTP --> ClientSchemas : uses for\nform validation
+EquipmentUI --> ClientPerms : uses for\nUI gating
+
+' === Client -> Server ===
+HTTP --> Routes : REST API\n(JSON over HTTP)
+WSClient <--> WSGateway : WebSocket /ws
+
+' === Inside the server ===
+Routes --> KanbanH
+Routes --> CalendarH
+Routes --> EquipmentH
+Routes --> AdminH
+
+KanbanH --> Auth
+CalendarH --> Auth
+EquipmentH --> Auth
+AdminH --> Auth
+
+KanbanH --> Val
+CalendarH --> Val
+EquipmentH --> Val
+AdminH --> Val
+
+KanbanH --> WSGateway : emit events
+CalendarH --> WSGateway : emit events
+
+KanbanH --> YouGileSync : triggers\nbackground sync
+
+' === Server -> Data ===
+KanbanH --> KanbanDB : Drizzle ORM
+CalendarH --> CalendarDB : Drizzle ORM
+EquipmentH --> EquipmentDB : Drizzle ORM
+EquipmentH --> ReservationsDB : Drizzle ORM
+EquipmentH --> CheckoutDB : Drizzle ORM
+AdminH --> AdminDB : Drizzle ORM
+
+' === External integrations ===
+YouGileSync --> YouGile : HTTPS / REST
+
+' === Notes ===
+note right of Auth
+  Authentication is handled
+  via **express-session** and
+  a custom middleware that
+  populates **req.user** from
+  **req.session.userId**.
+end note
+
+note right of ClientPerms
+  Client-side permission
+  evaluator is centralized.
+  Server-side checks are
+  currently route-local.
+  See **ADR-001**.
+end note
+
+note bottom of CheckoutDB
+  The current primary
+  warehouse workflow uses
+  **equipment_checkout_requests**.
+  The older **equipment_reservations**
+  route still exists as legacy.
+end note
+
+@enduml

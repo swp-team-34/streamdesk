@@ -1,0 +1,2246 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="StreamDesk Project Documentation">
+      
+      
+      
+        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/development-process/">
+      
+      
+        <link rel="prev" href="../user-stories/">
+      
+      
+        <link rel="next" href="../repository-workflow/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Development Process - StreamDesk Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#development-process" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="StreamDesk Documentation" class="md-header__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            StreamDesk Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Development Process
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/swp-team-34/streamdesk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    swp-team-34/streamdesk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../roadmap/" class="md-tabs__link">
+          
+  
+  
+  Product
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../testing/" class="md-tabs__link">
+          
+  
+  
+  Quality
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../platform-rebuild-notes/" class="md-tabs__link">
+          
+  
+  
+  Notes
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="StreamDesk Documentation" class="md-nav__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    StreamDesk Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/swp-team-34/streamdesk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    swp-team-34/streamdesk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Product
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-stories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Stories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Process
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-backlog-and-board-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Backlog and Board Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Backlog and Board Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Boards
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-workflow-states-and-entry-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Workflow States and Entry Criteria
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-git-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Git Workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Git Workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-issue-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Issue Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-labeling-and-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Labeling and Assignment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-branch-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Branch Naming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-commit-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Commit Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Pull Requests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-code-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Code Review
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#27-merging-and-closing-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 Merging and Closing Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#28-main-branch-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.8 Main Branch Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-gitgraph-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Gitgraph Diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-configuration-and-secrets-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Configuration and Secrets Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Configuration and Secrets Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Secrets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-ignored-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Ignored Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-runtime-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Runtime Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-ci-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 CI Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-deployment-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Deployment Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-development-and-deployment-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Development and Deployment Environment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Development and Deployment Environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-local-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Local Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-deployment-to-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Deployment to Production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Links
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repository-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Repository Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../definition-of-done/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Done
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/static-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/dynamic-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/deployment-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADRs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ADRs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-001-centralized-equipment-permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-001
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-002-declarative-protected-route-wrapper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-002
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-003-unified-monorepo-coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-003
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quality
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-requirements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-requirement-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Requirement Tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-acceptance-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Acceptance Tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../platform-rebuild-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Rebuild Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-backlog-and-board-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Backlog and Board Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Backlog and Board Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Boards
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-workflow-states-and-entry-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Workflow States and Entry Criteria
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-git-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Git Workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Git Workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-issue-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Issue Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-labeling-and-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Labeling and Assignment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-branch-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Branch Naming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-commit-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Commit Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Pull Requests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-code-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Code Review
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#27-merging-and-closing-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 Merging and Closing Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#28-main-branch-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.8 Main Branch Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-gitgraph-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Gitgraph Diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-configuration-and-secrets-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Configuration and Secrets Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Configuration and Secrets Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Secrets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-ignored-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Ignored Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-runtime-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Runtime Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-ci-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 CI Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-deployment-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Deployment Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-development-and-deployment-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Development and Deployment Environment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Development and Deployment Environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-local-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Local Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-deployment-to-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Deployment to Production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Links
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="development-process">Development Process<a class="headerlink" href="#development-process" title="Permanent link">&para;</a></h1>
+<p>This document describes the real development workflow used by <strong>StreamDesk (Team 34)</strong>.
+It covers how we manage the Product and Sprint Backlogs, our git branching model, code review practices, configuration and secrets handling, and the development environment setup.</p>
+<hr />
+<h2 id="1-backlog-and-board-management">1. Backlog and Board Management<a class="headerlink" href="#1-backlog-and-board-management" title="Permanent link">&para;</a></h2>
+<h3 id="11-boards">1.1 Boards<a class="headerlink" href="#11-boards" title="Permanent link">&para;</a></h3>
+<p>We use <strong>GitHub Projects</strong> to visualise and manage work.</p>
+<table>
+<thead>
+<tr>
+<th>Board</th>
+<th>Purpose</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Product Backlog</strong></td>
+<td>Single source of all potential work (PBIs) ordered by priority</td>
+<td><a href="https://github.com/orgs/swp-team-34/projects/1">Project 1</a></td>
+</tr>
+<tr>
+<td><strong>Sprint Backlog</strong></td>
+<td>Subset of PBIs selected for the current Sprint, tracked in an active Kanban view</td>
+<td><a href="https://github.com/orgs/swp-team-34/projects/2">Project 2</a></td>
+</tr>
+</tbody>
+</table>
+<p>The Sprint Backlog is the <strong>authoritative container</strong> for the current Sprint. Only issues assigned to the current Sprint milestone appear on this board.</p>
+<h3 id="12-workflow-states-and-entry-criteria">1.2 Workflow States and Entry Criteria<a class="headerlink" href="#12-workflow-states-and-entry-criteria" title="Permanent link">&para;</a></h3>
+<p>Every issue on the Sprint Backlog moves through the following states.
+The table below defines the <strong>entry criteria</strong> that must be satisfied before an issue can be placed in a given column.</p>
+<table>
+<thead>
+<tr>
+<th>State / Column</th>
+<th>Entry Criteria</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Backlog</strong></td>
+<td>Issue has been created using one of the defined templates, has a clear description, and is ready for refinement. No estimation or assignment is required yet.</td>
+</tr>
+<tr>
+<td><strong>Selected for Sprint</strong></td>
+<td>Issue has a clear expected outcome, acceptance criteria, an estimate (Story Points), an assignee (implementer), and a different reviewer listed in the description. It is assigned to the current Sprint milestone and appears on the Sprint Backlog board.</td>
+</tr>
+<tr>
+<td><strong>In Progress</strong></td>
+<td>A feature branch named <code>&lt;issue-number&gt;-short-description</code> has been created from <code>main</code>. The implementer has started working on the issue.</td>
+</tr>
+<tr>
+<td><strong>In Review</strong></td>
+<td>A Pull Request has been opened from the feature branch into <code>main</code>. The PR description follows the team template, includes a link to the issue (<code>Closes #N</code>), and all CI checks (linting, tests, coverage, audit, link checker) have passed. At least one other team member is assigned as reviewer.</td>
+</tr>
+<tr>
+<td><strong>Done</strong></td>
+<td>The PR has been approved by the reviewer, all discussions are resolved, and the branch has been merged into <code>main</code> with a merge commit. The acceptance criteria have been verified, the changelog updated (if the change is user-visible), and the issue is closed.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-git-workflow">2. Git Workflow<a class="headerlink" href="#2-git-workflow" title="Permanent link">&para;</a></h2>
+<p>We adapted <strong>GitHub Flow</strong> with a few course‑specific rules.</p>
+<h3 id="21-issue-creation">2.1 Issue Creation<a class="headerlink" href="#21-issue-creation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All work starts with an <strong>Issue</strong>.</li>
+<li>We use four issue templates:</li>
+<li><strong>User Story</strong> – for end‑user functionality (<code>As a … I want … so that …</code>).</li>
+<li><strong>Bug Report</strong> – for defects (expected vs actual behaviour, steps to reproduce).</li>
+<li><strong>Other PBI</strong> – for technical tasks, infrastructure, documentation, etc.</li>
+<li><strong>Course Task</strong> – for course‑specific assignments.</li>
+<li>Templates are stored in <code>.github/ISSUE_TEMPLATE/</code> and are selected when clicking <strong>New Issue</strong>.</li>
+</ul>
+<h3 id="22-labeling-and-assignment">2.2 Labeling and Assignment<a class="headerlink" href="#22-labeling-and-assignment" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Type labels</strong> are set automatically by the chosen issue template:</li>
+<li><code>bug</code> for Bug Report</li>
+<li><code>course-task</code> for Course Task</li>
+<li><code>pbi</code> for Other PBI</li>
+<li><code>user-story</code> for User Story</li>
+<li><strong>Work Status</strong> is tracked via the dropdown in each issue body (custom field). The values used are:</li>
+<li><code>To Do</code></li>
+<li><code>Ready</code></li>
+<li><code>In Progress</code></li>
+<li><code>Review</code></li>
+<li><code>Done</code></li>
+<li><strong>MoSCoW priority</strong> is recorded in the dedicated dropdown field (values: <code>Must</code>, <code>Should</code>, <code>Could</code>, <code>Won't for this release</code>, or <code>Not applicable</code> depending on issue type).</li>
+<li><strong>Story Points</strong> are set in the <code>Story Points</code> field when the issue is estimated (User Stories and applicable PBIs).</li>
+<li><strong>MVP version</strong> is filled in the <code>MVP version</code> field where relevant (e.g., <code>MVP v1</code>, <code>MVP v2</code>, <code>Not applicable</code>).</li>
+<li>The <strong>implementer</strong> is assigned through the GitHub <code>Assignee</code> field (right sidebar) and also listed in the <code>Implementer</code> field inside the issue body.</li>
+<li>A <strong>different reviewer</strong> is written in the <code>Reviewer</code> field inside the issue body (e.g., <code>@username</code>). This field is required in every template to ensure review responsibility is documented from the start.</li>
+<li>The <strong>Sprint milestone</strong> is attached to the issue via the GitHub <code>Milestone</code> selector when the item is selected for a Sprint.</li>
+</ul>
+<h3 id="23-branch-naming">2.3 Branch Naming<a class="headerlink" href="#23-branch-naming" title="Permanent link">&para;</a></h3>
+<p>Branches are created from <code>main</code> <strong>must</strong> follow the pattern: <issue-number>-short-description</p>
+<p>Examples:
+- <code>42-add-calendar-view</code>
+- <code>55-fix-localisation-bug</code>
+- <code>68-course-task-assignment-report</code></p>
+<h3 id="24-commit-messages">2.4 Commit Messages<a class="headerlink" href="#24-commit-messages" title="Permanent link">&para;</a></h3>
+<p>We do not enforce a strict conventional commit standard, but we aim for meaningful English messages. The following prefixes are encouraged:
+- <code>feat:</code> – new feature
+- <code>fix:</code> – bug fix
+- <code>docs:</code> – documentation
+- <code>chore:</code> – maintenance or tooling
+- <code>test:</code> – adding or updating tests</p>
+<h3 id="25-pull-requests">2.5 Pull Requests<a class="headerlink" href="#25-pull-requests" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Push the feature branch to GitHub.</li>
+<li>Open a Pull Request <strong>from</strong> the feature branch <strong>into</strong> <code>main</code>.</li>
+<li>Use the <strong>Pull Request template</strong> (<code>.github/pull_request_template.md</code>).
+   The template includes the following sections that must be filled:</li>
+<li><strong>Linked issue</strong> – reference the issue (e.g., <code>Closes #42</code>).</li>
+<li><strong>Summary</strong> – describe the change.</li>
+<li><strong>Branch naming confirmation</strong> – verify the branch follows <code>&lt;issue-number&gt;-short-description</code>.</li>
+<li><strong>Linked issue type</strong> – select the correct type: User Story, Other PBI, Course Task, or Bug Report.</li>
+<li><strong>Expected linked issue Work Status after merge</strong> – choose the appropriate status (usually <code>Done</code> for completed work).</li>
+<li><strong>MoSCoW priority</strong> – fill in if the issue has a priority, otherwise <code>Not applicable</code>.</li>
+<li><strong>Story Points</strong> – fill in or mark <code>Not applicable</code>.</li>
+<li><strong>MVP version</strong> – fill in or mark <code>Not applicable</code>.</li>
+<li><strong>Sprint role confirmation</strong> – document the implementer and reviewer, and confirm they are different people.</li>
+<li><strong>Acceptance criteria verification</strong> – confirm that all acceptance criteria are listed in the linked issue and have been verified; explain any incomplete criterion.</li>
+<li><strong>Testing/verification evidence</strong> – provide commands run, results, and links to evidence files.</li>
+<li><strong>Screenshots or demo evidence</strong> – link evidence or write <code>Not applicable</code>.</li>
+<li><strong>Changelog</strong> – select exactly one option: update <code>CHANGELOG.md</code> for user-visible changes, or mark as not applicable.</li>
+<li><strong>Quality checklist</strong> – check that scope matches the issue, documentation is updated, tests were run, no secrets are committed, and links were checked.</li>
+<li><strong>Reviewer checklist</strong> – the reviewer must confirm the PR is properly linked, the branch name follows conventions, acceptance criteria are clear and verified, evidence is sufficient, Definition of Done is satisfied, changelog selection is correct, a meaningful review was left (or approval explains no changes needed), and workflow evidence is preserved.</li>
+<li><strong>Merge readiness</strong> – confirm required reviews are complete, checks pass, merge commit will be used, and the branch can be deleted after merge.</li>
+<li>
+<p><strong>Related assignment section</strong> – list the relevant assignment part(s) or <code>Not applicable</code>.</p>
+</li>
+<li>
+<p>Ensure the CI pipeline (<code>.github/workflows/quality.yml</code>) passes for the PR branch.</p>
+</li>
+<li>Request a review from the designated reviewer (different from the implementer). The reviewer must check the items in the <strong>Reviewer checklist</strong> and either approve or request changes.</li>
+<li>Once approved and all CI checks are green, the implementer merges the PR using a <strong>merge commit</strong> (see section 2.7).</li>
+</ol>
+<h3 id="26-code-review">2.6 Code Review<a class="headerlink" href="#26-code-review" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A reviewer (different from the implementer) must <strong>approve</strong> the PR before merging.</li>
+<li>The reviewer uses the <strong>Reviewer checklist</strong> from the Pull Request template and verifies that:</li>
+<li>The PR is correctly linked to an issue.</li>
+<li>The issue type matches the work.</li>
+<li>The branch name follows the <code>&lt;issue-number&gt;-short-description</code> convention.</li>
+<li>Acceptance criteria are clear and have been verified.</li>
+<li>Evidence (tests, screenshots, commands) is sufficient for the change.</li>
+<li>The team Definition of Done is satisfied if the PR completes the linked issue.</li>
+<li>Exactly one changelog option is selected and the decision is reasonable.</li>
+<li>No secrets, tokens, passwords, <code>.env</code> files, private recordings, confidential materials, or unnecessary PII are committed.</li>
+<li>Links were checked or intentionally excluded with justification.</li>
+<li>Repository workflow evidence is preserved; historical evidence was not deleted or rewritten.</li>
+<li>The reviewer leaves a meaningful review comment if feedback is needed, or explains in the approval that no changes were required.</li>
+<li>All review comments must be resolved before merging.</li>
+</ul>
+<h3 id="27-merging-and-closing-issues">2.7 Merging and Closing Issues<a class="headerlink" href="#27-merging-and-closing-issues" title="Permanent link">&para;</a></h3>
+<ul>
+<li>We use <strong>merge commits</strong> (no squash, no rebase) to preserve full history.</li>
+<li>Before merging, the <strong>Merge readiness</strong> checklist from the PR template must be confirmed:</li>
+<li>Required reviews are complete.</li>
+<li>All required CI checks have passed.</li>
+<li>The merge commit strategy is selected.</li>
+<li>The branch can be deleted after merge.</li>
+<li>After merge, the branch is <strong>deleted</strong> (GitHub can do this automatically when the PR is merged).</li>
+<li>The linked issue is automatically closed if the PR description contained <code>Closes #N</code>. Otherwise, it is closed manually after verifying that all acceptance criteria and the Definition of Done are satisfied.</li>
+<li>The <strong>Work Status</strong> of the linked issue is moved to <code>Done</code> (if not already updated by automation) to reflect the completion.</li>
+</ul>
+<h3 id="28-main-branch-protection">2.8 Main Branch Protection<a class="headerlink" href="#28-main-branch-protection" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Direct pushes to <code>main</code> are <strong>forbidden</strong>.</li>
+<li>All changes must arrive through a reviewed, CI‑passing Pull Request.</li>
+<li>Branch protection rules enforce:</li>
+<li>Require a pull request before merging.</li>
+<li>Require at least one approving review.</li>
+</ul>
+<hr />
+<h2 id="3-gitgraph-diagram">3. Gitgraph Diagram<a class="headerlink" href="#3-gitgraph-diagram" title="Permanent link">&para;</a></h2>
+<p>The following <strong>Mermaid</strong> diagram shows our real branching and merging flow (based on recent commits).</p>
+<div class="highlight"><pre><span></span><code>gitGraph
+   commit id: &quot;initial&quot;
+   branch &quot;84-fix-production-border-opacity&quot;
+   checkout &quot;84-fix-production-border-opacity&quot;
+   commit id: &quot;fix: production border opacity&quot;
+   checkout main
+   merge &quot;84-fix-production-border-opacity&quot; tag: &quot;PR #126 merged&quot;
+
+   branch &quot;94-task-manager-calendar-fix&quot;
+   checkout &quot;94-task-manager-calendar-fix&quot;
+   commit id: &quot;feat: add board completion statistics modal&quot;
+   commit id: &quot;feat: add Kanban custom fields and tag groups&quot;
+   checkout main
+   merge &quot;94-task-manager-calendar-fix&quot; tag: &quot;PR #121 merged&quot;
+
+   branch &quot;118-fix-roadmap&quot;
+   checkout &quot;118-fix-roadmap&quot;
+   commit id: &quot;docs: update roadmap&quot;
+   checkout main
+   merge &quot;118-fix-roadmap&quot; tag: &quot;PR #119 merged&quot;
+
+   branch &quot;105-assignment-report&quot;
+   checkout &quot;105-assignment-report&quot;
+   commit id: &quot;docs: add report and images&quot;
+   commit id: &quot;docs: customer review summary and transcript&quot;
+   checkout main
+   merge &quot;105-assignment-report&quot; tag: &quot;PR #127 merged&quot;
+
+   branch &quot;129-update-roadmap&quot;
+   checkout &quot;129-update-roadmap&quot;
+   commit id: &quot;docs: described roadmap&quot;
+   checkout main
+   merge &quot;129-update-roadmap&quot; tag: &quot;PR #131 merged&quot;
+</code></pre></div>
+<h2 id="4-configuration-and-secrets-management">4. Configuration and Secrets Management<a class="headerlink" href="#4-configuration-and-secrets-management" title="Permanent link">&para;</a></h2>
+<h3 id="41-secrets">4.1 Secrets<a class="headerlink" href="#41-secrets" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>All secrets</strong> (database URLs, API keys, session secrets, tokens) are stored <strong>only</strong> in environment variables.</li>
+<li>The local environment file <code>.env</code> is <strong>never committed</strong> – it is listed in <code>.gitignore</code>.</li>
+<li>A sanitised example file <strong><code>.env.example</code></strong> is committed to show required variables without real values.</li>
+</ul>
+<h3 id="42-ignored-files">4.2 Ignored Files<a class="headerlink" href="#42-ignored-files" title="Permanent link">&para;</a></h3>
+<p>Key files and directories excluded from version control (see the complete list in <code>.gitignore</code> at the repository root):</p>
+<ul>
+<li><strong>Environment:</strong> <code>.env</code> and all local environment variants (<code>.env.*.local</code>, <code>.env.production</code>, <code>.env.development</code>).</li>
+<li><strong>Dependencies:</strong> <code>node_modules/</code>, <code>.pnp</code>, <code>.yarn/</code>.</li>
+<li><strong>Build output:</strong> <code>dist/</code>, <code>build/</code>, <code>*.tsbuildinfo</code>, <code>.next/</code>.</li>
+<li><strong>Logs:</strong> <code>*.log</code>, <code>logs/</code>.</li>
+<li><strong>User uploads:</strong> <code>uploads/</code> (except <code>.gitkeep</code> marker files), <code>attached_assets/</code>.</li>
+<li><strong>Database files:</strong> <code>*.db</code>, <code>*.sqlite</code>, <code>*.sqlite3</code>, <code>*.db-journal</code>, <code>*.db-shm</code>, <code>*.db-wal</code> (the schema file <code>create_connection_schemas_tables.sql</code> is tracked).</li>
+<li><strong>SSL certificates and private keys:</strong> <code>*.pem</code>, <code>*.key</code>, <code>*.crt</code>, <code>*.cert</code>, <code>*.csr</code>, <code>*.p12</code>, <code>*.pfx</code>, <code>ssl/</code>, <code>certs/</code>, <code>private/</code>.</li>
+<li><strong>IDE and editor files:</strong> <code>.vscode/</code> (with limited exceptions for shared settings), <code>.idea/</code>, <code>*.swp</code>, <code>*.swo</code>, <code>*~</code>.</li>
+<li><strong>Test and coverage artifacts:</strong> <code>coverage/</code>, <code>.nyc_output/</code>, <code>.jest/</code>, <code>test-results/</code>.</li>
+<li><strong>Deployment and local configuration:</strong> <code>deploy.config</code>, <code>ecosystem.config.js.bak</code>, <code>pm2.log</code>, <code>.pm2/</code>.</li>
+<li><strong>Backups and archives:</strong> <code>*.bak</code>, <code>*.backup</code>, <code>*.old</code>, <code>backup/</code>, <code>*.tar.gz</code>, <code>*.zip</code>, <code>*.rar</code>.</li>
+<li><strong>OS and temporary files:</strong> <code>.DS_Store</code>, <code>Thumbs.db</code>, <code>desktop.ini</code>, <code>*.tmp</code>, <code>.cache/</code>, <code>temp/</code>, <code>tmp/</code>.</li>
+</ul>
+<h3 id="43-runtime-configuration">4.3 Runtime Configuration<a class="headerlink" href="#43-runtime-configuration" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The application reads all settings from <strong>environment variables</strong> using <code>process.env</code> (see <code>server/index.ts</code>).</li>
+<li>The first line of the server entry point imports <code>dotenv/config</code>, which loads a <code>.env</code> file into <code>process.env</code> during local development.</li>
+<li>Required variables (e.g., <code>PORT</code>, <code>DATABASE_URL</code>, <code>SESSION_SECRET</code>) are documented in the committed file <code>.env.example</code>.</li>
+<li>In production, these variables are injected directly into the server environment (e.g., via PM2 settings) and no <code>.env</code> file is stored in the repository or on the server.</li>
+</ul>
+<h3 id="44-ci-configuration">4.4 CI Configuration<a class="headerlink" href="#44-ci-configuration" title="Permanent link">&para;</a></h3>
+<p>Our CI consists of two automated GitHub Actions workflows:</p>
+<p><strong>1. Quality workflow</strong> (<code>.github/workflows/quality.yml</code>)
+- Triggers:
+  - on push to the <code>main</code> branch (and selected long-lived feature branches like <code>81-configure-assignment-4-quality-tests-ci</code>),
+  - on every pull request,
+  - manual trigger via <code>workflow_dispatch</code>.
+- Steps:
+  - <code>npm ci</code> – clean install dependencies
+  - <code>npm run check</code> – TypeScript type checking
+  - <code>npm test</code> – unit and integration tests
+  - <code>npm run coverage</code> – test coverage report
+  - <code>npm run build</code> – production build
+  - <code>npm audit --audit-level=critical</code> – critical vulnerability check</p>
+<p><strong>2. Link Check workflow</strong> (<code>.github/workflows/lychee.yml</code>)
+- Triggers:
+  - on push to <code>main</code>,
+  - on every pull request,
+  - manual trigger via <code>workflow_dispatch</code>.
+- Steps:
+  - Runs <a href="https://lychee.cli.rs/">lychee</a> with the project’s configuration file (<code>lychee.toml</code>) to validate all hyperlinks in Markdown and other supported files.</p>
+<ul>
+<li><strong>No continuous deployment (CD)</strong> is used yet; deployment is triggered manually.</li>
+</ul>
+<h3 id="45-deployment-configuration">4.5 Deployment Configuration<a class="headerlink" href="#45-deployment-configuration" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Production build is created with <code>npm run build</code>, which compiles both the frontend and backend into the <code>dist/</code> directory.</li>
+<li>The compiled server (<code>dist/index.js</code>) runs on the production host using <strong>PM2</strong>, a process manager configured via <code>ecosystem.config.cjs</code>.</li>
+<li>Deployment to the remote server is <strong>triggered manually</strong> by running helper scripts:</li>
+<li><code>deploy.mjs</code> (Linux/macOS) or <code>deploy-server.bat</code> (Windows) – builds the project, synchronizes files to the server, and invokes <code>deploy-to-server.sh</code> remotely.</li>
+<li><code>deploy-to-server.sh</code> – executed on the server to install dependencies, apply database migrations, rebuild, and restart the PM2 process.</li>
+<li>Server connection parameters (user, IP, path) are defined in a git-ignored <code>deploy.config</code> file.</li>
+<li><strong>No continuous deployment (CD) pipeline is configured yet</strong>; deployments are initiated by a team member when needed.</li>
+</ul>
+<h2 id="5-development-and-deployment-environment">5. Development and Deployment Environment<a class="headerlink" href="#5-development-and-deployment-environment" title="Permanent link">&para;</a></h2>
+<h3 id="51-prerequisites">5.1 Prerequisites<a class="headerlink" href="#51-prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Node.js</strong> (version matching <code>.nvmrc</code> or <code>package.json</code> engines)</li>
+<li><strong>PostgreSQL</strong> (connection string configured in <code>DATABASE_URL</code>)</li>
+<li>Git</li>
+</ul>
+<h3 id="52-local-setup">5.2 Local Setup<a class="headerlink" href="#52-local-setup" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/swp-team-34/streamdesk.git
+<span class="nb">cd</span><span class="w"> </span>streamdesk
+
+<span class="c1"># Install dependencies</span>
+npm<span class="w"> </span>install
+
+<span class="c1"># Create your local environment file from the example</span>
+cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+<span class="c1"># Edit .env and fill in your real database URL and other secrets</span>
+
+<span class="c1"># Push database schema</span>
+npm<span class="w"> </span>run<span class="w"> </span>db:push
+
+<span class="c1"># Start both frontend and backend</span>
+npm<span class="w"> </span>run<span class="w"> </span>dev
+</code></pre></div>
+<h3 id="53-deployment-to-production">5.3 Deployment to Production<a class="headerlink" href="#53-deployment-to-production" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Ensure all changes are merged to <code>main</code> and CI passes.</li>
+<li>Build the project locally (or on CI) with <code>npm run build</code>.</li>
+<li>Copy the <code>dist/</code> folder and necessary runtime files to the server.</li>
+<li>Run database migrations if needed: <code>npm run db:push</code> (with care).</li>
+<li>Restart the PM2 process: <code>pm2 restart ecosystem.config.cjs</code>.</li>
+</ol>
+<p>Deployment is not continuous, it is initiated manually by running a script that builds, synchronizes, and restarts the server.</p>
+<hr />
+<h2 id="6-links">6. Links<a class="headerlink" href="#6-links" title="Permanent link">&para;</a></h2>
+<ul>
+<li>This document is referenced from the <strong>root <a href="https://github.com/swp-team-34/streamdesk/blob/main/README.md">README.md</a></strong> and from the <strong>Week 5 public report</strong> (<code>reports/week5/README.md</code>).</li>
+<li>All workflow configuration files are available in the repository:</li>
+<li>Quality CI workflow: <a href="https://github.com/swp-team-34/streamdesk/blob/main/.github/workflows/quality.yml"><code>.github/workflows/quality.yml</code></a></li>
+<li>Link-check CI workflow: <a href="https://github.com/swp-team-34/streamdesk/blob/main/.github/workflows/lychee.yml"><code>.github/workflows/lychee.yml</code></a></li>
+<li>Pull request template: <a href="https://github.com/swp-team-34/streamdesk/blob/main/.github/pull_request_template.md"><code>.github/pull_request_template.md</code></a></li>
+<li>Issue templates: <a href="https://github.com/swp-team-34/streamdesk/tree/main/.github/ISSUE_TEMPLATE"><code>.github/ISSUE_TEMPLATE/</code></a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

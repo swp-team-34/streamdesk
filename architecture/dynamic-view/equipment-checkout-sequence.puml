@@ -1,0 +1,80 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Equipment Checkout Request Workflow
+
+actor "Staff user" as User
+actor "Manager / Admin" as Manager
+participant "Equipment UI\n(React)" as UI
+participant "HTTP Client" as HTTP
+participant "Express route\n(/api/equipment-checkout-requests)" as Route
+participant "Express session auth" as Auth
+participant "Zod request validation" as Val
+participant "Equipment handlers\n(business logic)" as BL
+participant "Drizzle ORM" as ORM
+participant "PostgreSQL\n(equipment,\nequipment_checkout_requests)" as DB
+
+== Step 1 — Staff user requests checkout ==
+
+User -> UI: Select equipment item\nand click "Request Checkout"
+UI -> HTTP: POST /api/equipment-checkout-requests\n{ equipmentId, location, ... }
+HTTP -> Route: HTTP request + session cookie
+Route -> Auth: Check session / workspace access
+Auth --> Route: ✓ Authenticated + workspace context
+Route -> Val: Validate body
+Val --> Route: ✓ Valid
+Route -> BL: createCheckoutRequest(userId, companyId, data)
+
+BL -> ORM: SELECT equipment WHERE id = :equipmentId\nAND company_id = :companyId
+ORM -> DB: SQL
+DB --> ORM: equipment row
+ORM --> BL: equipment | null
+
+alt Equipment not found, archived, or wrong workspace
+  BL --> Route: Throw NotFound / Forbidden
+  Route --> HTTP: 404 / 403
+else Equipment found
+  BL -> BL: Check operabilityStatus
+  alt Equipment is not working
+    BL --> Route: Throw BadRequest
+    Route --> HTTP: 400 Bad Request\n{ reason: "equipment not operable" }
+  else Equipment is working
+    BL -> ORM: INSERT INTO equipment_checkout_requests\n(status = 'pending')
+    ORM -> DB: SQL
+    DB --> ORM: inserted row
+    ORM --> BL: checkout request
+    BL --> Route: checkout request
+  end
+end
+
+Route --> HTTP: 201 Created\n{ checkout request }
+HTTP --> UI: Update local state
+UI --> User: Show "Checkout request created"
+
+== Step 2 — Manager approves or rejects ==
+
+Manager -> UI: Open checkout request\nand click "Approve" or "Reject"
+UI -> HTTP: PATCH /api/equipment-checkout-requests/:id\n{ status: 'approved' | 'rejected' }
+HTTP -> Route: HTTP request + session cookie
+Route -> Auth: Check session / manager permissions
+Auth --> Route: ✓ Authorized
+Route -> BL: updateCheckoutRequestStatus(id, status)
+
+alt Status is 'approved'
+  BL -> ORM: UPDATE equipment_checkout_requests\nSET status = 'approved'
+  BL -> ORM: UPDATE equipment\nSET status = 'in-use',\nassignedTo = requestedBy,\nlocation = request.location || current,\nlastUsed = now()
+  ORM -> DB: SQL
+else Status is 'rejected'
+  BL -> ORM: UPDATE equipment_checkout_requests\nSET status = 'rejected'
+  ORM -> DB: SQL
+end
+
+BL --> Route: ✓ Updated
+Route --> HTTP: 200 OK
+HTTP --> UI: Update UI
+UI --> Manager: Show updated status
+
+@enduml
