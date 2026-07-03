@@ -60,6 +60,7 @@ type CalendarEvent = {
   location?: string | null;
   participants?: Array<{ id: string; userId: string; userName?: string; status?: string }>;
   type?: string;
+  status?: string | null;
   color?: string | null;
 };
 
@@ -336,6 +337,7 @@ export default function Calendar() {
   const [slotSelectStart, setSlotSelectStart] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [slotSelectEnd, setSlotSelectEnd] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [expandedNonWorkingRanges, setExpandedNonWorkingRanges] = useState<{ before: boolean; after: boolean }>({ before: false, after: false });
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const { toast } = useToast();
   const weekScrollRef = useRef<HTMLDivElement>(null);
   const threeDaysScrollRef = useRef<HTMLDivElement>(null);
@@ -390,6 +392,11 @@ export default function Calendar() {
   useEffect(() => {
     window.localStorage.setItem(CALENDAR_SETTINGS_STORAGE_KEY, JSON.stringify(calendarSettings));
   }, [calendarSettings]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleSlotMouseUp = useCallback(() => {
     if (!slotSelectStart) return;
@@ -534,6 +541,21 @@ export default function Calendar() {
   }, [viewMode]);
 
   const entries = useMemo<CalendarEntry[]>(() => {
+    const taskTitles = new Set(tasks.map((task) => String(task?.title || "").trim()).filter(Boolean));
+    const isLegacyTaskDeadlineEvent = (event: CalendarEvent) => {
+      const title = String(event?.title || "").trim();
+      if (!title.startsWith("Дедлайн: ")) return false;
+      const taskTitle = title.slice("Дедлайн: ".length).trim();
+      if (!taskTitle || !taskTitles.has(taskTitle)) return false;
+      const description = String(event.description || "");
+      return (
+        event.type === "meeting" &&
+        event.status === "scheduled" &&
+        event.location === "Офис" &&
+        (!description || description === `Задача: ${taskTitle}` || description.includes(taskTitle))
+      );
+    };
+
     const taskEntries: TaskEntry[] = tasks
       .filter((task) => task?.dueDate || task?.startDate)
       .map((task) => {
@@ -582,13 +604,15 @@ export default function Calendar() {
         };
       });
 
-    const eventEntries: EventEntry[] = events.map((event) => ({
-      ...event,
-      kind: "event",
-      badgeText: getEventTypeText(event.type),
-      statusLabel: null,
-      responsibleLabel: null,
-    }));
+    const eventEntries: EventEntry[] = events
+      .filter((event) => !isLegacyTaskDeadlineEvent(event))
+      .map((event) => ({
+        ...event,
+        kind: "event",
+        badgeText: getEventTypeText(event.type),
+        statusLabel: null,
+        responsibleLabel: null,
+      }));
 
     return [...eventEntries, ...taskEntries, ...kanbanEntries];
   }, [events, kanbanCards, tasks, userNameById]);
@@ -686,12 +710,21 @@ export default function Calendar() {
   };
 
   const getPalette = (entry: CalendarEntry) => {
-    if (isEntryOverdue(entry)) {
+    const urgency = getEntryDeadlineUrgency(entry);
+    if (urgency === "overdue") {
       return {
         card: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
         inline: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
         dot: "bg-red-400",
         badge: getDueDateStatusClasses("overdue").badge,
+      };
+    }
+    if (urgency === "soon") {
+      return {
+        card: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
+        inline: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
+        dot: "bg-amber-400",
+        badge: getDueDateStatusClasses("soon").badge,
       };
     }
     if (entry.kind === "task") return EVENT_COLOR_PALETTES[3];
@@ -702,7 +735,7 @@ export default function Calendar() {
   };
 
   const getManualEntryColor = (entry: CalendarEntry) => {
-    if (isEntryOverdue(entry)) return null;
+    if (getEntryDeadlineUrgency(entry) !== "none") return null;
     if (entry.kind === "kanban") return normalizeHexColor(entry.task.listColor);
     if (entry.kind === "event") return normalizeHexColor(entry.color) || normalizeHexColor(storedEventColors[entry.id]);
     return null;
@@ -740,7 +773,8 @@ export default function Calendar() {
 
   const getEntryMetaLine = (entry: CalendarEntry) => {
     const parts = [format(new Date(entry.startTime), "HH:mm")];
-    if (isEntryOverdue(entry)) parts.push(getDueDateStatusLabel("overdue"));
+    const urgency = getEntryDeadlineUrgency(entry);
+    if (urgency !== "none") parts.push(getDueDateStatusLabel(urgency));
     if (entry.statusLabel) parts.push(entry.statusLabel);
     if (entry.responsibleLabel) parts.push(entry.responsibleLabel);
     return parts.join(" • ");
@@ -832,19 +866,29 @@ export default function Calendar() {
     );
   };
 
-  const isEntryOverdue = (entry: CalendarEntry) => {
-    if (entry.kind === "event") return false;
+  const getEntryDeadlineUrgency = (entry: CalendarEntry): "overdue" | "soon" | "none" => {
+    if (entry.kind === "event") return "none";
+
+    const dueDateValue = entry.task.dueDate;
+    if (!dueDateValue) return "none";
+    const dueDate = new Date(dueDateValue);
+    if (Number.isNaN(dueDate.getTime())) return "none";
 
     if (entry.kind === "task") {
-      const isComplete = entry.task.status === "done" || entry.task.status === "cancelled";
-      return getDueDateStatus(entry.task.dueDate, { isComplete }) === "overdue";
+      const status = String(entry.task.status || "");
+      if (status === "done" || status === "completed" || status === "cancelled") return "none";
+    } else {
+      const isCompleteLikeList =
+        entry.task.listType === "closed" ||
+        entry.task.listType === "archive" ||
+        entry.task.listType === "trash";
+      if (isCompleteLikeList) return "none";
     }
 
-    const isCompleteLikeList =
-      entry.task.listType === "closed" ||
-      entry.task.listType === "archive" ||
-      entry.task.listType === "trash";
-    return getDueDateStatus(entry.task.dueDate, { isComplete: isCompleteLikeList }) === "overdue";
+    const diffMs = dueDate.getTime() - currentTime.getTime();
+    if (diffMs < 0) return "overdue";
+    if (diffMs <= 24 * 60 * 60 * 1000) return "soon";
+    return "none";
   };
 
   const handleEntryClick = (entry: CalendarEntry) => {
@@ -903,6 +947,10 @@ export default function Calendar() {
       return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
     });
     if (!slot) return null;
+    if (slot.dataset.scope === "month" && slot.dataset.date) {
+      const date = new Date(slot.dataset.date);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
     const dayIndex = Number(slot.dataset.dayIndex);
     const scope = slot.dataset.scope;
     const days = scope === "3days" ? threeDays : scope === "day" ? [selectedDate] : weekDays;
@@ -1056,7 +1104,14 @@ export default function Calendar() {
       }
 
       const nextRange = buildPreview(action, event.clientX, event.clientY);
-      if (!nextRange) return;
+      if (!nextRange) {
+        toast({
+          title: "Нельзя переместить сюда",
+          description: "Отпустите карточку внутри дня или временного слота календаря.",
+          variant: "destructive",
+        });
+        return;
+      }
       updateCalendarEntryRangeMutation.mutate({ entry: action.entry, start: nextRange.start, end: nextRange.end });
     };
 
@@ -1362,13 +1417,20 @@ export default function Calendar() {
                   const dayEntries = getEntriesForDate(day);
                   const isToday = isSameDay(day, new Date());
                   const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
+                  const isPointerPreviewDay = calendarPointerPreview
+                    ? isSameDay(new Date(calendarPointerPreview.startTime), day)
+                    : false;
                   return (
                     <div
                       key={day.toISOString()}
+                      data-calendar-all-day
+                      data-scope="month"
+                      data-date={day.toISOString()}
                       className={cn(
-                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30",
+                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30 transition-colors",
                         !isCurrentMonth ? "bg-muted/20 opacity-70" : "bg-card",
-                        isToday && "ring-2 ring-inset ring-primary"
+                        isToday && "ring-2 ring-inset ring-primary",
+                        isPointerPreviewDay && "bg-primary/10 ring-2 ring-inset ring-primary/50"
                       )}
                     >
                       <div className={cn("text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1", isToday ? "text-primary" : isCurrentMonth ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500")}>
@@ -1379,9 +1441,10 @@ export default function Calendar() {
                           <button
                             key={entry.id}
                             type="button"
-                            className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-pointer", getEventInlineClasses(entry))}
+                            data-calendar-entry-block
+                            className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-grab active:cursor-grabbing", getEventInlineClasses(entry))}
                             style={getEntryColorStyle(entry, "inline")}
-                            onClick={() => handleEntryClick(entry)}
+                            onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
                           >
                             {entry.title}
                             <span className="ml-1 opacity-80">· {getEntryMetaLine(entry)}</span>

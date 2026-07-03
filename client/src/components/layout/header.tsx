@@ -11,10 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Bell, Menu, Settings, LogOut, Download } from "lucide-react";
+import { Bell, Menu, Settings, LogOut, Download, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
+import { queryClient } from "@/lib/queryClient";
+import { MANUAL_SYNC_COOLDOWN_MS, runManualSync } from "@/lib/manual-sync";
 
 interface HeaderProps {
   onMobileMenuClick: () => void;
@@ -51,6 +53,9 @@ const pageTitles: Record<string, string> = {
 
 export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [syncCooldownUntil, setSyncCooldownUntil] = useState<number>(0);
   const [location] = useLocation();
   const { canInstall, install } = usePWAInstall();
   const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes("platform:admin");
@@ -71,6 +76,39 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
   }, []);
 
   const pageTitle = pageTitles[location] ?? "StreamDesk";
+  const syncCooldownSeconds = Math.max(0, Math.ceil((syncCooldownUntil - currentTime.getTime()) / 1000));
+  const isSyncCooldown = syncCooldownSeconds > 0;
+  const isSyncing = syncStatus === "syncing";
+  const syncDisabled = isSyncing || isSyncCooldown;
+  const lastSyncedLabel = lastSyncedAt
+    ? lastSyncedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  const syncLabel = isSyncing
+    ? "Синхронизация данных..."
+    : syncStatus === "error"
+      ? isSyncCooldown
+        ? `Ошибка синхронизации. Повтор через ${syncCooldownSeconds} с.`
+        : "Ошибка синхронизации. Нажмите, чтобы повторить."
+      : isSyncCooldown
+        ? `${lastSyncedLabel ? `Синхронизировано в ${lastSyncedLabel}. ` : ""}Можно повторить через ${syncCooldownSeconds} с.`
+        : lastSyncedLabel
+          ? `Синхронизировано в ${lastSyncedLabel}. Можно синхронизировать снова.`
+          : "Синхронизировать данные";
+
+  const handleManualSync = async () => {
+    if (syncDisabled) return;
+    setSyncStatus("syncing");
+
+    try {
+      await runManualSync(queryClient);
+      setLastSyncedAt(new Date());
+      setSyncStatus("synced");
+    } catch {
+      setSyncStatus("error");
+    } finally {
+      setSyncCooldownUntil(Date.now() + MANUAL_SYNC_COOLDOWN_MS);
+    }
+  };
 
   return (
     <header className="h-[var(--app-header-height)] bg-card/80 backdrop-blur-sm border-b border-border/40 px-2 sm:px-3 py-0 sticky top-0 z-30 flex items-center justify-between gap-1 sm:gap-2 min-w-0 w-full max-w-full overflow-hidden safe-area-top">
@@ -98,6 +136,47 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
         </div>
 
         <ThemeToggle />
+
+        {user && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`relative h-7 w-7 sm:h-8 sm:w-8 touch-target hover:bg-muted/60 focus:ring-2 focus:ring-ring shrink-0 ${
+                  isSyncing
+                    ? "cursor-wait bg-primary/10 text-primary"
+                    : syncStatus === "error"
+                      ? "bg-destructive/10 text-destructive"
+                      : isSyncCooldown
+                        ? "bg-muted/60"
+                        : ""
+                }`}
+                onClick={handleManualSync}
+                aria-disabled={syncDisabled}
+                aria-label={syncLabel}
+                title={syncLabel}
+                data-testid="button-global-sync"
+              >
+                {syncStatus === "error" ? (
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                ) : syncStatus === "synced" && !isSyncCooldown ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+                )}
+                {isSyncCooldown && !isSyncing && (
+                  <span className="absolute -bottom-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-background border border-border text-[9px] leading-4 text-muted-foreground shadow-sm">
+                    {syncCooldownSeconds}
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{syncLabel}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {canInstall && (
           <Tooltip>

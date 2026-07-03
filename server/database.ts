@@ -72,6 +72,20 @@ function normalizeDatabaseUrl(url: string | undefined): string {
 
 const connectionString = normalizeDatabaseUrl(process.env.DATABASE_URL);
 
+function equipmentOperabilityFallback(status: string | null | undefined): string {
+  if (status === "broken") return "broken";
+  if (status === "maintenance") return "on_repair";
+  return "working";
+}
+
+function withEquipmentOperabilityFallback<T extends Equipment | undefined>(item: T): T {
+  if (!item) return item;
+  return {
+    ...item,
+    operabilityStatus: item.operabilityStatus || equipmentOperabilityFallback(item.status),
+  } as T;
+}
+
 // Клиент и db создаются в initDatabase() при успешном подключении
 let client: ReturnType<typeof postgres> | null = null;
 export let db: ReturnType<typeof drizzle> | null = null;
@@ -519,16 +533,18 @@ export class PostgreSQLStorage implements IStorage {
 
   // Equipment
   async getEquipment(): Promise<Equipment[]> {
-    return await db!.select().from(equipment).orderBy(equipment.name);
+    const rows = await db!.select().from(equipment).orderBy(equipment.name);
+    return rows.map((item) => withEquipmentOperabilityFallback(item));
   }
 
   async getEquipmentById(id: string): Promise<Equipment | undefined> {
     const result = await db!.select().from(equipment).where(eq(equipment.id, id)).limit(1);
-    return result[0];
+    return withEquipmentOperabilityFallback(result[0]);
   }
 
   async getEquipmentByStatus(status: string): Promise<Equipment[]> {
-    return await db!.select().from(equipment).where(eq(equipment.status, status)).orderBy(equipment.name);
+    const rows = await db!.select().from(equipment).where(eq(equipment.status, status)).orderBy(equipment.name);
+    return rows.map((item) => withEquipmentOperabilityFallback(item));
   }
 
   async getEquipmentByBarcode(barcode: string): Promise<Equipment | undefined> {
@@ -538,18 +554,18 @@ export class PostgreSQLStorage implements IStorage {
       eq(equipment.inventoryNumber, normalized),
       eq(equipment.serialNumber, normalized),
     )).limit(1);
-    return result[0];
+    return withEquipmentOperabilityFallback(result[0]);
   }
 
   async createEquipment(insertEquipment: InsertEquipment): Promise<Equipment> {
     const id = crypto.randomUUID();
     const result = await db!.insert(equipment).values({ ...insertEquipment, id }).returning();
-    return result[0];
+    return withEquipmentOperabilityFallback(result[0]);
   }
 
   async updateEquipment(id: string, equipmentData: Partial<Equipment>): Promise<Equipment | undefined> {
     const result = await db!.update(equipment).set(equipmentData).where(eq(equipment.id, id)).returning();
-    return result[0];
+    return withEquipmentOperabilityFallback(result[0]);
   }
 
   async deleteEquipment(id: string): Promise<boolean> {
@@ -1879,11 +1895,11 @@ class StubStorage implements IStorage {
     } as User);
     // Тестовые карточки оборудования для локального теста (склад)
     const seedEq: Equipment[] = [
-      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
-      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", location: "Подкаст зона", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Студия А", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", location: "Мобильная съёмка", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", location: "Техническая", assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
+      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Подкаст зона", storageLocation: "Подкаст зона", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", operabilityStatus: "working", location: "Мобильная съёмка", storageLocation: "Мобильная съёмка", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Техническая", storageLocation: "Техническая", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
     ];
     seedEq.forEach((e) => this.equipment.set(e.id, e));
     // Тестовый проект для локального теста (корзина → проект)
@@ -2016,7 +2032,15 @@ class StubStorage implements IStorage {
   }
   async createEquipment(data: InsertEquipment): Promise<Equipment> {
     const id = this.uid();
-    const eq = { ...data, id, createdAt: this.now() } as Equipment;
+    const eq = {
+      ...data,
+      id,
+      operabilityStatus: data.operabilityStatus ?? equipmentOperabilityFallback(data.status),
+      storageLocation: data.storageLocation ?? null,
+      responsiblePerson: data.responsiblePerson ?? null,
+      responsibleContact: data.responsibleContact ?? null,
+      createdAt: this.now(),
+    } as Equipment;
     this.equipment.set(id, eq);
     return eq;
   }
@@ -2145,6 +2169,9 @@ class StubStorage implements IStorage {
       companyId: data.companyId ?? null,
       equipmentId: data.equipmentId,
       requestedBy: data.requestedBy,
+      kanbanCardId: data.kanbanCardId ?? null,
+      taskId: data.taskId ?? null,
+      quantity: data.quantity ?? 1,
       requestType: data.requestType ?? "checkout",
       currentHolder: data.currentHolder ?? null,
       reviewedBy: data.reviewedBy ?? null,
@@ -2877,6 +2904,17 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS archived_at timestamp`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить Kanban V2 schema:", schemaErr);
+      }
+      try {
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS operability_status text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS storage_location text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_person text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_contact text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS kanban_card_id text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS task_id text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 1`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось обновить equipment schema:", schemaErr);
       }
       try {
         await db!.select().from(users).limit(0);

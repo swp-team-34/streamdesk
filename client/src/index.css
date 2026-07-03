@@ -63,6 +63,13 @@ body {
   overflow-x: hidden;
   width: 100%;
 }
+body:has(.tasks-dnd-layout),
+body:has(.tasks-dnd-layout) #root,
+.tasks-dnd-layout,
+.tasks-dnd-layout #main-content,
+.tasks-dnd-layout #main-content main {
+  overflow: visible;
+}
 #main-content main {
   max-width: 1400px;
   margin-left: auto;
@@ -137,14 +144,30 @@ body::-webkit-scrollbar,
 .task-dragging,
 .task-dragging .task-drag-card {
   cursor: grabbing;
-  transition: none !important;
-  will-change: transform;
 }
 .task-dragging .task-drag-card {
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
 }
 .dnd-board-root [data-rfd-placeholder-context-id] {
-  transition: none !important;
+  transition: height 180ms ease, width 180ms ease, margin 180ms ease !important;
+}
+.task-board-column {
+  border-radius: 1.5rem;
+  height: clamp(380px, calc(100vh - 260px), 760px);
+  overflow: visible;
+}
+.task-drop-zone {
+  padding-bottom: 1.5rem;
+  scroll-padding-bottom: 1.5rem;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.kanban-board-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 @media (max-width: 639px) {
   .dnd-board-root {

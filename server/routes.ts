@@ -13,6 +13,7 @@ import {
   insertStreamSchema,
   insertNotificationSchema,
   insertEquipmentReservationSchema,
+  insertEquipmentCheckoutRequestSchema,
   insertTelegramUserSchema,
   insertObsConnectionSchema,
   insertAnalyticsEventSchema,
@@ -3368,6 +3369,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(status ? list : list.filter((item: any) => item.status !== "archived"));
   });
 
+  app.get("/api/equipment/:id", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const id = String(req.params.id || "").trim();
+      if (!id) return res.status(400).json({ message: "Некорректный идентификатор оборудования" });
+
+      const item = await storage.getEquipmentById(id).catch((error) => {
+        console.error("[Equipment] Failed to load equipment details:", error);
+        throw error;
+      });
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      res.json({ ...item, operabilityStatus });
+    } catch (error: any) {
+      const message = error?.message || "Не удалось загрузить оборудование";
+      console.error("[Equipment] Details error:", message);
+      res.status(500).json({ message });
+    }
+  });
+
   app.post("/api/equipment/labels/print", async (req, res) => {
     try {
       if (!(await hasWorkspaceAccess(req.user))) {
@@ -3547,7 +3575,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         notes: body.notes && String(body.notes).trim() ? String(body.notes).trim() : undefined,
         status: body.status && String(body.status).trim() ? String(body.status).trim() : "available",
+        operabilityStatus: body.operabilityStatus && String(body.operabilityStatus).trim()
+          ? String(body.operabilityStatus).trim()
+          : body.status === "broken"
+            ? "broken"
+            : body.status === "maintenance"
+              ? "on_repair"
+              : "working",
         location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        storageLocation: body.storageLocation && String(body.storageLocation).trim() ? String(body.storageLocation).trim() : undefined,
+        responsiblePerson: body.responsiblePerson && String(body.responsiblePerson).trim() ? String(body.responsiblePerson).trim() : undefined,
+        responsibleContact: body.responsibleContact && String(body.responsibleContact).trim() ? String(body.responsibleContact).trim() : undefined,
         photos: Array.isArray(body.photos) ? body.photos : [],
       };
       if (sanitized.barcode) {
@@ -3585,21 +3623,239 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/equipment/:id", async (req, res) => {
     try {
       const { id } = req.params;
-
-      // Only admins can update/promote barcodes (Cr-codes)
-      if (req.body.barcode) {
-        // In production, check user session/role here
-        // For now, allow but log for security
-        console.log("Barcode update/promotion attempted:", req.body.barcode);
+      const body = req.body || {};
+      const existing = await storage.getEquipmentById(id).catch(() => undefined);
+      if (!existing) {
+        return res.status(404).json({ message: "Equipment not found" });
       }
 
-      const equipment = await storage.updateEquipment(id, req.body);
+      // Only admins can update/promote barcodes (Cr-codes)
+      if (body.barcode) {
+        // In production, check user session/role here
+        // For now, allow but log for security
+        console.log("Barcode update/promotion attempted:", body.barcode);
+      }
+
+      const currentOperability = String((existing as any).operabilityStatus || "").trim() ||
+        (existing.status === "broken" ? "broken" : existing.status === "maintenance" ? "on_repair" : "working");
+      if (body.status === "in-use" && currentOperability !== "working") {
+        return res.status(400).json({
+          message: currentOperability === "broken"
+            ? "Оборудование неисправно и недоступно для выдачи"
+            : "Оборудование находится в ремонте и недоступно для выдачи",
+        });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      const copyFields = [
+        "name",
+        "type",
+        "model",
+        "serialNumber",
+        "inventoryNumber",
+        "barcode",
+        "specifications",
+        "notes",
+        "status",
+        "operabilityStatus",
+        "location",
+        "storageLocation",
+        "responsiblePerson",
+        "responsibleContact",
+        "assignedTo",
+        "photos",
+      ];
+      for (const field of copyFields) {
+        if (Object.prototype.hasOwnProperty.call(body, field)) {
+          updateData[field] = body[field];
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "lastUsed")) {
+        if (body.lastUsed === null || body.lastUsed === "") {
+          updateData.lastUsed = null;
+        } else {
+          const lastUsed = body.lastUsed instanceof Date ? body.lastUsed : new Date(body.lastUsed);
+          if (Number.isNaN(lastUsed.getTime())) {
+            return res.status(400).json({ message: "Некорректная дата последнего использования" });
+          }
+          updateData.lastUsed = lastUsed;
+        }
+      }
+
+      const parsed = insertEquipmentSchema.partial().safeParse(updateData);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Проверьте данные оборудования", errors: parsed.error.flatten() });
+      }
+
+      const equipment = await storage.updateEquipment(id, parsed.data as any);
       if (!equipment) {
         return res.status(404).json({ message: "Equipment not found" });
       }
       res.json(equipment);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update equipment" });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to update equipment" });
+    }
+  });
+
+  app.get("/api/equipment-checkout-requests", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+
+      const currentUser = req.user as any;
+      const userCompanyIds = await getUserCompanyIds(currentUser);
+      const manageableCompanyIds = (
+        await Promise.all(userCompanyIds.map(async (companyId) =>
+          (await canManageCompany(currentUser, companyId).catch(() => false)) ? companyId : "",
+        ))
+      ).filter(Boolean);
+      const requests = await storage.getEquipmentCheckoutRequests().catch(() => []);
+
+      if (currentUser?.role === "admin") {
+        return res.json(requests);
+      }
+
+      res.json((requests as any[]).filter((request) => {
+        const companyId = String(request.companyId || "").trim();
+        return request.requestedBy === currentUser?.id ||
+          (companyId && manageableCompanyIds.includes(companyId));
+      }));
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось загрузить запросы на оборудование" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const body = req.body || {};
+      const equipmentId = String(body.equipmentId || "").trim();
+      if (!equipmentId) {
+        return res.status(400).json({ message: "Выберите оборудование для запроса" });
+      }
+
+      const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      if (operabilityStatus !== "working") {
+        return res.status(400).json({
+          message: operabilityStatus === "broken"
+            ? "Оборудование неисправно и недоступно для выдачи"
+            : "Оборудование находится в ремонте и недоступно для выдачи",
+        });
+      }
+
+      const userCompanyIds = await getUserCompanyIds(currentUser);
+      const requestedCompanyId = String(body.companyId || "").trim();
+      const companyId = requestedCompanyId || userCompanyIds[0] || "";
+      if (requestedCompanyId && !userCompanyIds.includes(requestedCompanyId)) {
+        return res.status(403).json({ message: "Нет доступа к этой компании" });
+      }
+
+      const requestType = body.requestType === "transfer" ? "transfer" : "checkout";
+      if (body.quantity === undefined || body.quantity === null || String(body.quantity).trim() === "") {
+        return res.status(400).json({ message: "Количество обязательно" });
+      }
+      const rawQuantity = Number(body.quantity);
+      if (!Number.isInteger(rawQuantity) || rawQuantity <= 0) {
+        return res.status(400).json({ message: "Количество должно быть положительным целым числом" });
+      }
+      const requestData = insertEquipmentCheckoutRequestSchema.parse({
+        companyId: companyId || undefined,
+        equipmentId,
+        requestedBy: currentUser.id,
+        kanbanCardId: body.kanbanCardId && String(body.kanbanCardId).trim() ? String(body.kanbanCardId).trim() : undefined,
+        taskId: body.taskId && String(body.taskId).trim() ? String(body.taskId).trim() : undefined,
+        quantity: rawQuantity,
+        requestType,
+        currentHolder: requestType === "transfer" ? item.assignedTo || null : null,
+        status: "pending",
+        location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        note: body.note && String(body.note).trim() ? String(body.note).trim() : undefined,
+      });
+
+      const request = await storage.createEquipmentCheckoutRequest(requestData);
+      res.json(request);
+    } catch (error: any) {
+      res.status(400).json({ message: error?.message || "Не удалось создать запрос на оборудование" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests/:id/approve", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
+      if (!request) return res.status(404).json({ message: "Запрос не найден" });
+      if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
+
+      const companyId = String(request.companyId || "").trim();
+      const canApprove = currentUser?.role === "admin" ||
+        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (!canApprove) return res.status(403).json({ message: "Нет прав на подтверждение запроса" });
+
+      const item = await storage.getEquipmentById(request.equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") return res.status(404).json({ message: "Оборудование не найдено" });
+      const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
+        (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
+      if (operabilityStatus !== "working") {
+        return res.status(400).json({ message: "Оборудование сейчас недоступно для выдачи" });
+      }
+
+      const updatedEquipment = await storage.updateEquipment(request.equipmentId, {
+        status: "in-use",
+        assignedTo: request.requestedBy,
+        location: request.location || item.location,
+        lastUsed: new Date(),
+      } as any);
+      const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+        status: "approved",
+        reviewedBy: currentUser.id,
+        reviewedAt: new Date(),
+      } as any);
+
+      res.json({ request: updatedRequest, equipment: updatedEquipment });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось подтвердить запрос" });
+    }
+  });
+
+  app.post("/api/equipment-checkout-requests/:id/reject", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
+      if (!request) return res.status(404).json({ message: "Запрос не найден" });
+      if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
+
+      const companyId = String(request.companyId || "").trim();
+      const canReject = currentUser?.role === "admin" ||
+        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (!canReject) return res.status(403).json({ message: "Нет прав на отклонение запроса" });
+
+      const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+        status: "rejected",
+        reviewedBy: currentUser.id,
+        reviewedAt: new Date(),
+        decisionNote: req.body?.decisionNote ? String(req.body.decisionNote).trim() : undefined,
+      } as any);
+
+      res.json({ request: updatedRequest });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось отклонить запрос" });
     }
   });
 
@@ -5900,41 +6156,6 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         // Не прерываем создание задачи, если история не создалась
       }
 
-      // Автоматическое создание события в календаре для задачи с дедлайном
-      if (task.dueDate) {
-        try {
-          const dueDate = new Date(task.dueDate);
-          const startTime = new Date(dueDate);
-          startTime.setHours(9, 0, 0, 0); // Начало в 9:00
-          const endTime = new Date(dueDate);
-          endTime.setHours(18, 0, 0, 0); // Конец в 18:00
-
-          // Проверяем, нет ли уже события для этой задачи
-          const existingEvents = await storage.getEvents();
-          const taskEventExists = existingEvents.some(e =>
-            e.title === `Дедлайн: ${task.title}` &&
-            new Date(e.startTime).toDateString() === dueDate.toDateString()
-          );
-
-          if (!taskEventExists) {
-            await storage.createEvent({
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`,
-              startTime: startTime,
-              endTime: endTime,
-              location: "Офис",
-              organizerId: taskData.creatorId,
-              type: "meeting",
-              status: "scheduled"
-            });
-            console.log("[Tasks] Calendar event created for task deadline:", task.id);
-          }
-        } catch (eventError) {
-          console.warn("[Tasks] Failed to create calendar event:", eventError);
-          // Не прерываем создание задачи, если событие не создалось
-        }
-      }
-
       // Уведомление исполнителю, если задача назначена
       if (task.assigneeId) {
         try {
@@ -6076,46 +6297,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         }
       }
 
-      // Обновление/создание события в календаре для задачи с дедлайном
-      if (task?.dueDate) {
-        try {
-          const dueDate = new Date(task.dueDate);
-          const startTime = new Date(dueDate);
-          startTime.setHours(9, 0, 0, 0);
-          const endTime = new Date(dueDate);
-          endTime.setHours(18, 0, 0, 0);
-
-          const existingEvents = await storage.getEvents();
-          const taskEvent = existingEvents.find(e =>
-            e.title === `Дедлайн: ${task.title}` ||
-            (e.title?.includes(`Дедлайн: ${oldTask.title}`) && oldTask.title === task.title)
-          );
-
-          if (taskEvent) {
-            // Обновляем существующее событие
-            await storage.updateEvent(taskEvent.id, {
-              startTime: startTime,
-              endTime: endTime,
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`
-            });
-          } else {
-            // Создаем новое событие
-            await storage.createEvent({
-              title: `Дедлайн: ${task.title}`,
-              description: task.description || `Задача: ${task.title}`,
-              startTime: startTime,
-              endTime: endTime,
-              location: "Офис",
-              organizerId: task.creatorId,
-              type: "meeting",
-              status: "scheduled"
-            });
-          }
-        } catch (eventError) {
-          console.warn("[Tasks] Failed to update/create calendar event:", eventError);
-        }
-      } else if (oldTask?.dueDate && !task?.dueDate) {
+      if (oldTask?.dueDate && !task?.dueDate) {
         // Если дедлайн удален, удаляем событие из календаря
         try {
           const existingEvents = await storage.getEvents();

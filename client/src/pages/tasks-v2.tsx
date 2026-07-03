@@ -13,6 +13,7 @@ import {
   Layers3,
   LayoutList,
   MoreHorizontal,
+  Package,
   Paperclip,
   Pencil,
   Plus,
@@ -50,6 +51,12 @@ import {
   normalizeDateRange,
   toDateTimeLocalValue,
 } from "@/lib/task-dates";
+import { formatPluralRu } from "@/lib/plural-ru";
+import {
+  getTaskManagerLocationValue,
+  matchesTaskManagerWorkloadFilter,
+  type TaskManagerWorkloadFilter,
+} from "@/lib/task-manager-filters";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -253,6 +260,27 @@ interface KanbanCardAttachmentView {
   updatedAt?: string | Date | null;
 }
 
+interface EquipmentSummaryView {
+  id: string;
+  name: string;
+  model?: string | null;
+}
+
+interface EquipmentCheckoutRequestView {
+  id: string;
+  equipmentId: string;
+  requestedBy: string;
+  kanbanCardId?: string | null;
+  taskId?: string | null;
+  quantity?: number | null;
+  status: string;
+  requestType?: string | null;
+  location?: string | null;
+  note?: string | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
 const EMPTY_BOARD_FORM = {
   companyId: "",
   name: "",
@@ -290,6 +318,7 @@ const LABEL_COLOR_PRESETS = [
 
 const BOARD_VIEW_MODE_STORAGE_KEY = "streamdesk.tasks.v2.viewMode";
 const BOARD_LIST_GROUPING_STORAGE_KEY = "streamdesk.tasks.v2.listGrouping";
+const LIST_VIEW_ALL_DROPPABLE_ID = "list-view:all";
 const DETAIL_AUTOSAVE_DELAY_MS = 700;
 
 const EMPTY_CARD_FORM = {
@@ -336,6 +365,8 @@ const EMPTY_FILTERS = {
   assigneeUserId: "",
   priority: "all",
   dueStatus: "all",
+  workload: "all" as TaskManagerWorkloadFilter,
+  location: "",
   labelId: "",
   labelGroupId: "",
   customFieldValues: {} as Record<string, string>,
@@ -353,6 +384,50 @@ const CARD_PRIORITY_LABELS: Record<KanbanCardPriority, string> = {
   medium: "Средний",
   high: "Высокий",
   urgent: "Срочный",
+};
+
+const CARD_PRIORITY_WEIGHT: Record<KanbanCardPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+const getDeadlineSortBucket = (card: KanbanCardView, listById: Map<string, KanbanListView>) => {
+  const list = listById.get(card.listId);
+  const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
+  if (!card.dueDate || isCompleteLikeList) return 2;
+  return getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList }) === "overdue" ? 0 : 1;
+};
+
+const getTimeValue = (value?: string | Date | null) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? Number.POSITIVE_INFINITY : date.getTime();
+};
+
+const compareCardsByDeadline = (
+  left: KanbanCardView,
+  right: KanbanCardView,
+  listById: Map<string, KanbanListView>,
+) => {
+  const leftBucket = getDeadlineSortBucket(left, listById);
+  const rightBucket = getDeadlineSortBucket(right, listById);
+  if (leftBucket !== rightBucket) return leftBucket - rightBucket;
+
+  const leftDue = getTimeValue(left.dueDate);
+  const rightDue = getTimeValue(right.dueDate);
+  if (leftDue !== rightDue) return leftDue - rightDue;
+
+  const leftPriority = CARD_PRIORITY_WEIGHT[left.priority] ?? CARD_PRIORITY_WEIGHT.medium;
+  const rightPriority = CARD_PRIORITY_WEIGHT[right.priority] ?? CARD_PRIORITY_WEIGHT.medium;
+  if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+
+  const leftCreated = getTimeValue(left.createdAt);
+  const rightCreated = getTimeValue(right.createdAt);
+  if (leftCreated !== rightCreated) return leftCreated - rightCreated;
+
+  return String(left.title || "").localeCompare(String(right.title || ""), "ru", { numeric: true, sensitivity: "base" });
 };
 
 const CUSTOM_FIELD_TYPE_LABELS: Record<KanbanCustomFieldType, string> = {
@@ -428,20 +503,17 @@ const KANBAN_BOARD_GHOST_BADGE_CLASS =
 const toSoftColor = (value?: string | null, alpha = 0.12) => {
   const normalized = String(value || "").trim();
   if (!normalized) return undefined;
+  const percent = Math.min(100, Math.max(0, Math.round(alpha * 100)));
 
   const shortHexMatch = normalized.match(/^#([\da-fA-F]{3})$/);
   if (shortHexMatch) {
-    const [r, g, b] = shortHexMatch[1].split("").map((part) => parseInt(part + part, 16));
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    const hex = shortHexMatch[1].split("").map((part) => part + part).join("");
+    return `color-mix(in srgb, #${hex} ${percent}%, var(--card))`;
   }
 
   const fullHexMatch = normalized.match(/^#([\da-fA-F]{6})$/);
   if (fullHexMatch) {
-    const hex = fullHexMatch[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    return `color-mix(in srgb, #${fullHexMatch[1]} ${percent}%, var(--card))`;
   }
 
   return undefined;
@@ -542,35 +614,8 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const getDraggableCardStyle = (
   style: DraggableStyle | undefined,
-  options: { isDragging: boolean; isDropAnimating: boolean },
 ): CSSProperties | undefined => {
-  if (!style) return style;
-
-  return {
-    ...(style as CSSProperties),
-    transition: options.isDragging
-      ? "none"
-      : options.isDropAnimating
-        ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease"
-        : "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)",
-    willChange: options.isDragging || options.isDropAnimating
-      ? "transform"
-      : (style as CSSProperties).willChange,
-    zIndex: options.isDragging ? 70 : (style as CSSProperties).zIndex,
-    pointerEvents: options.isDragging ? "none" : (style as CSSProperties).pointerEvents,
-    opacity: options.isDragging ? 1 : (style as CSSProperties).opacity,
-  };
-};
-
-const scheduleAfterDndDrop = (callback: () => void) => {
-  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-    callback();
-    return;
-  }
-
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(callback);
-  });
+  return style as CSSProperties | undefined;
 };
 
 const stopInteractiveEvent = (event: {
@@ -599,6 +644,22 @@ const getSubtaskProgress = (subtasks?: KanbanSubtask[] | null) => {
   const normalized = normalizeSubtasks(subtasks);
   const completed = normalized.filter((subtask) => subtask.completed).length;
   return { total: normalized.length, completed };
+};
+
+const getEquipmentRequestStatusLabel = (status: string | null | undefined) => {
+  switch (status) {
+    case "pending": return "Ожидает";
+    case "approved": return "Подтвержден";
+    case "rejected": return "Отклонен";
+    case "cancelled": return "Отменен";
+    default: return status || "Запрос";
+  }
+};
+
+const getEquipmentRequestStatusVariant = (status: string | null | undefined): "default" | "destructive" | "outline" => {
+  if (status === "approved") return "default";
+  if (status === "rejected" || status === "cancelled") return "destructive";
+  return "outline";
 };
 
 interface KanbanCardMoveInput {
@@ -783,6 +844,7 @@ export default function TasksV2Page() {
   const [detailLabelQuery, setDetailLabelQuery] = useState("");
   const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
   const [detailSaveError, setDetailSaveError] = useState("");
+  const [detailHistoryExpanded, setDetailHistoryExpanded] = useState(false);
   const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
   const [editingSettingsLabelId, setEditingSettingsLabelId] = useState<string | null>(null);
   const [editingSettingsLabelName, setEditingSettingsLabelName] = useState("");
@@ -879,6 +941,22 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const { data: equipment = [] } = useQuery<EquipmentSummaryView[]>({
+    queryKey: ["/api/equipment"],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/equipment");
+      return await res.json();
+    },
+  });
+  const { data: equipmentCheckoutRequests = [], isLoading: equipmentRequestsLoading } = useQuery<EquipmentCheckoutRequestView[]>({
+    queryKey: ["/api/equipment-checkout-requests"],
+    enabled: !!selectedBoardId,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/equipment-checkout-requests");
+      return await res.json();
+    },
+  });
   const selectedDetailCardSummary = useMemo(
     () => cards.find((card) => card.id === detailCardId) ?? null,
     [cards, detailCardId],
@@ -939,6 +1017,21 @@ export default function TasksV2Page() {
     () => new Map(boardLabels.map((label) => [label.id, label])),
     [boardLabels],
   );
+  const equipmentById = useMemo(
+    () => new Map(equipment.map((item) => [item.id, item])),
+    [equipment],
+  );
+  const equipmentRequestsByCardId = useMemo(() => {
+    const grouped = new Map<string, EquipmentCheckoutRequestView[]>();
+    for (const request of equipmentCheckoutRequests) {
+      const cardId = String(request.kanbanCardId || "").trim();
+      if (!cardId) continue;
+      const existing = grouped.get(cardId) ?? [];
+      existing.push(request);
+      grouped.set(cardId, existing);
+    }
+    return grouped;
+  }, [equipmentCheckoutRequests]);
   const activeCustomFields = useMemo(
     () => normalizeCustomFieldDefinitions(boardCustomFields.length > 0 ? boardCustomFields : selectedBoard?.customFields),
     [boardCustomFields, selectedBoard?.customFields],
@@ -999,6 +1092,23 @@ export default function TasksV2Page() {
     () => cards.filter((card) => getDueDateStatus(card.dueDate) === "overdue").length,
     [cards],
   );
+  const taskWorkloadStats = useMemo(() => {
+    const listById = new Map(lists.map((list) => [list.id, list]));
+    const isCompleteLike = (card: KanbanCardView) => {
+      const list = listById.get(card.listId);
+      return list?.type === "closed" || list?.type === "archive";
+    };
+    const isTrash = (card: KanbanCardView) => listById.get(card.listId)?.type === "trash";
+    const active = cards.filter((card) => !isCompleteLike(card) && !isTrash(card)).length;
+    const completed = cards.filter(isCompleteLike).length;
+    const inProgress = cards.filter((card) => listById.get(card.listId)?.type === "active").length;
+    const overdue = cards.filter((card) => {
+      if (isCompleteLike(card) || isTrash(card)) return false;
+      return getDueDateStatus(card.dueDate) === "overdue";
+    }).length;
+
+    return { active, completed, overdue, inProgress };
+  }, [cards, lists]);
   const boardCompletionStats = useMemo(() => {
     const listById = new Map(lists.map((list) => [list.id, list]));
     const overview = getCompletionSummary(cards, listById);
@@ -1126,18 +1236,33 @@ export default function TasksV2Page() {
       cardFilters.assigneeUserId !== "" ||
       cardFilters.priority !== "all" ||
       cardFilters.dueStatus !== "all" ||
+      cardFilters.workload !== "all" ||
+      cardFilters.location !== "" ||
       cardFilters.labelId !== "" ||
       cardFilters.labelGroupId !== "" ||
       Object.values(cardFilters.customFieldValues).some((value) => value.trim() !== ""),
     [cardFilters],
   );
+
+  const locationFilterOptions = useMemo(() => {
+    const locations = new Set<string>();
+    for (const card of cards) {
+      const location = getTaskManagerLocationValue(card.customFieldValues, activeCustomFields);
+      if (location) locations.add(location);
+    }
+    return Array.from(locations).sort((left, right) => left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" }));
+  }, [activeCustomFields, cards]);
+
   const filteredCards = useMemo(() => {
     const search = cardFilters.search.trim().toLowerCase();
     const listById = new Map(lists.map((list) => [list.id, list]));
+    const now = new Date();
 
     return cards.filter((card) => {
+      const list = listById.get(card.listId);
+      const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
+
       if (search) {
-        const list = listById.get(card.listId);
         const labelTexts = normalizeLabelIds(card.labelIds).flatMap((labelId) => {
           const label = labelById.get(labelId);
           const group = label?.groupId ? labelGroupById.get(label.groupId) : null;
@@ -1162,7 +1287,6 @@ export default function TasksV2Page() {
       }
 
       if (cardFilters.status !== "all") {
-        const list = listById.get(card.listId);
         if (cardFilters.status.startsWith("list:")) {
           if (card.listId !== cardFilters.status.slice(5)) return false;
         } else if (cardFilters.status.startsWith("type:")) {
@@ -1200,10 +1324,21 @@ export default function TasksV2Page() {
       }
 
       if (cardFilters.dueStatus !== "all") {
-        const list = listById.get(card.listId);
-        const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
         if (dueStatus !== cardFilters.dueStatus) return false;
+      }
+
+      if (!matchesTaskManagerWorkloadFilter(
+        { assigneeUserId: card.assigneeUserId, dueDate: card.dueDate, listType: list?.type },
+        cardFilters.workload,
+        now,
+      )) {
+        return false;
+      }
+
+      if (cardFilters.location) {
+        const location = getTaskManagerLocationValue(card.customFieldValues, activeCustomFields);
+        if (location !== cardFilters.location) return false;
       }
 
       return true;
@@ -1243,6 +1378,7 @@ export default function TasksV2Page() {
 
   const listViewGroups = useMemo(() => {
     const groups = new Map<string, { id: string; title: string; cards: KanbanCardView[]; droppableListId?: string }>();
+    const listById = new Map(lists.map((list) => [list.id, list]));
     const addCard = (id: string, title: string, card: KanbanCardView, droppableListId?: string) => {
       const group = groups.get(id) ?? { id, title, cards: [], droppableListId };
       group.cards.push(card);
@@ -1256,13 +1392,13 @@ export default function TasksV2Page() {
       }
 
       if (listGrouping === "list") {
-        const list = lists.find((item) => item.id === card.listId);
+        const list = listById.get(card.listId);
         addCard(card.listId || "no-list", list?.name || "Без списка", card, card.listId || undefined);
         continue;
       }
 
       if (listGrouping === "due") {
-        const list = lists.find((item) => item.id === card.listId);
+        const list = listById.get(card.listId);
         const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
         addCard(dueStatus, getDueDateStatusLabel(dueStatus), card);
@@ -1297,10 +1433,11 @@ export default function TasksV2Page() {
     return Array.from(groups.values()).map((group) => ({
       ...group,
       cards: [...group.cards].sort((a, b) => {
-        if (!listGrouping.startsWith("field:")) return Number(a.position) - Number(b.position);
+        const deadlineOrder = compareCardsByDeadline(a, b, listById);
+        if (deadlineOrder !== 0 || !listGrouping.startsWith("field:")) return deadlineOrder;
         const fieldId = listGrouping.slice("field:".length);
         const field = activeCustomFields.find((item) => item.id === fieldId);
-        if (!field) return Number(a.position) - Number(b.position);
+        if (!field) return deadlineOrder;
         const left = formatCustomFieldValue(field, a.customFieldValues?.[field.id], userById);
         const right = formatCustomFieldValue(field, b.customFieldValues?.[field.id], userById);
         return left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" });
@@ -1366,28 +1503,63 @@ export default function TasksV2Page() {
     }
 
     if (entry.action === "updated" || entry.action === "created") {
-      const fieldLines: Array<[boolean, string]> = [
-        [oldValue?.title !== newValue?.title && newValue?.title !== undefined, `Название: ${String(newValue?.title || "Без названия")}`],
-        [oldValue?.description !== newValue?.description && newValue?.description !== undefined, `Описание обновлено`],
-        [oldValue?.priority !== newValue?.priority && newValue?.priority !== undefined, `Приоритет: ${CARD_PRIORITY_LABELS[String(newValue?.priority) as KanbanCardPriority] || String(newValue?.priority)}`],
-        [oldValue?.listId !== newValue?.listId && newValue?.listId !== undefined, `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue?.listId)}`],
-        [oldValue?.assigneeUserId !== newValue?.assigneeUserId && newValue?.assigneeUserId !== undefined, `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue?.assigneeUserId)}`],
-        [String(oldValue?.startDate || "") !== String(newValue?.startDate || "") && newValue?.startDate !== undefined, `Старт: ${formatDueDateLabel(oldValue?.startDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.startDate as string | Date | null) || "Не задан"}`],
-        [String(oldValue?.dueDate || "") !== String(newValue?.dueDate || "") && newValue?.dueDate !== undefined, `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue?.dueDate as string | Date | null) || "Не задан"}`],
-      ];
+      const isCreated = entry.action === "created";
+      const oldDescription = String(oldValue?.description || "").trim();
+      const newDescription = String(newValue?.description || "").trim();
+      const oldStartDate = String(oldValue?.startDate || "");
+      const newStartDate = String(newValue?.startDate || "");
+      const oldDueDate = String(oldValue?.dueDate || "");
+      const newDueDate = String(newValue?.dueDate || "");
 
-      for (const [shouldAdd, text] of fieldLines) {
-        if (shouldAdd) lines.push(text);
+      if (newValue?.title !== undefined && (isCreated || oldValue?.title !== newValue.title)) {
+        lines.push(`Название: ${String(newValue.title || "Без названия")}`);
+      }
+
+      if (newValue?.description !== undefined && oldDescription !== newDescription) {
+        if (newDescription) {
+          lines.push(isCreated ? "Описание добавлено" : "Описание обновлено");
+        } else if (!isCreated && oldDescription) {
+          lines.push("Описание очищено");
+        }
+      }
+
+      if (
+        newValue?.priority !== undefined &&
+        (isCreated ? newValue.priority && newValue.priority !== "medium" : oldValue?.priority !== newValue.priority)
+      ) {
+        lines.push(`Приоритет: ${CARD_PRIORITY_LABELS[String(newValue.priority) as KanbanCardPriority] || String(newValue.priority)}`);
+      }
+
+      if (newValue?.listId !== undefined && (isCreated ? newValue.listId : oldValue?.listId !== newValue.listId)) {
+        lines.push(isCreated ? `Список: ${getListNameById(newValue.listId)}` : `Список: ${getListNameById(oldValue?.listId)} -> ${getListNameById(newValue.listId)}`);
+      }
+
+      if (
+        newValue?.assigneeUserId !== undefined &&
+        (isCreated ? newValue.assigneeUserId : oldValue?.assigneeUserId !== newValue.assigneeUserId)
+      ) {
+        lines.push(isCreated ? `Исполнитель: ${getUserNameById(newValue.assigneeUserId)}` : `Исполнитель: ${getUserNameById(oldValue?.assigneeUserId)} -> ${getUserNameById(newValue.assigneeUserId)}`);
+      }
+
+      if (newValue?.startDate !== undefined && (isCreated ? newStartDate : oldStartDate !== newStartDate)) {
+        lines.push(isCreated ? `Старт: ${formatDueDateLabel(newValue.startDate as string | Date | null) || "Не задан"}` : `Старт: ${formatDueDateLabel(oldValue?.startDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue.startDate as string | Date | null) || "Не задан"}`);
+      }
+
+      if (newValue?.dueDate !== undefined && (isCreated ? newDueDate : oldDueDate !== newDueDate)) {
+        lines.push(isCreated ? `Срок: ${formatDueDateLabel(newValue.dueDate as string | Date | null) || "Не задан"}` : `Срок: ${formatDueDateLabel(oldValue?.dueDate as string | Date | null) || "Не задан"} -> ${formatDueDateLabel(newValue.dueDate as string | Date | null) || "Не задан"}`);
       }
 
       if (entry.action === "created" && !lines.length) {
         lines.push("Карточка создана и готова к работе");
       }
 
-      if (oldValue?.subtasks !== newValue?.subtasks && newValue?.subtasks !== undefined) {
+      if (newValue?.subtasks !== undefined) {
         const before = getSubtaskProgress(oldValue?.subtasks as KanbanSubtask[] | null);
         const after = getSubtaskProgress(newValue?.subtasks as KanbanSubtask[] | null);
-        lines.push(`Подзадачи: ${before.completed}/${before.total} -> ${after.completed}/${after.total}`);
+        const subtaskProgressChanged = before.completed !== after.completed || before.total !== after.total;
+        if ((isCreated && after.total > 0) || (!isCreated && subtaskProgressChanged)) {
+          lines.push(`Подзадачи: ${before.completed}/${before.total} -> ${after.completed}/${after.total}`);
+        }
       }
     }
 
@@ -1455,6 +1627,7 @@ export default function TasksV2Page() {
     setDetailCardForm(EMPTY_CARD_FORM);
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailHistoryExpanded(false);
     detailLastSavedSignatureRef.current = "";
     if (detailAutosaveTimerRef.current) {
       clearTimeout(detailAutosaveTimerRef.current);
@@ -2418,6 +2591,7 @@ export default function TasksV2Page() {
   };
 
   const handleOpenCardDetail = (cardId: string) => {
+    setDetailHistoryExpanded(false);
     setDetailCardId(cardId);
   };
 
@@ -2450,6 +2624,7 @@ export default function TasksV2Page() {
     setDetailSubtaskDraft("");
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailHistoryExpanded(false);
   };
 
   const handleEditLabel = (label: KanbanLabelView) => {
@@ -2682,11 +2857,9 @@ export default function TasksV2Page() {
       const [movedId] = reorderedIds.splice(sourceIndex, 1);
       if (!movedId) return;
       reorderedIds.splice(destinationIndex, 0, movedId);
-      scheduleAfterDndDrop(() => {
-        moveListMutation.mutate({
-          boardId: selectedBoardId,
-          listIds: reorderedIds,
-        });
+      moveListMutation.mutate({
+        boardId: selectedBoardId,
+        listIds: reorderedIds,
       });
       return;
     }
@@ -2694,14 +2867,29 @@ export default function TasksV2Page() {
     if (moveCardMutation.isPending) return;
 
     const cardId = draggableId.startsWith("card:") ? draggableId.slice("card:".length) : draggableId;
+    const movingCard = cards.find((card) => card.id === cardId);
+    let targetListId = destination.droppableId;
+    let targetPosition = destination.index;
 
-    scheduleAfterDndDrop(() => {
-      moveCardMutation.mutate({
-        boardId: selectedBoardId,
-        cardId,
-        targetListId: destination.droppableId,
-        targetPosition: destination.index,
-      });
+    if (destination.droppableId === LIST_VIEW_ALL_DROPPABLE_ID) {
+      const visibleCards = [...(listViewGroups.find((group) => group.id === "all")?.cards ?? [])];
+      const [visibleMovingCard] = visibleCards.splice(source.index, 1);
+
+      if (!visibleMovingCard || visibleMovingCard.id !== cardId) return;
+
+      visibleCards.splice(destination.index, 0, visibleMovingCard);
+      targetListId = String(movingCard?.listId || visibleMovingCard.listId);
+      targetPosition = visibleCards
+        .slice(0, destination.index)
+        .filter((card) => String(card.listId) === targetListId)
+        .length;
+    }
+
+    moveCardMutation.mutate({
+      boardId: selectedBoardId,
+      cardId,
+      targetListId,
+      targetPosition,
     });
   };
 
@@ -2840,6 +3028,7 @@ export default function TasksV2Page() {
     const cardLabels = normalizeLabelIds(card.labelIds)
       .map((labelId) => labelById.get(labelId))
       .filter((label): label is KanbanLabelView => Boolean(label));
+    const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
 
     return (
       <div className="grid gap-2 rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center">
@@ -2866,7 +3055,7 @@ export default function TasksV2Page() {
           ) : (
             <button
               type="button"
-              className="block max-w-full truncate text-left font-medium text-slate-900 hover:underline dark:text-slate-100"
+              className="block max-w-full truncate text-left font-medium text-foreground hover:underline"
               title={canEditSelectedBoard ? "Двойной клик для переименования" : card.title}
               onDoubleClick={() => handleBeginInlineCardTitleEdit(card)}
             >
@@ -2874,6 +3063,11 @@ export default function TasksV2Page() {
             </button>
           )}
           {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
+          {equipmentRequestCount > 0 && (
+            <Badge variant="outline" className="mt-2 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+              Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
+            </Badge>
+          )}
           {activeCustomFields.some((field) => field.showInList !== false && formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)) && (
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {activeCustomFields
@@ -2922,7 +3116,7 @@ export default function TasksV2Page() {
             <span
               key={label.id}
               className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.5)" }}
+              style={{ backgroundColor: label.color || "var(--muted)" }}
               title={label.name}
             />
           ))}
@@ -3020,7 +3214,7 @@ export default function TasksV2Page() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-6 p-4 pt-5 [--kanban-card-end:rgba(148,163,184,0.26)] [--kanban-card-start:rgba(226,232,240,0.78)] [--kanban-drag-card-start:rgba(226,232,240,0.94)] [--kanban-lane-empty:rgba(15,23,42,0.05)] [--kanban-lane-fallback:rgba(100,116,139,0.16)] [--kanban-list-end:rgba(148,163,184,0.32)] [--kanban-list-header:rgba(226,232,240,0.72)] [--kanban-list-over-end:rgba(148,163,184,0.42)] [--kanban-list-over-start:rgba(226,232,240,0.84)] [--kanban-list-start:rgba(226,232,240,0.68)] dark:[--kanban-card-end:rgba(30,41,59,0.88)] dark:[--kanban-card-start:rgba(27,38,56,0.98)] dark:[--kanban-drag-card-start:rgba(30,41,59,0.98)] dark:[--kanban-lane-empty:rgba(15,23,42,0.72)] dark:[--kanban-lane-fallback:rgba(15,23,42,0.62)] dark:[--kanban-list-end:rgba(23,32,51,0.94)] dark:[--kanban-list-header:rgba(23,32,51,0.9)] dark:[--kanban-list-over-end:rgba(30,41,59,0.98)] dark:[--kanban-list-over-start:rgba(23,32,51,0.98)] dark:[--kanban-list-start:rgba(17,24,39,0.98)] sm:p-6 sm:pt-6">
+    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-6 p-4 pt-5 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-6 sm:pt-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <DropdownMenu>
@@ -3124,9 +3318,9 @@ export default function TasksV2Page() {
                 Статистика доски
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>Всего досок: {boards.length}</DropdownMenuItem>
-              <DropdownMenuItem disabled>Личных: {personalBoards.length}</DropdownMenuItem>
-              <DropdownMenuItem disabled>Просрочено: {overdueCardsCount}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Всего: {formatPluralRu(boards.length, "доска", "доски", "досок")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Личных: {formatPluralRu(personalBoards.length, "доска", "доски", "досок")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Просрочено: {formatPluralRu(overdueCardsCount, "карточка", "карточки", "карточек")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => selectedBoard && handleEditBoard(selectedBoard)}>
                 <Pencil className="h-4 w-4" />
@@ -3242,6 +3436,24 @@ export default function TasksV2Page() {
               </div>
             )}
           </div>
+          {selectedBoard && (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Активные", value: taskWorkloadStats.active },
+                { label: "Выполненные", value: taskWorkloadStats.completed },
+                { label: "Просроченные", value: taskWorkloadStats.overdue },
+                { label: "В работе", value: taskWorkloadStats.inProgress },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-border/35 bg-muted/20 px-3 py-2"
+                >
+                  <div className="text-xs text-muted-foreground">{item.label}</div>
+                  <div className="mt-1 text-xl font-semibold text-foreground">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="min-w-0 overflow-visible">
           {!selectedBoard ? (
@@ -3258,13 +3470,13 @@ export default function TasksV2Page() {
                   </Card>
                 ) : boardViewMode === "kanban" ? (
                   <DragDropContext onDragEnd={handleBoardDragEnd}>
-                    <div className="kanban-board-scroll w-full max-w-full min-w-0 overflow-x-auto overflow-y-visible px-1 pb-3 pr-6">
-                      <Droppable droppableId="board-lists" direction="horizontal" type="LIST">
+                    <div className="kanban-board-scroll w-full max-w-full min-w-0 px-1 pb-3 pr-6">
+                      <Droppable droppableId="board-lists" direction="horizontal" type="LIST" ignoreContainerClipping>
                         {(listDropProvided) => (
                           <div
 	                            ref={listDropProvided.innerRef}
 	                            {...listDropProvided.droppableProps}
-	                            className="dnd-board-root flex w-max min-w-full items-stretch gap-4 overflow-visible"
+	                            className="dnd-board-root flex w-max min-w-full items-start gap-4 overflow-visible"
 	                          >
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
@@ -3284,11 +3496,11 @@ export default function TasksV2Page() {
                               <div
                                 ref={listDragProvided.innerRef}
                                 {...listDragProvided.draggableProps}
-                                className={["task-board-column h-full w-[320px] shrink-0", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
-                                style={getDraggableCardStyle(listDragProvided.draggableProps.style, {
-                                  isDragging: listDragSnapshot.isDragging,
-                                  isDropAnimating: listDragSnapshot.isDropAnimating,
-                                })}
+                                className={["task-board-column flex w-[320px] shrink-0 self-start", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                style={{
+                                  ...getDraggableCardStyle(listDragProvided.draggableProps.style),
+                                  borderRadius: 24,
+                                }}
                               >
                           <Droppable
                             droppableId={list.id}
@@ -3299,9 +3511,9 @@ export default function TasksV2Page() {
                             {(provided, snapshot) => (
                               <Card
                                 className={[
-                                  "h-full overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
+                                  "flex h-full min-h-[360px] w-full flex-col overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
                                   snapshot.isDraggingOver || listDragSnapshot.isDragging
-                                    ? "border-sky-400/70 shadow-lg shadow-sky-900/10 ring-2 ring-sky-300/30 dark:border-blue-400/60 dark:ring-blue-400/20"
+                                    ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
                                     : "hover:border-border/70 hover:shadow-md",
                                 ].join(" ").trim()}
                                 style={{
@@ -3311,7 +3523,7 @@ export default function TasksV2Page() {
                                 }}
                               >
                                 <CardHeader
-                                  className="space-y-4 border-b border-border/35"
+                                  className="space-y-4 rounded-t-[24px] border-b border-border/35"
                                   style={{ backgroundColor: listHeaderTint || listTint || "var(--kanban-list-header)" }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
@@ -3343,33 +3555,33 @@ export default function TasksV2Page() {
                                             }}
                                           />
                                         ) : (
-                                          <CardTitle className="text-base font-semibold tracking-tight text-slate-900 break-words dark:text-slate-100">{list.name}</CardTitle>
+                                          <CardTitle className="text-base font-semibold tracking-tight text-foreground break-words">{list.name}</CardTitle>
                                         )}
                                         {list.color && (
                                           <span
-                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-slate-800/10 shadow-sm"
+                                            className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-border/35 shadow-sm"
                                             style={{ backgroundColor: list.color }}
                                           />
                                         )}
                                       </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-2">
-	                                      {canEditSelectedBoard && (
-	                                        <>
-	                                          <div
-	                                            role="button"
-	                                            tabIndex={0}
-	                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-900/[0.06] hover:text-slate-800 active:cursor-grabbing dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
-	                                            aria-label="Перетащить список"
-	                                            title="Перетащить список"
-	                                            {...listDragProvided.dragHandleProps}
-	                                          >
-	                                            <GripVertical className="h-4 w-4" />
-	                                          </div>
+                                      {canEditSelectedBoard && (
+                                        <>
+                                          <div
+                                            role="button"
+                                            tabIndex={0}
+                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                                            aria-label="Перетащить список"
+                                            title="Перетащить список"
+                                            {...listDragProvided.dragHandleProps}
+                                          >
+                                            <GripVertical className="h-4 w-4" />
+                                          </div>
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
                                             aria-label="Редактировать список"
                                             title="Редактировать список"
                                             onClick={() => handleEditList(list)}
@@ -3382,7 +3594,7 @@ export default function TasksV2Page() {
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                                className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
                                                 aria-label="Настройки списка"
                                                 title="Настройки списка"
                                                 disabled={isListPending}
@@ -3481,7 +3693,7 @@ export default function TasksV2Page() {
                                     </div>
                                   </div>
                                 </CardHeader>
-                                <CardContent className="space-y-4 p-4">
+                                <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 p-4">
                                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                     <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                       Тип: {LIST_TYPE_LABELS[list.type]}
@@ -3534,7 +3746,7 @@ export default function TasksV2Page() {
                                       ) : (
                                         <button
                                           type="button"
-                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-slate-900/[0.055] hover:text-slate-900 dark:hover:bg-slate-900/70 dark:hover:text-slate-100"
+                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
                                           onClick={() => {
                                             setInlineCardListId(list.id);
                                             setInlineCardTitle("");
@@ -3551,7 +3763,7 @@ export default function TasksV2Page() {
 	                                  <div
 	                                    ref={provided.innerRef}
 	                                    {...provided.droppableProps}
-	                                    className={["space-y-3 min-h-[180px] transition-colors", snapshot.isDraggingOver ? "rounded-2xl bg-primary/5" : ""].join(" ")}
+	                                    className={["task-drop-zone min-h-[180px] flex-1 space-y-3 overflow-y-auto pr-1 transition-[background-color,border-color] duration-150", snapshot.isDraggingOver ? "rounded-2xl bg-muted/30" : ""].join(" ")}
 	                                  >
                                     {listCards.length === 0 && !snapshot.isDraggingOver && (
                                       <div className="rounded-[18px] border border-dashed border-border/45 bg-muted/20 px-3 py-5 text-sm leading-6 text-muted-foreground">
@@ -3573,6 +3785,7 @@ export default function TasksV2Page() {
                                       const cardLabels = normalizeLabelIds(card.labelIds)
                                         .map((labelId) => labelById.get(labelId))
                                         .filter((label): label is KanbanLabelView => Boolean(label));
+                                      const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
 
                                       return (
                                         <Draggable
@@ -3587,21 +3800,18 @@ export default function TasksV2Page() {
                                               ref={dragProvided.innerRef}
                                               {...dragProvided.draggableProps}
                                               {...dragProvided.dragHandleProps}
-                                              className={["task-drag-card", dragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
-                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
-                                                isDragging: dragSnapshot.isDragging,
-                                                isDropAnimating: dragSnapshot.isDropAnimating,
-                                              })}
+                                              className={["task-drag-card w-full", dragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                              style={getDraggableCardStyle(dragProvided.draggableProps.style)}
                                             >
                                               <div
                                                 className={[
-                                                  "group rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none dark:text-slate-100",
+                                                  "group w-full rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none text-card-foreground",
                                                   dueDateStatusClasses.card,
                                                   dragSnapshot.isDragging
-                                                    ? "border-sky-300/80 shadow-xl shadow-slate-900/15 ring-2 ring-sky-300/30 dark:border-blue-400/70 dark:ring-blue-400/20"
+                                                    ? "border-border/70 shadow-xl shadow-black/10 ring-2 ring-border/35"
                                                     : dragSnapshot.isDropAnimating
-                                                      ? "border-sky-200/70 shadow-lg shadow-slate-900/10 dark:border-blue-400/50"
-                                                      : "hover:border-slate-500/25 hover:shadow-md dark:hover:border-slate-600",
+                                                      ? "border-border/60 shadow-lg shadow-black/10"
+                                                      : "hover:border-border hover:shadow-md dark:hover:border-border",
                                                 ].join(" ").trim()}
                                                 style={{
                                                   background: dragSnapshot.isDragging
@@ -3609,7 +3819,7 @@ export default function TasksV2Page() {
                                                     : `linear-gradient(180deg, var(--kanban-card-start), ${listCardTint || "var(--kanban-card-end)"})`,
                                                   borderColor: dragSnapshot.isDragging || dragSnapshot.isDropAnimating
                                                     ? undefined
-                                                    : (list.color || "rgba(100,116,139,0.18)"),
+                                                    : (list.color || "hsl(var(--app-border))"),
                                                 }}
                                               >
                                                 <div className="flex gap-3">
@@ -3617,10 +3827,10 @@ export default function TasksV2Page() {
                                                     <div className="flex items-start justify-between gap-3">
                                                       <div className="flex min-w-0 gap-2">
                                                         {canEditSelectedBoard && (
-	                                                          <div
-	                                                            className="task-drag-handle shrink-0 self-center rounded-xl p-1.5 text-slate-500 transition group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200"
-	                                                            style={{ backgroundColor: listTint || "rgba(100,116,139,0.14)" }}
-	                                                          >
+                                                          <div
+                                                            className="task-drag-handle shrink-0 self-center rounded-xl p-1.5 text-muted-foreground transition group-hover:text-foreground"
+                                                            style={{ backgroundColor: listTint || "var(--muted)" }}
+                                                          >
                                                             <GripVertical className="h-4 w-4" />
                                                           </div>
                                                         )}
@@ -3649,7 +3859,7 @@ export default function TasksV2Page() {
                                                             />
                                                           ) : (
                                                             <p
-                                                              className="font-medium break-words text-slate-900 dark:text-slate-100"
+                                                              className="font-medium break-words text-foreground"
                                                               title={canEditSelectedBoard ? "Двойной клик для переименования" : undefined}
                                                               onDoubleClick={(event) => {
                                                                 stopInteractiveEvent(event);
@@ -3686,6 +3896,11 @@ export default function TasksV2Page() {
                                                           Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
                                                         </span>
                                                       )}
+                                                      {equipmentRequestCount > 0 && (
+                                                        <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                                                          Оборудование: {equipmentRequestCount}
+                                                        </span>
+                                                      )}
                                                     </div>
 
                                                     {cardLabels.length > 0 && (
@@ -3696,8 +3911,8 @@ export default function TasksV2Page() {
                                                             variant="outline"
                                                             className="gap-1 rounded-full border-transparent"
                                                             style={{
-                                                              backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
-                                                              color: "#111827",
+                                                              backgroundColor: label.color || "var(--muted)",
+                                                              color: "hsl(var(--foreground))",
                                                             }}
                                                           >
                                                             {label.name}
@@ -3723,11 +3938,11 @@ export default function TasksV2Page() {
                                                     )}
                                                   </div>
 
-                                                  <div className="flex shrink-0 flex-col items-center gap-2 border-l border-slate-500/10 pl-2 dark:border-slate-700/60">
+                                                  <div className="flex shrink-0 flex-col items-center gap-2 border-l border-border/40 pl-2">
                                                     <Button
                                                       variant="ghost"
                                                       size="icon"
-                                                      className="h-8 w-8 rounded-xl text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                                                      className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
                                                       aria-label="Редактировать карточку"
                                                       title="Редактировать карточку"
                                                       onMouseDown={stopInteractiveEvent}
@@ -3790,7 +4005,7 @@ export default function TasksV2Page() {
 	                      })}
 	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
-                        <Card className="flex h-auto min-h-[220px] w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
+                        <Card className="task-board-column flex w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
                           <CardContent className="flex w-full flex-col justify-start p-4">
                             {inlineListOpen ? (
                               <div className="space-y-3">
@@ -3833,7 +4048,7 @@ export default function TasksV2Page() {
                             ) : (
                               <button
                                 type="button"
-                                className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-[20px] text-sm font-medium text-muted-foreground transition hover:bg-slate-900/[0.045] hover:text-slate-900 dark:hover:bg-slate-900/70 dark:hover:text-slate-100"
+                                className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-[20px] text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
                                 onClick={() => {
                                   setInlineListOpen(true);
                                   setInlineListTitle("");
@@ -3856,7 +4071,12 @@ export default function TasksV2Page() {
 	                  <div className="space-y-3">
 	                      <DragDropContext onDragEnd={handleBoardDragEnd}>
 	                        {listViewGroups.map((group) => {
-	                          const canDropInGroup = listGrouping === "list" && Boolean(group.droppableListId);
+	                          const listViewDroppableId =
+                              listGrouping === "list" && group.droppableListId
+                                ? group.droppableListId
+                                : listGrouping === "none" && group.id === "all"
+                                  ? LIST_VIEW_ALL_DROPPABLE_ID
+                                  : null;
 	                          const draftValue = listViewGroupDrafts[group.id] || "";
 	                          const draftListId = group.droppableListId || listViewDraftListId || lists[0]?.id || "";
 	                          return (
@@ -3908,8 +4128,8 @@ export default function TasksV2Page() {
 	                                  </Button>
 	                                </div>
 	                              )}
-	                              {canDropInGroup ? (
-	                                <Droppable droppableId={group.droppableListId!} type="CARD">
+	                              {listViewDroppableId ? (
+	                                <Droppable droppableId={listViewDroppableId} type="CARD">
 	                                  {(provided) => (
 	                                    <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[96px] space-y-2 p-3">
 	                                      {group.cards.map((card, index) => (
@@ -3919,10 +4139,7 @@ export default function TasksV2Page() {
 	                                              ref={dragProvided.innerRef}
 	                                              {...dragProvided.draggableProps}
 	                                              {...dragProvided.dragHandleProps}
-	                                              style={getDraggableCardStyle(dragProvided.draggableProps.style, {
-	                                                isDragging: dragSnapshot.isDragging,
-	                                                isDropAnimating: dragSnapshot.isDropAnimating,
-	                                              })}
+	                                              style={getDraggableCardStyle(dragProvided.draggableProps.style)}
 	                                            >
 	                                              {renderListViewCardRow(card)}
 	                                            </div>
@@ -3957,7 +4174,7 @@ export default function TasksV2Page() {
 	      </Card>
 
       <Dialog open={filtersDialogOpen} onOpenChange={setFiltersDialogOpen}>
-        <DialogContent className="max-w-md border-border/50 bg-card text-card-foreground">
+        <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
           <DialogHeader>
             <DialogTitle>Фильтры</DialogTitle>
             <DialogDescription>Быстрые срезы по карточкам текущей доски.</DialogDescription>
@@ -4024,6 +4241,48 @@ export default function TasksV2Page() {
                   <option value="upcoming">Запланировано</option>
                   <option value="complete">Завершено</option>
                   <option value="none">Без срока</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-workload">Нагрузка</label>
+                <select
+                  id="kanban-mobile-filter-workload"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.workload}
+                  onChange={(event) =>
+                    setCardFilters((prev) => ({
+                      ...prev,
+                      workload: event.target.value as TaskManagerWorkloadFilter,
+                    }))
+                  }
+                >
+                  <option value="all">Любая нагрузка</option>
+                  <option value="overdue">Просроченные</option>
+                  <option value="due-soon">Горят в 24 часа</option>
+                  <option value="in-progress">В работе</option>
+                  <option value="completed">Выполненные</option>
+                  <option value="unassigned">Без исполнителя</option>
+                  <option value="no-deadline">Без срока</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-location">Локация</label>
+                <select
+                  id="kanban-mobile-filter-location"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.location}
+                  onChange={(event) => setCardFilters((prev) => ({ ...prev, location: event.target.value }))}
+                >
+                  <option value="">Все локации</option>
+                  {locationFilterOptions.length === 0 ? (
+                    <option value="__empty" disabled>Локации не найдены</option>
+                  ) : (
+                    locationFilterOptions.map((location) => (
+                      <option key={location} value={location}>{location}</option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
@@ -4223,10 +4482,10 @@ export default function TasksV2Page() {
       </Dialog>
 
       <Dialog open={!!detailCardId} onOpenChange={(open) => !open && handleCloseCardDetail()}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-slate-500/20 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(226,232,240,0.92))] p-0 shadow-2xl shadow-slate-900/20 dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.98),rgba(11,16,32,0.98))] dark:text-slate-100">
+        <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
           {!selectedDetailCard ? (
             <>
-              <DialogHeader className="border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5 dark:border-slate-700/70 dark:bg-slate-950/30">
+              <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
                 <DialogTitle>Карточка</DialogTitle>
                 <DialogDescription>Загружаем детали карточки...</DialogDescription>
               </DialogHeader>
@@ -4241,10 +4500,13 @@ export default function TasksV2Page() {
                   selectedDetailList?.type === "trash";
                 const dueDateStatus = getDueDateStatus(selectedDetailCard.dueDate, { isComplete: isCompleteLikeList });
                 const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
+                const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
+                const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
+                const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
 
                 return (
                   <>
-              <DialogHeader className="space-y-3 border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5 dark:border-slate-700/70 dark:bg-slate-950/30">
+              <DialogHeader className="space-y-3 border-b border-border/35 bg-muted/20 px-6 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                   <div className="space-y-1">
                     <DialogTitle className="break-words text-2xl font-semibold tracking-tight">{selectedDetailCard.title}</DialogTitle>
@@ -4256,7 +4518,7 @@ export default function TasksV2Page() {
                     <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[selectedDetailCard.priority]} className="rounded-full">
                       {CARD_PRIORITY_LABELS[selectedDetailCard.priority]}
                     </Badge>
-                    {selectedDetailList && <Badge variant="outline" className="rounded-full border-slate-500/20 bg-slate-900/[0.04] dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">{selectedDetailList.name}</Badge>}
+                    {selectedDetailList && <Badge variant="outline" className="rounded-full border-border/40 bg-muted/30 text-muted-foreground">{selectedDetailList.name}</Badge>}
                     <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
                       {getDueDateStatusLabel(dueDateStatus)}
                     </Badge>
@@ -4264,7 +4526,7 @@ export default function TasksV2Page() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6 px-6 py-6">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -4320,7 +4582,7 @@ export default function TasksV2Page() {
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="kanban-detail-priority">
                       Приоритет
@@ -4417,8 +4679,8 @@ export default function TasksV2Page() {
                           type="button"
                           className="inline-flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5 text-sm"
                           style={{
-                            backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
-                            color: "#111827",
+                            backgroundColor: label.color || "var(--muted)",
+                            color: "hsl(var(--foreground))",
                           }}
                           onClick={() => handleRemoveDetailLabel(label.id)}
                           disabled={!canEditSelectedBoard}
@@ -4431,14 +4693,14 @@ export default function TasksV2Page() {
                       );
                     })}
                     {detailCardForm.labelIds.length === 0 && (
-                      <span className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-3 py-2 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                      <span className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-3 py-2 text-sm text-muted-foreground ">
                         У карточки пока нет меток.
                       </span>
                     )}
                   </div>
 
                   {canEditSelectedBoard && (
-                    <div className="space-y-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40">
+                    <div className="space-y-2 rounded-2xl border border-border/35 bg-muted/20 p-3 ">
                       <Input
                         id="kanban-detail-label-query"
                         value={detailLabelQuery}
@@ -4461,8 +4723,8 @@ export default function TasksV2Page() {
                           <button
                             key={label.id}
                             type="button"
-                            className="rounded-full border border-slate-500/15 px-3 py-1.5 text-sm transition hover:border-slate-500/35"
-                            style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.16)" }}
+                            className="rounded-full border border-border/35 px-3 py-1.5 text-sm transition hover:border-border"
+                            style={{ backgroundColor: label.color || "var(--muted)" }}
                             onClick={() => handleAttachDetailLabel(label.id)}
                             disabled={saveCardDetailMutation.isPending}
                           >
@@ -4571,12 +4833,71 @@ export default function TasksV2Page() {
                             variant="outline"
                             className="rounded-full border-transparent"
                             style={{
-                              backgroundColor: label.color || "rgba(148, 163, 184, 0.18)",
-                              color: "#111827",
+                              backgroundColor: label.color || "var(--muted)",
+                              color: "hsl(var(--foreground))",
                             }}
                           >
                             {label.name}
                           </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">Запросы оборудования</h3>
+                      <p className="text-xs text-muted-foreground">Связанные заявки на выдачу или перенос техники.</p>
+                    </div>
+                    {equipmentRequestsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                  </div>
+
+                  {detailEquipmentRequests.length === 0 ? (
+                    <div className="mt-3 rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                      К этой карточке пока не привязаны запросы оборудования.
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid gap-3">
+                      {detailEquipmentRequests.map((request) => {
+                        const equipmentItem = equipmentById.get(request.equipmentId);
+                        const requester = userById.get(request.requestedBy);
+                        const quantity = Math.max(1, Number(request.quantity || 1));
+
+                        return (
+                          <div
+                            key={request.id}
+                            className="rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 font-medium">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                  <span className="break-words">
+                                    {equipmentItem?.name || request.equipmentId}
+                                  </span>
+                                </div>
+                                {equipmentItem?.model && (
+                                  <div className="mt-1 text-xs text-muted-foreground">{equipmentItem.model}</div>
+                                )}
+                              </div>
+                              <Badge variant={getEquipmentRequestStatusVariant(request.status)} className="rounded-full">
+                                {getEquipmentRequestStatusLabel(request.status)}
+                              </Badge>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                              <span>Запросил: {requester?.name || requester?.username || request.requestedBy}</span>
+                              <span>Количество: {quantity}</span>
+                              {request.location && <span>Локация: {request.location}</span>}
+                              {request.createdAt && <span>Создан: {formatDueDateLabel(request.createdAt) || "Неизвестно"}</span>}
+                            </div>
+                            {request.note && (
+                              <div className="mt-3 rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                                {request.note}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -4592,7 +4913,7 @@ export default function TasksV2Page() {
                   </div>
 
                   {normalizeSubtasks(selectedDetailCard.subtasks).length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                    <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground ">
                       У этой карточки пока нет подзадач.
                     </div>
                   ) : (
@@ -4600,7 +4921,7 @@ export default function TasksV2Page() {
                       {normalizeSubtasks(selectedDetailCard.subtasks).map((subtask) => (
                         <div
                           key={subtask.id}
-                          className="flex items-center gap-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-3 py-2.5 dark:border-slate-700/80 dark:bg-slate-950/40"
+                          className="flex items-center gap-2 rounded-2xl border border-border/35 bg-muted/20 px-3 py-2.5 "
                         >
                           <input
                             type="checkbox"
@@ -4700,12 +5021,12 @@ export default function TasksV2Page() {
 
                   <div className="space-y-3">
                     {detailCardAttachments.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                      <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground ">
                         У этой карточки пока нет вложений.
                       </div>
                     ) : (
                       detailCardAttachments.map((attachment) => (
-                        <div key={attachment.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 dark:border-slate-700/80 dark:bg-slate-950/40">
+                        <div key={attachment.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4 ">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1">
                               <div className="flex items-center gap-2">
@@ -4720,7 +5041,7 @@ export default function TasksV2Page() {
                                 </a>
                               </div>
                               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1">
+                                <span className="rounded-full border border-border/35 bg-muted/30 px-2 py-1">
                                 {formatFileSize(attachment.fileSize)} · {attachment.mimeType || "unknown"} ·{" "}
                                 {formatDueDateLabel(attachment.createdAt) || "Неизвестное время"}
                                 </span>
@@ -4784,32 +5105,58 @@ export default function TasksV2Page() {
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                   <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold">Activity Log</h3>
-                    {detailCardHistoryLoading && (
-                      <span className="text-xs text-muted-foreground">Обновляем историю...</span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold">Activity Log</h3>
+                      {detailCardHistory.length > 0 && (
+                        <Badge variant="outline" className="rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+                          {detailCardHistory.length}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {detailCardHistoryLoading && (
+                        <span className="text-xs text-muted-foreground">Обновляем историю...</span>
+                      )}
+                      {detailCardHistory.length > 3 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-xl text-xs text-muted-foreground"
+                          onClick={() => setDetailHistoryExpanded((prev) => !prev)}
+                        >
+                          {detailHistoryExpanded ? "Свернуть" : `Показать все (${hiddenHistoryCount})`}
+                          <ChevronDown
+                            className={[
+                              "ml-1 h-3.5 w-3.5 transition-transform",
+                              detailHistoryExpanded ? "rotate-180" : "",
+                            ].join(" ")}
+                          />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {detailCardHistory.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                    <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground ">
                       Для этой карточки пока нет записанной истории.
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {detailCardHistory.map((entry) => {
+                      {visibleHistoryEntries.map((entry) => {
                         const changeLines = getHistoryChangeLines(entry);
 
                         return (
-                          <div key={entry.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 dark:border-slate-700/80 dark:bg-slate-950/40">
+                          <div key={entry.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4 ">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-sm font-medium">
                                 {userById.get(entry.userId)?.name || entry.userId}
                               </div>
-                              <div className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1 text-xs text-muted-foreground">
+                              <div className="rounded-full border border-border/35 bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
                                 {formatDueDateLabel(entry.createdAt) || "Неизвестное время"}
                               </div>
                             </div>
-                            <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                            <p className="mt-2 text-sm font-medium text-foreground">
                               {getKanbanHistoryActionLabel(entry.action)}
                             </p>
                             {changeLines.length > 0 && (
@@ -4817,7 +5164,7 @@ export default function TasksV2Page() {
                                 {changeLines.map((line, index) => (
                                   <div
                                     key={`${entry.id}-${index}`}
-                                    className="rounded-xl border border-slate-500/10 bg-slate-50/70 px-3 py-2 text-sm dark:border-slate-700/70 dark:bg-slate-900/70"
+                                    className="rounded-xl border border-border/35 bg-background/70 px-3 py-2 text-sm "
                                   >
                                     {line}
                                   </div>
@@ -4843,18 +5190,18 @@ export default function TasksV2Page() {
 
                   <div className="space-y-3">
                     {detailCardComments.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-6 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                      <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground ">
                         У этой карточки пока нет комментариев.
                       </div>
                     ) : (
                       detailCardComments.map((comment) => (
-                        <div key={comment.id} className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 space-y-3 dark:border-slate-700/80 dark:bg-slate-950/40">
+                        <div key={comment.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4 space-y-3 ">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="text-sm font-medium">
                               {userById.get(comment.userId)?.name || comment.userId}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="rounded-full border border-slate-500/15 bg-slate-900/[0.04] px-2 py-1 text-xs text-muted-foreground">
+                              <span className="rounded-full border border-border/35 bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
                                 {formatDueDateLabel(comment.createdAt) || "Неизвестное время"}
                               </span>
                               {canEditSelectedBoard && (
@@ -4873,7 +5220,7 @@ export default function TasksV2Page() {
                               )}
                             </div>
                           </div>
-                          <p className="rounded-xl border border-slate-500/10 bg-slate-50/70 px-3 py-3 text-sm leading-6 whitespace-pre-wrap break-words dark:border-slate-700/70 dark:bg-slate-900/70">
+                          <p className="rounded-xl border border-border/35 bg-background/70 px-3 py-3 text-sm leading-6 whitespace-pre-wrap break-words ">
                             {comment.content}
                           </p>
                         </div>
@@ -4909,22 +5256,23 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-	                <div className="sticky bottom-0 -mx-6 mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-500/15 bg-slate-50/95 px-6 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/95">
-	                  <div className="text-sm text-muted-foreground">
-	                    {detailSaveStatus === "saving" && "Сохраняется..."}
-	                    {detailSaveStatus === "saved" && "Сохранено"}
-	                    {detailSaveStatus === "dirty" && (detailCardForm.title.trim() ? "Есть несохраненные изменения" : "Введите название, чтобы сохранить")}
-	                    {detailSaveStatus === "error" && `Ошибка сохранения: ${detailSaveError}`}
-	                    {detailSaveStatus === "idle" && "Изменения сохраняются автоматически"}
-	                  </div>
-	                  <div className="flex flex-wrap justify-end gap-2">
-	                    <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
-	                      Закрыть
-	                    </Button>
-	                  </div>
-	                </div>
+	              </div>
+
+              <div className="flex shrink-0 flex-col gap-3 border-t border-border/35 bg-card px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-sm text-muted-foreground">
+                  {detailSaveStatus === "saving" && "Сохраняется..."}
+                  {detailSaveStatus === "saved" && "Сохранено"}
+                  {detailSaveStatus === "dirty" && (detailCardForm.title.trim() ? "Есть несохраненные изменения" : "Введите название, чтобы сохранить")}
+                  {detailSaveStatus === "error" && `Ошибка сохранения: ${detailSaveError}`}
+                  {detailSaveStatus === "idle" && "Изменения сохраняются автоматически"}
+                </div>
+                <div className="flex shrink-0 justify-end gap-2">
+                  <Button variant="outline" className="rounded-xl" onClick={handleCloseCardDetail}>
+                    Закрыть
+                  </Button>
+                </div>
               </div>
-                  </>
+	                  </>
                 );
               })()}
             </>
@@ -5028,8 +5376,8 @@ export default function TasksV2Page() {
       </Dialog>
 
       <Dialog open={boardSettingsOpen} onOpenChange={setBoardSettingsOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-slate-500/20 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(226,232,240,0.92))] p-0 shadow-2xl shadow-slate-900/20 dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.98),rgba(11,16,32,0.98))] dark:text-slate-100">
-          <DialogHeader className="border-b border-slate-500/15 bg-slate-900/[0.03] px-6 py-5 dark:border-slate-700/70 dark:bg-slate-950/30">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
+          <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
             <DialogTitle>Настройки доски</DialogTitle>
             <DialogDescription>
               {selectedBoard ? `${selectedBoard.name}: участники и палитра меток.` : "Выберите доску, чтобы управлять настройками."}
@@ -5053,7 +5401,7 @@ export default function TasksV2Page() {
               </div>
 
               {!isSelectedBoardPersonal && selectedBoard?.canManage && (
-                <div className="mt-4 grid gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
+                <div className="mt-4 grid gap-3 rounded-2xl border border-border/35 bg-muted/20 p-3 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
                   <select
                     className={KANBAN_PANEL_SELECT_CLASS}
                     value={memberForm.userId}
@@ -5091,7 +5439,7 @@ export default function TasksV2Page() {
                     <option value="editor">editor</option>
                   </select>
 
-                  <label className="flex items-center gap-2 rounded-xl border border-slate-500/15 bg-slate-950/[0.02] px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950/50">
+                  <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-sm">
                     <input
                       type="checkbox"
                       checked={memberForm.role === "editor" ? true : memberForm.canComment}
@@ -5122,7 +5470,7 @@ export default function TasksV2Page() {
               {!isSelectedBoardPersonal && (
                 <div className="mt-4 space-y-2">
                   {boardMembers.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                    <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground ">
                       В этой доске пока нет отдельных участников.
                     </div>
                   ) : (
@@ -5132,7 +5480,7 @@ export default function TasksV2Page() {
                       return (
                         <div
                           key={member.id}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] px-4 py-3 dark:border-slate-700/80 dark:bg-slate-950/40"
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 "
                         >
                           <div className="min-w-0">
                             <div className="font-medium">{user?.name || member.userId}</div>
@@ -5228,11 +5576,16 @@ export default function TasksV2Page() {
                   activeLabelGroups.map((group) => (
                     <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/30 bg-muted/15 px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color || "hsl(var(--primary))" }} />
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color || "var(--primary)" }} />
                         <div>
                           <div className="font-medium">{group.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {boardLabels.filter((label) => label.groupId === group.id).length} меток
+                            {formatPluralRu(
+                              boardLabels.filter((label) => label.groupId === group.id).length,
+                              "метка",
+                              "метки",
+                              "меток",
+                            )}
                           </div>
                         </div>
                       </div>
@@ -5273,7 +5626,7 @@ export default function TasksV2Page() {
 	              </div>
 
 	              {canEditSelectedBoard && (
-	                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-500/15 bg-slate-900/[0.025] p-3 dark:border-slate-700/80 dark:bg-slate-950/40">
+	                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-border/35 bg-muted/20 p-3 ">
 	                  <Input
 	                    value={settingsLabelDraft}
 	                    onChange={(event) => setSettingsLabelDraft(event.target.value)}
@@ -5295,14 +5648,14 @@ export default function TasksV2Page() {
 
 	              <div className="mt-4 space-y-3">
                 {boardLabels.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-400/25 bg-slate-900/[0.025] px-4 py-5 text-sm text-muted-foreground dark:border-slate-700/80 dark:bg-slate-950/40">
+                  <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground ">
                     Меток пока нет. Создай первую из detail modal карточки.
                   </div>
                 ) : (
                   boardLabels.map((label) => (
                     <div
                       key={label.id}
-                      className="rounded-2xl border border-slate-500/15 bg-slate-900/[0.03] p-4 dark:border-slate-700/80 dark:bg-slate-950/40"
+                      className="rounded-2xl border border-border/35 bg-muted/20 p-4 "
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
 	                        {editingSettingsLabelId === label.id ? (
@@ -5328,7 +5681,7 @@ export default function TasksV2Page() {
 	                          <Badge
 	                            variant="outline"
 	                            className="cursor-text rounded-full border-transparent px-3 py-1.5"
-	                            style={{ backgroundColor: label.color || "rgba(148, 163, 184, 0.18)", color: "#111827" }}
+	                            style={{ backgroundColor: label.color || "var(--muted)", color: "hsl(var(--foreground))" }}
 	                            onDoubleClick={() => handleBeginSettingsLabelEdit(label)}
 	                          >
 	                            {label.name}
@@ -5542,7 +5895,7 @@ export default function TasksV2Page() {
             </div>
           </div>
 
-          <DialogFooter className="border-t border-slate-500/15 bg-slate-900/[0.03] px-6 py-4 dark:border-slate-700/70 dark:bg-slate-950/30">
+          <DialogFooter className="border-t border-border/35 bg-muted/20 px-6 py-4">
             <Button variant="outline" className="rounded-xl" onClick={() => setBoardSettingsOpen(false)}>
               Закрыть
             </Button>

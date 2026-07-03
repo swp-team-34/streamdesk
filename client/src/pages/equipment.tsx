@@ -169,6 +169,26 @@ function getEquipmentComments(item: Equipment | null | undefined): EquipmentComm
     .filter((comment) => comment.text);
 }
 
+function getEquipmentStorageLocation(item: Equipment | null | undefined) {
+  return String(item?.storageLocation || item?.location || "").trim();
+}
+
+function getEquipmentResponsiblePerson(item: Equipment | null | undefined) {
+  return String(item?.responsiblePerson || "").trim();
+}
+
+function getEquipmentResponsibleContact(item: Equipment | null | undefined) {
+  return String(item?.responsibleContact || "").trim();
+}
+
+function getEquipmentOperabilityStatus(item: Equipment | null | undefined) {
+  const explicit = String(item?.operabilityStatus || "").trim();
+  if (explicit) return explicit;
+  if (item?.status === "broken") return "broken";
+  if (item?.status === "maintenance") return "on_repair";
+  return "working";
+}
+
 function isSuperPosition(item: Equipment | null | undefined) {
   const specs = asRecord(item?.specifications);
   return specs.isSuperPosition === true || specs.bundleType === "super_position";
@@ -213,6 +233,7 @@ function getBundleComponents(item: Equipment | null | undefined, allEquipment: E
 export default function EquipmentPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [operabilityFilter, setOperabilityFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -240,6 +261,8 @@ export default function EquipmentPage() {
   const [requestEquipment, setRequestEquipment] = useState<Equipment | null>(null);
   const [requestLocation, setRequestLocation] = useState<string>("");
   const [requestNote, setRequestNote] = useState<string>("");
+  const [requestQuantity, setRequestQuantity] = useState<string>("1");
+  const [requestLinkId, setRequestLinkId] = useState<string>("none");
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
   const [bundleType, setBundleType] = useState("computer");
@@ -265,6 +288,22 @@ export default function EquipmentPage() {
 
   const { data: projects = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["/api/projects"],
+  });
+
+  const { data: tasks = [] } = useQuery<Array<{ id: string; title: string; status?: string | null }>>({
+    queryKey: ["/api/tasks"],
+    enabled: Boolean(currentUser?.id),
+  });
+
+  const { data: kanbanCards = [] } = useQuery<Array<{
+    id: string;
+    title: string;
+    boardName?: string | null;
+    listName?: string | null;
+    listType?: string | null;
+  }>>({
+    queryKey: ["/api/kanban/cards"],
+    enabled: Boolean(currentUser?.id),
   });
 
   const { data: equipmentOnProjects = [] } = useQuery<Array<{ equipmentId: string; projectId: string; projectName?: string; sentAt?: string; returnDate: string; returnTime?: string; assignedByName: string; assignedByUserId?: string }>>({
@@ -294,6 +333,9 @@ export default function EquipmentPage() {
     location?: string | null;
     note?: string | null;
     decisionNote?: string | null;
+    kanbanCardId?: string | null;
+    taskId?: string | null;
+    quantity?: number | null;
     createdAt?: string;
     updatedAt?: string;
     reviewedAt?: string | null;
@@ -458,6 +500,10 @@ export default function EquipmentPage() {
   });
 
   const addToCart = (item: Equipment) => {
+    if (!isEquipmentOperable(item)) {
+      toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+      return;
+    }
     if (cart.some((e) => e.id === item.id)) return;
     setCart((prev) => [...prev, item]);
     toast({ title: "В корзине", description: `${item.name} добавлено в корзину` });
@@ -494,9 +540,10 @@ export default function EquipmentPage() {
                          item.inventoryNumber?.toLowerCase().includes(searchLower) ||
                          item.barcode?.toLowerCase().includes(searchLower);
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesOperability = operabilityFilter === "all" || getEquipmentOperabilityStatus(item) === operabilityFilter;
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     
-    return matchesSearch && matchesStatus && matchesType && matchesEmployeeFilter(item);
+    return matchesSearch && matchesStatus && matchesOperability && matchesType && matchesEmployeeFilter(item);
   });
 
   const getStatusColor = (status: string) => {
@@ -517,6 +564,34 @@ export default function EquipmentPage() {
       case "broken": return "Сломано";
       default: return status;
     }
+  };
+
+  const getOperabilityColor = (status: string) => {
+    switch (status) {
+      case "working": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+      case "broken": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+      case "on_repair": return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
+      default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+    }
+  };
+
+  const getOperabilityText = (status: string) => {
+    switch (status) {
+      case "working": return "Исправно";
+      case "broken": return "Неисправно";
+      case "on_repair": return "В ремонте";
+      default: return status || "Исправно";
+    }
+  };
+
+  const isEquipmentOperable = (item: Equipment | null | undefined) =>
+    getEquipmentOperabilityStatus(item) === "working";
+
+  const getInoperableMessage = (item: Equipment | null | undefined) => {
+    const status = getEquipmentOperabilityStatus(item);
+    return status === "broken"
+      ? "Оборудование помечено как неисправное и недоступно для выдачи."
+      : "Оборудование находится в ремонте и недоступно для выдачи.";
   };
 
   const getTypeIcon = (type: string) => {
@@ -552,12 +627,16 @@ export default function EquipmentPage() {
       "Название",
       "Модель",
       "Статус",
+      "Исправность",
       "Сотрудник",
       "Проект",
       "Серийный номер",
       "Инв. номер",
       "Штрихкод",
       "Место",
+      "Место хранения",
+      "Ответственный",
+      "Контакт ответственного",
       "Тех. характеристики",
       "Комментарий",
     ];
@@ -569,18 +648,22 @@ export default function EquipmentPage() {
           item.name ?? "",
           item.model ?? "",
           getStatusText(item.status ?? ""),
+          getOperabilityText(getEquipmentOperabilityStatus(item)),
           getAssignedUserName(item.assignedTo),
           projectInfo?.projectName ?? "",
           item.serialNumber ?? "",
           item.inventoryNumber ?? "",
           String(item.barcode ?? "").trim(),
           item.location ?? "",
+          getEquipmentStorageLocation(item),
+          getEquipmentResponsiblePerson(item),
+          getEquipmentResponsibleContact(item),
           getSpecificationEntries(item.specifications).map(([key, value]) => `${key}: ${value}`).join("\n"),
           String(item.notes ?? "").trim(),
         ];
       })
       .sort((left, right) =>
-        `${left[0]}|${left[4]}|${left[1]}`.localeCompare(`${right[0]}|${right[4]}|${right[1]}`, "ru"),
+        `${left[0]}|${left[5]}|${left[1]}`.localeCompare(`${right[0]}|${right[5]}|${right[1]}`, "ru"),
       );
     const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
     const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8" });
@@ -803,12 +886,18 @@ export default function EquipmentPage() {
       note,
       companyId,
       requestType,
+      quantity,
+      kanbanCardId,
+      taskId,
     }: {
       equipmentId: string;
       location?: string;
       note?: string;
       companyId?: string;
       requestType?: "checkout" | "transfer";
+      quantity: number;
+      kanbanCardId?: string;
+      taskId?: string;
     }) => {
       const response = await apiRequest("POST", "/api/equipment-checkout-requests", {
         equipmentId,
@@ -816,6 +905,9 @@ export default function EquipmentPage() {
         note,
         companyId,
         requestType,
+        quantity,
+        kanbanCardId,
+        taskId,
       });
       return response.json();
     },
@@ -831,6 +923,8 @@ export default function EquipmentPage() {
       setRequestEquipment(null);
       setRequestLocation("");
       setRequestNote("");
+      setRequestQuantity("1");
+      setRequestLinkId("none");
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось отправить запрос", variant: "destructive" });
@@ -934,6 +1028,7 @@ export default function EquipmentPage() {
           : apiRequest("POST", "/api/equipment-checkout-requests", {
               equipmentId: item.id,
               companyId: primaryCompanyId,
+              quantity: 1,
               location: item.location || `У сотрудника ${currentUser?.name || currentUser?.username || ""}`.trim(),
             }),
       );
@@ -1179,6 +1274,7 @@ export default function EquipmentPage() {
   const overdueCount = equipmentOnProjects.filter((x) => isReturnOverdue(x.returnDate, x.returnTime)).length;
   const activeFilterCount =
     Number(statusFilter !== "all") +
+    Number(operabilityFilter !== "all") +
     Number(typeFilter !== "all") +
     Number(Boolean(searchTerm.trim())) +
     Number(canApproveCheckout && employeeFilter !== "all");
@@ -1196,8 +1292,21 @@ export default function EquipmentPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="h-8 w-48 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+          <div className="h-10 w-32 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-900/[0.02] p-3 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-56 animate-pulse rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1568,6 +1677,18 @@ export default function EquipmentPage() {
                 </SelectContent>
               </Select>
 
+              <Select value={operabilityFilter} onValueChange={setOperabilityFilter}>
+                <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectValue placeholder="Исправность" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любая исправность</SelectItem>
+                  <SelectItem value="working">Исправно</SelectItem>
+                  <SelectItem value="broken">Неисправно</SelectItem>
+                  <SelectItem value="on_repair">В ремонте</SelectItem>
+                </SelectContent>
+              </Select>
+
               {canApproveCheckout && (
                 <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
                   <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
@@ -1597,6 +1718,7 @@ export default function EquipmentPage() {
                   onClick={() => {
                     setSearchTerm("");
                     setStatusFilter("all");
+                    setOperabilityFilter("all");
                     setTypeFilter("all");
                     setEmployeeFilter("all");
                   }}
@@ -1689,6 +1811,18 @@ export default function EquipmentPage() {
           </SelectContent>
         </Select>
 
+        <Select value={operabilityFilter} onValueChange={setOperabilityFilter}>
+          <SelectTrigger className="w-full sm:w-[155px] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+            <SelectValue placeholder="Исправность" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Исправность</SelectItem>
+            <SelectItem value="working">Исправно</SelectItem>
+            <SelectItem value="broken">Неисправно</SelectItem>
+            <SelectItem value="on_repair">В ремонте</SelectItem>
+          </SelectContent>
+        </Select>
+
         {canApproveCheckout && (
           <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
             <SelectTrigger className="w-full sm:w-[190px] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
@@ -1717,6 +1851,7 @@ export default function EquipmentPage() {
           onClick={() => {
             setSearchTerm("");
             setStatusFilter("all");
+            setOperabilityFilter("all");
             setTypeFilter("all");
             setEmployeeFilter("all");
           }}
@@ -1801,6 +1936,9 @@ export default function EquipmentPage() {
                     )}
                     <div className="text-sm text-slate-500 dark:text-slate-400">
                       {requestType === "transfer" ? "Просит перенести" : "Запросил"}: {requester || "Сотрудник"}
+                    </div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                      Количество: {Math.max(1, Number(request.quantity || 1))}
                     </div>
                     {requestType === "transfer" && currentHolderName && (
                       <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -1905,6 +2043,10 @@ export default function EquipmentPage() {
                 getSpecificationEntries(item.specifications).length > 0,
             );
             const itemComments = getEquipmentComments(item);
+            const storageLocation = getEquipmentStorageLocation(item);
+            const responsiblePerson = getEquipmentResponsiblePerson(item);
+            const responsibleContact = getEquipmentResponsibleContact(item);
+            const operabilityStatus = getEquipmentOperabilityStatus(item);
             const canRequestThisItem = !userCanReserve && !canReturnOwnItem && canRequestEquipmentItem(item, projectInfo);
 
             return (
@@ -1921,9 +2063,9 @@ export default function EquipmentPage() {
                 }}
                 className="cursor-pointer overflow-hidden border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700 dark:bg-slate-800/90 dark:hover:border-slate-600"
               >
-              <CardHeader className="space-y-2 p-3 pb-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-2">
+              <CardHeader className="space-y-3 p-3 pb-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <div className="flex min-w-0 items-center pr-0 sm:pr-2">
                     <div
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
@@ -1936,34 +2078,9 @@ export default function EquipmentPage() {
                         title="Выбрать для выгрузки в Excel"
                       />
                     </div>
-                    {projectInfo ? (
-                      <Badge className="max-w-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
-                        На проекте
-                      </Badge>
-                    ) : pendingRequest ? (
-                      <Badge className="max-w-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        {requestedByMe
-                          ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
-                          : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
-                      </Badge>
-                    ) : (
-                      <Badge className={`${getStatusColor(item.status)} text-[11px]`}>
-                        {getStatusText(item.status)}
-                      </Badge>
-                    )}
-                    {isSuperPosition(item) && (
-                      <Badge className="bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        Сборка
-                      </Badge>
-                    )}
-                    {getParentBundleName(item) && (
-                      <Badge className="bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                        В сборке
-                      </Badge>
-                    )}
                   </div>
 
-                  <div className="flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:max-w-[220px]">
+                  <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:w-auto sm:max-w-[248px] sm:justify-end">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2039,6 +2156,10 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (item.status !== "in-use" && !isEquipmentOperable(item)) {
+                            toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+                            return;
+                          }
                           setSelectedEquipment(item);
                           setFormMode("take_return");
                           setIsFormOpen(true);
@@ -2071,6 +2192,10 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (!isEquipmentOperable(item)) {
+                            toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
+                            return;
+                          }
                           setRequestEquipment(item);
                           setRequestLocation(item.location || "");
                           setRequestNote("");
@@ -2208,11 +2333,20 @@ export default function EquipmentPage() {
                       <span className="max-w-full min-w-0 break-all text-left font-medium sm:max-w-[68%] sm:text-right">{item.inventoryNumber}</span>
                     </div>
                   )}
-                  {item.location && (
-                    <div className="flex items-start gap-1.5">
-                      <MapPin className="w-3 h-3 text-slate-400 mt-1 shrink-0" />
-                      <span className="text-slate-500 dark:text-slate-400 shrink-0">Место:</span>
-                      <span className="ml-auto max-w-[68%] min-w-0 break-words text-right font-medium">{item.location}</span>
+                  {storageLocation && (
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                      <MapPin className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
+                      <span className="text-slate-500 dark:text-slate-400">Хранение:</span>
+                      <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">{storageLocation}</span>
+                    </div>
+                  )}
+                  {(responsiblePerson || responsibleContact) && (
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                      <User className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
+                      <span className="text-slate-500 dark:text-slate-400">Ответственный:</span>
+                      <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
+                        {[responsiblePerson, responsibleContact].filter(Boolean).join(" · ")}
+                      </span>
                     </div>
                   )}
                   {itemComments.length > 0 && (
@@ -2253,6 +2387,36 @@ export default function EquipmentPage() {
                       </div>
                     </div>
                   )}
+                  <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
+                    {projectInfo ? (
+                      <Badge className="max-w-full rounded-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                        На проекте
+                      </Badge>
+                    ) : pendingRequest ? (
+                      <Badge className="max-w-full rounded-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        {requestedByMe
+                          ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
+                          : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
+                      </Badge>
+                    ) : (
+                      <Badge className={`${getStatusColor(item.status)} max-w-full rounded-full text-[11px]`}>
+                        {getStatusText(item.status)}
+                      </Badge>
+                    )}
+                    {isSuperPosition(item) && (
+                      <Badge className="max-w-full rounded-full bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Сборка
+                      </Badge>
+                    )}
+                    <Badge className={`${getOperabilityColor(operabilityStatus)} max-w-full rounded-full text-[11px]`}>
+                      {getOperabilityText(operabilityStatus)}
+                    </Badge>
+                    {getParentBundleName(item) && (
+                      <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        В сборке
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardContent>
               </Card>
@@ -2280,6 +2444,12 @@ export default function EquipmentPage() {
         onClose={() => setIsScannerOpen(false)}
         onEquipmentFound={(foundEquipment: Equipment) => {
           if (userCanReserve) {
+            if (foundEquipment.status !== "in-use" && !isEquipmentOperable(foundEquipment)) {
+              toast({ title: "Недоступно для выдачи", description: getInoperableMessage(foundEquipment), variant: "destructive" });
+              setDetailsEquipment(foundEquipment);
+              setIsScannerOpen(false);
+              return;
+            }
             setSelectedEquipment(foundEquipment);
             setFormMode("take_return");
             setIsFormOpen(true);
@@ -2288,6 +2458,12 @@ export default function EquipmentPage() {
             setFormMode("full");
             setIsFormOpen(true);
           } else if (canRequestEquipmentItem(foundEquipment, getOnProjectInfo(foundEquipment.id))) {
+            if (!isEquipmentOperable(foundEquipment)) {
+              toast({ title: "Недоступно для выдачи", description: getInoperableMessage(foundEquipment), variant: "destructive" });
+              setDetailsEquipment(foundEquipment);
+              setIsScannerOpen(false);
+              return;
+            }
             setRequestEquipment(foundEquipment);
             setRequestLocation(foundEquipment.location || "");
             setRequestNote("");
@@ -2400,6 +2576,8 @@ export default function EquipmentPage() {
             setRequestEquipment(null);
             setRequestLocation("");
             setRequestNote("");
+            setRequestQuantity("1");
+            setRequestLinkId("none");
           }
         }}
       >
@@ -2424,6 +2602,9 @@ export default function EquipmentPage() {
                 {requestEquipment.model && (
                   <div className="text-sm text-slate-500 dark:text-slate-400">{requestEquipment.model}</div>
                 )}
+                <Badge className={`mt-2 ${getOperabilityColor(getEquipmentOperabilityStatus(requestEquipment))}`}>
+                  {getOperabilityText(getEquipmentOperabilityStatus(requestEquipment))}
+                </Badge>
               </div>
 
               {getCheckoutRequestType(undefined, requestEquipment) === "transfer" && requestEquipment.assignedTo && (
@@ -2441,6 +2622,55 @@ export default function EquipmentPage() {
                   onChange={(event) => setRequestLocation(event.target.value)}
                   placeholder="Например: студия А, выезд, монтажная"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Количество *</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={requestQuantity}
+                    onChange={(event) => setRequestQuantity(event.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Связать с задачей
+                  </label>
+                  <Select value={requestLinkId} onValueChange={setRequestLinkId}>
+                    <SelectTrigger className="bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Без связи" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Без связи</SelectItem>
+                      {kanbanCards.length > 0 && (
+                        <SelectItem value="cards-heading" disabled>
+                          Карточки Kanban
+                        </SelectItem>
+                      )}
+                      {kanbanCards.slice(0, 50).map((card) => (
+                        <SelectItem key={`card-${card.id}`} value={`card:${card.id}`}>
+                          {card.title || "Карточка"}{card.boardName ? ` · ${card.boardName}` : ""}
+                        </SelectItem>
+                      ))}
+                      {tasks.length > 0 && (
+                        <SelectItem value="tasks-heading" disabled>
+                          Задачи
+                        </SelectItem>
+                      )}
+                      {tasks.slice(0, 50).map((task) => (
+                        <SelectItem key={`task-${task.id}`} value={`task:${task.id}`}>
+                          {task.title || "Задача"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -2465,6 +2695,8 @@ export default function EquipmentPage() {
                     setRequestEquipment(null);
                     setRequestLocation("");
                     setRequestNote("");
+                    setRequestQuantity("1");
+                    setRequestLinkId("none");
                   }}
                 >
                   Отмена
@@ -2472,16 +2704,37 @@ export default function EquipmentPage() {
                 <Button
                   type="button"
                   className="flex-1"
-                  disabled={!primaryCompanyId || requestCheckoutMutation.isPending}
-                  onClick={() =>
+                  disabled={!primaryCompanyId || requestCheckoutMutation.isPending || !isEquipmentOperable(requestEquipment)}
+                  onClick={() => {
+                    if (!isEquipmentOperable(requestEquipment)) {
+                      toast({ title: "Недоступно для выдачи", description: getInoperableMessage(requestEquipment), variant: "destructive" });
+                      return;
+                    }
+                    const quantity = Number(requestQuantity);
+                    if (!requestQuantity.trim() || !Number.isInteger(quantity) || quantity <= 0) {
+                      toast({
+                        title: "Проверьте количество",
+                        description: "Укажите положительное целое число.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    const linkPayload =
+                      requestLinkId.startsWith("card:")
+                        ? { kanbanCardId: requestLinkId.slice("card:".length) }
+                        : requestLinkId.startsWith("task:")
+                          ? { taskId: requestLinkId.slice("task:".length) }
+                          : {};
                     requestCheckoutMutation.mutate({
                       equipmentId: requestEquipment.id,
                       location: requestLocation,
                       note: requestNote,
                       companyId: primaryCompanyId,
                       requestType: getCheckoutRequestType(undefined, requestEquipment),
-                    })
-                  }
+                      quantity,
+                      ...linkPayload,
+                    });
+                  }}
                 >
                   {requestCheckoutMutation.isPending
                     ? "Отправка..."
@@ -2581,6 +2834,51 @@ export default function EquipmentPage() {
                     Входит в сборку: <span className="font-medium">{getParentBundleName(detailsEquipment)}</span>
                   </div>
                 )}
+
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                    Исправность
+                  </div>
+                  <Badge className={getOperabilityColor(getEquipmentOperabilityStatus(detailsEquipment))}>
+                    {getOperabilityText(getEquipmentOperabilityStatus(detailsEquipment))}
+                  </Badge>
+                </div>
+
+                {(() => {
+                  const storageLocation = getEquipmentStorageLocation(detailsEquipment);
+                  const responsiblePerson = getEquipmentResponsiblePerson(detailsEquipment);
+                  const responsibleContact = getEquipmentResponsibleContact(detailsEquipment);
+                  if (!storageLocation && !responsiblePerson && !responsibleContact) return null;
+
+                  return (
+                    <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                        Хранение и ответственность
+                      </div>
+                      <div className="space-y-2">
+                        {storageLocation && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs text-slate-500 dark:text-slate-400">Место хранения</div>
+                              <div className="break-words font-medium">{storageLocation}</div>
+                            </div>
+                          </div>
+                        )}
+                        {(responsiblePerson || responsibleContact) && (
+                          <div className="flex items-start gap-2">
+                            <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs text-slate-500 dark:text-slate-400">Ответственный</div>
+                              {responsiblePerson && <div className="break-words font-medium">{responsiblePerson}</div>}
+                              {responsibleContact && <div className="break-words text-slate-600 dark:text-slate-300">{responsibleContact}</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {detailsEquipment.status === "in-use" && getAssignedUserName(detailsEquipment.assignedTo) && (
                   <div className="rounded-md border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">

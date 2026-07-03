@@ -80,6 +80,14 @@ function getEstimatePriceValue(specifications: unknown) {
   return "";
 }
 
+function getEquipmentOperabilityStatus(equipment: any) {
+  const explicit = String(equipment?.operabilityStatus || "").trim();
+  if (explicit) return explicit;
+  if (equipment?.status === "broken") return "broken";
+  if (equipment?.status === "maintenance") return "on_repair";
+  return "working";
+}
+
 interface EquipmentFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -220,7 +228,11 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
       specifications: equipment?.specifications || {},
       notes: equipment?.notes || "",
       status: equipment?.status || "available",
+      operabilityStatus: equipment?.operabilityStatus || (equipment?.status === "broken" ? "broken" : equipment?.status === "maintenance" ? "on_repair" : "working"),
       location: equipment?.location || "",
+      storageLocation: equipment?.storageLocation || "",
+      responsiblePerson: equipment?.responsiblePerson || "",
+      responsibleContact: equipment?.responsibleContact || "",
     },
   });
 
@@ -235,7 +247,11 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
         specifications: equipment.specifications || {},
         notes: equipment.notes || "",
         status: equipment.status || "available",
+        operabilityStatus: equipment.operabilityStatus || (equipment.status === "broken" ? "broken" : equipment.status === "maintenance" ? "on_repair" : "working"),
         location: equipment.location || "",
+        storageLocation: equipment.storageLocation || "",
+        responsiblePerson: equipment.responsiblePerson || "",
+        responsibleContact: equipment.responsibleContact || "",
       });
     } else if (!equipment && isOpen) {
       form.reset({
@@ -247,7 +263,11 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
         specifications: {},
         notes: "",
         status: "available",
+        operabilityStatus: "working",
         location: "",
+        storageLocation: "",
+        responsiblePerson: "",
+        responsibleContact: "",
       });
     }
   }, [equipment, isOpen, form]);
@@ -393,6 +413,16 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
 
   const handleTakeReturn = (action: 'take' | 'return') => {
     const location = form.getValues("location") || "";
+    if (action === "take" && getEquipmentOperabilityStatus(equipment) !== "working") {
+      toast({
+        title: "Недоступно для выдачи",
+        description: getEquipmentOperabilityStatus(equipment) === "broken"
+          ? "Оборудование помечено как неисправное."
+          : "Оборудование находится в ремонте.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!location && action === 'take') {
       toast({
         title: "Укажите локацию",
@@ -689,6 +719,29 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
 
               <FormField
                 control={form.control}
+                name="operabilityStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Исправность</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "working"}>
+                      <FormControl>
+                        <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+                          <SelectValue placeholder="Выберите исправность" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="working">Исправно</SelectItem>
+                        <SelectItem value="broken">Неисправно</SelectItem>
+                        <SelectItem value="on_repair">В ремонте</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="location"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2">
@@ -702,6 +755,63 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
                         className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="storageLocation"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Место хранения</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Комната 204, стеллаж B, полка 3"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="responsiblePerson"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Ответственный</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Имя ответственного"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="responsibleContact"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Контакт ответственного</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="+7 900 000-00-00, Telegram или email"
+                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                        {...field}
+                        value={field.value || ""}
                       />
                     </FormControl>
                     <FormMessage />
