@@ -90,9 +90,9 @@
 26. **Latest protected-default-branch CI run:** [Link](https://github.com/swp-team-34/streamdesk/actions/runs/28643527748/job/84944785649?pr=151)
 
 ## Release and Demo
-27. **SemVer release:** [Link](https://example.com) TODO: @TimBqs @aitovaskar
-28. **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
-29. **Public sanitized demo video:** [Link](https://disk.yandex.ru/i/l8QNbtsvjXRFag)
+1.  **SemVer release:** [Link](https://github.com/swp-team-34/streamdesk/releases/tag/v2.0.0)
+2.  **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
+3.  **Public sanitized demo video:** [Link](https://disk.yandex.ru/i/l8QNbtsvjXRFag)
 
 ## Customer Review and documentation website
 30. **Public sanitized UAT results summary**:
@@ -134,6 +134,6 @@
     - Sprint milestone: ![Sprint milestone](images/sprint-milestone.png)
     - Board or project workflow view: ![Project workflow](images/project-workflow.png)
     - Latest protected-default-branch CI run: ![CI run](images/Latest-protected-default-branch-CI-run.png)
-    - SemVer release: `![Release](images/version.png), [Release2](images/next-part.png)` TODO: @kk0sta
+    - SemVer release: ![Release](images/semver-release.png)
     - Example reviewed issue-linked PR/MR: ![PR example](images/pr-example.png)
     - Hosted docs site: ![Hosted docs site](images/hosted-docs-site.png)
