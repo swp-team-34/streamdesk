@@ -24,7 +24,7 @@ This document describes the sprint-by-sprint delivery plan for the project. For 
 - **Planned Items**: [US-001](https://github.com/swp-team-34/streamdesk/issues/53), [US-006](https://github.com/swp-team-34/streamdesk/issues/58), [US-008](https://github.com/swp-team-34/streamdesk/issues/60), [US-008](https://github.com/swp-team-34/streamdesk/issues/62), [US-012](https://github.com/swp-team-34/streamdesk/issues/31), [US-015](https://github.com/swp-team-34/streamdesk/issues/112), [US-017](https://github.com/swp-team-34/streamdesk/issues/114), [#95](https://github.com/swp-team-34/streamdesk/issues/95), Bugs: [#85](https://github.com/swp-team-34/streamdesk/issues/85), [#86](https://github.com/swp-team-34/streamdesk/issues/86), [#87](https://github.com/swp-team-34/streamdesk/issues/87), [#88](https://github.com/swp-team-34/streamdesk/issues/88)
 
 ## Sprint 4: Finish the Product
-- **Milestone**: [Sprint 4]
+- **Milestone**: [Sprint 4](https://github.com/swp-team-34/streamdesk/milestone/4)
 - **Dates**: July 6, 2026 - July 12, 2026
 - **Sprint Goal**: Improve deployment reliability and eliminate key interface issues so that managers can work stably with tasks, warehouse, and calendar
 - **Focus**: All features modifiation. Completing the product and pre-final verification
