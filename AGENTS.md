@@ -38,6 +38,8 @@ StreamDesk is a web platform for event and production teams. It combines equipme
 - Define success criteria for vague tasks and verify each meaningful step before calling the work complete.
 - For multi-step work, use a short plan with checks such as `1. [Step] -> verify: [check]`.
 - Do not fight repeated errors blindly: after seeing the same error twice, research it, identify 3-5 plausible fixes, choose the most effective one, and implement it.
+- Never delete or overwrite files without a backup or explicit user confirmation.
+- Always check for existing tests before refactoring. If tests exist, run them after each change.
 - Stop and ask for clarification when confusion would otherwise lead to guessing.
 
 ## Issue, branch, and PR rules
@@ -122,6 +124,9 @@ If legitimate text triggers the marker check, explain why before proceeding.
 ## Security and privacy rules
 
 - Never commit secrets, tokens, passwords, API keys, `.env` files, private credentials, private access instructions, private links, private recordings, exact private timecodes, university emails, customer-identifying details, confidential customer information, or unnecessary PII.
+- Treat any file containing API keys, tokens, or credentials as read-only.
+- When you find a security vulnerability, immediately mark it with a `WARNING` comment and propose a safe alternative.
+- Never implement insecure patterns, even if requested.
 - Use sanitized demo/test data in public docs, screenshots, reports, and demos.
 - Keep private Moodle evidence out of the public repository.
 - Use `.env.example` only for sanitized configuration names.
@@ -132,6 +137,7 @@ If legitimate text triggers the marker check, explain why before proceeding.
 - Do not leave repository traces mentioning specific agent products, agent provenance, or generated-by-agent claims.
 - Do not include agent names or agent provenance in commits, PR titles, PR descriptions, comments, documentation, changelog entries, or code comments.
 - Do not add unnecessary comments explaining that an agent made the change.
+- Reply to the user in Russian unless the user explicitly requests another language.
 - Ask for human confirmation before changing scope.
 - Before starting a new subtask, explain what you intend to change and wait for human approval.
 - Before push, show the final changed files, summary, verification results, and encoding-check result.
