@@ -51,6 +51,7 @@ nav:
   - Product:
       - Roadmap: roadmap.md
       - User Stories: user-stories.md
+      - Customer Handover: customer-handover.md
       - Development Process: development-process.md
       - Repository Workflow: repository-workflow.md
       - Definition of Done: definition-of-done.md
