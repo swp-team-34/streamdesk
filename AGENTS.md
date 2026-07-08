@@ -29,6 +29,16 @@ StreamDesk is a web platform for event and production teams. It combines equipme
 - Preserve assignment evidence; do not delete or rewrite historical workflow artifacts.
 - Follow `docs/development-process.md` and `docs/definition-of-done.md` when they apply.
 
+## Working principles
+
+- Think before coding: state assumptions, surface uncertainty, ask when requirements are ambiguous, and name tradeoffs before implementing.
+- Prefer the simplest sufficient solution; do not add speculative features, abstractions, configurability, or irrelevant error handling.
+- Make surgical changes only; every changed line must directly support the linked issue or the human's explicit request.
+- Match existing project style and mention unrelated issues instead of fixing them opportunistically.
+- Define success criteria for vague tasks and verify each meaningful step before calling the work complete.
+- For multi-step work, use a short plan with checks such as `1. [Step] -> verify: [check]`.
+- Stop and ask for clarification when confusion would otherwise lead to guessing.
+
 ## Issue, branch, and PR rules
 
 - Before any non-trivial work, determine the correct issue type.
