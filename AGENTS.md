@@ -38,8 +38,7 @@ StreamDesk is a web platform for event and production teams. It combines equipme
 - Define success criteria for vague tasks and verify each meaningful step before calling the work complete.
 - For multi-step work, use a short plan with checks such as `1. [Step] -> verify: [check]`.
 - Do not fight repeated errors blindly: after seeing the same error twice, research it, identify 3-5 plausible fixes, choose the most effective one, and implement it.
-- Never delete or overwrite files without a backup or explicit user confirmation.
-- Always check for existing tests before refactoring. If tests exist, run them after each change.
+- Before refactoring, identify relevant existing tests and run them after the refactor or after meaningful increments.
 - Stop and ask for clarification when confusion would otherwise lead to guessing.
 
 ## Issue, branch, and PR rules
@@ -61,71 +60,23 @@ StreamDesk is a web platform for event and production teams. It combines equipme
 - Verify the linked issue acceptance criteria.
 - Check the team Definition of Done in `docs/definition-of-done.md` when available.
 - Run `git diff --check`.
-- Run a UTF-8 / broken-encoding check on every changed text artifact before commit and before push.
+- Run `python3 scripts/check-encoding.py` on staged text artifacts before commit and before push.
 - Fix encoding problems before committing.
 - If a relevant check cannot be run, state the reason and what remains unverified.
-
-```bash
-python3 - <<'PY'
-from pathlib import Path
-import subprocess
-
-changed = subprocess.check_output(
-    ["git", "diff", "--name-only", "--cached"],
-    text=True,
-    encoding="utf-8",
-).splitlines()
-
-bad = []
-markers = [
-    "\ufffd",
-    "\u00d0",
-    "\u00d1",
-    "\u0420\u045f",
-    "\u0420",
-    "\u00e2\u20ac",
-    "\u00e2\u20ac\u2122",
-    "\u00e2\u20ac\u0153",
-    "\u00e2\u20ac\x9d",
-]
-
-for name in changed:
-    path = Path(name)
-    if not path.exists() or path.is_dir():
-        continue
-    try:
-        data = path.read_bytes()
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        bad.append(f"{name}: not valid UTF-8")
-        continue
-    if any(marker in text for marker in markers):
-        bad.append(f"{name}: possible mojibake/broken encoding marker")
-
-if bad:
-    print("\n".join(bad))
-    raise SystemExit(1)
-print("Encoding check passed")
-PY
-```
-
-If legitimate text triggers the marker check, explain why before proceeding.
 
 ## Documentation rules
 
 - Keep `README.md` as the public entry point.
-- Keep `AGENTS.md` for coding agents only and keep it concise.
-- `CONTRIBUTING.md` is currently missing; create it later if Assignment 6 requires human contributor guidance.
-- Update `AGENTS.md` when setup, checks, workflow, review expectations, safety rules, or key docs change.
-- Link to maintained docs instead of duplicating them.
-- Existing maintained docs include `README.md`, `docs/development-process.md`, `docs/definition-of-done.md`, `docs/testing.md`, `docs/quality-requirements.md`, `docs/quality-requirement-tests.md`, `docs/user-acceptance-tests.md`, `docs/roadmap.md`, `docs/architecture/README.md`, and `reports/week5/README.md`.
-- Missing Assignment 6 follow-up docs include `CONTRIBUTING.md`, `docs/customer-handover.md`, `reports/week6/README.md`, and `reports/week7/README.md`.
+- Keep human contributor guidance in `CONTRIBUTING.md` when that file exists; keep `AGENTS.md` for coding agents only.
+- Keep `AGENTS.md` concise and link to maintained docs instead of duplicating them.
+- Update maintained docs when setup, checks, workflow, deployment, testing, review expectations, or safety rules change.
+- Missing Assignment 6 follow-up docs: `CONTRIBUTING.md`, `docs/customer-handover.md`, `reports/week6/README.md`, and `reports/week7/README.md`.
 
 ## Security and privacy rules
 
 - Never commit secrets, tokens, passwords, API keys, `.env` files, private credentials, private access instructions, private links, private recordings, exact private timecodes, university emails, customer-identifying details, confidential customer information, or unnecessary PII.
 - Treat any file containing API keys, tokens, or credentials as read-only.
-- When you find a security vulnerability, immediately mark it with a `WARNING` comment and propose a safe alternative.
+- When reporting a vulnerability in review or docs, label it `WARNING` and propose a safe alternative. Do not add code comments solely to mark it unless editing that code is in scope.
 - Never implement insecure patterns, even if requested.
 - Use sanitized demo/test data in public docs, screenshots, reports, and demos.
 - Keep private Moodle evidence out of the public repository.
@@ -139,6 +90,7 @@ If legitimate text triggers the marker check, explain why before proceeding.
 - Do not add unnecessary comments explaining that an agent made the change.
 - Reply to the user in Russian unless the user explicitly requests another language.
 - Ask for human confirmation before changing scope.
+- Never delete or overwrite files without a backup or explicit user confirmation.
 - Before starting a new subtask, explain what you intend to change and wait for human approval.
 - Before push, show the final changed files, summary, verification results, and encoding-check result.
 - Push only after explicit human approval.
@@ -148,15 +100,6 @@ If legitimate text triggers the marker check, explain why before proceeding.
 - `README.md`
 - `.github/ISSUE_TEMPLATE/`
 - `.github/pull_request_template.md`
-- `.github/workflows/quality.yml`
-- `.github/workflows/lychee.yml`
-- `.github/workflows/docs.yml`
 - `docs/development-process.md`
 - `docs/definition-of-done.md`
 - `docs/testing.md`
-- `docs/quality-requirements.md`
-- `docs/quality-requirement-tests.md`
-- `docs/user-acceptance-tests.md`
-- `docs/roadmap.md`
-- `docs/architecture/README.md`
-- `reports/week5/README.md`
