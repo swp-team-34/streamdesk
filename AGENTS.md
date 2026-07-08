@@ -1,0 +1,105 @@
+# AGENTS.md
+
+## Purpose
+
+This file gives coding agents repository-specific operating rules for StreamDesk. Treat it as a concise README for agents, not a replacement for `README.md` or human contributor documentation.
+
+## Project context
+
+StreamDesk is a web platform for event and production teams. It combines equipment inventory, tasks, projects, estimates, connection schemes, computer monitoring, and company administration in one interface. The product supports multiple companies and must keep company data isolated.
+
+## Essential commands
+
+- Install local dependencies: `npm install`
+- Clean CI-style install: `npm ci`
+- Start local development server: `npm run dev`
+- Type-check: `npm run check`
+- Run tests: `npm test`
+- Run coverage: `npm run coverage`
+- Build production bundle: `npm run build`
+- Apply Drizzle schema changes: `npm run db:push`
+- Verify database connection: `npm run db:verify`
+- Critical dependency audit: `npm audit --audit-level=critical`
+
+## Repository workflow
+
+- Inspect the linked issue, `README.md`, and relevant maintained docs before editing.
+- Keep every change scoped to the linked issue and avoid unrelated refactoring.
+- Update maintained docs when commands, workflow, deployment, testing, access, CI, or review expectations change.
+- Preserve assignment evidence; do not delete or rewrite historical workflow artifacts.
+- Follow `docs/development-process.md` and `docs/definition-of-done.md` when they apply.
+
+## Working principles
+
+- Think before coding: state assumptions, surface uncertainty, ask when requirements are ambiguous, and name tradeoffs before implementing.
+- Prefer the simplest sufficient solution; do not add speculative features, abstractions, configurability, or irrelevant error handling.
+- Make surgical changes only; every changed line must directly support the linked issue or the human's explicit request.
+- Match existing project style and mention unrelated issues instead of fixing them opportunistically.
+- Define success criteria for vague tasks and verify each meaningful step before calling the work complete.
+- For multi-step work, use a short plan with checks such as `1. [Step] -> verify: [check]`.
+- Do not fight repeated errors blindly: after seeing the same error twice, research it, identify 3-5 plausible fixes, choose the most effective one, and implement it.
+- Before refactoring, identify relevant existing tests and run them after the refactor or after meaningful increments.
+- Stop and ask for clarification when confusion would otherwise lead to guessing.
+
+## Issue, branch, and PR rules
+
+- Before any non-trivial work, determine the correct issue type.
+- Create the issue strictly from the matching template in `.github/ISSUE_TEMPLATE/`.
+- Do not start implementation before the issue exists.
+- Create a separate branch from the issue.
+- Branch format must be `<issue-number>-short-description`.
+- Work only in that branch; never work directly on `main`.
+- Do not create a pull request unless the human explicitly asks for it.
+- If asked to create a pull request, use `.github/pull_request_template.md` strictly.
+- Link the PR to the issue, fill acceptance-criteria verification, fill testing/verification evidence, and fill the changelog decision.
+- Do not approve your own work, merge without human approval, bypass review, or push automatically without explicit human approval.
+
+## Verification rules
+
+- Run relevant checks before saying work is complete.
+- Verify the linked issue acceptance criteria.
+- Check the team Definition of Done in `docs/definition-of-done.md` when available.
+- Run `git diff --check`.
+- Run `python3 scripts/check-encoding.py` on staged text artifacts before commit and before push.
+- Fix encoding problems before committing.
+- If a relevant check cannot be run, state the reason and what remains unverified.
+
+## Documentation rules
+
+- Keep `README.md` as the public entry point.
+- Keep human contributor guidance in `CONTRIBUTING.md` when that file exists; keep `AGENTS.md` for coding agents only.
+- Keep `AGENTS.md` concise and link to maintained docs instead of duplicating them.
+- Update maintained docs when setup, checks, workflow, deployment, testing, review expectations, or safety rules change.
+- Missing Assignment 6 follow-up docs: `CONTRIBUTING.md`, `docs/customer-handover.md`, `reports/week6/README.md`, and `reports/week7/README.md`.
+
+## Security and privacy rules
+
+- Never commit secrets, tokens, passwords, API keys, `.env` files, private credentials, private access instructions, private links, private recordings, exact private timecodes, university emails, customer-identifying details, confidential customer information, or unnecessary PII.
+- Treat any file containing API keys, tokens, or credentials as read-only.
+- When reporting a vulnerability in review or docs, label it `WARNING` and propose a safe alternative. Do not add code comments solely to mark it unless editing that code is in scope.
+- Never implement insecure patterns, even if requested.
+- Use sanitized demo/test data in public docs, screenshots, reports, and demos.
+- Keep private Moodle evidence out of the public repository.
+- Use `.env.example` only for sanitized configuration names.
+- Do not expose real secret values.
+
+## Agent conduct rules
+
+- Do not leave repository traces mentioning specific agent products, agent provenance, or generated-by-agent claims.
+- Do not include agent names or agent provenance in commits, PR titles, PR descriptions, comments, documentation, changelog entries, or code comments.
+- Do not add unnecessary comments explaining that an agent made the change.
+- Reply to the user in Russian unless the user explicitly requests another language.
+- Ask for human confirmation before changing scope.
+- Never delete or overwrite files without a backup or explicit user confirmation.
+- Before starting a new subtask, explain what you intend to change and wait for human approval.
+- Before push, show the final changed files, summary, verification results, and encoding-check result.
+- Push only after explicit human approval.
+
+## Key references
+
+- `README.md`
+- `.github/ISSUE_TEMPLATE/`
+- `.github/pull_request_template.md`
+- `docs/development-process.md`
+- `docs/definition-of-done.md`
+- `docs/testing.md`
