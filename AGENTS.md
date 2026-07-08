@@ -37,6 +37,7 @@ StreamDesk is a web platform for event and production teams. It combines equipme
 - Match existing project style and mention unrelated issues instead of fixing them opportunistically.
 - Define success criteria for vague tasks and verify each meaningful step before calling the work complete.
 - For multi-step work, use a short plan with checks such as `1. [Step] -> verify: [check]`.
+- Do not fight repeated errors blindly: after seeing the same error twice, research it, identify 3-5 plausible fixes, choose the most effective one, and implement it.
 - Stop and ask for clarification when confusion would otherwise lead to guessing.
 
 ## Issue, branch, and PR rules
