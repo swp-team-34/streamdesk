@@ -10,6 +10,8 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added draggable, resizable, and hideable Dashboard widgets with persisted browser layout.
+
 ### Changed
 
 ### Fixed
