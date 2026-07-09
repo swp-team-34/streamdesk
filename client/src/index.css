@@ -125,7 +125,7 @@ body::-webkit-scrollbar,
   display: none !important;
 }
 
-/* Резервируем место под скроллбар, чтобы при открытии Sheet/модалки контент не прыгал */
+/* резервируем место под скроллбар, чтобы при открытии Sheet/модалки контент не прыгал */
 .scrollbar-gutter-stable {
   scrollbar-gutter: stable;
 }
@@ -177,8 +177,15 @@ body::-webkit-scrollbar,
   }
 
   .task-board-column {
+    height: clamp(420px, calc(100dvh - 220px), 680px);
     scroll-snap-align: none;
     scroll-snap-stop: normal;
+  }
+
+  .kanban-board-scroll {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    padding-right: 0.5rem !important;
   }
 }
 /* Якорь скролла: при добавлении карточки колонка не прыгает */
@@ -946,7 +953,7 @@ body::-webkit-scrollbar,
   }
 }
 
-/* Радужная анимация для neon-rainbow темы */
+/* радужная анимация для neon-rainbow темы */
 .neon-rainbow .card:hover,
 .neon-rainbow [class*="Card"]:hover {
   animation: rgb-rotate 3s ease-in-out infinite;
