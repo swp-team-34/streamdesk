@@ -175,6 +175,7 @@ interface KanbanListView {
 interface KanbanCardView {
   id: string;
   boardId: string;
+  projectId?: string | null;
   listId: string;
   title: string;
   description?: string | null;
@@ -891,6 +892,12 @@ export default function TasksV2Page() {
     () => boards.find((board) => board.id === selectedBoardId) ?? null,
     [boards, selectedBoardId],
   );
+  const invalidateProjectTaskStatsForBoard = (boardId?: string | null, projectId?: string | null) => {
+    const resolvedProjectId = projectId || boards.find((board) => board.id === boardId)?.projectId;
+    if (!resolvedProjectId) return;
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", resolvedProjectId, "task-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+  };
 
   const { data: lists = [], isLoading: listsLoading } = useQuery<KanbanListView[]>({
     queryKey: ["kanban-lists", selectedBoardId],
@@ -1792,6 +1799,7 @@ export default function TasksV2Page() {
     },
     onSuccess: (_list, input) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-lists", selectedBoardId] });
+      invalidateProjectTaskStatsForBoard(selectedBoardId, selectedBoard?.projectId);
       toast({
         title: (input?.listId ?? editingListId) ? "Список обновлен" : "Список создан",
         description: "Список сохранен в текущей доске.",
@@ -1821,6 +1829,7 @@ export default function TasksV2Page() {
     onSuccess: (listId: string) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-lists", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+      invalidateProjectTaskStatsForBoard(selectedBoardId, selectedBoard?.projectId);
       toast({
         title: "Список удален",
         description: "Структура доски и вложенные карточки обновлены.",
@@ -1913,6 +1922,7 @@ export default function TasksV2Page() {
     onSuccess: (card: KanbanCardView, input) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      invalidateProjectTaskStatsForBoard(selectedBoardId, card.projectId || selectedBoard?.projectId);
       toast({
         title: (input?.cardId ?? editingCardId) ? "Карточка обновлена" : "Карточка создана",
         description: "Карточка сохранена в текущем списке.",
@@ -1949,6 +1959,7 @@ export default function TasksV2Page() {
     onSuccess: (cardId: string) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      invalidateProjectTaskStatsForBoard(selectedBoardId, selectedBoard?.projectId);
       toast({
         title: "Карточка удалена",
         description: "Содержимое списка синхронизировано.",
@@ -2004,6 +2015,7 @@ export default function TasksV2Page() {
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
+      invalidateProjectTaskStatsForBoard(selectedBoardId, card.projectId || selectedBoard?.projectId);
       detailLastSavedSignatureRef.current = serializeCardForm(input?.form ?? {
         listId: card.listId,
         title: card.title,
@@ -2134,6 +2146,7 @@ export default function TasksV2Page() {
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", movement.boardId, movement.cardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", movement.boardId, movement.cardId] });
+      invalidateProjectTaskStatsForBoard(movement.boardId, _movedCard?.projectId);
     },
   });
 
