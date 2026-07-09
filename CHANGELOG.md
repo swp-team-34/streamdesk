@@ -14,6 +14,8 @@ changes are collected under `Unreleased`.
 
 ### Fixed
 
+- Fixed Calendar task card overflow and overlapping timed task-like entries.
+
 ## [v2.0.0] - 2026-07-03
 
 ### Added

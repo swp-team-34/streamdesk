@@ -41,6 +41,12 @@ import { cn } from "@/lib/utils";
 import { AuthService } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/use-websocket";
 import {
+  getCalendarEntryDensity,
+  getCalendarEntryLaneLayout,
+  getCalendarLaneStyle,
+  getCalendarResizeHandleClassName,
+} from "@/lib/calendar-layout";
+import {
   buildQuarterHourOptions,
   combineDateWithTime,
   formatDueDateLabel,
@@ -262,6 +268,10 @@ function isTaskEntry(entry: CalendarEntry | null): entry is TaskEntry {
 
 function isKanbanEntry(entry: CalendarEntry | null): entry is KanbanEntry {
   return !!entry && entry.kind === "kanban";
+}
+
+function getCalendarEntryKey(entry: Pick<CalendarEntry, "kind" | "id">) {
+  return `${entry.kind}:${entry.id}`;
 }
 
 function slotNumberToTime(slot: number) {
@@ -655,59 +665,11 @@ export default function Calendar() {
     getEventBlockStyleFromRange(new Date(entry.startTime), new Date(entry.endTime));
 
   const getEventLaneLayout = (dayEntries: CalendarEntry[]) => {
-    const sorted = [...dayEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    const result = new Map<string, { laneIndex: number; totalLanes: number }>();
-
-    const flushGroup = (group: CalendarEntry[]) => {
-      const lanes: number[] = [];
-      for (const entry of group) {
-        const start = new Date(entry.startTime);
-        const end = new Date(entry.endTime);
-        const startM = start.getHours() * 60 + start.getMinutes();
-        const endM = Math.max(startM + 15, end.getHours() * 60 + end.getMinutes());
-        let lane = 0;
-        for (; lane < lanes.length; lane++) {
-          if (lanes[lane] <= startM) break;
-        }
-        if (lane === lanes.length) lanes.push(0);
-        lanes[lane] = endM;
-        result.set(entry.id, { laneIndex: lane, totalLanes: 0 });
-      }
-      const totalLanes = Math.max(1, lanes.length);
-      group.forEach((entry) => {
-        const layout = result.get(entry.id);
-        if (layout) layout.totalLanes = totalLanes;
-      });
-    };
-
-    let group: CalendarEntry[] = [];
-    let groupEnd = -Infinity;
-    for (const entry of sorted) {
-      const start = new Date(entry.startTime);
-      const end = new Date(entry.endTime);
-      const startM = start.getHours() * 60 + start.getMinutes();
-      const endM = Math.max(startM + 15, end.getHours() * 60 + end.getMinutes());
-      if (group.length > 0 && startM >= groupEnd) {
-        flushGroup(group);
-        group = [];
-        groupEnd = -Infinity;
-      }
-      group.push(entry);
-      groupEnd = Math.max(groupEnd, endM);
-    }
-    if (group.length > 0) flushGroup(group);
-
-    return result;
+    return getCalendarEntryLaneLayout(dayEntries, getCalendarEntryKey);
   };
 
-  const getEventOverlapStyle = (entryId: string, laneLayout: Map<string, { laneIndex: number; totalLanes: number }>) => {
-    const layout = laneLayout.get(entryId);
-    if (!layout || layout.totalLanes <= 1) return { left: "2%", width: "96%" };
-    const gap = 2;
-    const width = (100 - gap * (layout.totalLanes + 1)) / layout.totalLanes;
-    const left = gap + layout.laneIndex * (width + gap);
-    return { left: `${left}%`, width: `${width}%` };
-  };
+  const getEventOverlapStyle = (entry: CalendarEntry, laneLayout: ReturnType<typeof getEventLaneLayout>) =>
+    getCalendarLaneStyle(getCalendarEntryKey(entry), laneLayout);
 
   const getPalette = (entry: CalendarEntry) => {
     const urgency = getEntryDeadlineUrgency(entry);
@@ -1161,6 +1123,78 @@ export default function Calendar() {
     </div>
   );
 
+  const parseCalendarBlockHeight = (height: string | number | undefined) => {
+    if (typeof height === "number") return height;
+    const parsed = Number.parseFloat(String(height || ""));
+    return Number.isFinite(parsed) ? parsed : 56;
+  };
+
+  const getResizeHandleClass = (height: string | number | undefined, edge: "top" | "bottom") => cn(
+    "absolute inset-x-0 z-20 bg-primary/25",
+    edge === "top"
+      ? "top-0 rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent"
+      : "bottom-0 rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent",
+    getCalendarResizeHandleClassName(parseCalendarBlockHeight(height)),
+  );
+
+  const renderTimedEntryContent = (entry: CalendarEntry, height: string | number | undefined, compact = false) => {
+    const blockHeight = parseCalendarBlockHeight(height);
+    const density = getCalendarEntryDensity(blockHeight);
+    const detailLabel = entry.kind === "event"
+      ? entry.location || "Без локации"
+      : entry.responsibleLabel || "Без исполнителя";
+    if (density !== "full") {
+      return (
+        <div className={cn(
+          "flex h-full min-w-0 items-center overflow-hidden px-1.5",
+          density === "tiny-title" ? "text-[10px]" : "text-xs",
+        )}>
+          <div className="min-w-0 truncate font-semibold leading-tight" title={entry.title}>
+            {entry.title}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={cn("flex h-full min-w-0 flex-col overflow-hidden", compact ? "gap-0.5 p-1.5" : "gap-1 p-2")}>
+        <div className="min-w-0 truncate text-xs font-semibold leading-tight" title={entry.title}>
+          {entry.title}
+        </div>
+        <div className="flex min-w-0 items-center gap-1 truncate text-[10px] leading-tight opacity-90">
+          <Clock className="h-3 w-3 shrink-0" />
+          <span className="truncate">{getEntryMetaLine(entry)}</span>
+        </div>
+        <div className="flex min-w-0 items-center gap-1 truncate text-[10px] leading-tight opacity-90">
+          {entry.kind === "event" ? <MapPin className="h-3 w-3 shrink-0" /> : <UserRound className="h-3 w-3 shrink-0" />}
+          <span className="truncate">{detailLabel}</span>
+        </div>
+        {(entry.kind === "task" || entry.kind === "kanban") && (
+          <div className="mt-auto flex min-w-0 items-center gap-1 overflow-hidden pt-0.5">
+            {entry.task.priority && (
+              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+                {TASK_PRIORITY_LABELS[entry.task.priority] || entry.task.priority}
+              </span>
+            )}
+            {getEntryDeadlineUrgency(entry) !== "none" && (
+              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+                {getDueDateStatusLabel(getEntryDeadlineUrgency(entry))}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMonthEntryContent = (entry: CalendarEntry) => (
+    <span className="flex min-w-0 items-center gap-1 overflow-hidden">
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", getEventDotClass(entry))} style={getEntryDotStyle(entry)} />
+      <span className="min-w-0 flex-1 truncate font-medium">{entry.title}</span>
+      <span className="hidden shrink-0 opacity-80 sm:inline">{format(new Date(entry.startTime), "HH:mm")}</span>
+    </span>
+  );
+
   const shiftSelectedDate = (direction: -1 | 1) => {
     const current = selectedDate;
     if (viewMode === "month") {
@@ -1245,7 +1279,7 @@ export default function Calendar() {
             const last = visibleIndexes.at(-1) ?? first;
             return (
               <button
-                key={entry.id}
+                key={getCalendarEntryKey(entry)}
                 type="button"
                 data-calendar-all-day-entry
                 className={cn("relative z-10 min-w-0 cursor-grab rounded-lg border border-border/40 px-2 py-1 text-left text-xs shadow-sm", getEventCardClasses(entry))}
@@ -1318,7 +1352,7 @@ export default function Calendar() {
           {String(startsAt).padStart(2, "0")}:00 - {String(endsAt).padStart(2, "0")}:00 {isExpanded ? "раскрыто" : "сжато"}
         </span>
         <span className="rounded-full bg-muted px-2 py-0.5">
-          {isExpanded ? "Свернуть" : entriesInRange.length > 0 ? `${entriesInRange.length} внутри` : "Раскрыть"}
+          {isExpanded ? "Свернуть" : entriesInRange.length > 0 ? `${entriesInRange.length} внутри` : "Показать"}
         </span>
       </button>
     );
@@ -1439,15 +1473,14 @@ export default function Calendar() {
                       <div className="space-y-0.5 sm:space-y-1 max-h-[68px] sm:max-h-[94px] overflow-y-auto hide-scrollbar">
                         {dayEntries.slice(0, 3).map((entry) => (
                           <button
-                            key={entry.id}
+                            key={getCalendarEntryKey(entry)}
                             type="button"
                             data-calendar-entry-block
-                            className={cn("w-full text-left text-[10px] sm:text-xs px-2 py-1 rounded-r-xl rounded-l-md truncate shadow-sm cursor-grab active:cursor-grabbing", getEventInlineClasses(entry))}
+                            className={cn("block w-full min-w-0 overflow-hidden rounded-r-xl rounded-l-md px-1.5 py-1 text-left text-[10px] shadow-sm cursor-grab active:cursor-grabbing sm:text-xs", getEventInlineClasses(entry))}
                             style={getEntryColorStyle(entry, "inline")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
                           >
-                            {entry.title}
-                            <span className="ml-1 opacity-80">· {getEntryMetaLine(entry)}</span>
+                            {renderMonthEntryContent(entry)}
                           </button>
                         ))}
                         {dayEntries.length > 3 && <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">+{dayEntries.length - 3} ещё</div>}
@@ -1537,10 +1570,10 @@ export default function Calendar() {
                     <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border/30 first:border-l-0 z-10" style={{ left: `${(100 / weekColumnCount) * dayIndex}%`, width: `${100 / weekColumnCount}%`, pointerEvents: "none" }}>
                       {dayEntries.map((entry) => {
                         const style = getEventBlockStyle(entry);
-                        const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
+                        const overlapStyle = getEventOverlapStyle(entry, laneLayout);
                         return (
                           <button
-                            key={entry.id}
+                            key={getCalendarEntryKey(entry)}
                             type="button"
                             data-calendar-entry-block
                             className={cn("absolute rounded-xl text-xs overflow-hidden cursor-grab active:cursor-grabbing pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-border/30 text-left", getEventCardClasses(entry))}
@@ -1549,18 +1582,13 @@ export default function Calendar() {
                           >
                             <span
                               aria-label="Изменить начало"
-                              className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                              className={getResizeHandleClass(style.height, "top")}
                               onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
                             />
-                            <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
-                            <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
-                            <div className="px-1.5 pb-1.5 text-[10px] opacity-90 truncate flex items-center gap-0.5">
-                              {entry.kind === "event" ? <MapPin className="w-3 h-3 shrink-0" /> : <UserRound className="w-3 h-3 shrink-0" />}
-                              {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
-                            </div>
+                            {renderTimedEntryContent(entry, style.height, true)}
                             <span
                               aria-label="Изменить длительность"
-                              className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                              className={getResizeHandleClass(style.height, "bottom")}
                               onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
                             />
                           </button>
@@ -1660,10 +1688,10 @@ export default function Calendar() {
                   <div key={day.toISOString()} className="absolute top-0 bottom-0 border-l border-border/30 first:border-l-0" style={{ left: `${(100 / threeDayColumnCount) * dayIndex}%`, width: `${100 / threeDayColumnCount}%`, pointerEvents: "none" }}>
                     {dayEntries.map((entry) => {
                       const style = getEventBlockStyle(entry);
-                      const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
+                      const overlapStyle = getEventOverlapStyle(entry, laneLayout);
                       return (
                         <button
-                          key={entry.id}
+                          key={getCalendarEntryKey(entry)}
                           type="button"
                           data-calendar-entry-block
                           className={cn("absolute rounded-xl text-xs overflow-hidden cursor-grab active:cursor-grabbing pointer-events-auto shadow-md hover:shadow-lg transition-all duration-200 backdrop-blur-sm border border-border/30 text-left", getEventCardClasses(entry))}
@@ -1672,18 +1700,13 @@ export default function Calendar() {
                         >
                           <span
                             aria-label="Изменить начало"
-                            className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            className={getResizeHandleClass(style.height, "top")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
                           />
-                          <div className="p-1.5 truncate font-medium leading-tight">{entry.title}</div>
-                          <div className="px-1.5 text-[10px] opacity-90 truncate">{getEntryMetaLine(entry)}</div>
-                          <div className="px-1.5 pb-1.5 text-[10px] opacity-90 truncate flex items-center gap-0.5">
-                            {entry.kind === "event" ? <MapPin className="w-3 h-3 shrink-0" /> : <UserRound className="w-3 h-3 shrink-0" />}
-                            {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
-                          </div>
+                          {renderTimedEntryContent(entry, style.height, true)}
                           <span
                             aria-label="Изменить длительность"
-                            className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            className={getResizeHandleClass(style.height, "bottom")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
                           />
                         </button>
@@ -1720,7 +1743,7 @@ export default function Calendar() {
                 );
               }
               return listEntries.map((entry) => (
-                <Card key={entry.id} className={cn("rounded-xl border border-border/50 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
+                <Card key={`${getCalendarEntryKey(entry)}:${entry._day.toISOString()}`} className={cn("rounded-xl border border-border/50 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
                   <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                       <div className="flex-1 min-w-0">
@@ -1801,29 +1824,25 @@ export default function Calendar() {
                     const laneLayout = getEventLaneLayout(dayEntries);
                     return dayEntries.map((entry) => {
                       const style = getEventBlockStyle(entry);
-                      const overlapStyle = getEventOverlapStyle(entry.id, laneLayout);
+                      const overlapStyle = getEventOverlapStyle(entry, laneLayout);
                       return (
                         <button
-                          key={entry.id}
+                          key={getCalendarEntryKey(entry)}
                           type="button"
                           data-calendar-entry-block
-                          className={cn("absolute cursor-grab active:cursor-grabbing rounded-xl border border-border/40 p-2 text-left text-xs shadow-md transition hover:shadow-lg", getEventCardClasses(entry))}
+                          className={cn("absolute cursor-grab active:cursor-grabbing overflow-hidden rounded-xl border border-border/40 text-left text-xs shadow-md transition hover:shadow-lg", getEventCardClasses(entry))}
                           style={{ top: style.top, height: style.height, minHeight: 28, ...overlapStyle, ...getEntryColorStyle(entry) }}
                           onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "move")}
                         >
                           <span
                             aria-label="Изменить начало"
-                            className="absolute inset-x-0 top-0 h-7 cursor-ns-resize rounded-t-xl bg-gradient-to-b from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            className={getResizeHandleClass(style.height, "top")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-start")}
                           />
-                          <div className="truncate font-medium">{entry.title}</div>
-                          <div className="truncate text-[10px] opacity-90">{getEntryMetaLine(entry)}</div>
-                          <div className="truncate text-[10px] opacity-90">
-                            {entry.kind === "event" ? entry.location || "Без локации" : entry.responsibleLabel || "Без исполнителя"}
-                          </div>
+                          {renderTimedEntryContent(entry, style.height)}
                           <span
                             aria-label="Изменить длительность"
-                            className="absolute inset-x-0 bottom-0 h-7 cursor-ns-resize rounded-b-xl bg-gradient-to-t from-primary/30 to-transparent opacity-20 transition-opacity hover:opacity-100"
+                            className={getResizeHandleClass(style.height, "bottom")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "resize-end")}
                           />
                         </button>
@@ -2043,7 +2062,7 @@ export default function Calendar() {
                       }}
                     >
                       <Edit className="w-4 h-4" />
-                      Редактировать
+                      Изменить
                     </Button>
                     <Button
                       size="sm"
