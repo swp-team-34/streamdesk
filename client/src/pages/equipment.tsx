@@ -532,7 +532,7 @@ export default function EquipmentPage() {
     return user ? matchesAssignedUser(assignedTo, user) : assignedTo === employeeFilter;
   };
 
-  const filteredEquipment = equipment.filter((item: Equipment) => {
+  const matchesEquipmentBaseFilters = (item: Equipment) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = item.name.toLowerCase().includes(searchLower) ||
                          item.model?.toLowerCase().includes(searchLower) ||
@@ -542,9 +542,12 @@ export default function EquipmentPage() {
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     const matchesOperability = operabilityFilter === "all" || getEquipmentOperabilityStatus(item) === operabilityFilter;
     const matchesType = typeFilter === "all" || item.type === typeFilter;
-    
-    return matchesSearch && matchesStatus && matchesOperability && matchesType && matchesEmployeeFilter(item);
-  });
+
+    return matchesSearch && matchesStatus && matchesOperability && matchesType;
+  };
+
+  const equipmentMatchingBaseFilters = equipment.filter(matchesEquipmentBaseFilters);
+  const filteredEquipment = equipmentMatchingBaseFilters.filter((item: Equipment) => matchesEmployeeFilter(item));
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1160,7 +1163,7 @@ export default function EquipmentPage() {
     .map((user) => ({
       id: user.id,
       label: user.name || user.username || "Сотрудник",
-      count: equipment.filter((item) => matchesAssignedUser(item.assignedTo, user)).length,
+      count: equipmentMatchingBaseFilters.filter((item) => matchesAssignedUser(item.assignedTo, user)).length,
     }))
     .filter((option) => option.count > 0)
     .sort((left, right) => left.label.localeCompare(right.label, "ru"));
@@ -1168,6 +1171,7 @@ export default function EquipmentPage() {
   const unknownEmployeeFilterOptions = Array.from(
     new Set(
       equipment
+        .filter(matchesEquipmentBaseFilters)
         .map((item) => String(item.assignedTo ?? "").trim())
         .filter(Boolean)
         .filter((assignedTo) => !users.some((user) => matchesAssignedUser(assignedTo, user))),
@@ -1175,7 +1179,7 @@ export default function EquipmentPage() {
   ).map((assignedTo) => ({
     id: `raw:${assignedTo}`,
     label: assignedTo,
-    count: equipment.filter((item) => String(item.assignedTo ?? "").trim() === assignedTo).length,
+    count: equipmentMatchingBaseFilters.filter((item) => String(item.assignedTo ?? "").trim() === assignedTo).length,
   }));
 
   const getRequestStatusText = (status: string | null | undefined) => {
@@ -1555,7 +1559,7 @@ export default function EquipmentPage() {
                       </div>
                     </>
                   )}
-                  <div className={cn("grid gap-2", userCanReserve ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <Button variant="outline" onClick={clearCart}>Очистить</Button>
                     <Button
                       variant="outline"
@@ -1571,8 +1575,11 @@ export default function EquipmentPage() {
                         </>
                       )}
                     </Button>
+                  </div>
+                  <div className="grid gap-2">
                     {userCanReserve && (
                       <Button
+                        className="w-full min-w-0"
                         disabled={!sendToProjectId || !returnDate || sendToProjectMutation.isPending}
                         onClick={() => {
                           const user = getCurrentUser();
@@ -1591,12 +1598,12 @@ export default function EquipmentPage() {
                         }}
                       >
                         {sendToProjectMutation.isPending ? (
-                          "Отправка…"
+                          <span className="truncate">Отправка…</span>
                         ) : (
-                          <>
+                          <span className="flex min-w-0 items-center justify-center">
                             <Send className="w-4 h-4 mr-2" />
-                            Отправить на проект
-                          </>
+                            <span className="truncate">Отправить на проект</span>
+                          </span>
                         )}
                       </Button>
                     )}
@@ -1894,6 +1901,17 @@ export default function EquipmentPage() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <span>
+          Показано: {filteredEquipment.length} из {equipment.length}
+        </span>
+        {activeFilterCount > 0 && (
+          <span>
+            Фильтры применены: {activeFilterCount}
+          </span>
+        )}
+      </div>
+
       {canApproveCheckout && managedPendingRequestGroups.length > 0 && (
         <Card className="border-violet-200/70 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20">
           <CardHeader className="pb-3">
@@ -2026,6 +2044,9 @@ export default function EquipmentPage() {
           <div className="col-span-full text-center py-12">
             <Package className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
             <p className="text-slate-500 dark:text-slate-400">Оборудование не найдено</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              Показано: 0 из {equipment.length}
+            </p>
           </div>
         ) : (
           filteredEquipment.map((item: Equipment) => {
