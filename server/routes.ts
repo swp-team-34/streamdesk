@@ -3767,12 +3767,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Number.isInteger(rawQuantity) || rawQuantity <= 0) {
         return res.status(400).json({ message: "Количество должно быть положительным целым числом" });
       }
+      const kanbanCardId = body.kanbanCardId && String(body.kanbanCardId).trim() ? String(body.kanbanCardId).trim() : "";
+      if (kanbanCardId) {
+        const card = await storage.getKanbanCardById(kanbanCardId).catch(() => undefined);
+        if (!card) return res.status(400).json({ message: "Выбранная карточка Kanban не найдена" });
+        const access = await getKanbanBoardAccess(currentUser, String(card.boardId)).catch(() => null);
+        if (!access) return res.status(400).json({ message: "Выбранная карточка Kanban недоступна" });
+      }
+      const taskId = body.taskId && String(body.taskId).trim() ? String(body.taskId).trim() : "";
+      if (taskId) {
+        const task = await storage.getTaskById(taskId).catch(() => undefined);
+        if (!task) return res.status(400).json({ message: "Выбранная задача не найдена" });
+      }
       const requestData = insertEquipmentCheckoutRequestSchema.parse({
         companyId: companyId || undefined,
         equipmentId,
         requestedBy: currentUser.id,
-        kanbanCardId: body.kanbanCardId && String(body.kanbanCardId).trim() ? String(body.kanbanCardId).trim() : undefined,
-        taskId: body.taskId && String(body.taskId).trim() ? String(body.taskId).trim() : undefined,
+        kanbanCardId: kanbanCardId || undefined,
+        taskId: taskId || undefined,
         quantity: rawQuantity,
         requestType,
         currentHolder: requestType === "transfer" ? item.assignedTo || null : null,
