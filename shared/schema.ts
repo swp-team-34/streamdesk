@@ -261,6 +261,7 @@ export const tasks = pgTable("tasks", {
   category: text("category"), // production, equipment, stream, admin, other
   projectId: varchar("project_id").references(() => projects.id), // связь с проектом
   projectColumnId: varchar("project_column_id").references(() => projectColumns.id), // связь со столбцом проекта
+  locationId: varchar("location_id").references(() => customLocations.id),
   tags: jsonb("tags").default('[]'), // теги/наклейки (в т.ч. из YouGile): [{ id?, name?, color? }]
   subtasks: jsonb("subtasks").default('[]'), // чеклист подзадач: [{ id, title, completed }]
   attachments: jsonb("attachments").default('[]'),
@@ -297,7 +298,7 @@ export const taskHistory = pgTable("task_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Роли и права доступа
+// роли и права доступа
 export const roles = pgTable("roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -399,6 +400,7 @@ export const kanbanCards = pgTable("kanban_cards", {
   priority: text("priority").notNull().default("medium"),
   startDate: timestamp("start_date"),
   dueDate: timestamp("due_date"),
+  locationId: varchar("location_id").references(() => customLocations.id),
   subtasks: jsonb("subtasks").default([]),
   customFieldValues: jsonb("custom_field_values").default({}),
   creatorUserId: varchar("creator_user_id").references(() => users.id).notNull(),
@@ -462,10 +464,35 @@ export const customLocations = pgTable("custom_locations", {
   name: text("name").notNull().unique(),
   description: text("description"),
   type: text("type").default("storage"),
+  status: text("status").notNull().default("available"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Репозитории для задач
+export const locationIssues = pgTable("location_issues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").references(() => customLocations.id).notNull(),
+  taskId: varchar("task_id").references(() => tasks.id),
+  kanbanCardId: varchar("kanban_card_id").references(() => kanbanCards.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  status: text("status").notNull().default("reported"),
+  reportedByUserId: varchar("reported_by_user_id").references(() => users.id).notNull(),
+  photos: jsonb("photos").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const locationIssueComments = pgTable("location_issue_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  issueId: varchar("issue_id").references(() => locationIssues.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// репозитории для задач
 export const repositories = pgTable("repositories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -796,6 +823,18 @@ export const insertCustomLocationSchema = createInsertSchema(customLocations).om
   createdAt: true,
 });
 
+export const insertLocationIssueSchema = createInsertSchema(locationIssues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLocationIssueCommentSchema = createInsertSchema(locationIssueComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertRepositorySchema = createInsertSchema(repositories).omit({
   id: true,
   createdAt: true,
@@ -950,6 +989,11 @@ export type InsertKanbanCardAttachment = z.infer<typeof insertKanbanCardAttachme
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;
 
+export type LocationIssue = typeof locationIssues.$inferSelect;
+export type InsertLocationIssue = z.infer<typeof insertLocationIssueSchema>;
+export type LocationIssueComment = typeof locationIssueComments.$inferSelect;
+export type InsertLocationIssueComment = z.infer<typeof insertLocationIssueCommentSchema>;
+
 export type Repository = typeof repositories.$inferSelect;
 export type InsertRepository = z.infer<typeof insertRepositorySchema>;
 
@@ -1036,6 +1080,7 @@ export const TAB_KEYS = [
   "tasks",
   "calendar",
   "maps",
+  "locations",
   "room-booking",
   "equipment",
   "estimates",
@@ -1058,6 +1103,7 @@ export const TAB_LABELS: Record<string, string> = {
   tasks: "Задачи",
   calendar: "Календарь",
   maps: "Карты",
+  locations: "Площадки",
   "room-booking": "Бронирование комнат",
   equipment: "Склад техники",
   estimates: "Смета",
@@ -1070,7 +1116,7 @@ export const TAB_LABELS: Record<string, string> = {
   chatgpt: "ChatGPT",
   notifications: "Уведомления",
   settings: "Настройки",
-  "vmix-scheduler": "Расписатель vMix",
+  "vmix-scheduler": "расписатель vMix",
   "otis-onair": "Эфир ОТИС",
   production: "Продакшн / Шоу",
 };

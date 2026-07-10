@@ -10,6 +10,7 @@ const PATH_TO_TAB: Record<string, string> = {
   "/tasks-v2": "tasks",
   "/calendar": "calendar",
   "/maps": "maps",
+  "/locations": "locations",
   "/room-booking": "room-booking",
   "/equipment": "equipment",
   "/estimates": "estimates",

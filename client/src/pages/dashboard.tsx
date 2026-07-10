@@ -12,6 +12,7 @@ import DashboardCountdownWidget from "@/components/dashboard/dashboard-countdown
 import DashboardServicesSection from "@/components/dashboard/dashboard-services-section";
 import DeadlineTasksWidget from "@/components/dashboard/deadline-tasks-widget";
 import WorkProgressWidget from "@/components/dashboard/work-progress-widget";
+import LocationIssuesWidget from "@/components/dashboard/location-issues-widget";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { tabPermission } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -105,6 +106,7 @@ export default function Dashboard() {
 
       {canAccessTab(currentUser, "tasks") && <WorkProgressWidget />}
       {canAccessTab(currentUser, "tasks") && <DeadlineTasksWidget />}
+      {canAccessTab(currentUser, "locations") && <LocationIssuesWidget />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 w-full min-w-0">
         <div className="lg:col-span-2 space-y-1 sm:space-y-1.5 min-w-0">
