@@ -164,7 +164,7 @@ All steps execute without critical errors. The dashboard loads with skeleton sta
 ### Execution result
 All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.
 
-## UAT-008 — Verify Recording Place Statuses and Location-Based Issue Reporting
+## UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting
 
 - **Scenario ID:** UAT-006
 - **Title:** Verify recording place status visibility, filtering, and issue reporting at production locations
@@ -200,7 +200,7 @@ Recording places display correct statuses near their names, filters work accurat
 ### Execution result
 To be filled
 
-## UAT-009 — Verify Project-Specific Task Board and Compact/Sortable Task Manager
+## UAT-007 — Verify Project-Specific Task Board and Compact/Sortable Task Manager
 
 - **Scenario ID:** UAT-007
 - **Title:** Verify project-specific Kanban board creation, membership sync, and Task Manager compact sorting UX
@@ -264,7 +264,7 @@ All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors)
 ### Execution result
 To be filled
 
-## UAT-011 — Verify Safe Database Migration During Deployment
+## UAT-009 — Verify Safe Database Migration During Deployment
 
 - **Scenario ID:** UAT-009
 - **Title:** Verify deployment applies schema migrations without data loss
