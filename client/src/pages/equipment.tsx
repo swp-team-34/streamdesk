@@ -916,6 +916,7 @@ export default function EquipmentPage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       const isTransfer = variables.requestType === "transfer";
       toast({
         title: isTransfer ? "Запрос на перенос отправлен" : "Запрос отправлен",
@@ -1102,6 +1103,7 @@ export default function EquipmentPage() {
 
   const canRequestEquipmentItem = (item: Equipment, projectInfo?: { projectId?: string } | undefined) => {
     if (!canRequestCheckout || projectInfo) return false;
+    if (!isEquipmentOperable(item)) return false;
     if (item.status === "available") return true;
     return item.status === "in-use" && Boolean(item.assignedTo) && !isCurrentUserMatch(item.assignedTo);
   };

@@ -159,6 +159,30 @@ describe("equipment request actions", () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
     const [item] = await storage.getEquipment();
+    const board = await storage.createKanbanBoard({
+      name: "Equipment request board",
+      visibility: "personal",
+      createdByUserId: "admin-stub-default-id",
+    } as any);
+    const list = await storage.createKanbanList({
+      boardId: board.id,
+      name: "Requests",
+      type: "active",
+      position: 0,
+    } as any);
+    const card = await storage.createKanbanCard({
+      boardId: board.id,
+      listId: list.id,
+      title: "Linked Kanban card",
+      creatorUserId: "admin-stub-default-id",
+      position: 0,
+    } as any);
+    const task = await storage.createTask({
+      title: "Linked legacy task",
+      status: "todo",
+      priority: "medium",
+      creatorId: "admin-stub-default-id",
+    } as any);
     const res = createJsonResponse();
 
     await handler!({
@@ -166,8 +190,8 @@ describe("equipment request actions", () => {
       body: {
         equipmentId: item.id,
         quantity: "2",
-        kanbanCardId: "card-123",
-        taskId: "task-456",
+        kanbanCardId: card.id,
+        taskId: task.id,
       },
     }, res);
 
@@ -175,9 +199,107 @@ describe("equipment request actions", () => {
     expect(res.body).toMatchObject({
       equipmentId: item.id,
       quantity: 2,
-      kanbanCardId: "card-123",
-      taskId: "task-456",
+      kanbanCardId: card.id,
+      taskId: task.id,
       status: "pending",
+    });
+  });
+
+  it("allows checkout requests without task links", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const [item] = await storage.getEquipment();
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: 1,
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      equipmentId: item.id,
+      quantity: 1,
+      status: "pending",
+    });
+    expect((res.body as any).kanbanCardId ?? null).toBeNull();
+    expect((res.body as any).taskId ?? null).toBeNull();
+  });
+
+  it("blocks checkout requests for broken or on-repair equipment", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const [item] = await storage.getEquipment();
+
+    await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "broken" } as any);
+    const brokenResponse = createJsonResponse();
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: 1,
+      },
+    }, brokenResponse);
+
+    expect(brokenResponse.statusCode).toBe(400);
+    expect(brokenResponse.body).toMatchObject({
+      message: expect.stringContaining("неисправно"),
+    });
+
+    await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "on_repair" } as any);
+    const repairResponse = createJsonResponse();
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: 1,
+      },
+    }, repairResponse);
+
+    expect(repairResponse.statusCode).toBe(400);
+    expect(repairResponse.body).toMatchObject({
+      message: expect.stringContaining("ремонте"),
+    });
+
+    await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "working" } as any);
+  });
+
+  it("rejects checkout requests with missing task or Kanban card links", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const [item] = await storage.getEquipment();
+    const missingCardResponse = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: 1,
+        kanbanCardId: "missing-card",
+      },
+    }, missingCardResponse);
+
+    expect(missingCardResponse.statusCode).toBe(400);
+    expect(missingCardResponse.body).toMatchObject({
+      message: expect.stringContaining("карточ"),
+    });
+
+    const missingTaskResponse = createJsonResponse();
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        quantity: 1,
+        taskId: "missing-task",
+      },
+    }, missingTaskResponse);
+
+    expect(missingTaskResponse.statusCode).toBe(400);
+    expect(missingTaskResponse.body).toMatchObject({
+      message: expect.stringContaining("задач"),
     });
   });
 });
