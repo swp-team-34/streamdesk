@@ -263,32 +263,3 @@ All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors)
 
 ### Execution result
 To be filled
-
-## UAT-009 — Verify Safe Database Migration During Deployment
-
-- **Scenario ID:** UAT-009
-- **Title:** Verify deployment applies schema migrations without data loss
-- **Status:** Draft
-- **Related feature:** Deployment, Database
-
-### Objective
-Verify that the deployment process applies database schema changes automatically and safely, preserving all existing production data.
-
-### Preconditions
-A test or staging database contains representative production-like data; a new application version with pending schema changes (e.g., new column, table alteration) is ready for deployment.
-
-### Test steps
-
-- Take a record count and spot-check critical data (e.g., count of tasks, users, and equipment items) in the current database.
-- Run the deployment process (or execute the migration script) against the test database.
-- Verify the migration completes without errors and all schema changes are applied (e.g., new columns appear in the schema).
-- Query the database and verify the record counts from step 1 remain unchanged.
-- Spot-check the same critical records from step 1 and confirm their field values are intact and unaltered.
-- Run the application and perform basic CRUD operations (create, update, delete) to verify the new schema works correctly with the application logic.
-- Simulate a rollback (or run the down migration) and verify data integrity is maintained during rollback.
-
-### Expected result
-The migration workflow executes without errors. Schema changes apply successfully, all existing data records and their values are preserved without loss or corruption. The application functions correctly with the new schema, and rollback does not compromise data integrity.
-
-### Execution result
-To be filled
