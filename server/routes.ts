@@ -702,6 +702,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const canCommentKanbanBoard = (access: { canManage: boolean; membership?: any }) =>
     canEditKanbanBoard(access) || Boolean(access.membership?.canComment);
 
+  const getProjectKanbanTeamUserIds = (project: any, currentUser?: any) => {
+    const ids = new Set<string>();
+    const add = (value: unknown) => {
+      const normalized = String(value || "").trim();
+      if (normalized) ids.add(normalized);
+    };
+
+    add(project?.ownerId);
+    add(project?.assignedTo);
+    add(currentUser?.id);
+    if (Array.isArray(project?.participants)) {
+      project.participants.forEach(add);
+    }
+
+    return Array.from(ids);
+  };
+
+  const canOpenProjectKanbanBoard = async (currentUser: any, project: any) => {
+    if (!currentUser?.id) return false;
+    if (currentUser.role === "admin") return true;
+
+    const companyId = String(project?.companyId || "").trim();
+    if (companyId && await canManageCompany(currentUser, companyId).catch(() => false)) return true;
+    if (companyId) {
+      const membership = await storage.getCompanyMembershipByUser(companyId, currentUser.id).catch(() => undefined);
+      if (!membership || membership.status !== "active") return false;
+    }
+
+    return getProjectKanbanTeamUserIds(project).includes(String(currentUser.id));
+  };
+
+  const syncProjectKanbanBoardMembers = async (board: any, project: any, currentUser: any) => {
+    const teamUserIds = getProjectKanbanTeamUserIds(project, currentUser);
+    const syncedUserIds: string[] = [];
+
+    for (const userId of teamUserIds) {
+      if (board.companyId) {
+        const companyMembership = await storage.getCompanyMembershipByUser(String(board.companyId), userId).catch(() => undefined);
+        if (!companyMembership || companyMembership.status !== "active") continue;
+      } else if (String(userId) !== String(board.createdByUserId)) {
+        continue;
+      }
+
+      const user = await storage.getUser(userId).catch(() => undefined);
+      if (user && user.active === false) continue;
+
+      const existingMember = await storage.getKanbanBoardMember(board.id, userId).catch(() => undefined);
+      if (existingMember) {
+        const needsEditorRole = existingMember.role !== "editor";
+        const needsComment = existingMember.canComment !== true;
+        if (needsEditorRole || needsComment) {
+          await storage.updateKanbanBoardMember(existingMember.id, {
+            role: "editor",
+            canComment: true,
+          } as any).catch(() => undefined);
+        }
+      } else {
+        await storage.createKanbanBoardMember({
+          boardId: board.id,
+          userId,
+          role: "editor",
+          canComment: true,
+        });
+      }
+      syncedUserIds.push(userId);
+    }
+
+    return syncedUserIds;
+  };
+
+  const ensureDefaultProjectKanbanLists = async (boardId: string) => {
+    const existingLists = await storage.getKanbanListsByBoardId(boardId).catch(() => []);
+    if (existingLists.length > 0) return existingLists;
+
+    const defaultLists = [
+      { name: "Активные", type: "active", position: 0, color: "#8B5CF6" },
+      { name: "В работе", type: "active", position: 1, color: "#3B82F6" },
+      { name: "Готово", type: "closed", position: 2, color: "#10B981" },
+    ];
+
+    const createdLists = [];
+    for (const list of defaultLists) {
+      createdLists.push(await storage.createKanbanList({
+        boardId,
+        ...list,
+      }));
+    }
+    return createdLists;
+  };
+
   const parseOptionalKanbanDate = (value: unknown): Date | null => {
     if (value == null) return null;
     const normalized = String(value).trim();
@@ -1968,6 +2058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const card = await storage.createKanbanCard({
         boardId: access.board.id,
+        projectId: access.board.projectId ?? null,
         listId: list.id,
         title: parsed.title,
         description: parsed.description?.trim() || null,
@@ -7336,35 +7427,55 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!project) return res.status(404).json({ message: "Проект не найден" });
       const proj = project as any;
       let tasks: any[] = [];
+      const statusNames: Record<string, string> = {};
+      const doneStatusIds = new Set<string>();
       if (proj.yougileBoardId) {
-        tasks = await storage.getTasksByYougileBoardId(proj.yougileBoardId);
-      } else {
-        const all = await storage.getTasks();
-        tasks = all.filter((t: any) => t.projectId === project.id);
-      }
-      const total = tasks.length;
-      let statusNames: Record<string, string> = {};
-      let doneColumnId: string | null = null;
-      if (proj.yougileBoardId) {
+        tasks.push(...await storage.getTasksByYougileBoardId(proj.yougileBoardId));
         try {
           const cols = await storage.getYougileColumns(proj.yougileBoardId);
           cols.forEach((c: any) => { statusNames[c.id] = c.title || c.id; });
           const sorted = [...cols].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
           const lastCol = sorted[sorted.length - 1];
-          if (lastCol) doneColumnId = lastCol.id;
+          if (lastCol) doneStatusIds.add(String(lastCol.id));
         } catch (_) {}
       } else {
+        const all = await storage.getTasks();
+        tasks.push(...all.filter((t: any) => t.projectId === project.id));
         try {
           const cols = await storage.getProjectColumns(project.id);
           cols.forEach((c: any) => { statusNames[c.id] = c.name || c.id; });
           const sorted = [...cols].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
           const lastCol = sorted[sorted.length - 1];
-          if (lastCol) doneColumnId = lastCol.id;
+          if (lastCol) doneStatusIds.add(String(lastCol.id));
         } catch (_) {}
       }
-      const done = doneColumnId
-        ? tasks.filter((t: any) => t.status === doneColumnId).length
-        : tasks.filter((t: any) => t.status === "done").length;
+
+      const allBoards = await storage.getKanbanBoards().catch(() => []);
+      const projectBoards = (allBoards as any[]).filter((board) => String(board.projectId || "") === String(project.id));
+      for (const board of projectBoards) {
+        const [lists, cards] = await Promise.all([
+          storage.getKanbanListsByBoardId(board.id).catch(() => []),
+          storage.getKanbanCardsByBoardId(board.id).catch(() => []),
+        ]);
+        (lists as any[]).forEach((list) => {
+          statusNames[list.id] = list.name || list.id;
+          if (["closed", "archive"].includes(String(list.type || ""))) {
+            doneStatusIds.add(String(list.id));
+          }
+        });
+        tasks.push(...(cards as any[]).map((card) => ({
+          ...card,
+          projectId: card.projectId || board.projectId,
+          status: card.listId,
+          assigneeId: card.assigneeUserId,
+        })));
+      }
+
+      const total = tasks.length;
+      const done = tasks.filter((t: any) => {
+        const status = String(t.status || "");
+        return doneStatusIds.size > 0 ? doneStatusIds.has(status) : status === "done";
+      }).length;
       const byStatus: Record<string, number> = {};
       const byUser: Record<string, number> = {};
       const byRepository: Record<string, number> = {};
@@ -7394,6 +7505,55 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       res.json({ total, done, byStatus, statusNames, byUser, byRepository, byCategory, userNames, categoryLabels });
     } catch (e: any) {
       res.status(500).json({ message: e?.message || "Ошибка" });
+    }
+  });
+
+  app.post("/api/projects/:id/kanban-board", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+
+      const project = await storage.getProjectById(req.params.id);
+      if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canOpenProjectKanbanBoard(currentUser, project))) {
+        return res.status(403).json({ message: "Недостаточно прав для открытия доски проекта" });
+      }
+
+      const existingBoards = await storage.getKanbanBoards().catch(() => []);
+      let board = (existingBoards as any[]).find((item) => String(item.projectId || "") === String(project.id));
+      const created = !board;
+
+      if (!board) {
+        const companyId = String((project as any).companyId || "").trim() || null;
+        board = await storage.createKanbanBoard({
+          companyId,
+          projectId: project.id,
+          name: `${project.name || "Проект"} · Kanban`,
+          description: project.description || null,
+          visibility: companyId ? "members" : "personal",
+          createdByUserId: currentUser.id,
+        });
+      }
+
+      await syncProjectKanbanBoardMembers(board, project, currentUser);
+      await ensureDefaultProjectKanbanLists(board.id);
+
+      if ((project as any).showInTaskManager !== true) {
+        await storage.updateProject(project.id, { showInTaskManager: true } as any).catch(() => undefined);
+      }
+
+      const membership = await storage.getKanbanBoardMember(board.id, currentUser.id).catch(() => undefined);
+      const canManage = !board.companyId
+        ? currentUser.role === "admin" || String(board.createdByUserId) === String(currentUser.id)
+        : currentUser.role === "admin" || await canManageCompany(currentUser, String(board.companyId)).catch(() => false);
+
+      res.json({
+        board: buildKanbanBoardResponse(board, { canManage, membership }),
+        created,
+      });
+    } catch (e: any) {
+      console.error("[Projects] Failed to open Kanban board:", e);
+      res.status(500).json({ message: e?.message || "Не удалось открыть доску проекта" });
     }
   });
 

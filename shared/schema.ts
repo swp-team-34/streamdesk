@@ -393,6 +393,7 @@ export const kanbanLists = pgTable("kanban_lists", {
 export const kanbanCards = pgTable("kanban_cards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   boardId: varchar("board_id").references(() => kanbanBoards.id).notNull(),
+  projectId: varchar("project_id").references(() => projects.id),
   listId: varchar("list_id").references(() => kanbanLists.id).notNull(),
   title: text("title").notNull(),
   description: text("description"),

@@ -16,7 +16,7 @@ import {
   Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink, Save,
   ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon
 } from "lucide-react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -468,6 +468,7 @@ export default function Projects() {
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const { data: projects = [], isLoading } = useQuery({
@@ -611,6 +612,30 @@ export default function Projects() {
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось создать доску", variant: "destructive" });
+    },
+  });
+
+  const openProjectKanbanBoardMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/kanban-board`, {});
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "Не удалось открыть доску проекта");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-boards"] });
+      const boardId = data?.board?.id;
+      if (!boardId) {
+        toast({ title: "Ошибка", description: "Сервер не вернул доску проекта", variant: "destructive" });
+        return;
+      }
+      navigate(`/tasks?boardId=${encodeURIComponent(boardId)}`);
+    },
+    onError: (e: any) => {
+      toast({ title: "Ошибка", description: e?.message || "Не удалось открыть доску проекта", variant: "destructive" });
     },
   });
 
@@ -1012,26 +1037,19 @@ export default function Projects() {
                       <BarChart3 className="w-4 h-4 mr-1 shrink-0" />
                       Статистика
                     </Button>
-                    {project.showInTaskManager ? (
-                      <Link href="/tasks">
-                        <Button variant="outline" size="sm" className="shrink-0 min-w-[5rem]" title="Открыть локальную доску проекта в таск-менеджере">
-                          <ListTodo className="w-4 h-4 mr-1 shrink-0" />
-                          Таск
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 min-w-[7rem]"
-                        title="Показывать проект как локальную доску StreamDesk"
-                        disabled={updateMutation.isPending}
-                        onClick={() => updateMutation.mutate({ id: project.id, data: { showInTaskManager: true } })}
-                      >
-                        <ListTodo className="w-4 h-4 mr-1 shrink-0" />
-                        В таск
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 min-w-[5rem]"
+                      title="Открыть доску проекта в Task Manager"
+                      disabled={openProjectKanbanBoardMutation.isPending}
+                      onClick={() => openProjectKanbanBoardMutation.mutate(project.id)}
+                    >
+                      <ListTodo className="w-4 h-4 mr-1 shrink-0" />
+                      {openProjectKanbanBoardMutation.isPending && openProjectKanbanBoardMutation.variables === project.id
+                        ? "Открытие..."
+                        : "Таск"}
+                    </Button>
                     {project.yougileBoardId ? (
                       <>
                         <Button
