@@ -290,11 +290,14 @@ npm run dev
 
 ### 5.3 Deployment to Production
 
+Current detailed deployment instructions are maintained in [deployment-instructions.md](deployment-instructions.md).
+
 1. Ensure all changes are merged to `main` and CI passes.
-2. Build the project locally (or on CI) with `npm run build`.
-3. Copy the `dist/` folder and necessary runtime files to the server.
-4. Run database migrations if needed: `npm run db:push` (with care).
-5. Restart the PM2 process: `pm2 restart ecosystem.config.cjs`.
+2. Connect to the production server.
+3. Switch to the `streamdesk` user in `/var/www/streamdesk`.
+4. Pull the latest `main` branch.
+5. Run `bash deploy-to-server.sh`.
+6. Verify PM2 and HTTP responses.
 
 Deployment is not continuous, it is initiated manually by running a script that builds, synchronizes, and restarts the server.
 

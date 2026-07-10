@@ -6,7 +6,7 @@ The application has many features, Team34 have only five to implement: task mana
 
 ## Product Access
 
-Current product access: https://team34.com
+Current product access: [https://team34.ru](https://team34.ru)
 
 Hosted documentation: [StreamDesk Documentation](https://swp-team-34.github.io/streamdesk/)
 
@@ -16,7 +16,7 @@ Provide the streaming studio team with one shared workspace for planning studio 
 
 ## Current Status
 
-MVP v3 status: TODO (@TimBqs): summarize the final customer-usable state.
+MVP v3 status: deployed customer-usable course version covering the agreed Team34 scope: Task Manager, Calendar, Warehouse, Dashboard, and Projects.
 
 Main supported workflows:
 
@@ -25,11 +25,15 @@ Main supported workflows:
 - Manage projects.
 - Track the state of the stream in the dashboard
 
-Known limitations: see [customer handover](docs/customer-handover.md). TODO: insert known limitations header link
+Known limitations: see [customer handover](docs/customer-handover.md)
 
 ## Usage
 
-User guidance: TODO (@TripleA89): add the main user-facing page or short access instructions.
+User guidance:
+  1. Open https://team34.ru.
+  2. Register a new account or sign in with an existing one.
+  3.  Open Task Manager, Calendar, Stock or Dashboard page
+  - Constraints: University internet access is required.
 
 Customer handover: [docs/customer-handover.md](docs/customer-handover.md)
 
@@ -61,7 +65,11 @@ npm run build
 
 ## Deployment
 
-Deployment guidance: TODO (@MeeDaniel): add the current deployment command or link.
+Production URL: [https://team34.ru](https://team34.ru)
+
+Current deployment instructions: [docs/deployment-instructions.md](docs/deployment-instructions.md)
+
+Deployment is manual. A team member connects to the production server, updates `main`, runs `deploy-to-server.sh`, and verifies PM2 and HTTP responses.
 
 Available scripts:
 
@@ -74,6 +82,7 @@ Available scripts:
 
 - [Roadmap](docs/roadmap.md)
 - [Development process](docs/development-process.md)
+- [Deployment instructions](docs/deployment-instructions.md)
 - [Repository workflow](docs/repository-workflow.md)
 - [Definition of Done](docs/definition-of-done.md)
 - [Testing overview](docs/testing.md)
