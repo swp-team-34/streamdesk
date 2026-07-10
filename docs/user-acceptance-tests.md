@@ -93,7 +93,7 @@ The user easily observed the overview of the task from the Calendar. The informa
 
 - **Scenario ID:** UAT-004
 - **Title:** Verify Equipment Store, Operability, and Task Preview Integration
-- **Status:** Active
+- **Status:** Passed
 - **Related feature:** Task Manager, Equipment store
 
 ### Objective
@@ -124,13 +124,13 @@ The user is logged into the system and has access to the Equipment Store and Tas
 All steps execute without errors. The equipment store displays the correct loading state, location details, contact info, and operability statuses. Status filters work accurately. The system blocks requests for broken/on-repair items and enforces mandatory fields for working ones. Authorized edits persist correctly, while non-managers can view but not modify statuses. The task preview correctly displays the equipment request summary (name, requester, quantity, status) and updates immediately to reflect the latest approval/rejection status.
 
 ### Execution result
-To be filled during the week 5 workflow
+The user easily and intuitively executed the whole process with no complainings or errors found.
 
 ## UAT-005 — Verify Task Manager features: Workload, Deadline Ordering, Calendar Color-Coding, and Drag-and-Drop
 
 - **Scenario ID:** UAT-005
 - **Title:** Verify Manager Dashboard workload tracking, deadline-based task ordering, Calendar color-coding, and drag-and-drop deadline management
-- **Status:** Active
+- **Status:** Passed
 - **Related feature:** Task Manager, Calendar
 
 ### Objective
@@ -160,6 +160,106 @@ The user is logged into the system and has access to the Calendar and Task Manag
 
 ### Expected result
 All steps execute without critical errors. The dashboard loads with skeleton states, displays correct workload counts, sorted task lists, and grouped breakdowns. Real-time updates reflect status changes without reloading, and network errors show a message while preserving cached data. The calendar color-codes 24-hour and overdue tasks distinctly using appropriate urgency colors. Drag-and-drop successfully moves task deadlines, persists changes after refresh, reverts on invalid drops, and works consistently across all four calendar views.
+
+### Execution result
+All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.
+
+## UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting
+
+- **Scenario ID:** UAT-006
+- **Title:** Verify recording place status visibility, filtering, and issue reporting at production locations
+- **Status:** Draft
+- **Related feature:** Recording Places, Issue Management
+
+### Objective
+Verify that production workers can view and filter recording place statuses (available, occupied, unavailable, under maintenance) and report issues at a location, with real-time visibility for managers.
+
+### Preconditions
+One or two users can take the roles of production worker and manaer for feature testing; the system contains recording places with various statuses; at least one location/task exists to link issues to.
+
+### Test steps
+
+- Open the Recording Places list or dashboard section.
+- Verify a skeleton loading state appears while data loads.
+- After loading, verify each place displays its current status (available, occupied, unavailable, or under maintenance) clearly near the place name.
+- Apply the "available" status filter and confirm only available places are listed.
+- Apply the "occupied" status filter and confirm only occupied places are listed.
+- Apply the "unavailable" status filter and confirm only unavailable places are listed.
+- Select an "occupied" or "unavailable" place and view its related equipment options. Verify the system indicates that equipment planning for this place may be limited or unavailable.
+- Log in as an authorized Manager. Update a recording place status to a new value. Save and reload the page. Verify the status is persisted.
+- Log back in as the Production Worker. Navigate to a task, stream, or location page.
+- Create a new issue with a valid title, description, and location/work item. Submit it. Verify the system saves the issue and marks it as "reported".
+- Attempt to submit another issue with a required field (e.g., title) left empty. Verify the system prevents submission and shows validation errors.
+- Log in as the Manager. Open the dashboard or issue list. Verify the newly reported issue appears with its status, reporter, time, and related location/task.
+- Log back in as the Production Worker. Update the description of your reported issue and save. Verify the change is persisted.
+- As the Manager, refresh the dashboard and verify the issue updates are visible in real time without a manual page reload.
+
+### Expected result
+Recording places display correct statuses near their names, filters work accurately, and occupied/unavailable places show equipment planning limitations. Authorized status updates persist after reload. Issues require mandatory fields, save successfully when complete, and appear on the Manager dashboard with full details. Updates and cancellations persist and reflect in real time on authorized dashboards.
+
+### Execution result
+To be filled
+
+## UAT-007 — Verify Project-Specific Task Board and Compact/Sortable Task Manager
+
+- **Scenario ID:** UAT-007
+- **Title:** Verify project-specific Kanban board creation, membership sync, and Task Manager compact sorting UX
+- **Status:** Draft
+- **Related feature:** Projects, Task Manager
+
+### Objective
+Verify that each project has a dedicated task board synced with project members, and that the Task Manager workspace is compact, sortable by deadline/priority, and optimized for scanning.
+
+### Preconditions
+The user takes the role of the manager; multiple projects with assignees and tasks with varying data (deadlines, priorities etc.) exist.
+
+### Test steps
+
+- Open a project that has no linked task board and click its Tasks action. Verify the system creates a dedicated Kanban board for that project (idempotently-clicking again does not create duplicates).
+- Open a project that already has a linked board and click Tasks. Verify the Task Manager opens directly to that specific board (not the generic page).
+- From the project board, create a new task/card and save it. Verify the card remains associated with the project and is found when reopening Tasks for that project.
+- Link an equipment request to this project task/card. Open the task preview and verify the equipment request summary (name, requester, quantity, status) is visible.
+- Go to Project Members and add a new user to the project. Open the project task board and verify the new member appears as a board member.
+- Remove a member from the project. Sync/refresh the board and verify the board membership reflects the current team, without deleting manually added members not in the project.
+- In the Task Manager, locate the sorting controls. Sort cards by deadline and verify overdue cards appear first, then future cards nearest first, and cards without deadlines placed last.
+- Sort by priority and then by creation/update time. Verify the order changes accordingly.
+- Apply a filter (e.g., by assignee) and sort simultaneously. Verify both operate together without resetting the board or view.
+- Verify the statistics block is removed or hidden from the main board workspace on both desktop and mobile views.
+- On the list view, verify rows are visually simplified without unnecessary decorative wrappers for easy scanning.
+- On a mobile view, verify the top workspace area is compact and keeps board selector, search, filter, and sort controls accessible without pushing the board below the fold.
+- Verify secondary actions (settings, create board/list/card, management) are moved to compact icon or overflow controls when space is limited.
+
+### Expected result
+Projects correctly create/find dedicated boards idempotently, with membership syncing to project assignments. Tasks and linked equipment requests stay associated with the project board. Sorting works by deadline (overdue first), priority, and time, with no-deadline tasks last. Filters and sorts combine seamlessly. The workspace is compact—statistics removed, list rows simplified, mobile controls accessible, and secondary actions moved to icons/overflow.
+
+### Execution result
+To be filled
+
+## UAT-008 — Verify Dashboard Widget Drag-and-Drop Customization
+
+- **Scenario ID:** UAT-008
+- **Title:** Verify users can drag and drop Dashboard widgets to rearrange their workspace
+- **Status:** Draft
+- **Related feature:** Dashboard
+
+### Objective
+Verify that managers and users can customize their Dashboard layout by dragging widgets to new positions, with the layout persisting across sessions.
+
+### Preconditions
+The user has access to the Task Manager that displays at least 3–4 widgets in a grid layout.
+
+### Test steps
+
+- Open the Dashboard and observe the current widget grid layout.
+- Click and drag a widget (e.g., the Work Level widget) from its current position to a new grid position.
+- During the drag, verify the widget follows the cursor and that other widgets shift/relocate without overlapping.
+- Drop the widget at the new position. Verify the layout updates smoothly.
+- Perform a hard page reload (or log out and back in). Verify the widget remains at the new position.
+- Drag a second widget to a different position and reload again. Verify both custom positions are preserved.
+- Attempt to drag a widget partially outside the grid or onto a non-grid area. Verify the widget snaps back or stays within bounds without breaking the grid layout.
+
+### Expected result
+All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors) works smoothly. Dropped positions persist across page reloads and sessions. The grid remains intact with no overlapping or broken elements during and after drag operations.
 
 ### Execution result
 To be filled
