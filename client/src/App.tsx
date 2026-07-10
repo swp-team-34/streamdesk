@@ -33,6 +33,7 @@ import Terminal from "@/pages/terminal";
 import ConnectionSchemas from "@/pages/connection-schemas";
 import OtisOnAir from "@/pages/otis-onair";
 import Maps from "@/pages/maps";
+import Locations from "@/pages/locations";
 import RoomBooking from "@/pages/room-booking";
 
 import Sidebar from "@/components/layout/sidebar";
@@ -82,6 +83,11 @@ function Router({ user }: { user: any }) {
       <Route path="/maps">
         <ProtectedRoute user={user}>
           <Maps />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/locations">
+        <ProtectedRoute user={user}>
+          <Locations />
         </ProtectedRoute>
       </Route>
       <Route path="/room-booking">

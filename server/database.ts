@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
   kanbanLabels, kanbanCardLabels,
   kanbanCardHistory,
   kanbanCardComments,
@@ -47,6 +47,8 @@ import {
   type KanbanCardComment, type InsertKanbanCardComment,
   type KanbanCardAttachment, type InsertKanbanCardAttachment,
   type CustomLocation, type InsertCustomLocation,
+  type LocationIssue, type InsertLocationIssue,
+  type LocationIssueComment, type InsertLocationIssueComment,
   type ChatSession, type InsertChatSession,
   type ChatMessage, type InsertChatMessage,
   type Repository, type InsertRepository,
@@ -301,7 +303,14 @@ export interface IStorage {
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
   createCustomLocation(location: InsertCustomLocation): Promise<CustomLocation>;
+  updateCustomLocation(id: string, location: Partial<CustomLocation>): Promise<CustomLocation | undefined>;
   deleteCustomLocation(id: string): Promise<boolean>;
+  getLocationIssues(locationId?: string): Promise<LocationIssue[]>;
+  getLocationIssueById(id: string): Promise<LocationIssue | undefined>;
+  createLocationIssue(issue: InsertLocationIssue): Promise<LocationIssue>;
+  updateLocationIssue(id: string, issue: Partial<LocationIssue>): Promise<LocationIssue | undefined>;
+  getLocationIssueComments(issueId: string): Promise<LocationIssueComment[]>;
+  createLocationIssueComment(comment: InsertLocationIssueComment): Promise<LocationIssueComment>;
   
   // Repositories
   getRepositories(): Promise<Repository[]>;
@@ -371,6 +380,18 @@ export interface IStorage {
 }
 
 export class PostgreSQLStorage implements IStorage {
+  private normalizeCustomLocationStatus(status: unknown): string {
+    const allowed = new Set(["available", "occupied", "reserved", "maintenance", "unavailable"]);
+    return allowed.has(String(status)) ? String(status) : "available";
+  }
+
+  private withCustomLocationFallback(location: CustomLocation): CustomLocation {
+    return {
+      ...location,
+      status: this.normalizeCustomLocationStatus((location as any).status),
+    } as CustomLocation;
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
     const result = await db!.select().from(users).where(eq(users.id, id)).limit(1);
@@ -1484,17 +1505,71 @@ export class PostgreSQLStorage implements IStorage {
 
   // Custom Locations
   async getCustomLocations(): Promise<CustomLocation[]> {
-    return await db!.select().from(customLocations).orderBy(customLocations.name);
+    const rows = await db!.select().from(customLocations).orderBy(customLocations.name);
+    return rows.map((location) => this.withCustomLocationFallback(location));
   }
 
   async createCustomLocation(insertLocation: InsertCustomLocation): Promise<CustomLocation> {
-    const result = await db!.insert(customLocations).values(insertLocation).returning();
-    return result[0];
+    const result = await db!.insert(customLocations).values({
+      ...insertLocation,
+      status: this.normalizeCustomLocationStatus((insertLocation as any).status),
+    }).returning();
+    return this.withCustomLocationFallback(result[0]);
+  }
+
+  async updateCustomLocation(id: string, locationData: Partial<CustomLocation>): Promise<CustomLocation | undefined> {
+    const updateData: Partial<CustomLocation> = {};
+    if (locationData.name !== undefined) updateData.name = String(locationData.name).trim();
+    if (locationData.description !== undefined) updateData.description = locationData.description;
+    if (locationData.type !== undefined) updateData.type = locationData.type;
+    if ((locationData as any).status !== undefined) {
+      updateData.status = this.normalizeCustomLocationStatus((locationData as any).status);
+    }
+
+    const result = await db!.update(customLocations)
+      .set(updateData)
+      .where(eq(customLocations.id, id))
+      .returning();
+    return result[0] ? this.withCustomLocationFallback(result[0]) : undefined;
   }
 
   async deleteCustomLocation(id: string): Promise<boolean> {
     const result = await db!.delete(customLocations).where(eq(customLocations.id, id)).returning({ id: customLocations.id });
     return result.length > 0;
+  }
+
+  async getLocationIssues(locationId?: string): Promise<LocationIssue[]> {
+    const query = db!.select().from(locationIssues).orderBy(sql`${locationIssues.createdAt} DESC`);
+    return locationId ? await query.where(eq(locationIssues.locationId, locationId)) : await query;
+  }
+
+  async getLocationIssueById(id: string): Promise<LocationIssue | undefined> {
+    const result = await db!.select().from(locationIssues).where(eq(locationIssues.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createLocationIssue(issue: InsertLocationIssue): Promise<LocationIssue> {
+    const result = await db!.insert(locationIssues).values({ ...issue, id: crypto.randomUUID() }).returning();
+    return result[0];
+  }
+
+  async updateLocationIssue(id: string, issue: Partial<LocationIssue>): Promise<LocationIssue | undefined> {
+    const result = await db!.update(locationIssues)
+      .set({ ...issue, updatedAt: new Date() })
+      .where(eq(locationIssues.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getLocationIssueComments(issueId: string): Promise<LocationIssueComment[]> {
+    return await db!.select().from(locationIssueComments)
+      .where(eq(locationIssueComments.issueId, issueId))
+      .orderBy(locationIssueComments.createdAt);
+  }
+
+  async createLocationIssueComment(comment: InsertLocationIssueComment): Promise<LocationIssueComment> {
+    const result = await db!.insert(locationIssueComments).values({ ...comment, id: crypto.randomUUID() }).returning();
+    return result[0];
   }
 
   // Repositories
@@ -1865,6 +1940,9 @@ class StubStorage implements IStorage {
   private kanbanCardHistoryMap = new Map<string, KanbanCardHistory>();
   private kanbanCardCommentsMap = new Map<string, KanbanCardComment>();
   private kanbanCardAttachmentsMap = new Map<string, KanbanCardAttachment>();
+  private customLocationsMap = new Map<string, CustomLocation>();
+  private locationIssuesMap = new Map<string, LocationIssue>();
+  private locationIssueCommentsMap = new Map<string, LocationIssueComment>();
   private computers = new Map<string, Computer>();
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
@@ -2645,11 +2723,67 @@ class StubStorage implements IStorage {
     return this.kanbanCardAttachmentsMap.delete(id);
   }
 
-  async getCustomLocations(): Promise<CustomLocation[]> { return []; }
-  async createCustomLocation(data: InsertCustomLocation): Promise<CustomLocation> {
-    return { ...data, id: this.uid(), createdAt: this.now() } as CustomLocation;
+  private normalizeCustomLocationStatus(status: unknown): string {
+    const allowed = new Set(["available", "occupied", "reserved", "maintenance", "unavailable"]);
+    return allowed.has(String(status)) ? String(status) : "available";
   }
-  async deleteCustomLocation(): Promise<boolean> { return true; }
+  async getCustomLocations(): Promise<CustomLocation[]> {
+    return Array.from(this.customLocationsMap.values())
+      .map((location) => ({ ...location, status: this.normalizeCustomLocationStatus((location as any).status) } as CustomLocation))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+  async createCustomLocation(data: InsertCustomLocation): Promise<CustomLocation> {
+    const location = {
+      ...data,
+      status: this.normalizeCustomLocationStatus((data as any).status),
+      id: this.uid(),
+      createdAt: this.now(),
+    } as CustomLocation;
+    this.customLocationsMap.set(location.id, location);
+    return location;
+  }
+  async updateCustomLocation(id: string, data: Partial<CustomLocation>): Promise<CustomLocation | undefined> {
+    const location = this.customLocationsMap.get(id);
+    if (!location) return undefined;
+    const updated = {
+      ...location,
+      ...data,
+      status: data.status !== undefined
+        ? this.normalizeCustomLocationStatus(data.status)
+        : this.normalizeCustomLocationStatus((location as any).status),
+    } as CustomLocation;
+    this.customLocationsMap.set(id, updated);
+    return updated;
+  }
+  async deleteCustomLocation(id: string): Promise<boolean> { return this.customLocationsMap.delete(id); }
+  async getLocationIssues(locationId?: string): Promise<LocationIssue[]> {
+    return Array.from(this.locationIssuesMap.values())
+      .filter((issue) => !locationId || issue.locationId === locationId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async getLocationIssueById(id: string): Promise<LocationIssue | undefined> { return this.locationIssuesMap.get(id); }
+  async createLocationIssue(data: InsertLocationIssue): Promise<LocationIssue> {
+    const issue = { ...data, id: this.uid(), createdAt: this.now(), updatedAt: this.now() } as LocationIssue;
+    this.locationIssuesMap.set(issue.id, issue);
+    return issue;
+  }
+  async updateLocationIssue(id: string, data: Partial<LocationIssue>): Promise<LocationIssue | undefined> {
+    const issue = this.locationIssuesMap.get(id);
+    if (!issue) return undefined;
+    const updated = { ...issue, ...data, updatedAt: this.now() } as LocationIssue;
+    this.locationIssuesMap.set(id, updated);
+    return updated;
+  }
+  async getLocationIssueComments(issueId: string): Promise<LocationIssueComment[]> {
+    return Array.from(this.locationIssueCommentsMap.values())
+      .filter((comment) => comment.issueId === issueId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async createLocationIssueComment(data: InsertLocationIssueComment): Promise<LocationIssueComment> {
+    const comment = { ...data, id: this.uid(), createdAt: this.now(), updatedAt: this.now() } as LocationIssueComment;
+    this.locationIssueCommentsMap.set(comment.id, comment);
+    return comment;
+  }
 
   async getRepositories(): Promise<Repository[]> { return []; }
   async getRepositoryById(): Promise<Repository | undefined> { return undefined; }
@@ -2915,6 +3049,36 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 1`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить equipment schema:", schemaErr);
+      }
+      try {
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS status text DEFAULT 'available'`;
+        await client`UPDATE custom_locations SET status = 'available' WHERE status IS NULL`;
+        await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS location_id text`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS location_id text`;
+        await client`CREATE TABLE IF NOT EXISTS location_issues (
+          id varchar PRIMARY KEY,
+          location_id varchar NOT NULL,
+          task_id varchar,
+          kanban_card_id varchar,
+          title text NOT NULL,
+          description text NOT NULL,
+          severity text NOT NULL DEFAULT 'medium',
+          status text NOT NULL DEFAULT 'reported',
+          reported_by_user_id varchar NOT NULL,
+          photos jsonb DEFAULT '[]'::jsonb,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        )`;
+        await client`CREATE TABLE IF NOT EXISTS location_issue_comments (
+          id varchar PRIMARY KEY,
+          issue_id varchar NOT NULL,
+          user_id varchar NOT NULL,
+          content text NOT NULL,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        )`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось обновить custom_locations schema:", schemaErr);
       }
       try {
         await db!.select().from(users).limit(0);

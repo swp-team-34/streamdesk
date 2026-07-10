@@ -10,6 +10,8 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added recording-place status tracking with filtering and manager/admin updates on the Maps page.
+
 ### Changed
 
 ### Fixed
