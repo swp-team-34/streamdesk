@@ -26,6 +26,7 @@ import {
   Network,
   Radio,
   Map,
+  MapPin,
   CalendarDays,
   Terminal,
   Building2,
@@ -47,6 +48,7 @@ const navigation = [
   { tabKey: "dashboard", name: "Панель управления", href: "/", icon: ChartLine },
   { tabKey: "calendar", name: "Календарь", href: "/calendar", icon: Calendar },
   { tabKey: "maps", name: "Карты", href: "/maps", icon: Map },
+  { tabKey: "locations", name: "Площадки", href: "/locations", icon: MapPin },
   { tabKey: "room-booking", name: "Бронирование комнат", href: "/room-booking", icon: CalendarDays },
   { tabKey: "tasks", name: "Задачи", href: "/tasks", icon: ClipboardList },
   { tabKey: "equipment", name: "Склад техники", href: "/equipment", icon: Package },
@@ -220,7 +222,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
         <Button
           variant="ghost"
           size="icon"
-          aria-label={collapsed ? "Развернуть боковое меню" : "Свернуть боковое меню"}
+          aria-label={collapsed ? "Открыть боковое меню" : "Свернуть боковое меню"}
           className={cn(
             "absolute -right-2 top-1/2 z-10 hidden h-20 w-4 -translate-y-1/2 rounded-full border border-border/40 bg-card/90 p-0 shadow-sm lg:flex",
             "transition-colors hover:bg-primary/10 focus:bg-primary/10"
@@ -238,7 +240,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
             {!collapsed && (
               <div className="min-w-0">
                 <h1 className="text-base sm:text-lg font-bold text-foreground truncate">StreamDesk</h1>
-                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Рабочее пространство для команд и компаний</p>
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Пространство для команд и компаний</p>
               </div>
             )}
           </div>
@@ -270,12 +272,12 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
                   collapsed ? "justify-center p-2" : "space-x-2 p-2 sm:p-2.5",
                   location === "/vmix-scheduler" ? "border-primary bg-primary/10 text-primary" : "border-transparent text-foreground hover:bg-muted"
                 )}
-                title={collapsed ? "Расписатель vMix" : undefined}
+                title={collapsed ? "расписатель vMix" : undefined}
               >
                 <Clock className={cn("w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0", location === "/vmix-scheduler" && "text-primary")} />
                 {!collapsed && (
                   <>
-                    <span className="font-medium truncate">Расписатель vMix</span>
+                    <span className="font-medium truncate">расписатель vMix</span>
                     <Badge variant="secondary" className="ml-auto text-xs flex-shrink-0">
                       Beta
                     </Badge>
@@ -283,7 +285,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
                 )}
                 {collapsed && (
                   <div className="absolute left-full ml-2 px-2 py-1 bg-popover border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
-                    Расписатель vMix
+                    расписатель vMix
                   </div>
                 )}
               </Link>

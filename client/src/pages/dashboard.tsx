@@ -29,6 +29,7 @@ import {
   UpcomingEventsWidget,
 } from "@/components/dashboard/follow-up-widgets";
 import WorkProgressWidget from "@/components/dashboard/work-progress-widget";
+import LocationIssuesWidget from "@/components/dashboard/location-issues-widget";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { tabPermission } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -54,6 +55,7 @@ const DASHBOARD_MASONRY_ROW_GAP = 8;
 
 type DashboardWidgetId =
   | "status"
+  | "location-issues"
   | "attention-summary"
   | "work-progress"
   | "deadline-tasks"
@@ -322,6 +324,15 @@ export default function Dashboard() {
           render: () => <MyWorkloadWidget user={currentUser} />,
         },
       );
+    }
+
+    if (canAccessTab(currentUser, "locations")) {
+      widgets.push({
+        id: "location-issues",
+        title: "Площадки требуют внимания",
+        defaultSize: "normal",
+        render: () => <LocationIssuesWidget />,
+      });
     }
 
     if (canAccessTab(currentUser, "equipment")) {

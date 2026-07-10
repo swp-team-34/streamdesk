@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropResult } from "@hello-pangea/dnd";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowLeft,
   BarChart3,
@@ -182,6 +183,7 @@ interface KanbanCardView {
   priority: KanbanCardPriority;
   startDate?: string | Date | null;
   dueDate?: string | Date | null;
+  locationId?: string | null;
   labelIds?: string[];
   subtasks?: KanbanSubtask[];
   customFieldValues?: Record<string, unknown>;
@@ -328,6 +330,7 @@ const EMPTY_CARD_FORM = {
   priority: "medium" as KanbanCardPriority,
   startDate: "",
   dueDate: "",
+  locationId: "",
   assigneeUserId: "",
   labelIds: [] as string[],
   customFieldValues: {} as Record<string, unknown>,
@@ -595,6 +598,7 @@ const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
     description: form.description.trim(),
     priority: form.priority,
     dueDate: form.dueDate || "",
+    locationId: form.locationId || "",
     assigneeUserId: form.assigneeUserId || "",
     labelIds: normalizeLabelIds(form.labelIds).sort(),
     customFieldValues: form.customFieldValues ?? {},
@@ -690,6 +694,7 @@ interface SaveCardInput {
   priority?: KanbanCardPriority;
   startDate?: string | null;
   dueDate?: string | null;
+  locationId?: string | null;
   assigneeUserId?: string | null;
   labelIds?: string[];
   customFieldValues?: Record<string, unknown>;
@@ -885,6 +890,13 @@ export default function TasksV2Page() {
       const res = await apiRequest("GET", "/api/users");
       return await res.json();
     },
+  });
+  const { data: locations = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["/api/locations"],
+  });
+  const { data: locationIssues = [] } = useQuery<Array<{ locationId: string; status: string; title: string }>>({
+    queryKey: ["/api/location-issues"],
+    refetchInterval: 15_000,
   });
 
   const selectedBoard = useMemo(
@@ -1672,6 +1684,7 @@ export default function TasksV2Page() {
       priority: selectedDetailCard.priority,
       startDate: toDateTimeLocalValue(selectedDetailCard.startDate),
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
+      locationId: selectedDetailCard.locationId || "",
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
       customFieldValues: selectedDetailCard.customFieldValues || {},
@@ -1893,6 +1906,7 @@ export default function TasksV2Page() {
         priority: input?.priority ?? cardForm.priority,
         startDate: input?.startDate !== undefined ? input.startDate : (cardForm.startDate || null),
         dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
+        locationId: input?.locationId !== undefined ? input.locationId : (cardForm.locationId || null),
         assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
         labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
         customFieldValues: input?.customFieldValues ?? cardForm.customFieldValues ?? {},
@@ -1988,6 +2002,7 @@ export default function TasksV2Page() {
           priority: form.priority,
           startDate: form.startDate || null,
           dueDate: form.dueDate || null,
+          locationId: form.locationId || null,
           assigneeUserId: form.assigneeUserId || null,
           labelIds: normalizeLabelIds(form.labelIds),
           customFieldValues: form.customFieldValues ?? {},
@@ -2011,6 +2026,7 @@ export default function TasksV2Page() {
         priority: card.priority,
         startDate: toDateTimeLocalValue(card.startDate),
         dueDate: toDateTimeLocalValue(card.dueDate),
+        locationId: card.locationId || "",
         assigneeUserId: card.assigneeUserId || "",
         labelIds: normalizeLabelIds(card.labelIds),
         customFieldValues: card.customFieldValues || {},
@@ -2026,6 +2042,7 @@ export default function TasksV2Page() {
           priority: card.priority,
           startDate: toDateTimeLocalValue(card.startDate),
           dueDate: toDateTimeLocalValue(card.dueDate),
+          locationId: card.locationId || "",
           assigneeUserId: card.assigneeUserId || "",
           labelIds: normalizeLabelIds(card.labelIds),
           customFieldValues: card.customFieldValues || {},
@@ -2576,6 +2593,7 @@ export default function TasksV2Page() {
       priority: card.priority,
       startDate: toDateTimeLocalValue(card.startDate),
       dueDate: toDateTimeLocalValue(card.dueDate),
+      locationId: card.locationId || "",
       assigneeUserId: card.assigneeUserId || "",
       labelIds: normalizeLabelIds(card.labelIds),
       customFieldValues: card.customFieldValues || {},
@@ -3125,8 +3143,8 @@ export default function TasksV2Page() {
             size="icon"
             className="h-8 w-8 rounded-xl"
             onClick={() => handleOpenCardDetail(card.id)}
-            aria-label="Редактировать карточку"
-            title="Редактировать карточку"
+            aria-label="Изменить карточку"
+            title="Изменить карточку"
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -3324,7 +3342,7 @@ export default function TasksV2Page() {
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => selectedBoard && handleEditBoard(selectedBoard)}>
                 <Pencil className="h-4 w-4" />
-                Редактировать доску
+                Изменить доску
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => setBoardSettingsOpen(true)}>
                 <Settings2 className="h-4 w-4" />
@@ -3582,8 +3600,8 @@ export default function TasksV2Page() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
-                                            aria-label="Редактировать список"
-                                            title="Редактировать список"
+                                            aria-label="Изменить список"
+                                            title="Изменить список"
                                             onClick={() => handleEditList(list)}
                                             disabled={isListPending}
                                           >
@@ -3943,8 +3961,8 @@ export default function TasksV2Page() {
                                                       variant="ghost"
                                                       size="icon"
                                                       className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                      aria-label="Редактировать карточку"
-                                                      title="Редактировать карточку"
+                                                      aria-label="Изменить карточку"
+                                                      title="Изменить карточку"
                                                       onMouseDown={stopInteractiveEvent}
                                                       onPointerDown={stopInteractiveEvent}
                                                       onTouchStart={stopInteractiveEvent}
@@ -4370,7 +4388,7 @@ export default function TasksV2Page() {
       >
         <DialogContent className="max-w-2xl border-border/50 bg-card text-card-foreground">
           <DialogHeader>
-            <DialogTitle>{editingBoardId ? "Редактировать доску" : "Создать доску"}</DialogTitle>
+            <DialogTitle>{editingBoardId ? "Изменить доску" : "Создать доску"}</DialogTitle>
             <DialogDescription>
               Личные доски создаются сразу. Для командной или приглашенной доски выберите компанию.
             </DialogDescription>
@@ -4503,6 +4521,9 @@ export default function TasksV2Page() {
                 const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
                 const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
                 const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
+                const activeLocationIssues = selectedDetailCard.locationId
+                  ? locationIssues.filter((issue) => issue.locationId === selectedDetailCard.locationId && !["resolved", "cancelled"].includes(issue.status))
+                  : [];
 
                 return (
                   <>
@@ -4527,6 +4548,12 @@ export default function TasksV2Page() {
               </DialogHeader>
 
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                {activeLocationIssues.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>На выбранной площадке есть активные ошибки: {activeLocationIssues.map((issue) => issue.title).join(", ")}.</span>
+                  </div>
+                )}
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -4626,6 +4653,20 @@ export default function TasksV2Page() {
                           {user.name}
                         </option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="kanban-detail-location">Площадка</label>
+                    <select
+                      id="kanban-detail-location"
+                      className={KANBAN_PANEL_SELECT_CLASS}
+                      value={detailCardForm.locationId}
+                      onChange={(event) => setDetailCardForm((prev) => ({ ...prev, locationId: event.target.value }))}
+                      disabled={!canEditSelectedBoard}
+                    >
+                      <option value="">Не привязана</option>
+                      {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                     </select>
                   </div>
 

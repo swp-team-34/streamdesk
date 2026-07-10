@@ -33,6 +33,7 @@ import Terminal from "@/pages/terminal";
 import ConnectionSchemas from "@/pages/connection-schemas";
 import OtisOnAir from "@/pages/otis-onair";
 import Maps from "@/pages/maps";
+import Locations from "@/pages/locations";
 import RoomBooking from "@/pages/room-booking";
 
 import Sidebar from "@/components/layout/sidebar";
@@ -55,7 +56,7 @@ function StubModeBanner() {
   return (
     <div className="bg-amber-500/90 text-amber-950 text-center py-1 px-2 sm:px-3 text-xs font-medium flex items-center justify-center gap-1.5 shrink-0">
       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">Режим заглушки: данные в памяти. Для сохранения запустите PostgreSQL и укажите DATABASE_URL в .env</span>
+      <span className="truncate">Тестовый режим: данные в памяти. Для сохранения запустите PostgreSQL и укажите DATABASE_URL в .env</span>
     </div>
   );
 }
@@ -82,6 +83,11 @@ function Router({ user }: { user: any }) {
       <Route path="/maps">
         <ProtectedRoute user={user}>
           <Maps />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/locations">
+        <ProtectedRoute user={user}>
+          <Locations />
         </ProtectedRoute>
       </Route>
       <Route path="/room-booking">

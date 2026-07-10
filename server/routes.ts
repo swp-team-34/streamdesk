@@ -24,6 +24,9 @@ import {
   insertKanbanCardCommentSchema,
   insertKanbanCardAttachmentSchema,
   insertKanbanLabelSchema,
+  insertCustomLocationSchema,
+  insertLocationIssueSchema,
+  insertLocationIssueCommentSchema,
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
@@ -419,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
-  // Режим заглушки: фронт может показать баннер «данные не сохраняются»
+  // режим заглушки: фронт может показать баннер «данные не сохраняются»
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, stubMode: isStubStorage });
   });
@@ -504,6 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
+    locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -521,6 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
+    locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -1954,6 +1959,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!labelResolution.ok) {
         return res.status(400).json({ message: labelResolution.message });
       }
+      if (parsed.locationId) {
+        const locations = await storage.getCustomLocations();
+        if (!locations.some((location) => String(location.id) === String(parsed.locationId))) {
+          return res.status(400).json({ message: "Выберите существующую площадку" });
+        }
+      }
 
       const card = await storage.createKanbanCard({
         boardId: access.board.id,
@@ -1963,6 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: parsed.priority,
         startDate: parseOptionalKanbanDate(parsed.startDate),
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
+        locationId: parsed.locationId || null,
         subtasks: normalizeKanbanSubtasks(parsed.subtasks),
         customFieldValues: parsed.customFieldValues ?? {},
         creatorUserId: currentUser.id,
@@ -2015,6 +2027,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
       if (parsed.startDate !== undefined) updateData.startDate = parseOptionalKanbanDate(parsed.startDate);
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
+      if (parsed.locationId !== undefined) {
+        if (parsed.locationId) {
+          const locations = await storage.getCustomLocations();
+          if (!locations.some((location) => String(location.id) === String(parsed.locationId))) {
+            return res.status(400).json({ message: "Выберите существующую площадку" });
+          }
+        }
+        updateData.locationId = parsed.locationId || null;
+      }
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.customFieldValues !== undefined) updateData.customFieldValues = parsed.customFieldValues ?? {};
       if (parsed.assigneeUserId !== undefined) {
@@ -3140,7 +3161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errMsg = error?.message ?? String(error);
       console.error("[Events] Error creating event:", errMsg);
       if (error?.stack) console.error(error.stack);
-      // Различаем ошибки валидации (400) и ошибки БД (500)
+      // различаем ошибки валидации (400) и ошибки БД (500)
       const isValidation = errMsg.includes("Invalid") || error?.name === "ZodError";
       const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(errMsg);
       const isConnection = /connect|ECONNREFUSED|ECONNRESET/i.test(errMsg);
@@ -7499,6 +7520,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   // Custom Locations
+  const recordingPlaceStatusSchema = z.enum(["available", "occupied", "reserved", "maintenance", "unavailable"]);
+
   app.get("/api/locations", async (req, res) => {
     try {
       const locations = await storage.getCustomLocations();
@@ -7510,19 +7533,160 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.post("/api/locations", async (req, res) => {
     try {
-      const location = await storage.createCustomLocation(req.body);
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const parsed = insertCustomLocationSchema.parse({
+        ...req.body,
+        status: recordingPlaceStatusSchema.catch("available").parse(req.body?.status),
+      });
+      const location = await storage.createCustomLocation(parsed);
       res.status(201).json(location);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid location data", errors: error.errors });
+      }
       res.status(500).json({ message: "Failed to create location" });
+    }
+  });
+
+  app.put("/api/locations/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      if (!["admin", "manager"].includes(String(currentUser.role))) {
+        return res.status(403).json({ message: "Только менеджер или администратор может менять статус площадки" });
+      }
+
+      const update = {
+        ...(req.body?.name !== undefined ? { name: String(req.body.name).trim() } : {}),
+        ...(req.body?.description !== undefined ? { description: req.body.description || null } : {}),
+        ...(req.body?.type !== undefined ? { type: req.body.type || null } : {}),
+        ...(req.body?.status !== undefined ? { status: recordingPlaceStatusSchema.parse(req.body.status) } : {}),
+      };
+      if (Object.keys(update).length === 0) return res.status(400).json({ message: "Нет данных для обновления" });
+      const location = await storage.updateCustomLocation(req.params.id, update as any);
+      if (!location) return res.status(404).json({ message: "Location not found" });
+      res.json(location);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid location status", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update location" });
     }
   });
 
   app.delete("/api/locations/:id", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      if (!["admin", "manager"].includes(String(currentUser.role))) {
+        return res.status(403).json({ message: "Только менеджер или администратор может удалять площадки" });
+      }
       await storage.deleteCustomLocation(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete location" });
+    }
+  });
+
+  const locationIssueSeveritySchema = z.enum(["low", "medium", "high", "critical"]);
+  const locationIssueStatusSchema = z.enum(["reported", "in_progress", "resolved", "cancelled"]);
+
+  app.get("/api/location-issues", async (req, res) => {
+    try {
+      const locationId = typeof req.query.locationId === "string" ? req.query.locationId : undefined;
+      const issues = await storage.getLocationIssues(locationId);
+      res.json(await Promise.all(issues.map(async (issue) => ({
+        ...issue,
+        comments: await storage.getLocationIssueComments(issue.id),
+      }))));
+    } catch {
+      res.status(500).json({ message: "Не удалось загрузить ошибки площадок" });
+    }
+  });
+
+  app.post("/api/location-issues", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const parsed = insertLocationIssueSchema.parse({
+        ...req.body,
+        reportedByUserId: currentUser.id,
+        severity: locationIssueSeveritySchema.catch("medium").parse(req.body?.severity),
+        status: "reported",
+        photos: [],
+      });
+      const location = await storage.getCustomLocations();
+      if (!location.some((item) => item.id === parsed.locationId)) {
+        return res.status(400).json({ message: "Выберите существующую площадку" });
+      }
+      const issue = await storage.createLocationIssue(parsed);
+      res.status(201).json(issue);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Проверьте обязательные поля ошибки", errors: error.flatten?.() });
+      console.error("[Location issues] Failed to create issue:", error);
+      res.status(500).json({ message: "Не удалось создать ошибку площадки" });
+    }
+  });
+
+  app.put("/api/location-issues/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const issue = await storage.getLocationIssueById(req.params.id);
+      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const canManage = ["admin", "manager"].includes(String(currentUser.role));
+      if (!canManage && String(issue.reportedByUserId) !== String(currentUser.id)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения ошибки" });
+      }
+      const update: Record<string, unknown> = {};
+      if (req.body?.title !== undefined) update.title = String(req.body.title).trim();
+      if (req.body?.description !== undefined) update.description = String(req.body.description).trim();
+      if (req.body?.severity !== undefined) update.severity = locationIssueSeveritySchema.parse(req.body.severity);
+      if (canManage && req.body?.status !== undefined) update.status = locationIssueStatusSchema.parse(req.body.status);
+      const updated = await storage.updateLocationIssue(issue.id, update as any);
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Некорректные данные ошибки", errors: error.flatten?.() });
+      res.status(500).json({ message: "Не удалось обновить ошибку площадки" });
+    }
+  });
+
+  app.get("/api/location-issues/:id/comments", async (req, res) => {
+    try { res.json(await storage.getLocationIssueComments(req.params.id)); }
+    catch { res.status(500).json({ message: "Не удалось загрузить комментарии" }); }
+  });
+
+  app.post("/api/location-issues/:id/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      if (!await storage.getLocationIssueById(req.params.id)) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const comment = insertLocationIssueCommentSchema.parse({
+        issueId: req.params.id,
+        userId: currentUser.id,
+        content: String(req.body?.content || "").trim(),
+      });
+      if (!comment.content) return res.status(400).json({ message: "Комментарий не должен быть пустым" });
+      res.status(201).json(await storage.createLocationIssueComment(comment));
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Некорректный комментарий" });
+      res.status(500).json({ message: "Не удалось добавить комментарий" });
+    }
+  });
+
+  app.post("/api/location-issues/:id/photos", upload.single("photo"), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const issue = await storage.getLocationIssueById(req.params.id);
+      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      if (!req.file) return res.status(400).json({ message: "Выберите изображение до 5 МБ" });
+      const photos = Array.isArray(issue.photos) ? issue.photos : [];
+      const updated = await storage.updateLocationIssue(issue.id, { photos: [...photos, `/uploads/${req.file.filename}`] } as any);
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Не удалось загрузить фото ошибки" });
     }
   });
 
@@ -8315,7 +8479,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       items: [
         { name: "Комплект акустики для зала", type: "audio", quantity: 2, reason: "Основная озвучка речи и фонового звука в зале." },
         { name: "Цифровой микшерный пульт", type: "audio", quantity: 1, reason: "Сведение микрофонов, компьютеров, VKS и фоновой музыки." },
-        { name: "Радиомикрофон ручной", type: "microphone", quantity: 4, reason: "Спикеры, модератор и вопросы из зала." },
+        { name: "радиомикрофон ручной", type: "microphone", quantity: 4, reason: "Спикеры, модератор и вопросы из зала." },
         { name: "Петличная радиосистема", type: "microphone", quantity: 2, reason: "Спикеры с презентацией, чтобы руки оставались свободными." },
         { name: "Презентер / кликер", type: "accessory", quantity: 1, reason: "Управление презентацией на сцене." },
       ],
@@ -8326,7 +8490,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         { name: "Камера на штативе", type: "camera", quantity: 2, reason: "Минимум общий и крупный планы для трансляции/записи." },
         { name: "Видеомикшер / режиссерский пульт", type: "video", quantity: 1, reason: "Переключение камер, презентации и графики в эфир." },
         { name: "Компьютер трансляции / vMix", type: "computer", quantity: 1, reason: "Кодирование эфира, титры, запись и отправка на платформу." },
-        { name: "Рекордер или резервная запись", type: "video", quantity: 1, reason: "Локальная резервная запись мероприятия." },
+        { name: "рекордер или резервная запись", type: "video", quantity: 1, reason: "Локальная резервная запись мероприятия." },
         { name: "Монитор режиссера", type: "display", quantity: 1, reason: "Контроль программного сигнала и предпросмотра." },
       ],
     },
@@ -8343,7 +8507,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       items: [
         { name: "Световой прибор заливочный", type: "lighting", quantity: 6, reason: "Базовая сценическая заливка и подсветка спикеров/артистов." },
         { name: "Световой пульт / контроллер", type: "lighting", quantity: 1, reason: "Управление сценическим светом." },
-        { name: "DMX сплиттер и коммутация", type: "cable", quantity: 1, reason: "Разводка управления светом по площадке." },
+        { name: "DMX сплиттер и коммутация", type: "cable", quantity: 1, reason: "разводка управления светом по площадке." },
       ],
     },
     {
@@ -8535,7 +8699,7 @@ ${priceHints}
         { keys: ["трансляц", "stream", "эфир"], name: "Компьютер трансляции / vMix", type: "computer", quantity: 1 },
         { keys: ["экран", "монитор", "тв", "display"], name: "Экран / монитор", type: "display", quantity: 1 },
         { keys: ["интернет", "сеть", "роутер", "switch", "lan"], name: "Сетевое оборудование", type: "network", quantity: 1 },
-        { keys: ["запись", "рекордер"], name: "Рекордер", type: "video", quantity: 1 },
+        { keys: ["запись", "рекордер"], name: "рекордер", type: "video", quantity: 1 },
         { keys: ["atem", "режиссер", "коммутац"], name: "Видеомикшер", type: "video", quantity: 1 },
       ];
       for (const rule of needRules) {

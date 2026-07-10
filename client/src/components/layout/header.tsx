@@ -31,6 +31,7 @@ const pageTitles: Record<string, string> = {
   "/tasks/yougile": "Задачи YouGile",
   "/calendar": "Календарь",
   "/maps": "Карты",
+  "/locations": "Площадки",
   "/room-booking": "Бронирование комнат",
   "/equipment": "Склад техники",
   "/estimates": "Смета",
