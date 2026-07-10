@@ -1,29 +1,33 @@
-# Week 6 Reflection
+# Sprint Retrospective
 
-## Learning points
-- **From the trial release:** We learned that our deployment pipeline is stable, but the customer needs a clearer single entry point with all access instructions in one place.
-- **From the online customer meeting:** We learned that the customer values seeing a working version early, even if some features are not yet polished. The meeting helped us understand which remaining bugs are truly blocking for independent use.
-- **From team coordination:** We confirmed that starting development early in the sprint reduces pressure, but tasks must be assigned by the team lead (or a backup) on Day 1 to avoid confusion.
+## What went well
 
-## Validated assumptions
-- **Assumption:** We assumed that the Week 6 trial release would be stable enough for the customer to evaluate the core workflows.
-  **Result:** **Confirmed.** The customer was able to create tasks, navigate the calendar, and check warehouse functionality without major issues.
-- **Assumption:** We assumed that existing documentation (README and development‑process guide) would be enough for the customer to get started.
-  **Result:** **Partially confirmed.** The customer found the access link and basic usage clear, but asked for a short troubleshooting section and a single page that summarises all key access details.
-- **Assumption:** We assumed that the product was nearly ready for final handover, needing only minor UI fixes in Week 7.
-  **Result:** **Confirmed.** The customer agreed that the remaining work can realistically be finished in Sprint 5.
+- **Early development**
+- During the week developer started work early and closed all US
+- **Good documentation allocation**
+- At this sprint document allocation was done correctly that helped to allocate team resoursec in the most proper way
 
-## Friction and gaps
-- **Late task assignment:** The team lead was unavailable at the start of the sprint, so the team began self‑allocating tasks without clear priorities. This caused some duplication and rework.
-- **Documentation written at the last moment:** The customer‑handover guide and the updated README were started too late, leaving little time for internal review before the customer meeting.
-- **Single meeting limited feedback depth:** Because we had only one online session, some detailed feedback (especially about edge cases in the calendar) arrived after the meeting, reducing the time available to address it in Sprint 4.
-- **Merge conflicts from long‑lived branches:** Two features were developed in isolation and merged only at the end of the sprint, resulting in unexpected conflicts that delayed the trial build.
+## What did not go well
 
-## Planned response
-To address the gaps found in Sprint 4, we have planned the following actions for Sprint 5 (Week 7):
+- **Challenges with fat allocation**
+- Our team leader did not allocate tasks at time, so team start allocate tasks without him
 
-1. **Finalise customer‑handover documentation:** We will add a troubleshooting page and merge all access instructions into one place (*Issue # 141*).
-2. **Fix remaining critical bugs** reported during the trial: issues *# 142*, *# 143* will be handled in the first half of Week 7.
-3. **Improve task allocation process:** We agreed that if the team lead is unavailable, the Scrum Master will facilitate the allocation meeting on the first day of the sprint.
-4. **Daily merges to `main`:** Feature branches will be merged at least daily to prevent large conflicts, hiding unfinished work behind feature flags where necessary.
-5. **Mid‑sprint feedback checkpoint:** We scheduled a short online check‑in with the customer for Wednesday of Week 7 to ensure final feedback arrives while there is still time to react.
+- **Merge conflicts appeared due to long‑lived branches**
+- Several features were developed in isolation and merged only at the end of the sprint.
+
+## Changes implemented from the previous Retrospective
+
+- **Improvements from Sprint 3**
+
+**Strict deadlines for start of the code developing**
+- The frontend/backend project developing will allways start immediately after publication of current sprint tasks.
+
+**Buffer for review**
+- Reviewers check open PRs at least once per day, even if it's just 15–30 minutes, to avoid blocking the team.
+
+## Concrete process improvements for the next Sprint
+- **Set a fixed task‑allocation window on the first day of the sprint.**
+- If the team lead is unavailable, the Scrum Master or any designated backup facilitates the allocation meeting. This avoids a situation where the team starts self‑assigning without clear priorities.
+
+- **Pin a person on one type of document for several sprints**
+- Assign a single owner for key documents (e.g., customer-handover.md, README.md).  The owner already known with some points of the document and will update information faster than other team member

@@ -37,12 +37,8 @@ Based on the Sprint 4 review and the remaining work identified by the team, we
 
 4. **Automated verification of US‑019:** implement an automated check that validates the safe‑update mechanism on an existing PostgreSQL database.
 
-5. **Documentation entry point update:**
-   - Improve README discoverability by adding a dedicated Documentation section with direct links to the hosted docs site and the customer‑handover guide.
-   - Update `docs/customer-handover.md` with a brief Getting Started checklist.
-
-6. **Address customer feedback that is not blocking MVP v3:**
-   - The Dashboard reset button and the initiator/responsible person concept are recorded as PBIs (#149, #150) but will not block the final release.
+5. **Address customer feedback that is not blocking MVP v3:**
+   - The Dashboard reset button and the initiator/responsible person concept are recorded as PBIs but will not block the final release.
    - The customer’s requests for user‑definable equipment categories and the kit‑disassembly guard are noted and will be prioritised after the final delivery.
 
-7. **Mid‑sprint checkpoint:** we scheduled a short online check‑in with the customer on Wednesday of Week 7 to validate the critical fixes and confirm final acceptance.
+6. **Mid‑sprint checkpoint:** we scheduled a short online check‑in with the customer on Wednesday of Week 7 to validate the critical fixes and confirm final acceptance.
