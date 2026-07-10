@@ -83,17 +83,22 @@ and integration keys if exposed; HTTPS is required in production.
 
 ## 7. Known Limitations
 
-Open Sprint 4 items:
+Open, actively tracked for Sprint 4:
 
-| Area | Issue |
-|---|---|
-| Task cards overlap on small screens / high density | [#154](https://github.com/swp-team-34/streamdesk/issues/154) |
-| Task Manager mobile view needs optimization | [#155](https://github.com/swp-team-34/streamdesk/issues/155) |
-| Warehouse "Send to project" UI glitch | [#156](https://github.com/swp-team-34/streamdesk/issues/156) |
-| Tasks fail to attach to checkout requests | [#157](https://github.com/swp-team-34/streamdesk/issues/157) |
-| Minor equipment count discrepancy | [#158](https://github.com/swp-team-34/streamdesk/issues/158) |
-| Dashboard widgets not drag-and-drop | [#159](https://github.com/swp-team-34/streamdesk/issues/159) |
-| No safe migration workflow yet | [#160](https://github.com/swp-team-34/streamdesk/issues/160) |
+| Area | Issue | Status |
+| --- | --- | --- |
+| Task Manager mobile view needs optimization | [#155](https://github.com/swp-team-34/streamdesk/issues/155) | Open |
+| Warehouse "Send to project" UI glitch | [#156](https://github.com/swp-team-34/streamdesk/issues/156) | Open |
+| Tasks fail to attach to checkout requests | [#157](https://github.com/swp-team-34/streamdesk/issues/157) | Open |
+| Minor equipment count discrepancy | [#158](https://github.com/swp-team-34/streamdesk/issues/158) | Open |
+| Dashboard widgets not drag-and-drop | [#159](https://github.com/swp-team-34/streamdesk/issues/159) | Open |
+| No safe migration workflow yet | [#160](https://github.com/swp-team-34/streamdesk/issues/160) | Open |
+
+Closed, will not be fixed as a separate item: task cards overlapping action buttons on small
+screens / high density ([#154](https://github.com/swp-team-34/streamdesk/issues/154), closed
+2026-07-06 as not planned, no reason recorded in the issue). No related fix has landed in the
+codebase since the close date, so the symptom should be assumed to still be present; it is out
+of Sprint 4 scope unless reopened.
 
 Not yet scheduled: dedicated "projects" page, several `docs/roadmap.md` warehouse features,
 further polish on estimates/schemes.
