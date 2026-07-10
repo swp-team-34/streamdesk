@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowLeft,
+  ArrowUpDown,
   BarChart3,
   Building2,
   Check,
@@ -58,6 +59,11 @@ import {
   matchesTaskManagerWorkloadFilter,
   type TaskManagerWorkloadFilter,
 } from "@/lib/task-manager-filters";
+import {
+  compareTaskManagerCards,
+  type TaskManagerSortBy,
+  type TaskManagerSortDirection,
+} from "@/lib/task-manager-sort";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -389,48 +395,18 @@ const CARD_PRIORITY_LABELS: Record<KanbanCardPriority, string> = {
   urgent: "Срочный",
 };
 
-const CARD_PRIORITY_WEIGHT: Record<KanbanCardPriority, number> = {
-  urgent: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
+const CARD_SORT_LABELS: Record<TaskManagerSortBy, string> = {
+  position: "Порядок доски",
+  deadline: "Срок",
+  priority: "Приоритет",
+  createdAt: "Создано",
+  updatedAt: "Обновлено",
+  title: "Название",
 };
 
-const getDeadlineSortBucket = (card: KanbanCardView, listById: Map<string, KanbanListView>) => {
-  const list = listById.get(card.listId);
-  const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
-  if (!card.dueDate || isCompleteLikeList) return 2;
-  return getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList }) === "overdue" ? 0 : 1;
-};
-
-const getTimeValue = (value?: string | Date | null) => {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? Number.POSITIVE_INFINITY : date.getTime();
-};
-
-const compareCardsByDeadline = (
-  left: KanbanCardView,
-  right: KanbanCardView,
-  listById: Map<string, KanbanListView>,
-) => {
-  const leftBucket = getDeadlineSortBucket(left, listById);
-  const rightBucket = getDeadlineSortBucket(right, listById);
-  if (leftBucket !== rightBucket) return leftBucket - rightBucket;
-
-  const leftDue = getTimeValue(left.dueDate);
-  const rightDue = getTimeValue(right.dueDate);
-  if (leftDue !== rightDue) return leftDue - rightDue;
-
-  const leftPriority = CARD_PRIORITY_WEIGHT[left.priority] ?? CARD_PRIORITY_WEIGHT.medium;
-  const rightPriority = CARD_PRIORITY_WEIGHT[right.priority] ?? CARD_PRIORITY_WEIGHT.medium;
-  if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-
-  const leftCreated = getTimeValue(left.createdAt);
-  const rightCreated = getTimeValue(right.createdAt);
-  if (leftCreated !== rightCreated) return leftCreated - rightCreated;
-
-  return String(left.title || "").localeCompare(String(right.title || ""), "ru", { numeric: true, sensitivity: "base" });
+const CARD_SORT_DIRECTION_LABELS: Record<TaskManagerSortDirection, string> = {
+  asc: "По возрастанию",
+  desc: "По убыванию",
 };
 
 const CUSTOM_FIELD_TYPE_LABELS: Record<KanbanCustomFieldType, string> = {
@@ -819,6 +795,8 @@ export default function TasksV2Page() {
   const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
   const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
   const [cardFilters, setCardFilters] = useState(EMPTY_FILTERS);
+  const [cardSortBy, setCardSortBy] = useState<TaskManagerSortBy>("position");
+  const [cardSortDirection, setCardSortDirection] = useState<TaskManagerSortDirection>("asc");
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
   const [boardStatsOpen, setBoardStatsOpen] = useState(false);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
@@ -1104,23 +1082,6 @@ export default function TasksV2Page() {
     () => cards.filter((card) => getDueDateStatus(card.dueDate) === "overdue").length,
     [cards],
   );
-  const taskWorkloadStats = useMemo(() => {
-    const listById = new Map(lists.map((list) => [list.id, list]));
-    const isCompleteLike = (card: KanbanCardView) => {
-      const list = listById.get(card.listId);
-      return list?.type === "closed" || list?.type === "archive";
-    };
-    const isTrash = (card: KanbanCardView) => listById.get(card.listId)?.type === "trash";
-    const active = cards.filter((card) => !isCompleteLike(card) && !isTrash(card)).length;
-    const completed = cards.filter(isCompleteLike).length;
-    const inProgress = cards.filter((card) => listById.get(card.listId)?.type === "active").length;
-    const overdue = cards.filter((card) => {
-      if (isCompleteLike(card) || isTrash(card)) return false;
-      return getDueDateStatus(card.dueDate) === "overdue";
-    }).length;
-
-    return { active, completed, overdue, inProgress };
-  }, [cards, lists]);
   const boardCompletionStats = useMemo(() => {
     const listById = new Map(lists.map((list) => [list.id, list]));
     const overview = getCompletionSummary(cards, listById);
@@ -1357,21 +1318,28 @@ export default function TasksV2Page() {
     });
   }, [activeCustomFields, cardFilters, cards, labelById, labelGroupById, lists, userById]);
 
+  const sortedFilteredCards = useMemo(() => {
+    const listById = new Map(lists.map((list) => [list.id, list]));
+    return [...filteredCards].sort((left, right) =>
+      compareTaskManagerCards(left, right, {
+        sortBy: cardSortBy,
+        sortDirection: cardSortBy === "deadline" ? "asc" : cardSortDirection,
+        listsById: listById,
+      }),
+    );
+  }, [cardSortBy, cardSortDirection, filteredCards, lists]);
+
   const filteredCardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
 
-    for (const card of filteredCards) {
+    for (const card of sortedFilteredCards) {
       const listCards = groupedCards.get(card.listId) ?? [];
       listCards.push(card);
       groupedCards.set(card.listId, listCards);
     }
 
-    groupedCards.forEach((listCards) => {
-      listCards.sort((a, b) => Number(a.position) - Number(b.position));
-    });
-
     return groupedCards;
-  }, [filteredCards]);
+  }, [sortedFilteredCards]);
 
   const matchingDetailLabels = useMemo(() => {
     const query = detailLabelQuery.trim().toLowerCase();
@@ -1397,7 +1365,7 @@ export default function TasksV2Page() {
       groups.set(id, group);
     };
 
-    for (const card of filteredCards) {
+    for (const card of sortedFilteredCards) {
       if (listGrouping === "none") {
         addCard("all", "Все задачи", card);
         continue;
@@ -1445,17 +1413,21 @@ export default function TasksV2Page() {
     return Array.from(groups.values()).map((group) => ({
       ...group,
       cards: [...group.cards].sort((a, b) => {
-        const deadlineOrder = compareCardsByDeadline(a, b, listById);
-        if (deadlineOrder !== 0 || !listGrouping.startsWith("field:")) return deadlineOrder;
+        const sortOrder = compareTaskManagerCards(a, b, {
+          sortBy: cardSortBy,
+          sortDirection: cardSortBy === "deadline" ? "asc" : cardSortDirection,
+          listsById: listById,
+        });
+        if (sortOrder !== 0 || !listGrouping.startsWith("field:")) return sortOrder;
         const fieldId = listGrouping.slice("field:".length);
         const field = activeCustomFields.find((item) => item.id === fieldId);
-        if (!field) return deadlineOrder;
+        if (!field) return sortOrder;
         const left = formatCustomFieldValue(field, a.customFieldValues?.[field.id], userById);
         const right = formatCustomFieldValue(field, b.customFieldValues?.[field.id], userById);
         return left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" });
       }),
     }));
-  }, [activeCustomFields, filteredCards, listGrouping, lists, userById]);
+  }, [activeCustomFields, cardSortBy, cardSortDirection, listGrouping, lists, sortedFilteredCards, userById]);
 
   const getListNameById = (listId: unknown) => {
     const normalized = String(listId || "").trim();
@@ -3043,13 +3015,19 @@ export default function TasksV2Page() {
     const dueDateStatus = getDueDateStatus(card.dueDate, {
       isComplete: list?.type === "closed" || list?.type === "archive" || list?.type === "trash",
     });
+    const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
     const cardLabels = normalizeLabelIds(card.labelIds)
       .map((labelId) => labelById.get(labelId))
       .filter((label): label is KanbanLabelView => Boolean(label));
     const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
 
     return (
-      <div className="grid gap-2 rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center">
+      <div
+        className={[
+          "grid gap-2 rounded-xl border border-l-4 px-3 py-2.5 text-sm shadow-sm transition-colors sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center",
+          dueDateStatusClasses.card || "border-border/35 bg-muted/10 hover:bg-muted/20",
+        ].join(" ")}
+      >
         <div className="min-w-0 sm:col-span-2 lg:col-span-1">
           {inlineEditingCardId === card.id ? (
             <Input
@@ -3082,7 +3060,7 @@ export default function TasksV2Page() {
           )}
           {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
           {equipmentRequestCount > 0 && (
-            <Badge variant="outline" className="mt-2 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+            <Badge variant="outline" className="mt-1.5 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
               Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
             </Badge>
           )}
@@ -3126,7 +3104,7 @@ export default function TasksV2Page() {
           {CARD_PRIORITY_LABELS[card.priority]}
         </Badge>
         <span className="min-w-0 truncate text-muted-foreground">{assigneeName}</span>
-        <Badge variant="outline" className="w-fit rounded-full">
+        <Badge variant="outline" className={["w-fit rounded-full", dueDateStatusClasses.badge].join(" ")}>
           {getDueDateStatusLabel(dueDateStatus)}
         </Badge>
         <div className="flex items-center justify-end gap-1 sm:col-span-2 lg:col-span-1">
@@ -3232,13 +3210,13 @@ export default function TasksV2Page() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-6 p-4 pt-5 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-6 sm:pt-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-3 p-3 pt-4 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-5 sm:pt-5">
+      <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="max-w-full justify-between gap-2 rounded-xl">
-                <span className="max-w-[220px] truncate">
+              <Button variant="outline" className="h-9 min-w-0 max-w-full flex-1 justify-between gap-2 rounded-xl sm:max-w-[320px] sm:flex-none">
+                <span className="min-w-0 truncate">
                   {boardsLoading ? "Загрузка досок..." : selectedBoard?.name || "Выберите доску"}
                 </span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -3274,11 +3252,10 @@ export default function TasksV2Page() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {selectedBoard?.canManage && (
-            <Button variant="outline" size="sm" className="hidden gap-2 rounded-xl md:inline-flex" onClick={() => setBoardSettingsOpen(true)}>
+            <Button variant="outline" size="icon" className="hidden h-9 w-9 rounded-xl md:inline-flex" onClick={() => setBoardSettingsOpen(true)} aria-label="Настройки доски" title="Настройки доски">
               <Settings2 className="h-4 w-4" />
-              Настройки
             </Button>
           )}
 
@@ -3288,14 +3265,6 @@ export default function TasksV2Page() {
                 size="icon"
                 className="h-9 w-9 rounded-xl"
                 aria-label="Создать"
-                onClick={(event) => {
-                  event.preventDefault();
-                  handleCreateBoard();
-                }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setCreateMenuOpen(true);
-                }}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -3330,7 +3299,7 @@ export default function TasksV2Page() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Статистика</DropdownMenuLabel>
+              <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuItem disabled={!selectedBoard} onClick={() => setBoardStatsOpen(true)}>
                 <BarChart3 className="h-4 w-4" />
                 Статистика доски
@@ -3367,57 +3336,97 @@ export default function TasksV2Page() {
       </div>
 
       <Card className="mt-2 min-w-0 overflow-visible border-border/40 bg-card shadow-sm">
-        <CardHeader className="gap-3">
+        <CardHeader className="gap-3 px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="truncate text-xl sm:text-2xl">
                 {selectedBoard ? `Доска: ${selectedBoard.name}` : "Выберите доску"}
               </CardTitle>
-	              <CardDescription>
-	                {selectedBoard
-	                  ? selectedBoard.description || "У доски пока нет описания."
-	                  : "Выберите доску в верхнем списке, чтобы увидеть ее поток задач, списки и карточки."}
-	              </CardDescription>
-	            </div>
-	            {selectedBoard && (
-	              <div className="flex flex-col items-start gap-3 sm:items-end">
-	                <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative min-w-[220px] flex-1 sm:w-[320px] sm:flex-none">
-                      <Input
-                        id="kanban-board-search"
-                        value={cardFilters.search}
-                        onChange={(event) => setCardFilters((prev) => ({ ...prev, search: event.target.value }))}
-                        placeholder="Поиск карточек"
-                        className={`${KANBAN_PANEL_INPUT_CLASS} pr-9`}
-                      />
-                      {cardFilters.search && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1 h-8 w-8 rounded-lg text-muted-foreground"
-                          onClick={() => setCardFilters((prev) => ({ ...prev, search: "" }))}
-                          aria-label="Очистить поиск"
+              <CardDescription>
+                {selectedBoard
+                  ? selectedBoard.description || "У доски пока нет описания."
+                  : "Выберите доску в верхнем списке, чтобы увидеть ее поток задач, списки и карточки."}
+              </CardDescription>
+            </div>
+            {selectedBoard && (
+              <div className="flex w-full min-w-0 flex-col items-stretch gap-2 lg:w-auto lg:items-end">
+                <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 lg:flex lg:w-auto lg:flex-wrap lg:justify-end">
+                  <div className="relative min-w-0 lg:w-[320px] lg:flex-none">
+                    <Input
+                      id="kanban-board-search"
+                      value={cardFilters.search}
+                      onChange={(event) => setCardFilters((prev) => ({ ...prev, search: event.target.value }))}
+                      placeholder="Поиск карточек"
+                      className={`${KANBAN_PANEL_INPUT_CLASS} pr-9`}
+                    />
+                    {cardFilters.search && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1 h-8 w-8 rounded-lg text-muted-foreground"
+                        onClick={() => setCardFilters((prev) => ({ ...prev, search: "" }))}
+                        aria-label="Очистить поиск"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="min-w-0 gap-2 rounded-xl border-border/35 px-3"
+                        aria-label="Сортировка карточек"
+                      >
+                        <ArrowUpDown className="h-4 w-4" />
+                        <span className="hidden sm:inline">{CARD_SORT_LABELS[cardSortBy]}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuLabel>Сортировка</DropdownMenuLabel>
+                      {(Object.keys(CARD_SORT_LABELS) as TaskManagerSortBy[]).map((sortKey) => (
+                        <DropdownMenuItem key={sortKey} onClick={() => setCardSortBy(sortKey)} className="justify-between">
+                          <span>{CARD_SORT_LABELS[sortKey]}</span>
+                          {cardSortBy === sortKey && <Check className="h-4 w-4 text-primary" />}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Направление</DropdownMenuLabel>
+                      {(Object.keys(CARD_SORT_DIRECTION_LABELS) as TaskManagerSortDirection[]).map((direction) => (
+                        <DropdownMenuItem
+                          key={direction}
+                          disabled={cardSortBy === "deadline"}
+                          onClick={() => setCardSortDirection(direction)}
+                          className="justify-between"
                         >
-                          <X className="h-4 w-4" />
-                        </Button>
+                          <span>{CARD_SORT_DIRECTION_LABELS[direction]}</span>
+                          {cardSortDirection === direction && <Check className="h-4 w-4 text-primary" />}
+                        </DropdownMenuItem>
+                      ))}
+                      {cardSortBy === "deadline" && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                          Срок всегда сортируется: просрочено, ближайшие будущие, без срока.
+                        </div>
                       )}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 rounded-xl border-border/35"
-                      onClick={() => setFiltersDialogOpen(true)}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                      Фильтры
-                      {hasActiveFilters && <Badge variant="secondary" className="rounded-full">Активны</Badge>}
-                    </Button>
-	                  <div className="inline-flex rounded-xl border border-border/45 bg-muted/40 p-1">
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-w-0 gap-2 rounded-xl border-border/35 px-3"
+                    onClick={() => setFiltersDialogOpen(true)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Фильтры</span>
+                    {hasActiveFilters && <Badge variant="secondary" className="rounded-full">Активны</Badge>}
+                  </Button>
+                  <div className="col-span-3 inline-flex w-full rounded-xl border border-border/45 bg-muted/40 p-1 lg:col-span-1 lg:w-auto">
                     <Button
                       variant={boardViewMode === "kanban" ? "secondary" : "ghost"}
                       size="sm"
-                      className="gap-2 rounded-lg"
+                      className="flex-1 gap-2 rounded-lg lg:flex-none"
                       onClick={() => setBoardViewMode("kanban")}
                     >
                       <Layers3 className="h-4 w-4" />
@@ -3426,7 +3435,7 @@ export default function TasksV2Page() {
                     <Button
                       variant={boardViewMode === "list" ? "secondary" : "ghost"}
                       size="sm"
-                      className="gap-2 rounded-lg"
+                      className="flex-1 gap-2 rounded-lg lg:flex-none"
                       onClick={() => setBoardViewMode("list")}
                     >
                       <LayoutList className="h-4 w-4" />
@@ -3435,7 +3444,7 @@ export default function TasksV2Page() {
                   </div>
                   {boardViewMode === "list" && (
                     <select
-                      className={`${KANBAN_PANEL_SELECT_CLASS} w-full sm:w-[220px]`}
+                      className={`${KANBAN_PANEL_SELECT_CLASS} col-span-3 w-full lg:col-span-1 lg:w-[220px]`}
                       value={listGrouping}
                       onChange={(event) => setListGrouping(event.target.value as BoardListGrouping)}
                     >
@@ -3454,26 +3463,8 @@ export default function TasksV2Page() {
               </div>
             )}
           </div>
-          {selectedBoard && (
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: "Активные", value: taskWorkloadStats.active },
-                { label: "Выполненные", value: taskWorkloadStats.completed },
-                { label: "Просроченные", value: taskWorkloadStats.overdue },
-                { label: "В работе", value: taskWorkloadStats.inProgress },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-border/35 bg-muted/20 px-3 py-2"
-                >
-                  <div className="text-xs text-muted-foreground">{item.label}</div>
-                  <div className="mt-1 text-xl font-semibold text-foreground">{item.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
         </CardHeader>
-        <CardContent className="min-w-0 overflow-visible">
+        <CardContent className="min-w-0 overflow-visible px-3 pb-3 sm:px-6 sm:pb-6">
           {!selectedBoard ? (
 	            <div className="rounded-[24px] border border-dashed border-border/40 bg-muted/30 px-5 py-10 text-sm leading-6 text-muted-foreground">
 	              Выберите доску в верхнем списке или создайте новую через кнопку плюс.
@@ -3494,7 +3485,7 @@ export default function TasksV2Page() {
                           <div
 	                            ref={listDropProvided.innerRef}
 	                            {...listDropProvided.droppableProps}
-	                            className="dnd-board-root flex w-max min-w-full items-start gap-4 overflow-visible"
+	                            className="dnd-board-root flex w-max min-w-full items-start gap-3 overflow-visible sm:gap-4"
 	                          >
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
@@ -3514,7 +3505,7 @@ export default function TasksV2Page() {
                               <div
                                 ref={listDragProvided.innerRef}
                                 {...listDragProvided.draggableProps}
-                                className={["task-board-column flex w-[320px] shrink-0 self-start", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
+                                className={["task-board-column flex w-[calc(100vw-2.5rem)] shrink-0 self-start sm:w-[320px]", listDragSnapshot.isDragging ? "task-dragging" : ""].join(" ").trim()}
                                 style={{
                                   ...getDraggableCardStyle(listDragProvided.draggableProps.style),
                                   borderRadius: 24,
@@ -4023,7 +4014,7 @@ export default function TasksV2Page() {
 	                      })}
 	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
-                        <Card className="task-board-column flex w-[320px] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm">
+                        <Card className="task-board-column flex w-[calc(100vw-2.5rem)] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm sm:w-[320px]">
                           <CardContent className="flex w-full flex-col justify-start p-4">
                             {inlineListOpen ? (
                               <div className="space-y-3">
@@ -4098,13 +4089,13 @@ export default function TasksV2Page() {
 	                          const draftValue = listViewGroupDrafts[group.id] || "";
 	                          const draftListId = group.droppableListId || listViewDraftListId || lists[0]?.id || "";
 	                          return (
-	                            <section key={group.id} className="overflow-hidden rounded-[24px] border border-border/35 bg-muted/15">
-	                              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/25 px-4 py-3">
+	                            <section key={group.id} className="overflow-hidden rounded-xl border border-border/30 bg-card/50">
+	                              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/25 px-3 py-2.5">
 	                                <h3 className="font-semibold">{group.title}</h3>
 	                                <Badge variant="secondary" className="rounded-full">{group.cards.length}</Badge>
 	                              </div>
 	                              {canEditSelectedBoard && (
-	                                <div className="grid gap-2 border-b border-border/20 px-3 py-3 md:grid-cols-[minmax(180px,1fr)_minmax(140px,220px)_auto]">
+	                                <div className="grid gap-2 border-b border-border/20 px-3 py-2.5 md:grid-cols-[minmax(180px,1fr)_minmax(140px,220px)_auto]">
 	                                  <Input
 	                                    value={draftValue}
 	                                    onChange={(event) => setListViewGroupDrafts((prev) => ({ ...prev, [group.id]: event.target.value }))}
@@ -4149,7 +4140,7 @@ export default function TasksV2Page() {
 	                              {listViewDroppableId ? (
 	                                <Droppable droppableId={listViewDroppableId} type="CARD">
 	                                  {(provided) => (
-	                                    <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[96px] space-y-2 p-3">
+	                                    <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[72px] space-y-2 p-2">
 	                                      {group.cards.map((card, index) => (
 	                                        <Draggable key={card.id} draggableId={`card:${card.id}`} index={index} isDragDisabled={!canEditSelectedBoard || isCardEditPending}>
 	                                          {(dragProvided, dragSnapshot) => (
@@ -4165,16 +4156,16 @@ export default function TasksV2Page() {
 	                                        </Draggable>
 	                                      ))}
 	                                      {group.cards.length === 0 && (
-	                                        <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">В этой группе пока нет задач.</div>
+	                                        <div className="px-3 py-4 text-sm text-muted-foreground">В этой группе пока нет задач.</div>
 	                                      )}
 	                                      {provided.placeholder}
 	                                    </div>
 	                                  )}
 	                                </Droppable>
 	                              ) : (
-	                                <div className="space-y-2 p-3">
+	                                <div className="space-y-2 p-2">
 	                                  {group.cards.length === 0 ? (
-	                                    <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">В этой группе пока нет задач.</div>
+	                                    <div className="px-3 py-4 text-sm text-muted-foreground">В этой группе пока нет задач.</div>
 	                                  ) : (
 	                                    group.cards.map((card) => <div key={card.id}>{renderListViewCardRow(card)}</div>)
 	                                  )}

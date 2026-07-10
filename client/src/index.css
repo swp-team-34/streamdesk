@@ -177,8 +177,15 @@ body::-webkit-scrollbar,
   }
 
   .task-board-column {
+    height: clamp(420px, calc(100dvh - 220px), 680px);
     scroll-snap-align: none;
     scroll-snap-stop: normal;
+  }
+
+  .kanban-board-scroll {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    padding-right: 0.5rem !important;
   }
 }
 /* Якорь скролла: при добавлении карточки колонка не прыгает */
