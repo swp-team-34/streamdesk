@@ -163,3 +163,132 @@ All steps execute without critical errors. The dashboard loads with skeleton sta
 
 ### Execution result
 All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.
+
+## UAT-008 — Verify Recording Place Statuses and Location-Based Issue Reporting
+
+- **Scenario ID:** UAT-006
+- **Title:** Verify recording place status visibility, filtering, and issue reporting at production locations
+- **Status:** Draft
+- **Related feature:** Recording Places, Issue Management
+
+### Objective
+Verify that production workers can view and filter recording place statuses (available, occupied, unavailable, under maintenance) and report issues at a location, with real-time visibility for managers.
+
+### Preconditions
+One or two users can take the roles of production worker and manaer for feature testing; the system contains recording places with various statuses; at least one location/task exists to link issues to.
+
+### Test steps
+
+- Open the Recording Places list or dashboard section.
+- Verify a skeleton loading state appears while data loads.
+- After loading, verify each place displays its current status (available, occupied, unavailable, or under maintenance) clearly near the place name.
+- Apply the "available" status filter and confirm only available places are listed.
+- Apply the "occupied" status filter and confirm only occupied places are listed.
+- Apply the "unavailable" status filter and confirm only unavailable places are listed.
+- Select an "occupied" or "unavailable" place and view its related equipment options. Verify the system indicates that equipment planning for this place may be limited or unavailable.
+- Log in as an authorized Manager. Update a recording place status to a new value. Save and reload the page. Verify the status is persisted.
+- Log back in as the Production Worker. Navigate to a task, stream, or location page.
+- Create a new issue with a valid title, description, and location/work item. Submit it. Verify the system saves the issue and marks it as "reported".
+- Attempt to submit another issue with a required field (e.g., title) left empty. Verify the system prevents submission and shows validation errors.
+- Log in as the Manager. Open the dashboard or issue list. Verify the newly reported issue appears with its status, reporter, time, and related location/task.
+- Log back in as the Production Worker. Update the description of your reported issue and save. Verify the change is persisted.
+- As the Manager, refresh the dashboard and verify the issue updates are visible in real time without a manual page reload.
+
+### Expected result
+Recording places display correct statuses near their names, filters work accurately, and occupied/unavailable places show equipment planning limitations. Authorized status updates persist after reload. Issues require mandatory fields, save successfully when complete, and appear on the Manager dashboard with full details. Updates and cancellations persist and reflect in real time on authorized dashboards.
+
+### Execution result
+To be filled
+
+## UAT-009 — Verify Project-Specific Task Board and Compact/Sortable Task Manager
+
+- **Scenario ID:** UAT-007
+- **Title:** Verify project-specific Kanban board creation, membership sync, and Task Manager compact sorting UX
+- **Status:** Draft
+- **Related feature:** Projects, Task Manager
+
+### Objective
+Verify that each project has a dedicated task board synced with project members, and that the Task Manager workspace is compact, sortable by deadline/priority, and optimized for scanning.
+
+### Preconditions
+The user takes the role of the manager; multiple projects with assignees and tasks with varying data (deadlines, priorities etc.) exist.
+
+### Test steps
+
+- Open a project that has no linked task board and click its Tasks action. Verify the system creates a dedicated Kanban board for that project (idempotently-clicking again does not create duplicates).
+- Open a project that already has a linked board and click Tasks. Verify the Task Manager opens directly to that specific board (not the generic page).
+- From the project board, create a new task/card and save it. Verify the card remains associated with the project and is found when reopening Tasks for that project.
+- Link an equipment request to this project task/card. Open the task preview and verify the equipment request summary (name, requester, quantity, status) is visible.
+- Go to Project Members and add a new user to the project. Open the project task board and verify the new member appears as a board member.
+- Remove a member from the project. Sync/refresh the board and verify the board membership reflects the current team, without deleting manually added members not in the project.
+- In the Task Manager, locate the sorting controls. Sort cards by deadline and verify overdue cards appear first, then future cards nearest first, and cards without deadlines placed last.
+- Sort by priority and then by creation/update time. Verify the order changes accordingly.
+- Apply a filter (e.g., by assignee) and sort simultaneously. Verify both operate together without resetting the board or view.
+- Verify the statistics block is removed or hidden from the main board workspace on both desktop and mobile views.
+- On the list view, verify rows are visually simplified without unnecessary decorative wrappers for easy scanning.
+- On a mobile view, verify the top workspace area is compact and keeps board selector, search, filter, and sort controls accessible without pushing the board below the fold.
+- Verify secondary actions (settings, create board/list/card, management) are moved to compact icon or overflow controls when space is limited.
+
+### Expected result
+Projects correctly create/find dedicated boards idempotently, with membership syncing to project assignments. Tasks and linked equipment requests stay associated with the project board. Sorting works by deadline (overdue first), priority, and time, with no-deadline tasks last. Filters and sorts combine seamlessly. The workspace is compact—statistics removed, list rows simplified, mobile controls accessible, and secondary actions moved to icons/overflow.
+
+### Execution result
+To be filled
+
+## UAT-008 — Verify Dashboard Widget Drag-and-Drop Customization
+
+- **Scenario ID:** UAT-008
+- **Title:** Verify users can drag and drop Dashboard widgets to rearrange their workspace
+- **Status:** Draft
+- **Related feature:** Dashboard
+
+### Objective
+Verify that managers and users can customize their Dashboard layout by dragging widgets to new positions, with the layout persisting across sessions.
+
+### Preconditions
+The user has access to the Task Manager that displays at least 3–4 widgets in a grid layout.
+
+### Test steps
+
+- Open the Dashboard and observe the current widget grid layout.
+- Click and drag a widget (e.g., the Work Level widget) from its current position to a new grid position.
+- During the drag, verify the widget follows the cursor and that other widgets shift/relocate without overlapping.
+- Drop the widget at the new position. Verify the layout updates smoothly.
+- Perform a hard page reload (or log out and back in). Verify the widget remains at the new position.
+- Drag a second widget to a different position and reload again. Verify both custom positions are preserved.
+- Attempt to drag a widget partially outside the grid or onto a non-grid area. Verify the widget snaps back or stays within bounds without breaking the grid layout.
+
+### Expected result
+All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors) works smoothly. Dropped positions persist across page reloads and sessions. The grid remains intact with no overlapping or broken elements during and after drag operations.
+
+### Execution result
+To be filled
+
+## UAT-011 — Verify Safe Database Migration During Deployment
+
+- **Scenario ID:** UAT-009
+- **Title:** Verify deployment applies schema migrations without data loss
+- **Status:** Draft
+- **Related feature:** Deployment, Database
+
+### Objective
+Verify that the deployment process applies database schema changes automatically and safely, preserving all existing production data.
+
+### Preconditions
+A test or staging database contains representative production-like data; a new application version with pending schema changes (e.g., new column, table alteration) is ready for deployment.
+
+### Test steps
+
+- Take a record count and spot-check critical data (e.g., count of tasks, users, and equipment items) in the current database.
+- Run the deployment process (or execute the migration script) against the test database.
+- Verify the migration completes without errors and all schema changes are applied (e.g., new columns appear in the schema).
+- Query the database and verify the record counts from step 1 remain unchanged.
+- Spot-check the same critical records from step 1 and confirm their field values are intact and unaltered.
+- Run the application and perform basic CRUD operations (create, update, delete) to verify the new schema works correctly with the application logic.
+- Simulate a rollback (or run the down migration) and verify data integrity is maintained during rollback.
+
+### Expected result
+The migration workflow executes without errors. Schema changes apply successfully, all existing data records and their values are preserved without loss or corruption. The application functions correctly with the new schema, and rollback does not compromise data integrity.
+
+### Execution result
+To be filled
