@@ -2,14 +2,14 @@
 
 ## Learning points
 - **From the trial release:** The customer was able to register, create a company, and exercise the main workflows (Dashboard, Task Manager, Calendar, Locations, Warehouse) independently. This confirmed that the trial build is stable enough for hands‑on evaluation.
-- **From the combined online meeting:** We learned that the customer values early access to a working product. The live UAT session generated concrete, prioritised feedback that we could immediately turn into Sprint 5 PBIs. We also learned that the customer expects the documentation (README, handover guide) to be discoverable without an extra link – they only opened it after we sent the URL directly.
+- **From the combined online meeting:** We learned that the customer values early access to a working product. The live UAT session generated concrete, prioritised feedback that we could immediately turn into Sprint 5 PBIs.
 - **From team coordination:** Starting development early reduced time pressure, but the absence of a clear task‑allocation window on Day 1 led to some duplicated effort. We confirmed that the team lead (or a designated backup) must facilitate assignment on the first sprint day.
 
 ## Validated assumptions
 - **Assumption:** We assumed the Week 6 trial release was stable enough for the customer to perform critical business scenarios.
   **Result:** **Confirmed.** The customer created projects, tasks, locations, equipment, and verified overdue visualisation, board statistics, and custom fields without encountering blocking bugs.
 - **Assumption:** We assumed the current documentation set (README, `docs/customer-handover.md`) was visible and sufficient for a first‑time reader.
-  **Result:** **Partially confirmed.** After the customer received the direct link they confirmed the content was fine. However, they did not find the documents on their own, indicating that the repository entry point and the handover guide need more prominent linking.
+  **Result:** **Partially confirmed.** After the customer received the direct link they confirmed the content was fine.
 - **Assumption:** We assumed the product would be ready for transition after the agreed Sprint 5 fixes.
   **Result:** **Confirmed.** The customer stated: “If we deploy what is there now, we can already start using it … we will definitely take it into work and use it.” The remaining work (warehouse categories, kit protection, location‑project linkage) was classified as essential but achievable within Week 7.
 
