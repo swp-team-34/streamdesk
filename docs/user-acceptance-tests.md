@@ -93,7 +93,7 @@ The user easily observed the overview of the task from the Calendar. The informa
 
 - **Scenario ID:** UAT-004
 - **Title:** Verify Equipment Store, Operability, and Task Preview Integration
-- **Status:** Active
+- **Status:** Passed
 - **Related feature:** Task Manager, Equipment store
 
 ### Objective
@@ -124,13 +124,13 @@ The user is logged into the system and has access to the Equipment Store and Tas
 All steps execute without errors. The equipment store displays the correct loading state, location details, contact info, and operability statuses. Status filters work accurately. The system blocks requests for broken/on-repair items and enforces mandatory fields for working ones. Authorized edits persist correctly, while non-managers can view but not modify statuses. The task preview correctly displays the equipment request summary (name, requester, quantity, status) and updates immediately to reflect the latest approval/rejection status.
 
 ### Execution result
-To be filled during the week 5 workflow
+The user easily and intuitively executed the whole process with no complainings or errors found.
 
 ## UAT-005 — Verify Task Manager features: Workload, Deadline Ordering, Calendar Color-Coding, and Drag-and-Drop
 
 - **Scenario ID:** UAT-005
 - **Title:** Verify Manager Dashboard workload tracking, deadline-based task ordering, Calendar color-coding, and drag-and-drop deadline management
-- **Status:** Active
+- **Status:** Passed
 - **Related feature:** Task Manager, Calendar
 
 ### Objective
@@ -162,4 +162,4 @@ The user is logged into the system and has access to the Calendar and Task Manag
 All steps execute without critical errors. The dashboard loads with skeleton states, displays correct workload counts, sorted task lists, and grouped breakdowns. Real-time updates reflect status changes without reloading, and network errors show a message while preserving cached data. The calendar color-codes 24-hour and overdue tasks distinctly using appropriate urgency colors. Drag-and-drop successfully moves task deadlines, persists changes after refresh, reverts on invalid drops, and works consistently across all four calendar views.
 
 ### Execution result
-To be filled
+All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.
