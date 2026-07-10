@@ -97,6 +97,7 @@ attached_assets/
 !reports/week2/images/*.png
 !reports/week4/images/*.png
 !reports/week5/images/*.png
+!reports/week6/images/*.png
 
 # ============================================
 # База данных
