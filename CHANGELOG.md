@@ -10,6 +10,7 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added draggable, resizable, and hideable Dashboard widgets with persisted browser layout.
 - Added recording-place status tracking with filtering and manager/admin updates on the Maps page.
 
 ### Changed

@@ -3143,8 +3143,8 @@ export default function TasksV2Page() {
             size="icon"
             className="h-8 w-8 rounded-xl"
             onClick={() => handleOpenCardDetail(card.id)}
-            aria-label="Редактировать карточку"
-            title="Редактировать карточку"
+            aria-label="Изменить карточку"
+            title="Изменить карточку"
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -3342,7 +3342,7 @@ export default function TasksV2Page() {
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => selectedBoard && handleEditBoard(selectedBoard)}>
                 <Pencil className="h-4 w-4" />
-                Редактировать доску
+                Изменить доску
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!selectedBoard?.canManage} onClick={() => setBoardSettingsOpen(true)}>
                 <Settings2 className="h-4 w-4" />
@@ -3600,8 +3600,8 @@ export default function TasksV2Page() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
-                                            aria-label="Редактировать список"
-                                            title="Редактировать список"
+                                            aria-label="Изменить список"
+                                            title="Изменить список"
                                             onClick={() => handleEditList(list)}
                                             disabled={isListPending}
                                           >
@@ -3961,8 +3961,8 @@ export default function TasksV2Page() {
                                                       variant="ghost"
                                                       size="icon"
                                                       className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                      aria-label="Редактировать карточку"
-                                                      title="Редактировать карточку"
+                                                      aria-label="Изменить карточку"
+                                                      title="Изменить карточку"
                                                       onMouseDown={stopInteractiveEvent}
                                                       onPointerDown={stopInteractiveEvent}
                                                       onTouchStart={stopInteractiveEvent}
@@ -4388,7 +4388,7 @@ export default function TasksV2Page() {
       >
         <DialogContent className="max-w-2xl border-border/50 bg-card text-card-foreground">
           <DialogHeader>
-            <DialogTitle>{editingBoardId ? "Редактировать доску" : "Создать доску"}</DialogTitle>
+            <DialogTitle>{editingBoardId ? "Изменить доску" : "Создать доску"}</DialogTitle>
             <DialogDescription>
               Личные доски создаются сразу. Для командной или приглашенной доски выберите компанию.
             </DialogDescription>

@@ -63,7 +63,7 @@ function formatDueDate(value: unknown) {
   });
 }
 
-export default function DeadlineTasksWidget() {
+export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
   const cardsQuery = useQuery<any[]>({
     queryKey: ["/api/kanban/cards"],
     queryFn: async () => {
@@ -83,7 +83,7 @@ export default function DeadlineTasksWidget() {
   });
 
   const now = new Date();
-  const tasks = useMemo<DeadlineTask[]>(() => {
+  const allActiveTasks = useMemo<DeadlineTask[]>(() => {
     const kanbanTasks = (cardsQuery.data ?? []).map((card) => ({
       id: `card:${card.id}`,
       title: String(card.title || "Карточка"),
@@ -108,9 +108,9 @@ export default function DeadlineTasksWidget() {
 
     return [...kanbanTasks, ...legacyTasks]
       .filter((task) => !task.completed)
-      .sort((left, right) => compareDeadlineTasks(left, right, now))
-      .slice(0, 8);
+      .sort((left, right) => compareDeadlineTasks(left, right, now));
   }, [cardsQuery.data, tasksQuery.data]);
+  const tasks = allActiveTasks.slice(0, limit);
 
   const isLoading = cardsQuery.isLoading || tasksQuery.isLoading;
   const hasError = cardsQuery.isError || tasksQuery.isError;
@@ -166,6 +166,11 @@ export default function DeadlineTasksWidget() {
               </div>
             );
           })
+        )}
+        {!isLoading && allActiveTasks.length > limit && (
+          <div className="text-right text-xs text-muted-foreground">
+            Показано {tasks.length} из {allActiveTasks.length}
+          </div>
         )}
       </CardContent>
     </Card>

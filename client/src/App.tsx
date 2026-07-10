@@ -56,7 +56,7 @@ function StubModeBanner() {
   return (
     <div className="bg-amber-500/90 text-amber-950 text-center py-1 px-2 sm:px-3 text-xs font-medium flex items-center justify-center gap-1.5 shrink-0">
       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">Режим заглушки: данные в памяти. Для сохранения запустите PostgreSQL и укажите DATABASE_URL в .env</span>
+      <span className="truncate">Тестовый режим: данные в памяти. Для сохранения запустите PostgreSQL и укажите DATABASE_URL в .env</span>
     </div>
   );
 }

@@ -125,7 +125,7 @@ body::-webkit-scrollbar,
   display: none !important;
 }
 
-/* Резервируем место под скроллбар, чтобы при открытии Sheet/модалки контент не прыгал */
+/* резервируем место под скроллбар, чтобы при открытии Sheet/модалки контент не прыгал */
 .scrollbar-gutter-stable {
   scrollbar-gutter: stable;
 }
@@ -184,6 +184,14 @@ body::-webkit-scrollbar,
 /* Якорь скролла: при добавлении карточки колонка не прыгает */
 .task-column-content {
   overflow-anchor: auto;
+}
+
+.dashboard-widget-dragging {
+  z-index: 30;
+}
+
+.dashboard-widget-dragging > div {
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
 }
 
 /* Плавное вращение рамки логотипа на странице входа */
@@ -946,7 +954,7 @@ body::-webkit-scrollbar,
   }
 }
 
-/* Радужная анимация для neon-rainbow темы */
+/* радужная анимация для neon-rainbow темы */
 .neon-rainbow .card:hover,
 .neon-rainbow [class*="Card"]:hover {
   animation: rgb-rotate 3s ease-in-out infinite;
