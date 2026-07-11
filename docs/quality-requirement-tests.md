@@ -1,6 +1,6 @@
 # Quality Requirement Tests
 
-This document maps maintained StreamDesk MVP v2 quality requirements to automated quality requirement tests.
+This document maps maintained StreamDesk v3.0.0-rc.1 quality requirements to automated quality requirement tests.
 
 | Evidence type | What it means | Can it count as QRT? |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ This document maps maintained StreamDesk MVP v2 quality requirements to automate
 
 **Expected measurable result:** All equipment permission test cases pass and permission decisions match the expected outcome for every tested role, workspace, and permission combination.
 
-**Evidence location:** Latest protected-default-branch `Quality` workflow run and `client/src/lib/equipment-permissions.test.ts`.
+**Evidence location:** Latest successful `Quality` workflow run on main and `client/src/lib/equipment-permissions.test.ts`.
 
 ## QRT-002: Protected route component test
 
@@ -38,7 +38,7 @@ This document maps maintained StreamDesk MVP v2 quality requirements to automate
 
 **Expected measurable result:** All protected-route test cases pass. Anonymous users are blocked with a sign-in prompt, unauthorized users see an access restriction, and authorized users see protected content.
 
-**Evidence location:** Latest protected-default-branch `Quality` workflow run and `client/src/components/protected-route.test.tsx`.
+**Evidence location:** Latest successful `Quality` workflow run on main and `client/src/components/protected-route.test.tsx`.
 
 ## QRT-003: Coverage gate
 
@@ -52,7 +52,7 @@ This document maps maintained StreamDesk MVP v2 quality requirements to automate
 
 **Expected measurable result:** Vitest coverage completes successfully and produces coverage output for the configured client, server, and shared TypeScript source set before the change is considered Done.
 
-**Evidence location:** Latest protected-default-branch `Quality` workflow run, `vitest.config.ts`, and local coverage output recorded in PR verification notes.
+**Evidence location:** Latest successful `Quality` workflow run on main, `vitest.config.ts`, and local coverage output recorded in PR verification notes.
 
 ## QRT-004: Calendar date helper tests
 
@@ -66,4 +66,4 @@ This document maps maintained StreamDesk MVP v2 quality requirements to automate
 
 **Expected measurable result:** All date-helper tests pass. The helper returns the expected quarter-hour options, combines date/time correctly, rounds to the expected quarter-hour boundary, preserves moved range duration, normalizes invalid ranges, and enforces the minimum duration.
 
-**Evidence location:** Latest protected-default-branch `Quality` workflow run and `client/src/lib/task-dates.test.ts`.
+**Evidence location:** Latest successful `Quality` workflow run on main and `client/src/lib/task-dates.test.ts`.

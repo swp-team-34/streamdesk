@@ -1,6 +1,6 @@
 # Quality Requirements
 
-This document defines maintained measurable quality requirements for StreamDesk MVP v2.
+This document defines maintained measurable quality requirements for StreamDesk v3.0.0-rc.1.
 
 ## Table of Contents
 
@@ -51,7 +51,7 @@ This document defines maintained measurable quality requirements for StreamDesk 
 
 **Scenario:** When a user creates, moves, resizes, or edits a scheduled task or calendar item under the normal web application environment, the calendar date helper module shall preserve the intended date range, quarter-hour alignment, and minimum duration for 100% of automated date-helper test cases.
 
-**Why this matters:** Calendar and task scheduling are core MVP v2 workflows. Incorrect date calculations can place tasks in the wrong time slot or corrupt task planning.
+**Why this matters:** Calendar and task scheduling are core workflows for v3.0.0-rc.1. Incorrect date calculations can place tasks in the wrong time slot or corrupt task planning.
 
 **Linked quality requirement tests:** [QRT-004](quality-requirement-tests.md#qrt-004-calendar-date-helper-tests)
 
