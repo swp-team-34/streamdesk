@@ -83,28 +83,21 @@ and integration keys if exposed; HTTPS is required in production.
 
 ## 7. Known Limitations
 
-Open, actively tracked for Sprint 4:
+Current limitations from the Week 6 customer trial:
 
-| Area | Issue | Status |
-| --- | --- | --- |
-| Task Manager mobile view needs optimization | [#155](https://github.com/swp-team-34/streamdesk/issues/155) | Open |
-| Warehouse "Send to project" UI glitch | [#156](https://github.com/swp-team-34/streamdesk/issues/156) | Open |
-| Tasks fail to attach to checkout requests | [#157](https://github.com/swp-team-34/streamdesk/issues/157) | Open |
-| Minor equipment count discrepancy | [#158](https://github.com/swp-team-34/streamdesk/issues/158) | Open |
-| Dashboard widgets not drag-and-drop | [#159](https://github.com/swp-team-34/streamdesk/issues/159) | Open |
-| No safe migration workflow yet | [#160](https://github.com/swp-team-34/streamdesk/issues/160) | Open |
+| Area | Description | Issue/PBI | Status |
+| --- | --- | --- | --- |
+| Warehouse categories | User-configurable categories/subcategories | Sprint 5 follow-up PBI | Open |
+| Warehouse kits | Prevent issuing active kit components separately; log removals | Sprint 5 follow-up PBI | Open |
+| Locations | Expand into venue archive with notes, files, history, and issue workflow | Sprint 5 follow-up PBI | Open |
+| Warehouse requests | Link requests to tasks as well as projects | Follow-up PBI | Open |
+| Task Manager | Add responsible person and initiator fields | Follow-up PBI | Open |
+| Warehouse equipment cards | Add comments/photos to equipment items | Follow-up PBI | Open |
+| Task Manager custom fields | Add hints for custom-field filters | Follow-up PBI | Open |
+| Dashboard | Add reset-to-default layout action | Follow-up PBI | Deferred |
 
-Closed, will not be fixed as a separate item: task cards overlapping action buttons on small
-screens / high density ([#154](https://github.com/swp-team-34/streamdesk/issues/154), closed
-2026-07-06 as not planned, no reason recorded in the issue). No related fix has landed in the
-codebase since the close date, so the symptom should be assumed to still be present; it is out
-of Sprint 4 scope unless reopened.
-
-Not yet scheduled: dedicated "projects" page, several `docs/roadmap.md` warehouse features,
-further polish on estimates/schemes.
-
-None of this blocks core task manager, calendar, or basic warehouse use today. #157 and #160
-are treated as priority fixes before the Week 6 trial release since they affect data reliability.
+These limitations do not block Week 6 trial use. The Week 7 priority is Warehouse taxonomy,
+kit safeguards, and Locations improvements before final transition.
 
 ## 8. Handover Status
 
