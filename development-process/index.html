@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/development-process/">
       
       
-        <link rel="prev" href="../user-stories/">
+        <link rel="prev" href="../deployment-instructions/">
       
       
         <link rel="next" href="../repository-workflow/">
@@ -478,6 +478,62 @@
     
   
     User Stories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../customer-handover/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customer Handover
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment-instructions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment Instructions
   
 
     
@@ -2163,12 +2219,14 @@ npm<span class="w"> </span>run<span class="w"> </span>db:push
 npm<span class="w"> </span>run<span class="w"> </span>dev
 </code></pre></div>
 <h3 id="53-deployment-to-production">5.3 Deployment to Production<a class="headerlink" href="#53-deployment-to-production" title="Permanent link">&para;</a></h3>
+<p>Current detailed deployment instructions are maintained in <a href="../deployment-instructions/">deployment-instructions.md</a>.</p>
 <ol>
 <li>Ensure all changes are merged to <code>main</code> and CI passes.</li>
-<li>Build the project locally (or on CI) with <code>npm run build</code>.</li>
-<li>Copy the <code>dist/</code> folder and necessary runtime files to the server.</li>
-<li>Run database migrations if needed: <code>npm run db:push</code> (with care).</li>
-<li>Restart the PM2 process: <code>pm2 restart ecosystem.config.cjs</code>.</li>
+<li>Connect to the production server.</li>
+<li>Switch to the <code>streamdesk</code> user in <code>/var/www/streamdesk</code>.</li>
+<li>Pull the latest <code>main</code> branch.</li>
+<li>Run <code>bash deploy-to-server.sh</code>.</li>
+<li>Verify PM2 and HTTP responses.</li>
 </ol>
 <p>Deployment is not continuous, it is initiated manually by running a script that builds, synchronizes, and restarts the server.</p>
 <hr />

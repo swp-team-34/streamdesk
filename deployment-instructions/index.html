@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/repository-workflow/">
+        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/deployment-instructions/">
       
       
-        <link rel="prev" href="../development-process/">
+        <link rel="prev" href="../customer-handover/">
       
       
-        <link rel="next" href="../definition-of-done/">
+        <link rel="next" href="../development-process/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Repository Workflow - StreamDesk Documentation</title>
+        <title>Deployment Instructions - StreamDesk Documentation</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#repository-workflow" class="md-skip">
+        <a href="#deployment-instructions" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Repository Workflow
+              Deployment Instructions
             
           </span>
         </div>
@@ -523,10 +523,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../deployment-instructions/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment Instructions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -542,6 +569,175 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#server-login" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server Login
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#switch-to-the-application-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switch to the Application User
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update-the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update the Code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Deployment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Deployment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-short-scenario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Short Scenario
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-problems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Problems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Problems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fatal-detected-dubious-ownership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fatal: detected dubious ownership
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy-to-serversh-permission-denied" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ./deploy-to-server.sh: Permission denied
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pm2-list-is-empty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm2 list is empty
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#streamdesk-is-not-in-the-sudoers-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        streamdesk is not in the sudoers file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#npm-run-dbpush-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        npm run db:push fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#site-does-not-open-after-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Site Does Not Open After Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -579,37 +775,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Repository Workflow
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../repository-workflow/" class="md-nav__link">
         
   
   
@@ -625,125 +794,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#issue-based-product-backlog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Issue-based Product Backlog
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#work-status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Work Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#branch-naming" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Branch Naming
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pull-requests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pull Requests
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#acceptance-criteria-and-merge-readiness" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Acceptance Criteria and Merge Readiness
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#semver-release-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SemVer Release Workflow
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#changelog-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Changelog Workflow
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#required-individual-evidence" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required Individual Evidence
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#manual-github-ui-actions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manual GitHub UI Actions
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1420,10 +1470,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#issue-based-product-backlog" class="md-nav__link">
+  <a href="#server-login" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Issue-based Product Backlog
+        Server Login
       
     </span>
   </a>
@@ -1431,10 +1481,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#work-status" class="md-nav__link">
+  <a href="#switch-to-the-application-user" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Work Status
+        Switch to the Application User
       
     </span>
   </a>
@@ -1442,10 +1492,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#branch-naming" class="md-nav__link">
+  <a href="#update-the-code" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Branch Naming
+        Update the Code
       
     </span>
   </a>
@@ -1453,10 +1503,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pull-requests" class="md-nav__link">
+  <a href="#run-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pull Requests
+        Run Deployment
       
     </span>
   </a>
@@ -1464,10 +1514,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#acceptance-criteria-and-merge-readiness" class="md-nav__link">
+  <a href="#verify-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Acceptance Criteria and Merge Readiness
+        Verify Deployment
       
     </span>
   </a>
@@ -1475,10 +1525,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#semver-release-workflow" class="md-nav__link">
+  <a href="#full-short-scenario" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SemVer Release Workflow
+        Full Short Scenario
       
     </span>
   </a>
@@ -1486,35 +1536,85 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#changelog-workflow" class="md-nav__link">
+  <a href="#common-problems" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Changelog Workflow
+        Common Problems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Problems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fatal-detected-dubious-ownership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fatal: detected dubious ownership
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#required-individual-evidence" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#deploy-to-serversh-permission-denied" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Required Individual Evidence
+        ./deploy-to-server.sh: Permission denied
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#manual-github-ui-actions" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#pm2-list-is-empty" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Manual GitHub UI Actions
+        pm2 list is empty
       
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#streamdesk-is-not-in-the-sudoers-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        streamdesk is not in the sudoers file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#npm-run-dbpush-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        npm run db:push fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#site-does-not-open-after-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Site Does Not Open After Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1538,125 +1638,75 @@
   
 
 
-<h1 id="repository-workflow">Repository Workflow<a class="headerlink" href="#repository-workflow" title="Permanent link">&para;</a></h1>
-<p>This document defines the repository workflow for StreamDesk product backlog items,
-course tasks, bug reports, pull requests, evidence, changelog updates, and releases.</p>
-<h2 id="issue-based-product-backlog">Issue-based Product Backlog<a class="headerlink" href="#issue-based-product-backlog" title="Permanent link">&para;</a></h2>
-<p>All planned work starts from a GitHub issue. The issue is the source for scope,
-status, priority, evidence, and traceability. Pull requests must link back to the
-issue they implement or verify.</p>
-<p>Project links:</p>
-<ul>
-<li>Product Backlog: <a href="https://github.com/orgs/swp-team-34/projects/1">https://github.com/orgs/swp-team-34/projects/1</a></li>
-<li>Sprint Backlog: <a href="https://github.com/orgs/swp-team-34/projects/2">https://github.com/orgs/swp-team-34/projects/2</a></li>
-</ul>
-<p>Use these issue types:</p>
-<ul>
-<li><strong>User Story</strong>: end-user value written with a stable ID such as <code>US-001</code>, a story
-  statement, acceptance criteria, priority, points, MVP version, and traceability.</li>
-<li><strong>Other PBI</strong>: technical, documentation, research, infrastructure, or refactoring
-  backlog items that are not user stories.</li>
-<li><strong>Course Task</strong>: assignment process work and evidence collection.</li>
-<li><strong>Bug Report</strong>: reproducible defects with environment, steps, expected result,
-  actual result, evidence, and verification checklist.</li>
-</ul>
-<h2 id="work-status">Work Status<a class="headerlink" href="#work-status" title="Permanent link">&para;</a></h2>
-<p>Use a shared <code>Work Status</code> field or equivalent labels with these states:</p>
-<ul>
-<li>To Do</li>
-<li>Ready</li>
-<li>In Progress</li>
-<li>Review</li>
-<li>Done</li>
-</ul>
-<p>The issue status should match the actual repository state. Work should not be marked
-<code>Done</code> until the linked PR is merged or the issue has documented evidence explaining
-why no PR was needed.</p>
-<h2 id="branch-naming">Branch Naming<a class="headerlink" href="#branch-naming" title="Permanent link">&para;</a></h2>
-<p>Future non-automated branches must use this format:</p>
-<div class="highlight"><pre><span></span><code>&lt;issue-number&gt;-short-description
+<h1 id="deployment-instructions">Deployment Instructions<a class="headerlink" href="#deployment-instructions" title="Permanent link">&para;</a></h1>
+<p>This document describes the current manual production deployment for StreamDesk.</p>
+<h2 id="server-login">Server Login<a class="headerlink" href="#server-login" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>ssh<span class="w"> </span>root@team34.ru
 </code></pre></div>
-<p>Example:</p>
-<div class="highlight"><pre><span></span><code>19-configure-assignment-3-workflow
+<h2 id="switch-to-the-application-user">Switch to the Application User<a class="headerlink" href="#switch-to-the-application-user" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>sudo<span class="w"> </span>-iu<span class="w"> </span>streamdesk
+<span class="nb">cd</span><span class="w"> </span>/var/www/streamdesk
 </code></pre></div>
-<p>Do not commit directly to the default branch. Create work branches from the current
-default branch and link each PR to the issue.</p>
-<p>Historical merged branches with nonconforming names cannot be renamed retroactively
-without rewriting history. Preserve them as historical evidence. Future branches
-must comply with the required naming format.</p>
-<h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
-<p>Each PR must:</p>
-<ul>
-<li>link to the relevant issue;</li>
-<li>confirm the branch follows <code>&lt;issue-number&gt;-short-description</code>;</li>
-<li>identify the PBI type;</li>
-<li>include Work Status, MoSCoW priority, Story Points, and MVP version when applicable;</li>
-<li>verify acceptance criteria before merge;</li>
-<li>include testing or verification evidence;</li>
-<li>include screenshots or demo evidence when the change affects visible behavior;</li>
-<li>select exactly one <code>CHANGELOG.md</code> option: updated for user-visible changes, or
-  not applicable because the PR has no user-visible changes;</li>
-<li>pass the Definition of Done and reviewer checklist.</li>
-</ul>
-<h2 id="acceptance-criteria-and-merge-readiness">Acceptance Criteria and Merge Readiness<a class="headerlink" href="#acceptance-criteria-and-merge-readiness" title="Permanent link">&para;</a></h2>
-<p>Acceptance criteria must be verified before merge. If a criterion cannot be verified,
-the PR must describe the gap and the follow-up issue or manual evidence required.</p>
-<p>The repository uses a merge-commit workflow. Squash and rebase merges should remain
-disabled for assignment evidence unless the team changes the workflow in a documented
-SemVer-compatible release process.</p>
-<h2 id="semver-release-workflow">SemVer Release Workflow<a class="headerlink" href="#semver-release-workflow" title="Permanent link">&para;</a></h2>
-<p>Use Semantic Versioning for releases:</p>
-<ul>
-<li><code>MAJOR</code> for incompatible product or API changes;</li>
-<li><code>MINOR</code> for backward-compatible functionality;</li>
-<li><code>PATCH</code> for backward-compatible fixes and documentation-only corrections where a
-  tagged patch release is useful.</li>
-</ul>
-<p>Recommended mapping:</p>
-<div class="highlight"><pre><span></span><code>MVP v1 -&gt; v1.0.0
+<p>Run Git and PM2 commands as <code>streamdesk</code>, not as <code>root</code>.</p>
+<h2 id="update-the-code">Update the Code<a class="headerlink" href="#update-the-code" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>origin
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
 </code></pre></div>
-<p>If the team chooses another SemVer-compatible mapping, document it here and in the
-release notes before tagging.</p>
-<h2 id="changelog-workflow">Changelog Workflow<a class="headerlink" href="#changelog-workflow" title="Permanent link">&para;</a></h2>
-<p>Maintain <code>CHANGELOG.md</code> with an <code>Unreleased</code> section. Every user-visible change must
-update <code>CHANGELOG.md</code> in the same PR. Documentation, process, and repository workflow
-changes should also be listed when they affect team or reviewer behavior.</p>
-<p>Before creating a release:</p>
-<ol>
-<li>move relevant <code>Unreleased</code> entries under the release version and date;</li>
-<li>verify the MVP-to-release mapping;</li>
-<li>tag the release using the agreed SemVer version;</li>
-<li>link the release notes from the submission evidence.</li>
-</ol>
-<h2 id="required-individual-evidence">Required Individual Evidence<a class="headerlink" href="#required-individual-evidence" title="Permanent link">&para;</a></h2>
-<p>Each team member must provide:</p>
-<ul>
-<li>at least one commit;</li>
-<li>at least one issue-linked PR;</li>
-<li>at least one approval of another member's PR;</li>
-<li>at least one meaningful review comment on another member's PR.</li>
-</ul>
-<p>Evidence should be linked from the relevant issue, PR, or report. Use <code>TODO:</code> placeholders
-only when the real external link is not available yet.</p>
-<h2 id="manual-github-ui-actions">Manual GitHub UI Actions<a class="headerlink" href="#manual-github-ui-actions" title="Permanent link">&para;</a></h2>
-<p>These actions require GitHub UI access or repository administration permissions and
-are not completed by committing files:</p>
-<ul>
-<li>Product Backlog board/view created and linked:
-  <a href="https://github.com/orgs/swp-team-34/projects/1">https://github.com/orgs/swp-team-34/projects/1</a>;</li>
-<li>Sprint Backlog board/view created and linked:
-  <a href="https://github.com/orgs/swp-team-34/projects/2">https://github.com/orgs/swp-team-34/projects/2</a>;</li>
-<li><code>Work Status</code> field created in both project boards;</li>
-<li>MoSCoW priority field created in both project boards;</li>
-<li>Story Points field created in both project boards;</li>
-<li>MVP version field created in both project boards;</li>
-<li>branch protection verified for the default branch;</li>
-<li>merge-commit-only workflow verified for pull requests;</li>
-<li>public visibility/access verified for repository and project links;</li>
-<li>TODO: add and verify the MVP v1 deployment/access link after it is available.</li>
-</ul>
-<p>Record final board, protection, release, deployment, and evidence links only after
-they are available. Do not invent unavailable links.</p>
+<h2 id="run-deployment">Run Deployment<a class="headerlink" href="#run-deployment" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bash<span class="w"> </span>deploy-to-server.sh
+</code></pre></div>
+<h2 id="verify-deployment">Verify Deployment<a class="headerlink" href="#verify-deployment" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>pm2<span class="w"> </span>list
+curl<span class="w"> </span>-I<span class="w"> </span>http://127.0.0.1:5000
+curl<span class="w"> </span>-I<span class="w"> </span>-L<span class="w"> </span>https://team34.ru
+</code></pre></div>
+<h2 id="full-short-scenario">Full Short Scenario<a class="headerlink" href="#full-short-scenario" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>ssh<span class="w"> </span>root@team34.ru
+sudo<span class="w"> </span>-iu<span class="w"> </span>streamdesk
+<span class="nb">cd</span><span class="w"> </span>/var/www/streamdesk
+git<span class="w"> </span>fetch<span class="w"> </span>origin
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+bash<span class="w"> </span>deploy-to-server.sh
+pm2<span class="w"> </span>list
+curl<span class="w"> </span>-I<span class="w"> </span>http://127.0.0.1:5000
+curl<span class="w"> </span>-I<span class="w"> </span>-L<span class="w"> </span>https://team34.ru
+</code></pre></div>
+<h2 id="common-problems">Common Problems<a class="headerlink" href="#common-problems" title="Permanent link">&para;</a></h2>
+<h3 id="fatal-detected-dubious-ownership"><code>fatal: detected dubious ownership</code><a class="headerlink" href="#fatal-detected-dubious-ownership" title="Permanent link">&para;</a></h3>
+<p>Cause: Git was run as <code>root</code>, but the repository belongs to <code>streamdesk</code>.</p>
+<p>Fix:</p>
+<div class="highlight"><pre><span></span><code>sudo<span class="w"> </span>-iu<span class="w"> </span>streamdesk
+<span class="nb">cd</span><span class="w"> </span>/var/www/streamdesk
+</code></pre></div>
+<h3 id="deploy-to-serversh-permission-denied"><code>./deploy-to-server.sh: Permission denied</code><a class="headerlink" href="#deploy-to-serversh-permission-denied" title="Permanent link">&para;</a></h3>
+<p>Fix: run the script through <code>bash</code>.</p>
+<div class="highlight"><pre><span></span><code>bash<span class="w"> </span>deploy-to-server.sh
+</code></pre></div>
+<h3 id="pm2-list-is-empty"><code>pm2 list</code> is empty<a class="headerlink" href="#pm2-list-is-empty" title="Permanent link">&para;</a></h3>
+<p>Cause: PM2 runs under the <code>streamdesk</code> user.</p>
+<p>Fix:</p>
+<div class="highlight"><pre><span></span><code>sudo<span class="w"> </span>-iu<span class="w"> </span>streamdesk<span class="w"> </span>pm2<span class="w"> </span>list
+</code></pre></div>
+<h3 id="streamdesk-is-not-in-the-sudoers-file"><code>streamdesk is not in the sudoers file</code><a class="headerlink" href="#streamdesk-is-not-in-the-sudoers-file" title="Permanent link">&para;</a></h3>
+<p>Cause: the command is already running as <code>streamdesk</code> and tries to use <code>sudo</code>.</p>
+<p>Fix: return to <code>root</code> first.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">exit</span>
+</code></pre></div>
+<h3 id="npm-run-dbpush-fails"><code>npm run db:push</code> fails<a class="headerlink" href="#npm-run-dbpush-fails" title="Permanent link">&para;</a></h3>
+<p>Check PostgreSQL and environment configuration:</p>
+<div class="highlight"><pre><span></span><code>systemctl<span class="w"> </span>status<span class="w"> </span>postgresql<span class="w"> </span>--no-pager
+ss<span class="w"> </span>-ltnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5432</span>
+cat<span class="w"> </span>/var/www/streamdesk/.env
+</code></pre></div>
+<p>Do not publish real <code>.env</code> values.</p>
+<h3 id="site-does-not-open-after-deployment">Site Does Not Open After Deployment<a class="headerlink" href="#site-does-not-open-after-deployment" title="Permanent link">&para;</a></h3>
+<p>Check application logs, Nginx, and open ports:</p>
+<div class="highlight"><pre><span></span><code>pm2<span class="w"> </span>logs<span class="w"> </span>streamdesk<span class="w"> </span>--lines<span class="w"> </span><span class="m">100</span>
+systemctl<span class="w"> </span>status<span class="w"> </span>nginx<span class="w"> </span>--no-pager
+ss<span class="w"> </span>-ltnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">&#39;:(80|443|5000|5432)\b&#39;</span>
+</code></pre></div>
 
 
 
