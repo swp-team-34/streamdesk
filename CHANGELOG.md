@@ -8,16 +8,29 @@ changes are collected under `Unreleased`.
 
 ## [Unreleased]
 
+## [v3.0.0-rc.1] - 2026-07-11
+
 ### Added
 
 - Added draggable, resizable, and hideable Dashboard widgets with persisted browser layout.
+- Added Dashboard follow-up widgets for overdue tasks, pending equipment requests, active projects, and location issues.
+- Added project-specific Kanban board creation and navigation from project cards.
 - Added recording-place status tracking with filtering and manager/admin updates on the Maps page.
+- Added customer handover documentation for deployment, access, support, limitations, and transition readiness.
+- Added Week 6 sprint review, reflection, retrospective, and LLM usage report documentation.
+- Added AGENTS.md with repository-specific workflow, security, verification, and agent conduct guidance.
 
 ### Changed
+
+- Improved Task Manager workspace controls with saved column visibility, sorting, and denser board layout.
+- Updated warehouse equipment counts and filter summaries so visible totals match active filters.
+- Updated roadmap, user acceptance test evidence, and Week 5 report documentation for the current sprint plan and delivered MVP v2 scope.
 
 ### Fixed
 
 - Fixed Calendar task card overflow and overlapping timed task-like entries.
+- Fixed equipment request task-link validation and Kanban card refresh after checkout request creation.
+- Fixed warehouse "send to project" action layout and prevented requests for non-operable equipment.
 
 ## [v2.0.0] - 2026-07-03
 
