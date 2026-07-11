@@ -1,14 +1,14 @@
 # Testing
 
-This document describes the current maintained testing and QA evidence for StreamDesk MVP v2.
+This document describes the current maintained testing and QA evidence for StreamDesk `v3.0.0-rc.1`.
 
 ## Critical Modules and Coverage
 
-| Critical module | Why critical | Required line coverage | Current line coverage | Evidence |
+| Critical module | Why critical | Target line coverage | Current line coverage | Evidence |
 | --- | --- | ---: | ---: | --- |
-| `client/src/lib/equipment-permissions.ts` | Controls equipment create, edit, and reserve permission decisions for inventory workflows. | 30% | 100% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
-| `client/src/components/protected-route.tsx` | Controls access to protected application areas for anonymous, unauthorized, and authorized users. | 30% | 73.33% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
-| `client/src/lib/task-dates.ts` | Supports MVP v2 calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination. | 30% | 55.71% | Local `npm run coverage` output and latest protected `Quality` workflow run on `main`. |
+| `client/src/lib/equipment-permissions.ts` | Controls equipment create, edit, and reserve permission decisions for inventory workflows. | 30% | 100% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
+| `client/src/components/protected-route.tsx` | Controls access to protected application areas for anonymous, unauthorized, and authorized users. | 30% | 73.33% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
+| `client/src/lib/task-dates.ts` | Supports calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination. | 30% | 55.71% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
 
 Critical modules are selected by product risk: permission checks, access control, inventory operations, calendar/task scheduling, user data access, and flows that many users depend on.
 
@@ -16,12 +16,11 @@ Critical modules are selected by product risk: permission checks, access control
 
 | Check | Command or workflow | Current purpose | Evidence |
 | --- | --- | --- | --- |
-| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | `Quality` workflow and local verification before completion. |
-| Unit tests | `npm test` | Runs Vitest unit tests for isolated product logic such as equipment permissions and task date helpers. | `Quality` workflow and local verification before completion. |
-| Component/integration tests | `npm test` | Runs Vitest component tests such as `ProtectedRoute`. | `Quality` workflow and local verification before completion. |
-| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | `Quality` workflow and local verification before completion. |
-| Build | `npm run build` | Verifies the production client and server build. | `Quality` workflow and local verification before completion. |
-| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | `Quality` workflow and local verification before completion. |
+| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | Passed locally on 2026-07-11 and in `Quality`. |
+| Vitest test suite | `npm test` | Runs 48 unit, component, and in-process route tests across 12 files. | Passed in `Quality` on 2026-07-11. |
+| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | Passed in `Quality` on 2026-07-11. |
+| Build | `npm run build` | Verifies the production client and server build. | Passed locally on 2026-07-11 and in `Quality`. |
+| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | `Quality` workflow. |
 | Link checking | `Link Check` workflow | Runs Lychee against repository links using `lychee.toml`. | GitHub Actions link-check workflow. |
 
 ## Quality Requirement Test Mapping
@@ -53,14 +52,15 @@ The `lychee.toml` file contains narrow URL and path exclusions. Excluded links m
 
 ## CI and QA Check Status
 
-- Latest protected-default-branch `Quality` run: [successful `main` run from 2026-07-01](https://github.com/swp-team-34/streamdesk/actions/runs/28548554181).
-- Latest protected-default-branch `Link Check` run: [successful `main` run from 2026-07-01](https://github.com/swp-team-34/streamdesk/actions/runs/28548554209).
-- Local coverage evidence: `npm run coverage` passed with 3 test files and 13 tests; line coverage was 100% for `equipment-permissions.ts`, 73.33% for `protected-route.tsx`, and 55.71% for `task-dates.ts`.
+- Last checked: 2026-07-11, against `main` at `6b1265f`.
+- Latest successful `Quality` run on `main`: [run from 2026-07-11](https://github.com/swp-team-34/streamdesk/actions/runs/29159929261).
+- Latest successful `Link Check` run on `main`: [run from 2026-07-11](https://github.com/swp-team-34/streamdesk/actions/runs/29159929242).
+- Successful `Quality` test evidence: 12 test files and 48 tests passed.
+- The `Quality` coverage step completed successfully and generated the following report: 2.03% statements, 1.32% branches, 1.65% functions, and 2.04% lines across all included files. The critical-module line coverage was 100% for `equipment-permissions.ts`, 73.33% for `protected-route.tsx`, and 55.71% for `task-dates.ts`.
 
 ## Limitations and Follow-up
 
 - Full browser end-to-end workflows are not covered.
-- Server-side equipment checkout approval and rejection flows need additional tests if they become part of the protected Sprint 3 completion evidence.
-- Kanban creation server validation, persistence, and realtime updates need additional tests.
-- Calendar event participant and notification side effects need additional tests.
-- API route and persistence integration tests are recommended as the next major automated testing step.
+- No coverage threshold is configured in `vitest.config.ts`; the successful `Quality` run reports 2.04% line coverage across all included files.
+- The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.
+- The two server test files invoke route handlers with in-process Express and storage; there is no separate HTTP-to-persistence integration suite.
