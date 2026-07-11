@@ -12,6 +12,8 @@ This documentation provides a single entry point for all maintained project docu
 
 - Roadmap
 - User Stories
+- Customer Handover
+- Deployment Instructions
 - Development Process
 - Repository Workflow
 - Definition of Done
