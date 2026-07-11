@@ -1495,14 +1495,14 @@
 
 
 <h1 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h1>
-<p>This document describes the current maintained testing and QA evidence for StreamDesk MVP v2.</p>
+<p>This document describes the current maintained testing and QA evidence for StreamDesk <code>v3.0.0-rc.1</code>.</p>
 <h2 id="critical-modules-and-coverage">Critical Modules and Coverage<a class="headerlink" href="#critical-modules-and-coverage" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Critical module</th>
 <th>Why critical</th>
-<th style="text-align: right;">Required line coverage</th>
+<th style="text-align: right;">Target line coverage</th>
 <th style="text-align: right;">Current line coverage</th>
 <th>Evidence</th>
 </tr>
@@ -1513,21 +1513,21 @@
 <td>Controls equipment create, edit, and reserve permission decisions for inventory workflows.</td>
 <td style="text-align: right;">30%</td>
 <td style="text-align: right;">100%</td>
-<td>Local <code>npm run coverage</code> output and latest protected <code>Quality</code> workflow run on <code>main</code>.</td>
+<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
 </tr>
 <tr>
 <td><code>client/src/components/protected-route.tsx</code></td>
 <td>Controls access to protected application areas for anonymous, unauthorized, and authorized users.</td>
 <td style="text-align: right;">30%</td>
 <td style="text-align: right;">73.33%</td>
-<td>Local <code>npm run coverage</code> output and latest protected <code>Quality</code> workflow run on <code>main</code>.</td>
+<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
 </tr>
 <tr>
 <td><code>client/src/lib/task-dates.ts</code></td>
-<td>Supports MVP v2 calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination.</td>
+<td>Supports calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination.</td>
 <td style="text-align: right;">30%</td>
 <td style="text-align: right;">55.71%</td>
-<td>Local <code>npm run coverage</code> output and latest protected <code>Quality</code> workflow run on <code>main</code>.</td>
+<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
 </tr>
 </tbody>
 </table>
@@ -1547,37 +1547,31 @@
 <td>TypeScript check</td>
 <td><code>npm run check</code></td>
 <td>Verifies TypeScript type safety across the configured project.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
+<td>Passed locally on 2026-07-11 and in <code>Quality</code>.</td>
 </tr>
 <tr>
-<td>Unit tests</td>
+<td>Vitest test suite</td>
 <td><code>npm test</code></td>
-<td>Runs Vitest unit tests for isolated product logic such as equipment permissions and task date helpers.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
-</tr>
-<tr>
-<td>Component/integration tests</td>
-<td><code>npm test</code></td>
-<td>Runs Vitest component tests such as <code>ProtectedRoute</code>.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
+<td>Runs 48 unit, component, and in-process route tests across 12 files.</td>
+<td>Passed in <code>Quality</code> on 2026-07-11.</td>
 </tr>
 <tr>
 <td>Coverage</td>
 <td><code>npm run coverage</code></td>
 <td>Produces coverage output for configured client, server, and shared TypeScript sources.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
+<td>Passed in <code>Quality</code> on 2026-07-11.</td>
 </tr>
 <tr>
 <td>Build</td>
 <td><code>npm run build</code></td>
 <td>Verifies the production client and server build.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
+<td>Passed locally on 2026-07-11 and in <code>Quality</code>.</td>
 </tr>
 <tr>
 <td>Dependency audit</td>
 <td><code>npm audit --audit-level=critical</code></td>
 <td>Checks for critical dependency vulnerabilities as the additional QA gate.</td>
-<td><code>Quality</code> workflow and local verification before completion.</td>
+<td><code>Quality</code> workflow.</td>
 </tr>
 <tr>
 <td>Link checking</td>
@@ -1630,17 +1624,18 @@
 <p>The <code>lychee.toml</code> file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission. This document does not claim manual verification of excluded links unless that evidence is recorded in the PR or linked workflow evidence.</p>
 <h2 id="ci-and-qa-check-status">CI and QA Check Status<a class="headerlink" href="#ci-and-qa-check-status" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Latest protected-default-branch <code>Quality</code> run: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/28548554181">successful <code>main</code> run from 2026-07-01</a>.</li>
-<li>Latest protected-default-branch <code>Link Check</code> run: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/28548554209">successful <code>main</code> run from 2026-07-01</a>.</li>
-<li>Local coverage evidence: <code>npm run coverage</code> passed with 3 test files and 13 tests; line coverage was 100% for <code>equipment-permissions.ts</code>, 73.33% for <code>protected-route.tsx</code>, and 55.71% for <code>task-dates.ts</code>.</li>
+<li>Last checked: 2026-07-11, against <code>main</code> at <code>6b1265f</code>.</li>
+<li>Latest successful <code>Quality</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929261">run from 2026-07-11</a>.</li>
+<li>Latest successful <code>Link Check</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929242">run from 2026-07-11</a>.</li>
+<li>Successful <code>Quality</code> test evidence: 12 test files and 48 tests passed.</li>
+<li>The <code>Quality</code> coverage step completed successfully and generated the following report: 2.03% statements, 1.32% branches, 1.65% functions, and 2.04% lines across all included files. The critical-module line coverage was 100% for <code>equipment-permissions.ts</code>, 73.33% for <code>protected-route.tsx</code>, and 55.71% for <code>task-dates.ts</code>.</li>
 </ul>
 <h2 id="limitations-and-follow-up">Limitations and Follow-up<a class="headerlink" href="#limitations-and-follow-up" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Full browser end-to-end workflows are not covered.</li>
-<li>Server-side equipment checkout approval and rejection flows need additional tests if they become part of the protected Sprint 3 completion evidence.</li>
-<li>Kanban creation server validation, persistence, and realtime updates need additional tests.</li>
-<li>Calendar event participant and notification side effects need additional tests.</li>
-<li>API route and persistence integration tests are recommended as the next major automated testing step.</li>
+<li>No coverage threshold is configured in <code>vitest.config.ts</code>; the successful <code>Quality</code> run reports 2.04% line coverage across all included files.</li>
+<li>The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.</li>
+<li>The two server test files invoke route handlers with in-process Express and storage; there is no separate HTTP-to-persistence integration suite.</li>
 </ul>
 
 
