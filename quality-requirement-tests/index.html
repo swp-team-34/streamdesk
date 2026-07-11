@@ -1429,7 +1429,7 @@
 
 
 <h1 id="quality-requirement-tests">Quality Requirement Tests<a class="headerlink" href="#quality-requirement-tests" title="Permanent link">&para;</a></h1>
-<p>This document maps maintained StreamDesk MVP v2 quality requirements to automated quality requirement tests.</p>
+<p>This document maps maintained StreamDesk v3.0.0-rc.1 quality requirements to automated quality requirement tests.</p>
 <table>
 <thead>
 <tr>
@@ -1482,28 +1482,28 @@
 <p><strong>Test data, setup, or environment:</strong> Mocked user roles, workspace ownership modes, and explicit equipment permission combinations executed in the standard Vitest CI environment.</p>
 <p><strong>Automated command or CI check:</strong> <code>npm test -- client/src/lib/equipment-permissions.test.ts</code>; also covered by the <code>Quality</code> GitHub Actions workflow through <code>npm test</code>.</p>
 <p><strong>Expected measurable result:</strong> All equipment permission test cases pass and permission decisions match the expected outcome for every tested role, workspace, and permission combination.</p>
-<p><strong>Evidence location:</strong> Latest protected-default-branch <code>Quality</code> workflow run and <code>client/src/lib/equipment-permissions.test.ts</code>.</p>
+<p><strong>Evidence location:</strong> Latest successful <code>Quality</code> workflow run on main and <code>client/src/lib/equipment-permissions.test.ts</code>.</p>
 <h2 id="qrt-002-protected-route-component-test">QRT-002: Protected route component test<a class="headerlink" href="#qrt-002-protected-route-component-test" title="Permanent link">&para;</a></h2>
 <p><strong>Linked quality requirement:</strong> <a href="../quality-requirements/#qr-002-protected-route-access-control">QR-002</a></p>
 <p><strong>Verification method:</strong> Automated component tests executed by Vitest with React Testing Library.</p>
 <p><strong>Test data, setup, or environment:</strong> Mocked authentication states and permission combinations covering anonymous users, users without the required permission, and authorized users in the standard Vitest CI environment.</p>
 <p><strong>Automated command or CI check:</strong> <code>npm test -- client/src/components/protected-route.test.tsx</code>; also covered by the <code>Quality</code> GitHub Actions workflow through <code>npm test</code>.</p>
 <p><strong>Expected measurable result:</strong> All protected-route test cases pass. Anonymous users are blocked with a sign-in prompt, unauthorized users see an access restriction, and authorized users see protected content.</p>
-<p><strong>Evidence location:</strong> Latest protected-default-branch <code>Quality</code> workflow run and <code>client/src/components/protected-route.test.tsx</code>.</p>
+<p><strong>Evidence location:</strong> Latest successful <code>Quality</code> workflow run on main and <code>client/src/components/protected-route.test.tsx</code>.</p>
 <h2 id="qrt-003-coverage-gate">QRT-003: Coverage gate<a class="headerlink" href="#qrt-003-coverage-gate" title="Permanent link">&para;</a></h2>
 <p><strong>Linked quality requirement:</strong> <a href="../quality-requirements/#qr-003-automated-regression-coverage">QR-003</a></p>
 <p><strong>Verification method:</strong> Automated Vitest coverage run.</p>
 <p><strong>Test data, setup, or environment:</strong> Repository test suite executed with the configured Vitest coverage provider for client, server, and shared TypeScript source paths.</p>
 <p><strong>Automated command or CI check:</strong> <code>npm run coverage</code>; also covered by the <code>Quality</code> GitHub Actions workflow.</p>
 <p><strong>Expected measurable result:</strong> Vitest coverage completes successfully and produces coverage output for the configured client, server, and shared TypeScript source set before the change is considered Done.</p>
-<p><strong>Evidence location:</strong> Latest protected-default-branch <code>Quality</code> workflow run, <code>vitest.config.ts</code>, and local coverage output recorded in PR verification notes.</p>
+<p><strong>Evidence location:</strong> Latest successful <code>Quality</code> workflow run on main, <code>vitest.config.ts</code>, and local coverage output recorded in PR verification notes.</p>
 <h2 id="qrt-004-calendar-date-helper-tests">QRT-004: Calendar date helper tests<a class="headerlink" href="#qrt-004-calendar-date-helper-tests" title="Permanent link">&para;</a></h2>
 <p><strong>Linked quality requirement:</strong> <a href="../quality-requirements/#qr-004-calendar-date-manipulation-correctness">QR-004</a></p>
 <p><strong>Verification method:</strong> Automated unit tests executed by Vitest.</p>
 <p><strong>Test data, setup, or environment:</strong> Fixed JavaScript <code>Date</code> values covering quarter-hour option generation, date/time combination, rounding, invalid range normalization, range movement, and minimum-duration resizing.</p>
 <p><strong>Automated command or CI check:</strong> <code>npm test -- client/src/lib/task-dates.test.ts</code>; also covered by the <code>Quality</code> GitHub Actions workflow through <code>npm test</code>.</p>
 <p><strong>Expected measurable result:</strong> All date-helper tests pass. The helper returns the expected quarter-hour options, combines date/time correctly, rounds to the expected quarter-hour boundary, preserves moved range duration, normalizes invalid ranges, and enforces the minimum duration.</p>
-<p><strong>Evidence location:</strong> Latest protected-default-branch <code>Quality</code> workflow run and <code>client/src/lib/task-dates.test.ts</code>.</p>
+<p><strong>Evidence location:</strong> Latest successful <code>Quality</code> workflow run on main and <code>client/src/lib/task-dates.test.ts</code>.</p>
 
 
 
