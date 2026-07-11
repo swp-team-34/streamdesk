@@ -27,9 +27,9 @@
 9.  **Current access or run instructions:** Enter any email and password for registration, then click "for personal use"
 
 ## Documentation and Handover
-10. **README.md:** [Link](https://github.com/swp-team-34/streamdesk/README.md)
-11. **CONTRIBUTING.md:** [Link](https://github.com/swp-team-34/streamdesk/CONTRIBUTING.md)
-12. **AGENTS.md:** [Link](https://github.com/swp-team-34/streamdesk/AGENTS.md)
+10. **README.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/README.md)
+11. **CONTRIBUTING.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CONTRIBUTING.md)
+12. **AGENTS.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/AGENTS.md)
 13. **Customer handover documentation:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/customer-handover.md)
 14. **Hosted documentation site:** [Link](https://swp-team-34.github.io/streamdesk/)
 15. **Customer-facing documentation review summary:**
@@ -62,13 +62,13 @@
     - Dashboard reset, task ownership metadata, request-to-task linking, equipment comments/photos, and filter hints remain backlog unless selected for Sprint 5.
 19. **Roadmap:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/roadmap.md)
 20. **Maintained quality, testing, architecture, development-process, and customer-relevant documentation:**
-    - **Quality requirements:** [Link](https://github.com/swp-team-34/streamdesk/docs/quality-requirements.md)
-    - **Quality requirement tests:** [Link](https://github.com/swp-team-34/streamdesk/docs/quality-requirement-tests.md)
-    - **Architecture:** [Link](https://github.com/swp-team-34/streamdesk/docs/architecture/README.md)
-    - **Development process:** [Link](https://github.com/swp-team-34/streamdesk/docs/development-process.md)
-    - **Testing:** [Link](https://github.com/swp-team-34/streamdesk/docs/testing.md)
-    - **User acceptance tests:** [Link](https://github.com/swp-team-34/streamdesk/user-acceptance-tests.md)
-    - **User stories**: [Link](https://github.com/swp-team-34/streamdesk/docs/user-stories.md)
+    - **Quality requirements:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirements.md)
+    - **Quality requirement tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/quality-requirement-tests.md)
+    - **Architecture:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/architecture/README.md)
+    - **Development process:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/development-process.md)
+    - **Testing:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/testing.md)
+    - **User acceptance tests:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/user-acceptance-tests.md)
+    - **User stories**: [Link](https://github.com/swp-team-34/streamdesk/blob/main/docs/user-stories.md)
 21. **Relevant UAT or customer-trial results summary:**
     - Overall result: passed with observations.
     - Dashboard customization passed; customer requested reset-to-default layout.
