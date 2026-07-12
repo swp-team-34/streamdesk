@@ -15,7 +15,9 @@ isolated per company.
 Latest release: **[v3.0.0-rc.1 (Week 6 trial / handover candidate)](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1)**,
 available at **[team34.ru](https://team34.ru/)**. Sprint 4 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/4),
 Week 6, July 6-12) delivered the trial increment and transition-readiness evidence - see
-[roadmap.md](roadmap.md) and the [Week 6 report](../reports/week6/README.md). Final MVP v3 is
+[roadmap.md](roadmap.md) and the
+[Week 6 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md).
+Final MVP v3 is
 planned for Sprint 5 (Week 7, July 13-19).
 
 Scope: the deployed application, source repository, maintained docs, and guidance to run,
@@ -111,7 +113,7 @@ The customer independently used the trial release during the Sprint Review / UAT
 that the product can be taken into practical use after the agreed Week 7 fixes and deployment.
 The product is still used for demonstration/testing only and is not deployed or operated on the
 customer side. See [user-acceptance-tests.md](user-acceptance-tests.md) and the
-[Week 6 review summary](../reports/week6/sprint-review-summary.md).
+[Week 6 review summary](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/sprint-review-summary.md).
 
 The customer agreed to act as product owner after handover and found the reviewed documentation
 familiar and sufficient for the current trial level. Final Assignment 6 handover level and
@@ -151,7 +153,7 @@ the agreed Week 7 fixes, deployment, backups, updates, issue-tracker setup, and 
 
 ## 11. Related Documentation
 
-- [README.md](../README.md) - overview, stack, setup.
+- [README.md](https://github.com/swp-team-34/streamdesk/blob/main/README.md) - overview, stack, setup.
 - [roadmap.md](roadmap.md) - sprint plan and current course outcome.
 - [testing.md](testing.md) - tests and CI gates.
 - [quality-requirements.md](quality-requirements.md) / [quality-requirement-tests.md](quality-requirement-tests.md)
