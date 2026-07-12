@@ -4,7 +4,7 @@ Current, actual handover state of StreamDesk. Maintained throughout Assignment 6
 whenever access, deployment, limitations, or transition status change. Summarizes the handover -
 follow the links for detail.
 
-Last updated: 2026-07-09 (Week 6, Sprint 4 in progress).
+Last updated: 2026-07-12 (Week 6 trial and transition-readiness review completed).
 
 ## 1. Status and Scope
 
@@ -12,10 +12,12 @@ StreamDesk is a multi-tenant workflow platform for event/production teams: equip
 task manager, calendar, projects, estimates, connection schemes, and machine monitoring,
 isolated per company.
 
-Latest release: **[v2.0.0 (MVP v2)](https://github.com/swp-team-34/streamdesk/releases/tag/v2.0.0)**,
-live at **[team34.ru](https://team34.ru/)**. Sprint 4 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/4),
-Week 6, July 6-12) is in progress on deployment reliability and interface stability - see
-[roadmap.md](roadmap.md). A Week 6 trial release follows at Sprint 4 close; final MVP v3 is
+Latest release: **[v3.0.0-rc.1 (Week 6 trial / handover candidate)](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1)**,
+available at **[team34.ru](https://team34.ru/)**. Sprint 4 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/4),
+Week 6, July 6-12) delivered the trial increment and transition-readiness evidence - see
+[roadmap.md](roadmap.md) and the
+[Week 6 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md).
+Final MVP v3 is
 planned for Sprint 5 (Week 7, July 13-19).
 
 Scope: the deployed application, source repository, maintained docs, and guidance to run,
@@ -26,10 +28,12 @@ configure, and troubleshoot the product without the dev team present.
 - **Instance:** [team34.ru](https://team34.ru/)
 - **Sign-in:** any email/password to register, then "for personal use" - or register via a
   company invite link (owners generate these from company settings).
-- **Usable now:** task manager (Kanban), calendar, warehouse tracking/checkout, dashboard,
-  monitoring-agent downloads. Estimates and connection schemes work but are less mature.
-- **Not yet implemented:** a dedicated "projects" page and several warehouse features (see
-  [Section 7](#7-known-limitations)).
+- **Usable now:** task manager (including project-specific Kanban boards), calendar, projects,
+  locations and issue reporting, warehouse tracking/checkout requests, customizable dashboard,
+  and monitoring-agent downloads. Estimates and connection schemes work but are less mature.
+- **Trial result:** the customer independently registered, created a company, and exercised the
+  Dashboard, Task Manager, Calendar, Projects, Locations, and Warehouse workflows. The result was
+  **passed with observations**; remaining work is listed in [Section 7](#7-known-limitations).
 
 ## 3. Installation and Deployment
 
@@ -89,60 +93,67 @@ Current limitations from the Week 6 customer trial:
 | --- | --- | --- | --- |
 | Warehouse categories | User-configurable categories/subcategories | Sprint 5 follow-up PBI | Open |
 | Warehouse kits | Prevent issuing active kit components separately; log removals | Sprint 5 follow-up PBI | Open |
-| Locations | Expand into venue archive with notes, files, history, and issue workflow | Sprint 5 follow-up PBI | Open |
-| Warehouse requests | Link requests to tasks as well as projects | Follow-up PBI | Open |
+| Locations | Expand the basic locations and issue flow into a venue archive with editing, notes, files, history, and resolve/archive workflows | Sprint 5 follow-up PBI | Open |
+| Location integration | Complete location context across Warehouse and task/stream issue entry points | Sprint 5 follow-up PBI | Open |
 | Task Manager | Add responsible person and initiator fields | Follow-up PBI | Open |
 | Warehouse equipment cards | Add comments/photos to equipment items | Follow-up PBI | Open |
 | Task Manager custom fields | Add hints for custom-field filters | Follow-up PBI | Open |
-| Dashboard | Add reset-to-default layout action | Follow-up PBI | Deferred |
 
-These limitations do not block Week 6 trial use. The Week 7 priority is Warehouse taxonomy,
-kit safeguards, and Locations improvements before final transition.
+Project-specific boards, equipment-request links to Kanban cards or legacy tasks, Warehouse
+counts and action layout, compact Task Manager controls, Dashboard layout persistence and reset,
+Calendar overlap/overflow fixes, and additive database updates are included in the Week 6 trial
+release. The remaining limitations do not invalidate the Week 6 trial result. The Week 7 priority
+is Warehouse taxonomy, kit safeguards, Locations improvements, deployment, and final transition.
 
 ## 8. Handover Status
 
-**Level reached: Ready for independent use (partial), as of 2026-07-09.**
+**Current level: Week 6 trial / handover candidate, as of 2026-07-12.**
 
-Core workflows work end-to-end and the customer already exercised several directly during
-Sprint Review / UAT (see [user-acceptance-tests.md](user-acceptance-tests.md) and the
-[Week 5 report](../reports/week5/README.md)). Not yet confirmed as fully independent, unguided
-use, and the Section 7 reliability fixes are still open - so this level is claimed with that
-qualification, not without it.
+The customer independently used the trial release during the Sprint Review / UAT and confirmed
+that the product can be taken into practical use after the agreed Week 7 fixes and deployment.
+The product is still used for demonstration/testing only and is not deployed or operated on the
+customer side. See [user-acceptance-tests.md](user-acceptance-tests.md) and the
+[Week 6 review summary](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/sprint-review-summary.md).
 
-Not the final level for the course: Week 6 covers trial/transition-readiness, Week 7 covers
-final transition confirmation. This section updates after each
-(`reports/week6/README.md`, `reports/week7/README.md`).
+The customer agreed to act as product owner after handover and found the reviewed documentation
+familiar and sufficient for the current trial level. Final Assignment 6 handover level and
+customer-confirmation status are not yet recorded: Week 7 must confirm them against the final
+build and actual transition scope.
 
 ## 9. Remaining Actions
 
 **Blocking full transition:**
 
-- Close #157 and #160 (and the rest of Section 7 where practical).
-- Cut and deploy the Week 6 trial release.
-- Hold the Week 6 transition-readiness meeting; let the customer trial independently or with
-  minimal guidance; record whether they confirm readiness, use it independently, or operate it.
+- Complete the agreed Week 7 Warehouse taxonomy, kit safeguards, Locations workflow, and UI
+  follow-up work selected for MVP v3.
+- Provide the final deployment/recovery instructions and support the customer-side deployment,
+  backup, update, and GitHub issue-tracker setup where agreed.
 - Decide and execute, in Week 7, the transfer/continued-operation status of the `team34.ru`
   domain, VPS/SSH access, and PM2/Nginx deployment - currently team-operated. The repository
   itself needs no separate ownership transfer: it is MIT-licensed and the customer and
   university already hold the rights.
-- Get explicit customer confirmation on this document (Assignment 6 Part 8) in Week 7.
+- Ask the customer to review the final Week 7 build and the current version of this document,
+  then record the reached handover level and explicit confirmation status (Assignment 6 Part 8).
 
-**Not blocking, expected before MVP v3:** remaining non-critical Section 7 items (mobile
-layout, dashboard drag-and-drop, UI glitches); keep this document, `README.md`,
-`CONTRIBUTING.md`, and `AGENTS.md` current if access/deployment/workflow changes in Sprint 5.
+**Completed in Week 6:** trial release `v3.0.0-rc.1`, customer-led trial/UAT,
+transition-readiness discussion, documentation review, and the delivered fixes summarized in
+Section 7. Keep this document, `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` current if
+access, deployment, support, or workflow arrangements change in Sprint 5.
 
 ## 10. Documentation Sufficiency
 
 Current docs (this file, `README.md`, [testing.md](testing.md),
 [quality-requirements.md](quality-requirements.md), [architecture/README.md](architecture/README.md),
-[hosted site](https://swp-team-34.github.io/streamdesk/)) are enough to run, configure, and
-operate MVP v2 and the in-progress trial. Not yet enough for a zero-team handoff: Section 3
-still assumes access the team currently holds, and Section 7 fixes are unresolved. Team support
-continues through Sprint 4 and Sprint 5.
+[hosted site](https://swp-team-34.github.io/streamdesk/)) were reviewed by the customer, who
+reported no specific documentation gap, and are sufficient for the current Week 6 trial /
+handover-candidate level. They are not yet sufficient evidence of a zero-team final transition:
+the production deployment remains team-operated, the customer-side deployment has not happened,
+and the final ownership/access arrangements are undecided. Team support remains necessary for
+the agreed Week 7 fixes, deployment, backups, updates, issue-tracker setup, and final handover.
 
 ## 11. Related Documentation
 
-- [README.md](../README.md) - overview, stack, setup.
+- [README.md](https://github.com/swp-team-34/streamdesk/blob/main/README.md) - overview, stack, setup.
 - [roadmap.md](roadmap.md) - sprint plan and current course outcome.
 - [testing.md](testing.md) - tests and CI gates.
 - [quality-requirements.md](quality-requirements.md) / [quality-requirement-tests.md](quality-requirement-tests.md)
