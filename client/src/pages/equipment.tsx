@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Mic, Camera, Lightbulb, Monitor, Gavel, Edit, MapPin, ScanBarcode, QrCode, ArrowRightLeft, ShoppingCart, Send, Trash2, User, Calendar, AlertTriangle, FileSpreadsheet, PackageCheck, FileText, Search, X, Clock, SlidersHorizontal, History, MessageSquare, Printer } from "lucide-react";
+import { Package, Plus, Mic, Camera, Lightbulb, Monitor, Gavel, Edit, MapPin, ScanBarcode, QrCode, ArrowRightLeft, ShoppingCart, Send, Trash2, User, Calendar, AlertTriangle, FileSpreadsheet, PackageCheck, FileText, Search, X, Clock, SlidersHorizontal, History, MessageSquare, Printer, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
 import { EquipmentForm } from "@/components/forms/equipment-form";
 import { BarcodeScanner } from "@/components/equipment/barcode-scanner";
 import { EquipmentBarcodeModal } from "@/components/equipment/barcode-generator";
@@ -106,6 +106,8 @@ const INTERNAL_SPECIFICATION_KEYS = new Set([
   "parentBundleId",
   "parentBundleName",
   "parentBundleCreatedAt",
+  "bundleExtractionHistory",
+  "kitExtractionHistory",
   "hardware",
   "metrics",
   "metricsHistory",
@@ -198,6 +200,26 @@ function getParentBundleName(item: Equipment | null | undefined) {
   return String(asRecord(item?.specifications).parentBundleName || "").trim();
 }
 
+function getParentBundleId(item: Equipment | null | undefined) {
+  return String(asRecord(item?.specifications).parentBundleId || "").trim();
+}
+
+type KitExtractionPayload = {
+  confirmed: true;
+  override: boolean;
+  bundleName: string;
+  reason: string;
+  context: string;
+};
+
+type KitSafetyEntry = {
+  item: Equipment;
+  bundle: Equipment;
+  active: boolean;
+  projectId?: string;
+  projectName?: string;
+};
+
 function getBundleComponents(item: Equipment | null | undefined, allEquipment: Equipment[]) {
   const specs = asRecord(item?.specifications);
   const snapshots = Array.isArray(specs.bundleComponents) ? specs.bundleComponents as any[] : [];
@@ -210,24 +232,61 @@ function getBundleComponents(item: Equipment | null | undefined, allEquipment: E
         const live = id ? byId.get(id) : undefined;
         return {
           id,
+          live,
           name: String(live?.name || entry?.name || "Позиция").trim(),
           model: String(live?.model || entry?.model || "").trim(),
           inventoryNumber: String(live?.inventoryNumber || entry?.inventoryNumber || "").trim(),
           type: String(live?.type || entry?.type || "other").trim(),
+          status: String(live?.status || entry?.status || "unknown").trim(),
+          operabilityStatus: live ? getEquipmentOperabilityStatus(live) : String(entry?.operabilityStatus || "working"),
+          assignedTo: String(live?.assignedTo || entry?.assignedTo || "").trim(),
+          location: getEquipmentStorageLocation(live) || String(entry?.storageLocation || entry?.location || "").trim(),
         };
       })
     : ids.map((id) => {
         const live = byId.get(id);
         return {
           id,
+          live,
           name: String(live?.name || "Позиция").trim(),
           model: String(live?.model || "").trim(),
           inventoryNumber: String(live?.inventoryNumber || "").trim(),
           type: String(live?.type || "other").trim(),
+          status: String(live?.status || "unknown").trim(),
+          operabilityStatus: getEquipmentOperabilityStatus(live),
+          assignedTo: String(live?.assignedTo || "").trim(),
+          location: getEquipmentStorageLocation(live),
         };
       });
 
   return rows.filter((entry) => entry.id || entry.name);
+}
+
+function getBundleComponentIds(item: Equipment | null | undefined) {
+  const specs = asRecord(item?.specifications);
+  return [...new Set([
+    ...(Array.isArray(specs.bundleComponentIds) ? specs.bundleComponentIds : []),
+    ...(Array.isArray(specs.bundleComponents)
+      ? specs.bundleComponents.map((entry: any) => entry?.id)
+      : []),
+  ].map((id) => String(id || "").trim()).filter(Boolean))];
+}
+
+function bundleContainsEquipment(
+  bundle: Equipment,
+  equipmentId: string,
+  allEquipment: Equipment[],
+  visited = new Set<string>(),
+): boolean {
+  if (bundle.id === equipmentId) return true;
+  if (visited.has(bundle.id)) return false;
+  visited.add(bundle.id);
+  const byId = new Map(allEquipment.map((item) => [item.id, item]));
+  return getBundleComponentIds(bundle).some((componentId) => {
+    if (componentId === equipmentId) return true;
+    const component = byId.get(componentId);
+    return Boolean(component && isSuperPosition(component) && bundleContainsEquipment(component, equipmentId, allEquipment, visited));
+  });
 }
 
 export default function EquipmentPage() {
@@ -266,6 +325,19 @@ export default function EquipmentPage() {
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
   const [bundleType, setBundleType] = useState("computer");
+  const [kitAddBundle, setKitAddBundle] = useState<Equipment | null>(null);
+  const [kitAddSelectedIds, setKitAddSelectedIds] = useState<Set<string>>(new Set());
+  const [kitAddSearch, setKitAddSearch] = useState("");
+  const [kitAddReason, setKitAddReason] = useState("");
+  const [kitAddApprovalPhrase, setKitAddApprovalPhrase] = useState("");
+  const [expandedBundleIds, setExpandedBundleIds] = useState<Set<string>>(new Set());
+  const [detailsReturnBundleId, setDetailsReturnBundleId] = useState<string | null>(null);
+  const [kitSafetyEntries, setKitSafetyEntries] = useState<KitSafetyEntry[]>([]);
+  const [kitSafetyActionLabel, setKitSafetyActionLabel] = useState("");
+  const [kitSafetyContext, setKitSafetyContext] = useState("");
+  const [kitSafetyReason, setKitSafetyReason] = useState("");
+  const [kitOverridePhrase, setKitOverridePhrase] = useState("");
+  const pendingKitActionRef = useRef<((payloads: Record<string, KitExtractionPayload>) => void) | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -280,6 +352,13 @@ export default function EquipmentPage() {
   const { data: equipment = [], isLoading } = useQuery<Equipment[]>({
     queryKey: ["/api/equipment"],
   });
+
+  useEffect(() => {
+    setDetailsEquipment((current) => {
+      if (!current) return null;
+      return equipment.find((item) => item.id === current.id) || current;
+    });
+  }, [equipment]);
 
   const { data: companyData } = useQuery<any>({
     queryKey: ["/api/companies/me"],
@@ -353,7 +432,7 @@ export default function EquipmentPage() {
     .map((item: any) => String(item?.company?.id || "").trim())
     .filter(Boolean);
   const primaryCompanyId = activeCompanyIds[0] || "";
-  const canApproveCheckout = manageableCompanyIds.length > 0;
+  const canApproveCheckout = manageableCompanyIds.length > 0 || currentUser?.role === "admin";
   const userCanCreate = canCreateEquipment(currentUser) || canApproveCheckout || currentUser?.workspaceMode === "company_owner";
   const userCanEdit = canEditEquipment(currentUser) || canApproveCheckout;
   const userCanReserve = canReserveEquipment(currentUser) || canApproveCheckout;
@@ -416,6 +495,7 @@ export default function EquipmentPage() {
       returnTime,
       assignedByName,
       assignedByUserId,
+      kitExtractions,
     }: {
       projectId: string;
       equipmentIds: string[];
@@ -424,6 +504,7 @@ export default function EquipmentPage() {
       returnTime?: string;
       assignedByName: string;
       assignedByUserId?: string;
+      kitExtractions?: Record<string, KitExtractionPayload>;
     }) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/equipment-bundle`, {
         equipmentIds,
@@ -432,10 +513,12 @@ export default function EquipmentPage() {
         returnTime,
         assignedByName,
         assignedByUserId,
+        kitExtractions,
       });
       return res.json();
     },
     onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       const project = projects.find((p) => p.id === projectId);
       toast({
@@ -833,6 +916,83 @@ export default function EquipmentPage() {
     },
   });
 
+  const addKitComponentsMutation = useMutation({
+    mutationFn: async ({
+      bundleId,
+      equipmentIds,
+      reason,
+      activeKitApproval,
+    }: {
+      bundleId: string;
+      equipmentIds: string[];
+      reason: string;
+      activeKitApproval: boolean;
+    }) => {
+      const response = await apiRequest("POST", `/api/equipment/${bundleId}/components`, {
+        equipmentIds,
+        reason,
+        activeKitApproval,
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      if (data?.bundle) setDetailsEquipment(data.bundle);
+      setKitAddBundle(null);
+      setKitAddSelectedIds(new Set());
+      setKitAddSearch("");
+      setKitAddReason("");
+      setKitAddApprovalPhrase("");
+      toast({
+        title: "Состав обновлён",
+        description: `Добавлено позиций: ${Array.isArray(data?.addedComponentIds) ? data.addedComponentIds.length : 0}.`,
+      });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Не удалось добавить в комплект",
+        description: e?.message || "Обновите склад и повторите действие.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeKitComponentMutation = useMutation({
+    mutationFn: async ({
+      bundleId,
+      componentId,
+      kitExtraction,
+    }: {
+      bundleId: string;
+      componentId: string;
+      kitExtraction: KitExtractionPayload;
+    }) => {
+      const response = await apiRequest("DELETE", `/api/equipment/${bundleId}/components/${componentId}`, {
+        kitExtraction,
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      if (data?.bundle) setDetailsEquipment(data.bundle);
+      toast({
+        title: "Позиция убрана из комплекта",
+        description: data?.component?.name
+          ? `«${data.component.name}» снова доступна отдельно.`
+          : "Позиция снова доступна отдельно.",
+      });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Не удалось изменить состав",
+        description: e?.message || "Обновите склад и повторите действие.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const openBundleDialog = () => {
     if (selectedEquipmentForBundle.length < 2) {
       toast({
@@ -874,6 +1034,7 @@ export default function EquipmentPage() {
       }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       toast({ title: "Готово", description: "Оборудование возвращено на склад" });
     },
@@ -892,6 +1053,7 @@ export default function EquipmentPage() {
       quantity,
       kanbanCardId,
       taskId,
+      kitExtraction,
     }: {
       equipmentId: string;
       location?: string;
@@ -901,6 +1063,7 @@ export default function EquipmentPage() {
       quantity: number;
       kanbanCardId?: string;
       taskId?: string;
+      kitExtraction?: KitExtractionPayload;
     }) => {
       const response = await apiRequest("POST", "/api/equipment-checkout-requests", {
         equipmentId,
@@ -911,10 +1074,12 @@ export default function EquipmentPage() {
         quantity,
         kanbanCardId,
         taskId,
+        kitExtraction,
       });
       return response.json();
     },
     onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       const isTransfer = variables.requestType === "transfer";
@@ -936,23 +1101,39 @@ export default function EquipmentPage() {
   });
 
   const approveCheckoutMutation = useMutation({
-    mutationFn: async (requestIdOrIds: string | string[]) => {
-      const requestIds = Array.isArray(requestIdOrIds) ? requestIdOrIds : [requestIdOrIds];
+    mutationFn: async ({
+      requestIds,
+      kitExtractions,
+      kitExtractionApproval,
+    }: {
+      requestIds: string[];
+      kitExtractions?: Record<string, KitExtractionPayload>;
+      kitExtractionApproval?: boolean;
+    }) => {
       const responses = await Promise.all(
-        requestIds.map((requestId) => apiRequest("POST", `/api/equipment-checkout-requests/${requestId}/approve`, {})),
+        requestIds.map((requestId) => {
+          const request = checkoutRequests.find((entry) => entry.id === requestId);
+          return apiRequest("POST", `/api/equipment-checkout-requests/${requestId}/approve`, {
+            ...(request?.requestType === "kit-extraction"
+              ? { kitExtractionApproval: kitExtractionApproval === true }
+              : { kitExtraction: request ? kitExtractions?.[request.equipmentId] : undefined }),
+          });
+        }),
       );
       return Promise.all(responses.map((response) => response.json().catch(() => null)));
     },
-    onSuccess: (_, requestIdOrIds) => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
-      const requestId = Array.isArray(requestIdOrIds) ? requestIdOrIds[0] : requestIdOrIds;
+      const requestId = variables.requestIds[0];
       const request = checkoutRequests.find((item) => item.id === requestId);
       const isTransfer = request?.requestType === "transfer";
-      const count = Array.isArray(requestIdOrIds) ? requestIdOrIds.length : 1;
+      const isExtraction = request?.requestType === "kit-extraction";
       toast({
-        title: isTransfer ? "Перенос подтверждён" : "Выдача подтверждена",
-        description: isTransfer
+        title: isExtraction ? "Извлечение подтверждено" : isTransfer ? "Перенос подтверждён" : "Выдача подтверждена",
+        description: isExtraction
+          ? "Компонент извлечён из комплекта, событие записано в историю."
+          : isTransfer
           ? "Оборудование переназначено сотруднику."
           : "Оборудование закреплено за сотрудником.",
       });
@@ -1004,13 +1185,14 @@ export default function EquipmentPage() {
   });
 
   const deleteEquipmentMutation = useMutation({
-    mutationFn: async (equipmentId: string) => {
-      const response = await apiRequest("DELETE", `/api/equipment/${equipmentId}`);
+    mutationFn: async ({ equipmentId, kitExtraction }: { equipmentId: string; kitExtraction?: KitExtractionPayload }) => {
+      const response = await apiRequest("DELETE", `/api/equipment/${equipmentId}`, { kitExtraction });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       toast({ title: "Удалено", description: "Позиция убрана со склада." });
     },
     onError: (e: any) => {
@@ -1019,7 +1201,13 @@ export default function EquipmentPage() {
   });
 
   const takeCartForSelfMutation = useMutation({
-    mutationFn: async (items: Equipment[]) => {
+    mutationFn: async ({
+      items,
+      kitExtractions,
+    }: {
+      items: Equipment[];
+      kitExtractions?: Record<string, KitExtractionPayload>;
+    }) => {
       const direct = userCanReserve;
       const requests = items.map((item) =>
         direct
@@ -1028,12 +1216,14 @@ export default function EquipmentPage() {
               assignedTo: currentUser?.id,
               lastUsed: new Date(),
               location: item.location || `У сотрудника ${currentUser?.name || currentUser?.username || ""}`.trim(),
+              kitExtraction: kitExtractions?.[item.id],
             })
           : apiRequest("POST", "/api/equipment-checkout-requests", {
               equipmentId: item.id,
               companyId: primaryCompanyId,
               quantity: 1,
               location: item.location || `У сотрудника ${currentUser?.name || currentUser?.username || ""}`.trim(),
+              kitExtraction: kitExtractions?.[item.id],
             }),
       );
       const responses = await Promise.all(requests);
@@ -1056,6 +1246,32 @@ export default function EquipmentPage() {
     },
   });
 
+  const requestKitExtractionMutation = useMutation({
+    mutationFn: async ({ entries, reason }: { entries: KitSafetyEntry[]; reason: string }) => {
+      const responses = await Promise.all(
+        entries.map((entry) => apiRequest("POST", `/api/equipment/${entry.item.id}/kit-extraction-request`, {
+          reason: reason.trim() || `Требуется извлечение для действия «${kitSafetyActionLabel}»`,
+          context: kitSafetyContext,
+        })),
+      );
+      return Promise.all(responses.map((response) => response.json()));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      setKitSafetyEntries([]);
+      setKitSafetyReason("");
+      setKitOverridePhrase("");
+      pendingKitActionRef.current = null;
+      toast({
+        title: "Запрос менеджеру отправлен",
+        description: "Компонент останется в активном комплекте до явного подтверждения извлечения.",
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "Ошибка", description: e?.message || "Не удалось отправить запрос", variant: "destructive" });
+    },
+  });
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -1071,6 +1287,170 @@ export default function EquipmentPage() {
 
   const getOnProjectInfo = (equipmentId: string) =>
     equipmentOnProjects.find((x) => x.equipmentId === equipmentId);
+
+  const getKitOperationalContext = (item: Equipment) => {
+    let current = item;
+    let projectInfo = getOnProjectInfo(current.id);
+    const visited = new Set<string>();
+
+    while (getParentBundleId(current) && !visited.has(current.id)) {
+      visited.add(current.id);
+      const parent = equipment.find((candidate) => candidate.id === getParentBundleId(current));
+      if (!parent) break;
+      current = parent;
+      projectInfo = projectInfo || getOnProjectInfo(current.id);
+    }
+
+    const project = projects.find((candidate) => candidate.id === projectInfo?.projectId);
+    return {
+      active: Boolean(projectInfo) || current.status === "in-use",
+      projectId: projectInfo?.projectId,
+      projectName: projectInfo?.projectName || project?.name,
+    };
+  };
+
+  const canOverrideActiveKit = canApproveCheckout || ["admin", "manager"].includes(String(currentUser?.role || ""));
+
+  const closeKitSafetyDialog = () => {
+    setKitSafetyEntries([]);
+    setKitSafetyActionLabel("");
+    setKitSafetyContext("");
+    setKitSafetyReason("");
+    setKitOverridePhrase("");
+    pendingKitActionRef.current = null;
+  };
+
+  const runWithKitSafety = (
+    items: Equipment[],
+    actionLabel: string,
+    context: string,
+    action: (payloads: Record<string, KitExtractionPayload>) => void,
+  ) => {
+    const linkedItemCount = items.filter((item) => Boolean(getParentBundleId(item))).length;
+    const entries = items.flatMap((item): KitSafetyEntry[] => {
+      const parentBundleId = getParentBundleId(item);
+      if (!parentBundleId) return [];
+      const bundle = equipment.find((candidate) => candidate.id === parentBundleId);
+      if (!bundle) {
+        toast({
+          title: "Комплект не найден",
+          description: "Обновите склад перед продолжением операции.",
+          variant: "destructive",
+        });
+        return [];
+      }
+      const operationalContext = getKitOperationalContext(item);
+      return [{
+        item,
+        bundle,
+        active: operationalContext.active,
+        projectId: operationalContext.projectId,
+        projectName: operationalContext.projectName,
+      }];
+    });
+
+    if (entries.length !== linkedItemCount) return;
+
+    if (entries.length === 0) {
+      action({});
+      return;
+    }
+
+    pendingKitActionRef.current = action;
+    setKitSafetyEntries(entries);
+    setKitSafetyActionLabel(actionLabel);
+    setKitSafetyContext(context);
+    setKitSafetyReason("");
+    setKitOverridePhrase("");
+  };
+
+  const confirmKitExtraction = () => {
+    const payloads = Object.fromEntries(kitSafetyEntries.map((entry) => [
+      entry.item.id,
+      {
+        confirmed: true as const,
+        override: entry.active,
+        bundleName: entry.bundle.name,
+        reason: kitSafetyReason.trim() || kitSafetyActionLabel,
+        context: kitSafetyContext,
+      },
+    ]));
+    const action = pendingKitActionRef.current;
+    closeKitSafetyDialog();
+    action?.(payloads);
+  };
+
+  const closeKitAddDialog = () => {
+    setKitAddBundle(null);
+    setKitAddSelectedIds(new Set());
+    setKitAddSearch("");
+    setKitAddReason("");
+    setKitAddApprovalPhrase("");
+  };
+
+  const openKitAddDialog = (bundle: Equipment) => {
+    setKitAddBundle(bundle);
+    setKitAddSelectedIds(new Set());
+    setKitAddSearch("");
+    setKitAddReason("");
+    setKitAddApprovalPhrase("");
+  };
+
+  const removeKitComponent = (bundle: Equipment, component: Equipment) => {
+    runWithKitSafety(
+      [component],
+      "Убрать из комплекта",
+      "manual-kit-component-remove",
+      (payloads) => {
+        const kitExtraction = payloads[component.id];
+        if (!kitExtraction) return;
+        removeKitComponentMutation.mutate({
+          bundleId: bundle.id,
+          componentId: component.id,
+          kitExtraction,
+        });
+      },
+    );
+  };
+
+  const openBundleComponentDetails = (bundleId: string, component?: Equipment) => {
+    if (!component) return;
+    setDetailsReturnBundleId(bundleId);
+    setDetailsEquipment(component);
+  };
+
+  const openParentBundleDetails = (component: Equipment) => {
+    const bundleId = getParentBundleId(component);
+    const bundle = equipment.find((item) => item.id === bundleId);
+    if (!bundle) {
+      toast({ title: "Комплект не найден", description: "Обновите список склада.", variant: "destructive" });
+      return;
+    }
+    setDetailsReturnBundleId(null);
+    setDetailsEquipment(bundle);
+  };
+
+  const openKitReturnPath = (component: Equipment) => {
+    const bundleName = getParentBundleName(component) || "сборка";
+    const bundleId = getParentBundleId(component);
+    const bundle = equipment.find((item) => item.id === bundleId);
+    if (!bundle) {
+      toast({
+        title: "Сборка уже удалена",
+        description: `«${component.name}» можно вернуть как отдельную позицию. Старая связь будет очищена автоматически.`,
+      });
+      setSelectedEquipment(component);
+      setFormMode("take_return");
+      setIsFormOpen(true);
+      return;
+    }
+    toast({
+      title: "Возврат через сборку",
+      description: `«${component.name}» входит в «${bundleName}». Верните сборку целиком или сначала извлеките компонент.`,
+    });
+    setDetailsReturnBundleId(null);
+    setDetailsEquipment(bundle);
+  };
 
   const getAssignedUserName = (assignedTo: string | null | undefined) => {
     const normalized = String(assignedTo ?? "").trim();
@@ -1096,6 +1476,7 @@ export default function EquipmentPage() {
   };
 
   const getCheckoutRequestType = (request?: { requestType?: string | null }, item?: Equipment | null) => {
+    if (request?.requestType === "kit-extraction") return "kit-extraction";
     if (request?.requestType === "transfer") return "transfer";
     if (item?.status === "in-use" && item.assignedTo && !isCurrentUserMatch(item.assignedTo)) return "transfer";
     return "checkout";
@@ -1213,9 +1594,11 @@ export default function EquipmentPage() {
           id: `request-${request.id}`,
           equipmentName: item?.name || "Оборудование",
           model: item?.model,
-          status: request.requestType === "transfer"
-            ? `Перенос: ${getRequestStatusText(request.status)}`
-            : `Выдача: ${getRequestStatusText(request.status)}`,
+          status: request.requestType === "kit-extraction"
+            ? `Извлечение: ${getRequestStatusText(request.status)}`
+            : request.requestType === "transfer"
+              ? `Перенос: ${getRequestStatusText(request.status)}`
+              : `Выдача: ${getRequestStatusText(request.status)}`,
           tone: request.status || "history",
           date: request.createdAt ? new Date(request.createdAt) : null,
           location: request.location,
@@ -1284,6 +1667,23 @@ export default function EquipmentPage() {
     Number(typeFilter !== "all") +
     Number(Boolean(searchTerm.trim())) +
     Number(canApproveCheckout && employeeFilter !== "all");
+  const kitAddOperationalContext = kitAddBundle ? getKitOperationalContext(kitAddBundle) : null;
+  const kitAddBundleCompanyId = String(asRecord(kitAddBundle?.specifications).companyId || "").trim();
+  const normalizedKitAddSearch = kitAddSearch.trim().toLocaleLowerCase("ru-RU");
+  const kitAddCandidates = kitAddBundle
+    ? equipment
+        .filter((item) => {
+          if (item.id === kitAddBundle.id || item.status !== "available") return false;
+          if (getEquipmentOperabilityStatus(item) !== "working" || getParentBundleId(item)) return false;
+          const candidateCompanyId = String(asRecord(item.specifications).companyId || "").trim();
+          if (kitAddBundleCompanyId && candidateCompanyId && candidateCompanyId !== kitAddBundleCompanyId) return false;
+          if (isSuperPosition(item) && bundleContainsEquipment(item, kitAddBundle.id, equipment)) return false;
+          if (!normalizedKitAddSearch) return true;
+          return [item.name, item.model, item.inventoryNumber]
+            .some((value) => String(value || "").toLocaleLowerCase("ru-RU").includes(normalizedKitAddSearch));
+        })
+        .sort((left, right) => left.name.localeCompare(right.name, "ru"))
+    : [];
   const hasShownOverdueRef = useRef(false);
   useEffect(() => {
     if (overdueCount > 0 && equipment.length > 0 && !hasShownOverdueRef.current) {
@@ -1566,7 +1966,12 @@ export default function EquipmentPage() {
                     <Button
                       variant="outline"
                       disabled={!canRequestCheckout || takeCartForSelfMutation.isPending}
-                      onClick={() => takeCartForSelfMutation.mutate(cart)}
+                      onClick={() => runWithKitSafety(
+                        cart,
+                        userCanReserve ? "Забрать себе" : "Запросить себе",
+                        userCanReserve ? "cart-direct-take" : "cart-checkout-request",
+                        (kitExtractions) => takeCartForSelfMutation.mutate({ items: cart, kitExtractions }),
+                      )}
                     >
                       {takeCartForSelfMutation.isPending ? (
                         "Оформление..."
@@ -1587,15 +1992,21 @@ export default function EquipmentPage() {
                           const user = getCurrentUser();
                           const name = user?.name || user?.username || "Сотрудник";
                           if (sendToProjectId && returnDate) {
-                            sendToProjectMutation.mutate({
-                              projectId: sendToProjectId,
-                              equipmentIds: cart.map((e) => e.id),
-                              handoffAt,
-                              returnDate,
-                              returnTime,
-                              assignedByName: name,
-                              assignedByUserId: user?.id,
-                            });
+                            runWithKitSafety(
+                              cart,
+                              "Отправить на проект",
+                              `project-send:${sendToProjectId}`,
+                              (kitExtractions) => sendToProjectMutation.mutate({
+                                projectId: sendToProjectId,
+                                equipmentIds: cart.map((e) => e.id),
+                                handoffAt,
+                                returnDate,
+                                returnTime,
+                                assignedByName: name,
+                                assignedByUserId: user?.id,
+                                kitExtractions,
+                              }),
+                            );
                           }
                         }}
                       >
@@ -1934,6 +2345,7 @@ export default function EquipmentPage() {
               const item = equipment.find((entry) => entry.id === request.equipmentId);
               const requester = getAssignedUserName(request.requestedBy);
               const requestType = getCheckoutRequestType(request, item);
+              const isKitExtractionRequest = requestType === "kit-extraction";
               const currentHolderName = getAssignedUserName(request.currentHolder || item?.assignedTo);
               return (
                 <div
@@ -1955,14 +2367,14 @@ export default function EquipmentPage() {
                       </div>
                     )}
                     <div className="text-sm text-slate-500 dark:text-slate-400">
-                      {requestType === "transfer" ? "Просит перенести" : "Запросил"}: {requester || "Сотрудник"}
+                      {isKitExtractionRequest ? "Запросил извлечение" : requestType === "transfer" ? "Просит перенести" : "Запросил"}: {requester || "Сотрудник"}
                     </div>
                     <div className="text-sm text-slate-500 dark:text-slate-400">
                       Количество: {Math.max(1, Number(request.quantity || 1))}
                     </div>
-                    {requestType === "transfer" && currentHolderName && (
+                    {(requestType === "transfer" || isKitExtractionRequest) && currentHolderName && (
                       <div className="text-sm text-slate-500 dark:text-slate-400">
-                        Сейчас у сотрудника: {currentHolderName}
+                        {isKitExtractionRequest ? "Активный комплект" : "Сейчас у сотрудника"}: {currentHolderName}
                       </div>
                     )}
                     {request.location && (
@@ -1981,10 +2393,19 @@ export default function EquipmentPage() {
                       size="sm"
                       className="bg-primary text-primary-foreground hover:bg-primary/90"
                       disabled={approveCheckoutMutation.isPending}
-                      onClick={() => approveCheckoutMutation.mutate(groupRequestIds)}
+                      onClick={() => runWithKitSafety(
+                        groupItems,
+                        isKitExtractionRequest ? "Подтвердить извлечение" : "Разрешить выдачу",
+                        isKitExtractionRequest ? "manager-extraction-approval" : "manager-checkout-approval",
+                        (kitExtractions) => approveCheckoutMutation.mutate({
+                          requestIds: groupRequestIds,
+                          kitExtractions,
+                          kitExtractionApproval: isKitExtractionRequest,
+                        }),
+                      )}
                     >
                       <PackageCheck className="mr-2 h-4 w-4" />
-                      Разрешить
+                      {isKitExtractionRequest ? "Подтвердить извлечение" : "Разрешить"}
                     </Button>
                     <Button
                       size="sm"
@@ -2057,6 +2478,10 @@ export default function EquipmentPage() {
             const requestType = getCheckoutRequestType(pendingRequest, item);
             const requestedByMe = pendingRequest?.requestedBy && isCurrentUserMatch(pendingRequest.requestedBy);
             const canReturnOwnItem = item.status === "in-use" && isCurrentUserMatch(item.assignedTo);
+            const parentBundleId = getParentBundleId(item);
+            const parentBundleExists = Boolean(parentBundleId && equipment.some((candidate) => candidate.id === parentBundleId));
+            const isKitComponent = Boolean(parentBundleId && parentBundleExists);
+            const returnViaParentBundle = isKitComponent && item.status === "in-use";
             const takenByName =
               !projectInfo && item.status === "in-use"
                 ? getAssignedUserName(item.assignedTo)
@@ -2179,6 +2604,10 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (returnViaParentBundle) {
+                            openKitReturnPath(item);
+                            return;
+                          }
                           if (item.status !== "in-use" && !isEquipmentOperable(item)) {
                             toast({ title: "Недоступно для выдачи", description: getInoperableMessage(item), variant: "destructive" });
                             return;
@@ -2187,10 +2616,14 @@ export default function EquipmentPage() {
                           setFormMode("take_return");
                           setIsFormOpen(true);
                         }}
-                        title={item.status === "in-use" ? "Вернуть" : "Взять"}
+                        title={returnViaParentBundle ? "Открыть сборку для возврата" : item.status === "in-use" ? "Вернуть" : "Взять"}
                         data-testid={`button-take-return-${item.id}`}
                       >
-                        <ArrowRightLeft className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                        {returnViaParentBundle ? (
+                          <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        ) : (
+                          <ArrowRightLeft className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                        )}
                       </Button>
                     )}
                     {!userCanReserve && canReturnOwnItem && (
@@ -2200,12 +2633,20 @@ export default function EquipmentPage() {
                         className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (returnViaParentBundle) {
+                            openKitReturnPath(item);
+                            return;
+                          }
                           quickReturnMutation.mutate(item.id);
                         }}
-                        title="Вернуть"
+                        title={returnViaParentBundle ? "Открыть сборку для возврата" : "Вернуть"}
                         disabled={quickReturnMutation.isPending}
                       >
-                        <PackageCheck className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                        {returnViaParentBundle ? (
+                          <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        ) : (
+                          <PackageCheck className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                        )}
                       </Button>
                     )}
                     {canRequestThisItem && (
@@ -2262,7 +2703,15 @@ export default function EquipmentPage() {
                         onClick={(event) => {
                           event.stopPropagation();
                           if (window.confirm(`Удалить «${item.name}» со склада?`)) {
-                            deleteEquipmentMutation.mutate(item.id);
+                            runWithKitSafety(
+                              [item],
+                              "Удалить со склада",
+                              "equipment-delete",
+                              (kitExtractions) => deleteEquipmentMutation.mutate({
+                                equipmentId: item.id,
+                                kitExtraction: kitExtractions[item.id],
+                              }),
+                            );
                           }
                         }}
                         title="Удалить"
@@ -2293,15 +2742,19 @@ export default function EquipmentPage() {
                     variant="outline"
                     size="sm"
                     className="h-7 px-2 text-[11px]"
-                    title="Вернуть на склад"
-                    disabled={returnToWarehouseMutation.isPending}
+                    title={isKitComponent ? "Открыть сборку для возврата" : "Вернуть на склад"}
+                    disabled={!isKitComponent && returnToWarehouseMutation.isPending}
                     onClick={(event) => {
                       event.stopPropagation();
-                      returnToWarehouseMutation.mutate(item.id);
+                      if (isKitComponent) {
+                        openKitReturnPath(item);
+                      } else {
+                        returnToWarehouseMutation.mutate(item.id);
+                      }
                     }}
                   >
-                    <PackageCheck className="mr-1 h-3.5 w-3.5" />
-                    Вернуть
+                    {isKitComponent ? <Package className="mr-1 h-3.5 w-3.5" /> : <PackageCheck className="mr-1 h-3.5 w-3.5" />}
+                    {isKitComponent ? "Открыть сборку" : "Вернуть"}
                   </Button>
                 )}
               </CardHeader>
@@ -2440,6 +2893,130 @@ export default function EquipmentPage() {
                       </Badge>
                     )}
                   </div>
+                  {isSuperPosition(item) && (() => {
+                    const components = getBundleComponents(item, equipment);
+                    const expanded = expandedBundleIds.has(item.id);
+                    return (
+                      <div
+                        className="border-t border-slate-200 pt-2 dark:border-slate-700"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                            aria-expanded={expanded}
+                            aria-controls={`bundle-components-${item.id}`}
+                            onClick={() => setExpandedBundleIds((current) => {
+                              const next = new Set(current);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            })}
+                          >
+                            <span>Состав: {components.length}</span>
+                            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                          {userCanEdit && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                              title="Добавить в комплект"
+                              aria-label={`Добавить позицию в «${item.name}»`}
+                              onClick={() => openKitAddDialog(item)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        {expanded && (
+                          <div
+                            id={`bundle-components-${item.id}`}
+                            className="mt-2 max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1"
+                          >
+                            {components.length > 0 ? components.map((component, index) => {
+                              const componentProject = getOnProjectInfo(component.id) || projectInfo;
+                              const overdue = componentProject
+                                ? isReturnOverdue(componentProject.returnDate, componentProject.returnTime)
+                                : false;
+                              const holder = getAssignedUserName(component.assignedTo);
+                              return (
+                                <div
+                                  key={component.id || `${item.id}-${index}`}
+                                  className="flex items-stretch overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
+                                >
+                                  <button
+                                    type="button"
+                                    disabled={!component.live}
+                                    onClick={() => openBundleComponentDetails(item.id, component.live)}
+                                    className="min-w-0 flex-1 px-2.5 py-2 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-default disabled:opacity-70 dark:hover:bg-slate-900"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="min-w-0 break-words font-medium text-slate-900 dark:text-white">
+                                        {component.name}
+                                      </span>
+                                      <span className="shrink-0 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                        {component.inventoryNumber || "без инв. №"}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      <Badge className={`${getStatusColor(component.status)} text-[10px]`}>
+                                        {getStatusText(component.status)}
+                                      </Badge>
+                                      <Badge className={`${getOperabilityColor(component.operabilityStatus)} text-[10px]`}>
+                                        {getOperabilityText(component.operabilityStatus)}
+                                      </Badge>
+                                      {component.live && isSuperPosition(component.live) && (
+                                        <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                          Комплект
+                                        </Badge>
+                                      )}
+                                      {componentProject && (
+                                        <Badge className="bg-violet-100 text-[10px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                                          На проекте
+                                        </Badge>
+                                      )}
+                                      {overdue && (
+                                        <Badge className="bg-red-100 text-[10px] text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                                          Просрочено
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="mt-1.5 break-words text-[11px] text-slate-500 dark:text-slate-400">
+                                      {holder ? `У сотрудника: ${holder}` : component.location ? `Хранение: ${component.location}` : "Место не указано"}
+                                    </div>
+                                  </button>
+                                  {userCanEdit && component.live && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-auto w-10 shrink-0 rounded-none border-l border-slate-200 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/20"
+                                      disabled={removeKitComponentMutation.isPending}
+                                      title="Убрать из комплекта"
+                                      aria-label={`Убрать «${component.name}» из комплекта`}
+                                      onClick={() => removeKitComponent(item, component.live!)}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            }) : (
+                              <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                В комплекте нет компонентов.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
               </Card>
@@ -2459,6 +3036,14 @@ export default function EquipmentPage() {
         equipment={selectedEquipment}
         mode={formMode}
         companyManager={canApproveCheckout}
+        parentBundleExists={selectedEquipment
+          ? Boolean(equipment.some((candidate) => candidate.id === getParentBundleId(selectedEquipment)))
+          : true}
+        onOpenParentBundle={(component) => {
+          setIsFormOpen(false);
+          setSelectedEquipment(null);
+          openKitReturnPath(component);
+        }}
       />
 
       {/* Barcode Scanner */}
@@ -2467,6 +3052,13 @@ export default function EquipmentPage() {
         onClose={() => setIsScannerOpen(false)}
         onEquipmentFound={(foundEquipment: Equipment) => {
           if (userCanReserve) {
+            const parentBundleId = getParentBundleId(foundEquipment);
+            const parentBundleExists = Boolean(parentBundleId && equipment.some((candidate) => candidate.id === parentBundleId));
+            if (foundEquipment.status === "in-use" && parentBundleExists) {
+              openKitReturnPath(foundEquipment);
+              setIsScannerOpen(false);
+              return;
+            }
             if (foundEquipment.status !== "in-use" && !isEquipmentOperable(foundEquipment)) {
               toast({ title: "Недоступно для выдачи", description: getInoperableMessage(foundEquipment), variant: "destructive" });
               setDetailsEquipment(foundEquipment);
@@ -2589,6 +3181,156 @@ export default function EquipmentPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(kitAddBundle)}
+        onOpenChange={(open) => {
+          if (!open) closeKitAddDialog();
+        }}
+      >
+        <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-xl flex-col overflow-hidden bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-slate-900 dark:text-white">
+              Добавить в комплект
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
+              {kitAddBundle
+                ? `Выберите оборудование для «${kitAddBundle.name}». Можно вложить и другой комплект.`
+                : "Выберите оборудование для комплекта."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {kitAddBundle && (
+            <div className="flex min-h-0 flex-col gap-4">
+              {kitAddOperationalContext?.active && (
+                <div className={cn(
+                  "rounded-lg border px-3 py-2 text-sm",
+                  canOverrideActiveKit
+                    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/25 dark:text-red-200"
+                    : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200",
+                )}>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Комплект используется{kitAddOperationalContext.projectName || kitAddOperationalContext.projectId
+                        ? ` в проекте «${kitAddOperationalContext.projectName || kitAddOperationalContext.projectId}»`
+                        : ""}.
+                      {canOverrideActiveKit
+                        ? " Добавление будет записано как изменение активного состава."
+                        : " Изменить активный состав может только менеджер или администратор."}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <Input
+                value={kitAddSearch}
+                onChange={(event) => setKitAddSearch(event.target.value)}
+                placeholder="Поиск по названию, модели или инвентарному номеру"
+              />
+
+              <div className="min-h-0 max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1">
+                {kitAddCandidates.length > 0 ? kitAddCandidates.map((item) => {
+                  const checked = kitAddSelectedIds.has(item.id);
+                  return (
+                    <label
+                      key={item.id}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition",
+                        checked
+                          ? "border-primary/50 bg-primary/5"
+                          : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600",
+                      )}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(nextChecked) => setKitAddSelectedIds((current) => {
+                          const next = new Set(current);
+                          if (nextChecked === true) next.add(item.id);
+                          else next.delete(item.id);
+                          return next;
+                        })}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-1.5 font-medium text-slate-900 dark:text-white">
+                          {item.name}
+                          {isSuperPosition(item) && (
+                            <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                              Комплект
+                            </Badge>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                          {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(item.type)}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                }) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    {normalizedKitAddSearch
+                      ? "По вашему запросу нет доступных позиций."
+                      : "Нет доступного исправного оборудования, которое можно добавить в этот комплект."}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Причина или контекст
+                </label>
+                <Textarea
+                  value={kitAddReason}
+                  onChange={(event) => setKitAddReason(event.target.value)}
+                  placeholder="Например: доукомплектование для выезда"
+                  className="min-h-20 resize-y"
+                />
+              </div>
+
+              {kitAddOperationalContext?.active && canOverrideActiveKit && (
+                <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/25">
+                  <label className="text-sm font-medium text-red-800 dark:text-red-200">
+                    Для изменения активного комплекта введите ДОБАВИТЬ
+                  </label>
+                  <Input
+                    value={kitAddApprovalPhrase}
+                    onChange={(event) => setKitAddApprovalPhrase(event.target.value)}
+                    placeholder="ДОБАВИТЬ"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={closeKitAddDialog}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    addKitComponentsMutation.isPending ||
+                    kitAddSelectedIds.size === 0 ||
+                    (Boolean(kitAddOperationalContext?.active) && !canOverrideActiveKit) ||
+                    (Boolean(kitAddOperationalContext?.active) &&
+                      kitAddApprovalPhrase.trim().toLocaleUpperCase("ru-RU") !== "ДОБАВИТЬ")
+                  }
+                  onClick={() => addKitComponentsMutation.mutate({
+                    bundleId: kitAddBundle.id,
+                    equipmentIds: [...kitAddSelectedIds],
+                    reason: kitAddReason.trim(),
+                    activeKitApproval: Boolean(kitAddOperationalContext?.active),
+                  })}
+                >
+                  {addKitComponentsMutation.isPending
+                    ? "Добавление..."
+                    : `Добавить (${kitAddSelectedIds.size})`}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -2748,15 +3490,21 @@ export default function EquipmentPage() {
                         : requestLinkId.startsWith("task:")
                           ? { taskId: requestLinkId.slice("task:".length) }
                           : {};
-                    requestCheckoutMutation.mutate({
-                      equipmentId: requestEquipment.id,
-                      location: requestLocation,
-                      note: requestNote,
-                      companyId: primaryCompanyId,
-                      requestType: getCheckoutRequestType(undefined, requestEquipment),
-                      quantity,
-                      ...linkPayload,
-                    });
+                    runWithKitSafety(
+                      [requestEquipment],
+                      getCheckoutRequestType(undefined, requestEquipment) === "transfer" ? "Запросить перенос" : "Запросить выдачу",
+                      "single-checkout-request",
+                      (kitExtractions) => requestCheckoutMutation.mutate({
+                        equipmentId: requestEquipment.id,
+                        location: requestLocation,
+                        note: requestNote,
+                        companyId: primaryCompanyId,
+                        requestType: getCheckoutRequestType(undefined, requestEquipment) as "checkout" | "transfer",
+                        quantity,
+                        kitExtraction: kitExtractions[requestEquipment.id],
+                        ...linkPayload,
+                      }),
+                    );
                   }}
                 >
                   {requestCheckoutMutation.isPending
@@ -2768,6 +3516,118 @@ export default function EquipmentPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={kitSafetyEntries.length > 0}
+        onOpenChange={(open) => {
+          if (!open) closeKitSafetyDialog();
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              Компонент входит в комплект
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
+              Для действия «{kitSafetyActionLabel}» сначала нужно явно извлечь компонент. Состав и автор операции будут записаны в историю.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="max-h-52 space-y-2 overflow-y-auto overscroll-contain pr-1">
+              {kitSafetyEntries.map((entry) => (
+                <div key={entry.item.id} className={cn(
+                  "rounded-lg border px-3 py-2 text-sm",
+                  entry.active
+                    ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/25"
+                    : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/25",
+                )}>
+                  <div className="font-medium text-slate-900 dark:text-white">{entry.item.name}</div>
+                  <div className="mt-1 text-slate-600 dark:text-slate-300">
+                    Комплект: <span className="font-medium">{entry.bundle.name}</span>
+                  </div>
+                  {entry.active && (
+                    <div className="mt-1 flex items-start gap-1.5 font-medium text-red-700 dark:text-red-300">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        Комплект используется{entry.projectName || entry.projectId
+                          ? ` в проекте «${entry.projectName || entry.projectId}»`
+                          : ""}.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Причина или контекст
+              </label>
+              <Textarea
+                value={kitSafetyReason}
+                onChange={(event) => setKitSafetyReason(event.target.value)}
+                placeholder="Например: замена неисправного компонента"
+                className="min-h-20 resize-y"
+              />
+            </div>
+
+            {kitSafetyEntries.some((entry) => entry.active) && canOverrideActiveKit && (
+              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/25">
+                <label className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Для override активного комплекта введите ИЗВЛЕЧЬ
+                </label>
+                <Input
+                  value={kitOverridePhrase}
+                  onChange={(event) => setKitOverridePhrase(event.target.value)}
+                  placeholder="ИЗВЛЕЧЬ"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+
+            {kitSafetyEntries.some((entry) => entry.active) && !canOverrideActiveKit ? (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  Активный комплект может изменить только менеджер или администратор. До решения состав останется без изменений.
+                </div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={closeKitSafetyDialog}>
+                    Оставить в комплекте
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={requestKitExtractionMutation.isPending}
+                    onClick={() => requestKitExtractionMutation.mutate({
+                      entries: kitSafetyEntries.filter((entry) => entry.active),
+                      reason: kitSafetyReason,
+                    })}
+                  >
+                    {requestKitExtractionMutation.isPending ? "Отправка..." : "Отправить запрос менеджеру"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={closeKitSafetyDialog}>
+                  Оставить в комплекте
+                </Button>
+                <Button
+                  type="button"
+                  onClick={confirmKitExtraction}
+                  disabled={
+                    kitSafetyEntries.some((entry) => entry.active) &&
+                    kitOverridePhrase.trim().toLocaleUpperCase("ru-RU") !== "ИЗВЛЕЧЬ"
+                  }
+                >
+                  Извлечь и продолжить
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2790,6 +3650,7 @@ export default function EquipmentPage() {
         onOpenChange={(open) => {
           if (!open) {
             setDetailsEquipment(null);
+            setDetailsReturnBundleId(null);
           }
         }}
       >
@@ -2797,6 +3658,24 @@ export default function EquipmentPage() {
           {detailsEquipment && (
             <>
               <DialogHeader>
+                {detailsReturnBundleId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mb-1 w-fit px-2"
+                    onClick={() => {
+                      const bundle = equipment.find((item) => item.id === detailsReturnBundleId);
+                      if (bundle) {
+                        setDetailsEquipment(bundle);
+                        setDetailsReturnBundleId(null);
+                      }
+                    }}
+                  >
+                    <ChevronUp className="mr-1.5 h-4 w-4 -rotate-90" />
+                    Назад к комплекту
+                  </Button>
+                )}
                 <DialogTitle className="text-slate-900 dark:text-white">
                   {detailsEquipment.name}
                 </DialogTitle>
@@ -2835,28 +3714,159 @@ export default function EquipmentPage() {
 
                 {isSuperPosition(detailsEquipment) && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/25">
-                    <div className="mb-2 flex items-center gap-2 font-medium text-emerald-900 dark:text-emerald-200">
-                      <Package className="h-4 w-4" />
-                      Состав супер позиции
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-medium text-emerald-900 dark:text-emerald-200">
+                        <Package className="h-4 w-4" />
+                        Состав комплекта
+                      </div>
+                      {userCanEdit && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 border-emerald-300 bg-white/80 text-emerald-800 hover:bg-white dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                          onClick={() => openKitAddDialog(detailsEquipment)}
+                        >
+                          <Plus className="mr-1.5 h-3.5 w-3.5" />
+                          Добавить
+                        </Button>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      {getBundleComponents(detailsEquipment, equipment).map((component, index) => (
-                        <div key={component.id || index} className="rounded-md border border-emerald-200/70 bg-white px-3 py-2 text-xs dark:border-emerald-900/70 dark:bg-slate-900">
-                          <div className="font-medium text-slate-900 dark:text-white">{component.name}</div>
-                          <div className="mt-0.5 text-slate-500 dark:text-slate-400">
-                            {[component.model, component.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(component.type)}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1">
+                      {getBundleComponents(detailsEquipment, equipment).length > 0
+                        ? getBundleComponents(detailsEquipment, equipment).map((component, index) => (
+                            <div
+                              key={component.id || index}
+                              className="flex items-stretch overflow-hidden rounded-md border border-emerald-200/70 bg-white dark:border-emerald-900/70 dark:bg-slate-900"
+                            >
+                              <button
+                                type="button"
+                                disabled={!component.live}
+                                onClick={() => openBundleComponentDetails(detailsEquipment.id, component.live)}
+                                className="min-w-0 flex-1 px-3 py-2 text-left text-xs transition hover:bg-emerald-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/40 disabled:cursor-default disabled:opacity-70 dark:hover:bg-emerald-950/20"
+                              >
+                                <div className="flex flex-wrap items-center gap-1.5 font-medium text-slate-900 dark:text-white">
+                                  {component.name}
+                                  {component.live && isSuperPosition(component.live) && (
+                                    <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                      Комплект
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="mt-0.5 text-slate-500 dark:text-slate-400">
+                                  {[component.model, component.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(component.type)}
+                                </div>
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  <Badge className={`${getStatusColor(component.status)} text-[10px]`}>
+                                    {getStatusText(component.status)}
+                                  </Badge>
+                                  <Badge className={`${getOperabilityColor(component.operabilityStatus)} text-[10px]`}>
+                                    {getOperabilityText(component.operabilityStatus)}
+                                  </Badge>
+                                </div>
+                              </button>
+                              {userCanEdit && component.live && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-auto w-11 shrink-0 rounded-none border-l border-emerald-200/70 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-emerald-900/70 dark:hover:bg-red-950/20"
+                                  disabled={removeKitComponentMutation.isPending}
+                                  title="Убрать из комплекта"
+                                  aria-label={`Убрать «${component.name}» из комплекта`}
+                                  onClick={() => removeKitComponent(detailsEquipment, component.live!)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))
+                        : (
+                            <div className="rounded-md border border-dashed border-emerald-300 px-3 py-5 text-center text-xs text-emerald-800/80 dark:border-emerald-800 dark:text-emerald-300/80">
+                              В комплекте пока нет позиций. Нажмите «Добавить».
+                            </div>
+                          )}
                     </div>
                   </div>
                 )}
 
-                {getParentBundleName(detailsEquipment) && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-200">
-                    Входит в сборку: <span className="font-medium">{getParentBundleName(detailsEquipment)}</span>
-                  </div>
-                )}
+                {getParentBundleName(detailsEquipment) && (() => {
+                  const parentBundleId = getParentBundleId(detailsEquipment);
+                  const parentBundleExists = equipment.some((item) => item.id === parentBundleId);
+                  return (
+                    <div className={cn(
+                      "flex flex-col gap-2 rounded-lg border p-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+                      parentBundleExists
+                        ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-200"
+                        : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200",
+                    )}>
+                      <span>
+                        {parentBundleExists ? (
+                          <>Входит в комплект: <span className="font-medium">{getParentBundleName(detailsEquipment)}</span></>
+                        ) : (
+                          <>Сборка «<span className="font-medium">{getParentBundleName(detailsEquipment)}</span>» удалена. Старая связь очистится автоматически при следующем действии.</>
+                        )}
+                      </span>
+                      {parentBundleExists && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-300 bg-white/70 text-blue-800 hover:bg-white dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
+                          onClick={() => openParentBundleDetails(detailsEquipment)}
+                        >
+                          Открыть комплект
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {(() => {
+                  const specs = asRecord(detailsEquipment.specifications);
+                  const history = (Array.isArray(specs.bundleExtractionHistory)
+                    ? specs.bundleExtractionHistory
+                    : Array.isArray(specs.kitExtractionHistory)
+                      ? specs.kitExtractionHistory
+                      : []) as Array<Record<string, unknown>>;
+                  if (history.length === 0) return null;
+                  return (
+                    <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+                      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                        <History className="h-3.5 w-3.5" />
+                        История состава
+                      </div>
+                      <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                        {[...history].reverse().map((entry, index) => (
+                          <div key={String(entry.id || index)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+                            <div className="font-medium text-slate-900 dark:text-white">
+                              {String(entry.componentName || "Компонент")}
+                            </div>
+                            <Badge className={cn(
+                              "mt-1 text-[10px]",
+                              entry.action === "added"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+                            )}>
+                              {entry.action === "added" ? "Добавлено" : "Извлечено"}
+                            </Badge>
+                            <div className="mt-1 text-slate-500 dark:text-slate-400">
+                              {String(entry.actorName || "Пользователь")} · {formatDateTime(String(entry.at || ""))}
+                            </div>
+                            <div className="mt-1 break-words text-slate-600 dark:text-slate-300">
+                              {String(entry.reason || entry.context || "Без комментария")}
+                            </div>
+                            {entry.managerOverride === true && (
+                              <Badge className="mt-2 bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                Override менеджера
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
