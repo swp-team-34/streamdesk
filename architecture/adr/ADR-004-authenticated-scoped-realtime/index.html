@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/architecture/adr/">
+        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/architecture/adr/ADR-004-authenticated-scoped-realtime/">
       
       
-        <link rel="prev" href="../deployment-view/">
-      
-      
-        <link rel="next" href="ADR-001-centralized-equipment-permissions/">
       
       
         
       
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Overview - StreamDesk Documentation</title>
+        <title>ADR-004: Authenticated Scoped Realtime Transport - StreamDesk Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#architectural-decision-records-adrs" class="md-skip">
+        <a href="#adr-004-authenticated-scoped-realtime-transport" class="md-skip">
           Skip to content
         </a>
       
@@ -92,7 +88,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="StreamDesk Documentation" class="md-header__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+    <a href="../../.." title="StreamDesk Documentation" class="md-header__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -112,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              ADR-004: Authenticated Scoped Realtime Transport
             
           </span>
         </div>
@@ -211,7 +207,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../.." class="md-tabs__link">
+      <a href="../../.." class="md-tabs__link">
         
   
   
@@ -232,7 +228,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../roadmap/" class="md-tabs__link">
+        <a href="../../../roadmap/" class="md-tabs__link">
           
   
   
@@ -248,13 +244,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../" class="md-tabs__link">
           
   
   
@@ -274,7 +268,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../testing/" class="md-tabs__link">
+        <a href="../../../testing/" class="md-tabs__link">
           
   
   
@@ -294,7 +288,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../platform-rebuild-notes/" class="md-tabs__link">
+        <a href="../../../platform-rebuild-notes/" class="md-tabs__link">
           
   
   
@@ -328,7 +322,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="StreamDesk Documentation" class="md-nav__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+    <a href="../../.." title="StreamDesk Documentation" class="md-nav__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -358,7 +352,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   
@@ -439,7 +433,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../roadmap/" class="md-nav__link">
+      <a href="../../../roadmap/" class="md-nav__link">
         
   
   
@@ -467,7 +461,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-stories/" class="md-nav__link">
+      <a href="../../../user-stories/" class="md-nav__link">
         
   
   
@@ -495,7 +489,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../customer-handover/" class="md-nav__link">
+      <a href="../../../customer-handover/" class="md-nav__link">
         
   
   
@@ -523,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../deployment-instructions/" class="md-nav__link">
+      <a href="../../../deployment-instructions/" class="md-nav__link">
         
   
   
@@ -551,7 +545,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../development-process/" class="md-nav__link">
+      <a href="../../../development-process/" class="md-nav__link">
         
   
   
@@ -579,7 +573,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../repository-workflow/" class="md-nav__link">
+      <a href="../../../repository-workflow/" class="md-nav__link">
         
   
   
@@ -607,7 +601,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../definition-of-done/" class="md-nav__link">
+      <a href="../../../definition-of-done/" class="md-nav__link">
         
   
   
@@ -639,31 +633,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -681,12 +672,178 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
     Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../static-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dynamic-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment-view/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment View
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADRs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ADRs
   
 
           </label>
@@ -727,234 +884,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../static-view/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Static View
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dynamic-view/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Dynamic View
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../deployment-view/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Deployment View
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ADRs
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    ADRs
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#available-adrs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Available ADRs
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="ADR-001-centralized-equipment-permissions/" class="md-nav__link">
+      <a href="../ADR-001-centralized-equipment-permissions/" class="md-nav__link">
         
   
   
@@ -982,7 +912,7 @@
   
   
     <li class="md-nav__item">
-      <a href="ADR-002-declarative-protected-route-wrapper/" class="md-nav__link">
+      <a href="../ADR-002-declarative-protected-route-wrapper/" class="md-nav__link">
         
   
   
@@ -1010,7 +940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="ADR-003-unified-monorepo-coverage/" class="md-nav__link">
+      <a href="../ADR-003-unified-monorepo-coverage/" class="md-nav__link">
         
   
   
@@ -1107,7 +1037,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../testing/" class="md-nav__link">
+      <a href="../../../testing/" class="md-nav__link">
         
   
   
@@ -1135,7 +1065,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../quality-requirements/" class="md-nav__link">
+      <a href="../../../quality-requirements/" class="md-nav__link">
         
   
   
@@ -1163,7 +1093,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../quality-requirement-tests/" class="md-nav__link">
+      <a href="../../../quality-requirement-tests/" class="md-nav__link">
         
   
   
@@ -1191,7 +1121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-acceptance-tests/" class="md-nav__link">
+      <a href="../../../user-acceptance-tests/" class="md-nav__link">
         
   
   
@@ -1280,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../platform-rebuild-notes/" class="md-nav__link">
+      <a href="../../../platform-rebuild-notes/" class="md-nav__link">
         
   
   
@@ -1335,10 +1265,99 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#available-adrs" class="md-nav__link">
+  <a href="#status" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Available ADRs
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Consequences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#positive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#negative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quality-requirements-addressed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quality Requirements Addressed
       
     </span>
   </a>
@@ -1365,27 +1384,44 @@
   
 
 
-<h1 id="architectural-decision-records-adrs">Architectural Decision Records (ADRs)<a class="headerlink" href="#architectural-decision-records-adrs" title="Permanent link">&para;</a></h1>
-<p>This section contains the Architectural Decision Records (ADRs) for the StreamDesk project.</p>
-<p>ADRs document important architectural and technical decisions made during the project's development. Each record describes the context in which a decision was made, the chosen solution, and its expected consequences.</p>
-<h2 id="available-adrs">Available ADRs<a class="headerlink" href="#available-adrs" title="Permanent link">&para;</a></h2>
+<h1 id="adr-004-authenticated-scoped-realtime-transport">ADR-004: Authenticated Scoped Realtime Transport<a class="headerlink" href="#adr-004-authenticated-scoped-realtime-transport" title="Permanent link">&para;</a></h1>
+<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
+<p>Accepted</p>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>StreamDesk already used <code>/ws</code> for periodic widget and card refreshes, but connections were not authenticated during upgrade and each mounted consumer could create its own socket. Sprint 5 discussions require project, Kanban V2 card, Location, and equipment events without exposing records across companies or turning WebSocket payloads into a second source of application state.</p>
+<p>The transport must remain usable during temporary realtime outages, preserve existing HTTP workflows, recover missed state after reconnect, and avoid unbounded listeners, timers, subscriptions, or duplicate UI updates.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p>We use one shared browser WebSocket transport and authenticate every <code>/ws</code> upgrade through the existing <code>express-session</code> cookie. The server resolves the session user before accepting the connection.</p>
+<p>Discussion subscriptions use explicit resource channels. The server rechecks access before joining company, project, Kanban V2 card, Location, or equipment scopes. Subscribing never grants mutation permission: all writes continue through the existing authorized HTTP routes and persisted storage remains the source of truth.</p>
+<p>Realtime events contain only channel, event ID, action, record ID, version, and occurrence time. Clients invalidate and refetch the affected React Query state. Reconnect uses bounded exponential backoff and refetches subscribed discussions after uncertainty. Event IDs are retained in a bounded client set to suppress duplicate delivery.</p>
+<p>The server caps each connection at 100 subscriptions and uses shared refresh and ping timers. Client subscriptions and listeners are reference-counted and removed when their consumers unmount.</p>
+<h3 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>ADR-001 – Centralized Equipment Permissions</strong></li>
+<li><strong>Keep one WebSocket per component.</strong> Rejected because navigation and nested screens can multiply sockets, timers, and duplicate refreshes.</li>
+<li><strong>Send full comments and update client state directly from WebSocket payloads.</strong> Rejected because missed or out-of-order events would create an independent, inconsistent state path and expose unnecessary content.</li>
+<li><strong>Use polling only.</strong> Rejected because discussion counts and new replies should update promptly across simultaneous sessions, while HTTP remains the fallback.</li>
+<li><strong>Use Server-Sent Events.</strong> Rejected because the existing stack already depends on the proven <code>ws</code> library and requires client subscription changes over the same connection.</li>
 </ul>
-<p>Defines the centralized permission model for equipment management and access control.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<h3 id="positive">Positive<a class="headerlink" href="#positive" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>ADR-002 – Declarative Protected Route Wrapper</strong></li>
+<li>WebSocket access follows the same authenticated session boundary as REST.</li>
+<li>Company and resource isolation is enforced before event delivery.</li>
+<li>HTTP mutations continue to work while realtime delivery is unavailable.</li>
+<li>Duplicate and missed events converge through bounded deduplication and refetch.</li>
+<li>Existing global refresh behavior shares one client connection and bounded server lifecycle resources.</li>
 </ul>
-<p>Describes the approach for protecting application routes using a declarative wrapper.</p>
+<h3 id="negative">Negative<a class="headerlink" href="#negative" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>ADR-003 – Unified Monorepo Coverage</strong></li>
+<li>Reconnect and event delivery can cause additional read requests because clients refetch authoritative state.</li>
+<li>The in-process subscription registry is suitable for the current single-node deployment; horizontal scaling would require a shared pub/sub layer and compatible shared session storage.</li>
+<li>The 100-channel limit requires future high-volume screens to prefer aggregated company or board channels if their visible scope grows substantially.</li>
 </ul>
-<p>Explains the unified strategy for collecting and reporting code coverage across the monorepo.</p>
+<h2 id="quality-requirements-addressed">Quality Requirements Addressed<a class="headerlink" href="#quality-requirements-addressed" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>ADR-004 – Authenticated Scoped Realtime Transport</strong></li>
+<li><strong>QR-002 (Protected Access Control):</strong> Session authentication and server-side scope checks prevent unauthorized realtime reads.</li>
+<li><strong>QR-003 (Automated Regression Coverage):</strong> Automated tests cover authentication rejection, company isolation, unauthorized subscriptions, reconnect/refetch helpers, and duplicate-event suppression.</li>
 </ul>
-<p>Defines session-authenticated WebSocket upgrades, authorized scope subscriptions, identifier-only events, and reconnect/refetch recovery.</p>
-<p>Use the navigation menu to open an individual ADR for complete details.</p>
 
 
 
@@ -1441,10 +1477,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

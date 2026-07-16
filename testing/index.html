@@ -1552,14 +1552,14 @@
 <tr>
 <td>Vitest test suite</td>
 <td><code>npm test</code></td>
-<td>Runs 48 unit, component, and in-process route tests across 12 files.</td>
-<td>Passed in <code>Quality</code> on 2026-07-11.</td>
+<td>Runs unit, component, route, and authenticated WebSocket integration tests across client and server code.</td>
+<td>18 test files and 90 tests passed locally on 2026-07-16; CI confirmation pending.</td>
 </tr>
 <tr>
 <td>Coverage</td>
 <td><code>npm run coverage</code></td>
 <td>Produces coverage output for configured client, server, and shared TypeScript sources.</td>
-<td>Passed in <code>Quality</code> on 2026-07-11.</td>
+<td>18 test files and 90 tests passed locally on 2026-07-16 with 2.16% line coverage; CI confirmation pending.</td>
 </tr>
 <tr>
 <td>Build</td>
@@ -1571,7 +1571,7 @@
 <td>Dependency audit</td>
 <td><code>npm audit --audit-level=critical</code></td>
 <td>Checks for critical dependency vulnerabilities as the additional QA gate.</td>
-<td><code>Quality</code> workflow.</td>
+<td>Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain.</td>
 </tr>
 <tr>
 <td>Link checking</td>
@@ -1635,7 +1635,7 @@
 <li>Full browser end-to-end workflows are not covered.</li>
 <li>No coverage threshold is configured in <code>vitest.config.ts</code>; the successful <code>Quality</code> run reports 2.04% line coverage across all included files.</li>
 <li>The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.</li>
-<li>The two server test files invoke route handlers with in-process Express and storage; there is no separate HTTP-to-persistence integration suite.</li>
+<li>Most server route tests invoke handlers with in-process Express and storage. The realtime suite additionally opens a temporary HTTP/WebSocket server to verify session rejection, company isolation, authorized subscriptions, and identifier-only event delivery; full browser and production-database integration remain manual checks.</li>
 </ul>
 
 
