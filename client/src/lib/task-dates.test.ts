@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildQuarterHourOptions,
   combineDateWithTime,
+  getDueDateStatus,
   moveDateRange,
   normalizeDateRange,
   resizeDateRangeEnd,
@@ -71,5 +72,12 @@ describe("task date helpers", () => {
 
     expect(resized.end.getHours()).toBe(9);
     expect(resized.end.getMinutes()).toBe(15);
+  });
+
+  it("delegates deadline status to the shared completion-aware rule", () => {
+    const now = new Date("2026-07-16T12:00:00.000Z");
+
+    expect(getDueDateStatus("2026-07-16T11:00:00.000Z", { now })).toBe("overdue");
+    expect(getDueDateStatus("2026-07-16T11:00:00.000Z", { now, isComplete: true })).toBe("complete");
   });
 });

@@ -47,4 +47,22 @@ describe("task manager filters", () => {
       ),
     ).toBe(true);
   });
+
+  it("does not mark a Moscow date-only deadline overdue until the date has passed", () => {
+    expect(
+      matchesTaskManagerWorkloadFilter(
+        { dueDate: "2026-07-02", listType: "active" },
+        "overdue",
+        new Date("2026-07-02T20:30:00.000Z"),
+      ),
+    ).toBe(false);
+
+    expect(
+      matchesTaskManagerWorkloadFilter(
+        { dueDate: "2026-07-02", listType: "active" },
+        "overdue",
+        new Date("2026-07-02T21:00:00.000Z"),
+      ),
+    ).toBe(true);
+  });
 });

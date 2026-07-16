@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock3, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
+import { isTaskDeadlineOverdue } from "@shared/task-deadlines";
 
 type GroupMode = "assignee" | "location" | "tags";
 
@@ -36,9 +38,7 @@ const COMPLETE_KANBAN_LIST_TYPES = new Set(["closed", "archive", "trash"]);
 const LOCATION_KEYS = ["location", "мест", "локац", "студ", "room", "zone"];
 
 function isOverdue(item: WorkItem, now: Date) {
-  if (item.completed || !item.dueDate) return false;
-  const due = new Date(item.dueDate);
-  return Number.isFinite(due.getTime()) && due.getTime() < now.getTime();
+  return isTaskDeadlineOverdue(item.dueDate, { isComplete: item.completed, now });
 }
 
 function readLocationFromCustomFields(values: unknown) {
@@ -100,6 +100,7 @@ function buildGroups(items: WorkItem[], mode: GroupMode, now: Date): GroupSummar
 
 export default function WorkProgressWidget() {
   const [groupMode, setGroupMode] = useState<GroupMode>("assignee");
+  const now = useDeadlineNow();
 
   const cardsQuery = useQuery<any[]>({
     queryKey: ["/api/kanban/cards"],
@@ -173,7 +174,6 @@ export default function WorkProgressWidget() {
     return [...kanbanItems, ...legacyItems];
   }, [cardsQuery.data, tasksQuery.data, userById]);
 
-  const now = new Date();
   const active = items.filter((item) => !item.completed).length;
   const completed = items.filter((item) => item.completed).length;
   const overdue = items.filter((item) => isOverdue(item, now)).length;
