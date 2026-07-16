@@ -292,3 +292,35 @@ All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors)
 
 ### Execution result
 To be filled
+
+## UAT-009 — Verify Warehouse and Project Autosave
+
+- **Scenario ID:** UAT-009
+- **Title:** Verify existing Warehouse and project records save automatically and synchronize globally
+- **Status:** Draft
+- **Related feature:** Warehouse, Projects, Global Sync
+
+### Objective
+Verify that valid edits to existing equipment, equipment notes, and projects persist without a Save button, pending changes are not lost when the editor closes, and related views receive synchronized data.
+
+### Preconditions
+The user can edit Warehouse equipment and projects. At least one equipment item, project, active Location, and Kanban V2 card exist. A second authorized browser session is available for realtime verification.
+
+### Test steps
+
+- Open an existing equipment item for editing and change its name, storage data, physical destination, project, and Kanban V2 context.
+- Verify the editor reports pending and saving states, then reports that all changes are saved without pressing a Save button.
+- Close the equipment editor immediately after another valid change, reopen it, and verify the latest value was flushed and persisted.
+- Enter an invalid state such as an empty required name or an empty manual destination. Verify invalid data is not sent and the editor remains open on close with a clear error.
+- Open equipment details, edit the note, and verify it autosaves without a separate Save action.
+- Open an existing project and change its name, description, assignee, participants, Task Manager visibility, and linked Locations.
+- Verify valid project changes autosave, closing flushes pending changes, and invalid project data is not persisted.
+- Observe the global synchronization control in the header during Warehouse and project edits. Verify it shows synchronization, success, and error states consistently.
+- In the second authorized session, verify the equipment or project update appears after the scoped realtime event without a manual page reload.
+- Create a new equipment item and a new project. Verify creation still requires the explicit Add/Create action and does not create incomplete records automatically.
+
+### Expected result
+Existing Warehouse and project records persist valid changes automatically, pending changes flush safely before close, invalid data remains local with a visible error, related query data refreshes, the header reflects synchronization state, and other authorized sessions receive realtime refreshes. New records are created only after explicit confirmation.
+
+### Execution result
+To be filled

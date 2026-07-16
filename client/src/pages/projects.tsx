@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Plus, HardDrive, Calendar,
   User, Edit, Trash2, Film, Clock, CheckCircle2,
-  Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink, Save,
+  Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink,
   ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -22,6 +22,7 @@ import { DiscussionThread } from "@/components/discussion-thread";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
+import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -329,14 +330,14 @@ function EditProjectForm({
   project,
   users = [],
   locations = [],
-  onSuccess,
-  onCancel,
+  onClose,
+  closeHandlerRef,
 }: {
   project: any;
   users?: any[];
   locations?: Array<{ id: string; name: string; archivedAt?: string | Date | null }>;
-  onSuccess: () => void;
-  onCancel: () => void;
+  onClose: () => void;
+  closeHandlerRef: MutableRefObject<(() => Promise<void>) | null>;
 }) {
   const safeUsers = Array.isArray(users) ? users : [];
   const [name, setName] = useState(project?.name ?? "");
@@ -345,7 +346,6 @@ function EditProjectForm({
   const [participants, setParticipants] = useState<string[]>(normalizeParticipantIds(project?.participants));
   const [showInTaskManager, setShowInTaskManager] = useState(Boolean(project?.showInTaskManager));
   const [locationIds, setLocationIds] = useState<string[]>(normalizeParticipantIds(project?.directLocationIds));
-  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -358,29 +358,64 @@ function EditProjectForm({
     setLocationIds(normalizeParticipantIds(project.directLocationIds));
   }, [project?.id, project?.name, project?.description, project?.assignedTo, project?.participants, project?.showInTaskManager, project?.directLocationIds]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!project?.id) return;
-    if (!name.trim()) {
-      toast({ title: "Ошибка", description: "Введите название", variant: "destructive" });
+  const projectAutosave = useDebouncedAutosave({
+    enabled: Boolean(project?.id),
+    resetKey: String(project?.id || ""),
+    source: `project:${project?.id || "closed"}`,
+    value: {
+      name,
+      description,
+      assignedTo,
+      participants: [...participants].sort(),
+      showInTaskManager,
+      locationIds: [...locationIds].sort(),
+    },
+    validate: (snapshot) => snapshot.name.trim()
+      ? {
+          ok: true as const,
+          payload: {
+            name: snapshot.name.trim(),
+            description: snapshot.description.trim(),
+            assignedTo: snapshot.assignedTo || null,
+            participants: snapshot.participants,
+            showInTaskManager: snapshot.showInTaskManager,
+            locationIds: snapshot.locationIds,
+          },
+        }
+      : { ok: false as const, error: "Введите название проекта" },
+    save: async (payload) => {
+      await apiRequest("PUT", `/api/projects/${project.id}`, payload);
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+  });
+
+  const requestClose = async () => {
+    const saved = await projectAutosave.flush();
+    if (!saved) {
+      toast({
+        title: "Изменения не сохранены",
+        description: projectAutosave.error || "Исправьте данные проекта или повторите сохранение.",
+        variant: "destructive",
+      });
       return;
     }
-    setSaving(true);
-    try {
-      await apiRequest("PUT", `/api/projects/${project.id}`, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        assignedTo: assignedTo || undefined,
-        participants,
-        showInTaskManager,
-        locationIds,
-      });
-      onSuccess();
-    } catch (error: any) {
-      toast({ title: "Ошибка", description: error?.message || "Не удалось сохранить", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    onClose();
+  };
+
+  useEffect(() => {
+    closeHandlerRef.current = requestClose;
+    return () => {
+      if (closeHandlerRef.current === requestClose) closeHandlerRef.current = null;
+    };
+  }, [closeHandlerRef, requestClose]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await projectAutosave.flush();
   };
 
   return (
@@ -459,9 +494,28 @@ function EditProjectForm({
         </div>
         <p className="text-xs text-muted-foreground">Площадки карточек Kanban добавляются в сводку проекта автоматически.</p>
       </div>
-      <div className="flex gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Отмена</Button>
-        <Button type="submit" disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
+      <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            "text-sm",
+            projectAutosave.status === "error" ||
+              (projectAutosave.status === "dirty" && projectAutosave.error)
+              ? "text-destructive"
+              : "text-muted-foreground",
+          )}
+          role="status"
+        >
+          {projectAutosave.status === "saving"
+            ? "Сохранение изменений..."
+            : projectAutosave.status === "dirty"
+              ? projectAutosave.error || "Изменения будут сохранены автоматически"
+              : projectAutosave.status === "error"
+                ? projectAutosave.error || "Не удалось сохранить изменения"
+                : "Все изменения сохранены"}
+        </div>
+        <Button type="button" variant="outline" onClick={() => void requestClose()}>
+          Закрыть
+        </Button>
       </div>
     </form>
   );
@@ -508,6 +562,7 @@ export default function Projects() {
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
+  const projectEditorCloseRef = useRef<(() => Promise<void>) | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -556,6 +611,9 @@ export default function Projects() {
       if (message.type === "discussion_event" || message.type === "realtime_reconnected") {
         queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
         queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       }
     },
   );
@@ -1318,7 +1376,15 @@ export default function Projects() {
       </div>
 
       {/* Редактирование проекта: название, описание, участник */}
-      <Dialog open={!!selectedProject} onOpenChange={(open) => !open && setSelectedProject(null)}>
+      <Dialog
+        open={!!selectedProject}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (projectEditorCloseRef.current) void projectEditorCloseRef.current();
+            else setSelectedProject(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl bg-background text-foreground">
           <DialogHeader>
             <DialogTitle>Изменить проект</DialogTitle>
@@ -1330,13 +1396,8 @@ export default function Projects() {
               locations={locations.filter((location) =>
                 !selectedProject.companyId || String(location.companyId || "") === String(selectedProject.companyId),
               )}
-              onSuccess={() => {
-                setSelectedProject(null);
-                queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-                queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
-                toast({ title: "Проект обновлён" });
-              }}
-              onCancel={() => setSelectedProject(null)}
+              onClose={() => setSelectedProject(null)}
+              closeHandlerRef={projectEditorCloseRef}
             />
           )}
         </DialogContent>

@@ -9208,6 +9208,28 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     return Boolean(project.companyId && companyIds.map(String).includes(String(project.companyId)));
   };
 
+  const publishProjectChanged = (
+    project: any,
+    action: "created" | "updated" | "deleted" = "updated",
+  ) => {
+    if (!project?.id) return;
+    const version = project.updatedAt || project.createdAt || new Date();
+    publishDiscussionEvent(createDiscussionRealtimeEvent({
+      channel: `project:${project.id}:comments`,
+      action,
+      recordId: String(project.id),
+      version,
+    }));
+    if (project.companyId) {
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `company:${project.companyId}`,
+        action,
+        recordId: String(project.id),
+        version,
+      }));
+    }
+  };
+
   const canManageProjectDiscussion = async (currentUser: any, project: any) => {
     if (!currentUser?.id || !project) return false;
     if (currentUser.role === "admin") return true;
@@ -9379,6 +9401,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       const project = await storage.createProject(projectData);
       await storage.setProjectLocations(project.id, locationResolution.locationIds);
+      publishProjectChanged(project, "created");
       res.status(201).json(await buildProjectResponse(project));
     } catch (error: any) {
       console.error("Error creating project:", error);
@@ -9428,6 +9451,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (nextLocationIds !== undefined) {
         await storage.setProjectLocations(project.id, nextLocationIds);
       }
+      publishProjectChanged(project, "updated");
       res.json(await buildProjectResponse(project));
     } catch (error) {
       res.status(500).json({ message: "Failed to update project" });

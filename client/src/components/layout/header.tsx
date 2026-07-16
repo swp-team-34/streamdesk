@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,6 +17,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { queryClient } from "@/lib/queryClient";
 import { MANUAL_SYNC_COOLDOWN_MS, runManualSync } from "@/lib/manual-sync";
+import { GLOBAL_SYNC_EVENT, type GlobalSyncDetail } from "@/lib/global-sync-state";
 
 interface HeaderProps {
   onMobileMenuClick: () => void;
@@ -57,6 +58,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncCooldownUntil, setSyncCooldownUntil] = useState<number>(0);
+  const autosaveSyncSourcesRef = useRef(new Map<string, GlobalSyncDetail>());
   const [location] = useLocation();
   const { canInstall, install } = usePWAInstall();
   const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes("platform:admin");
@@ -74,6 +76,30 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
     }, 1000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalSync = (event: Event) => {
+      const detail = (event as CustomEvent<GlobalSyncDetail>).detail;
+      if (!detail?.source) return;
+      autosaveSyncSourcesRef.current.set(detail.source, detail);
+      if (autosaveSyncSourcesRef.current.size > 100) {
+        const oldestSource = autosaveSyncSourcesRef.current.keys().next().value;
+        if (oldestSource) autosaveSyncSourcesRef.current.delete(oldestSource);
+      }
+      const states = Array.from(autosaveSyncSourcesRef.current.values());
+      if (states.some((entry) => entry.status === "syncing")) {
+        setSyncStatus("syncing");
+      } else if (states.some((entry) => entry.status === "error")) {
+        setSyncStatus("error");
+      } else {
+        setSyncStatus("synced");
+        setLastSyncedAt(new Date(detail.occurredAt));
+      }
+      setSyncCooldownUntil(0);
+    };
+    window.addEventListener(GLOBAL_SYNC_EVENT, handleGlobalSync);
+    return () => window.removeEventListener(GLOBAL_SYNC_EVENT, handleGlobalSync);
   }, []);
 
   const pageTitle = pageTitles[location] ?? "StreamDesk";
@@ -102,6 +128,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
 
     try {
       await runManualSync(queryClient);
+      autosaveSyncSourcesRef.current.clear();
       setLastSyncedAt(new Date());
       setSyncStatus("synced");
     } catch {

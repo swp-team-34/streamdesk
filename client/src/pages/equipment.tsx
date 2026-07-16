@@ -18,6 +18,7 @@ import { buildBarcodeLabelBitmapPayload, renderCompactBarcodeLabel } from "@/lib
 import { apiRequest, apiUrl, encodeUserHeader } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
+import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { cn } from "@/lib/utils";
 import type { Equipment } from "@shared/schema";
 
@@ -522,15 +523,46 @@ export default function EquipmentPage() {
     },
     onSuccess: (updated: Equipment) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       if (updated?.id) {
         setDetailsEquipment(updated);
       }
-      toast({ title: "Сохранено", description: "Примечание обновлено." });
-    },
-    onError: (e: any) => {
-      toast({ title: "Ошибка", description: e?.message || "Не удалось сохранить примечание", variant: "destructive" });
     },
   });
+
+  const equipmentNoteAutosave = useDebouncedAutosave({
+    enabled: Boolean(detailsEquipment?.id && userCanEdit),
+    resetKey: String(detailsEquipment?.id || ""),
+    source: `equipment-note:${detailsEquipment?.id || "closed"}`,
+    value: {
+      equipmentId: String(detailsEquipment?.id || ""),
+      notes: detailsNote,
+    },
+    validate: (snapshot) => snapshot.equipmentId
+      ? { ok: true as const, payload: snapshot }
+      : { ok: false as const, error: "Оборудование не выбрано" },
+    save: async (payload) => {
+      await updateEquipmentNoteMutation.mutateAsync(payload);
+    },
+  });
+
+  const closeEquipmentDetails = async () => {
+    if (detailsEquipment?.id && userCanEdit) {
+      const saved = await equipmentNoteAutosave.flush();
+      if (!saved) {
+        toast({
+          title: "Изменения не сохранены",
+          description: equipmentNoteAutosave.error || "Не удалось сохранить примечание.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setDetailsEquipment(null);
+    setDetailsReturnBundleId(null);
+  };
 
   const addEquipmentCommentMutation = useMutation({
     mutationFn: async ({ equipmentItem, text }: { equipmentItem: Equipment; text: string }) => {
@@ -3872,10 +3904,7 @@ export default function EquipmentPage() {
       <Dialog
         open={Boolean(detailsEquipment)}
         onOpenChange={(open) => {
-          if (!open) {
-            setDetailsEquipment(null);
-            setDetailsReturnBundleId(null);
-          }
+          if (!open) void closeEquipmentDetails();
         }}
       >
         <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden bg-white dark:bg-slate-900">
@@ -4217,7 +4246,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
 
-                {userCanEdit && String(detailsEquipment.notes ?? "").trim() && (
+                {!userCanEdit && String(detailsEquipment.notes ?? "").trim() && (
                   <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                       Описание
@@ -4239,7 +4268,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
 
-                {!userCanEdit && (
+                {userCanEdit && (
                   <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                       Примечание
@@ -4261,17 +4290,23 @@ export default function EquipmentPage() {
                       placeholder="Напишите примечание по оборудованию"
                       className="min-h-28 resize-y bg-white dark:bg-slate-950"
                     />
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        onClick={() => updateEquipmentNoteMutation.mutate({ equipmentId: detailsEquipment.id, notes: detailsNote })}
-                        disabled={
-                          updateEquipmentNoteMutation.isPending ||
-                          detailsNote === String(detailsEquipment.notes ?? "")
-                        }
-                      >
-                        {updateEquipmentNoteMutation.isPending ? "Сохранение..." : "Сохранить"}
-                      </Button>
+                    <div
+                      className={cn(
+                        "mt-2 text-xs",
+                        equipmentNoteAutosave.status === "error" ||
+                          (equipmentNoteAutosave.status === "dirty" && equipmentNoteAutosave.error)
+                          ? "text-destructive"
+                          : "text-slate-500 dark:text-slate-400",
+                      )}
+                      role="status"
+                    >
+                      {equipmentNoteAutosave.status === "saving"
+                        ? "Сохранение..."
+                        : equipmentNoteAutosave.status === "dirty"
+                          ? equipmentNoteAutosave.error || "Изменения будут сохранены автоматически"
+                          : equipmentNoteAutosave.status === "error"
+                            ? equipmentNoteAutosave.error || "Не удалось сохранить изменения"
+                            : "Все изменения сохранены"}
                     </div>
                   </div>
                 )}

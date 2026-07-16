@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoUpload } from "@/components/equipment/photo-upload";
 import { useState, useEffect, useRef } from "react";
+import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { z } from "zod";
 import { QrCode, Download, Printer, RefreshCw, ScanBarcode, MapPin, AlertTriangle } from "lucide-react";
 import {
@@ -237,6 +238,7 @@ export function EquipmentForm({
   const [manualLocation, setManualLocation] = useState("");
   const [contextProjectId, setContextProjectId] = useState("none");
   const [contextCardIds, setContextCardIds] = useState<Set<string>>(new Set());
+  const [autosaveReady, setAutosaveReady] = useState(false);
   const barcodeRef = useRef<SVGSVGElement>(null);
   const { toast } = useToast();
 
@@ -245,43 +247,45 @@ export function EquipmentForm({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      if (equipment) {
-        setPhotos(equipment.photos || []);
-        const existingBarcode = equipment.barcode || equipment.inventoryNumber || equipment.serialNumber || "";
-        setBarcodeValue(existingBarcode);
-        setSpecificationsText(serializeSpecifications(equipment.specifications));
-        setEstimatePrice(getEstimatePriceValue(equipment.specifications));
-        const destination = asRecord(equipment.physicalDestination);
-        const locationId = String(destination.locationId || equipment.locationId || "").trim();
-        const currentManualLocation = String(
-          destination.manualLocation ||
-          equipment.manualLocation ||
-          (!locationId ? destination.legacyLocation || equipment.location : "") ||
-          "",
-        ).trim();
-        setDestinationChoice(locationId || (currentManualLocation ? "manual" : ""));
-        setManualLocation(currentManualLocation);
-        const activeManualLinks = Array.isArray(asRecord(equipment.workContext).links)
-          ? (asRecord(equipment.workContext).links as any[])
-              .filter((link) => link.active && link.source === "manual")
-          : [];
-        const projectId = String(activeManualLinks.find((link) => link.projectId)?.projectId || "").trim();
-        setContextProjectId(projectId || "none");
-        setContextCardIds(new Set(
-          activeManualLinks.map((link) => String(link.kanbanCardId || "").trim()).filter(Boolean),
-        ));
-      } else {
-        setPhotos([]);
-        setBarcodeValue("");
-        setSpecificationsText("");
-        setEstimatePrice("");
-        setDestinationChoice("");
-        setManualLocation("");
-        setContextProjectId("none");
-        setContextCardIds(new Set());
-      }
+    setAutosaveReady(false);
+    if (!isOpen) return;
+    if (equipment) {
+      setPhotos(equipment.photos || []);
+      const existingBarcode = equipment.barcode || equipment.inventoryNumber || equipment.serialNumber || "";
+      setBarcodeValue(existingBarcode);
+      setSpecificationsText(serializeSpecifications(equipment.specifications));
+      setEstimatePrice(getEstimatePriceValue(equipment.specifications));
+      const destination = asRecord(equipment.physicalDestination);
+      const locationId = String(destination.locationId || equipment.locationId || "").trim();
+      const currentManualLocation = String(
+        destination.manualLocation ||
+        equipment.manualLocation ||
+        (!locationId ? destination.legacyLocation || equipment.location : "") ||
+        "",
+      ).trim();
+      setDestinationChoice(locationId || (currentManualLocation ? "manual" : ""));
+      setManualLocation(currentManualLocation);
+      const activeManualLinks = Array.isArray(asRecord(equipment.workContext).links)
+        ? (asRecord(equipment.workContext).links as any[])
+            .filter((link) => link.active && link.source === "manual")
+        : [];
+      const projectId = String(activeManualLinks.find((link) => link.projectId)?.projectId || "").trim();
+      setContextProjectId(projectId || "none");
+      setContextCardIds(new Set(
+        activeManualLinks.map((link) => String(link.kanbanCardId || "").trim()).filter(Boolean),
+      ));
+    } else {
+      setPhotos([]);
+      setBarcodeValue("");
+      setSpecificationsText("");
+      setEstimatePrice("");
+      setDestinationChoice("");
+      setManualLocation("");
+      setContextProjectId("none");
+      setContextCardIds(new Set());
     }
+    const readyTimer = window.setTimeout(() => setAutosaveReady(true), 0);
+    return () => window.clearTimeout(readyTimer);
   }, [isOpen, equipment]);
 
   useEffect(() => {
@@ -438,7 +442,9 @@ export function EquipmentForm({
   };
 
   const buildEquipmentPayload = (data: z.infer<typeof equipmentFormSchema>) => {
-    const inventoryNumber = String(data.inventoryNumber ?? "").trim() || buildGeneratedInventoryNumber(data);
+    const inventoryNumber = String(data.inventoryNumber ?? "").trim() ||
+      String(equipment?.inventoryNumber || "").trim() ||
+      buildGeneratedInventoryNumber(data);
     const nextBarcode = canManageBarcode ? (barcodeValue.trim() || inventoryNumber) : equipment?.barcode;
     const preservedInternalSpecifications = Object.fromEntries(
       Object.entries(asRecord(equipment?.specifications)).filter(([key]) => isInternalSpecificationKey(key)),
@@ -502,26 +508,66 @@ export function EquipmentForm({
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof equipmentFormSchema>) => {
-      const payload = buildEquipmentPayload(data);
+    mutationFn: async ({ payload }: { payload: Record<string, unknown>; silent?: boolean }) => {
       const response = await apiRequest("PUT", `/api/equipment/${equipment.id}`, payload);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      queryClient.refetchQueries({ queryKey: ["/api/equipment"] });
-      toast({
-        title: "Успешно",
-        description: "Оборудование обновлено",
-      });
-      onClose();
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      if (!variables.silent) {
+        toast({ title: "Успешно", description: "Оборудование обновлено" });
+      }
     },
-    onError: (error: any) => {
-      toast({
-        title: "Ошибка",
-        description: error.message || "Не удалось обновить оборудование",
-        variant: "destructive",
-      });
+    onError: (error: any, variables) => {
+      if (!variables.silent) {
+        toast({
+          title: "Ошибка",
+          description: error.message || "Не удалось обновить оборудование",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
+  const watchedEquipmentValues = form.watch();
+  const parsedAutosaveValues = equipmentFormSchema.safeParse(watchedEquipmentValues);
+  const equipmentAutosaveValue = {
+    formValues: watchedEquipmentValues,
+    barcodeValue,
+    specificationsText,
+    estimatePrice,
+    photos,
+    destinationChoice,
+    manualLocation,
+    contextProjectId,
+    contextCardIds: [...contextCardIds].sort(),
+    payload: parsedAutosaveValues.success ? buildEquipmentPayload(parsedAutosaveValues.data) : null,
+    validationError: parsedAutosaveValues.success
+      ? ""
+      : parsedAutosaveValues.error.issues[0]?.message || "Проверьте данные оборудования",
+  };
+  const equipmentAutosave = useDebouncedAutosave({
+    enabled: autosaveReady && isOpen && mode === "full" && Boolean(equipment?.id),
+    resetKey: `${equipment?.id || "new"}:${isOpen ? "open" : "closed"}`,
+    source: `equipment:${equipment?.id || "new"}`,
+    value: equipmentAutosaveValue,
+    validate: (snapshot) => {
+      if (!snapshot.payload || !String(snapshot.formValues.name || "").trim()) {
+        return { ok: false as const, error: snapshot.validationError || "Введите название оборудования" };
+      }
+      if (snapshot.destinationChoice === "manual" && !snapshot.manualLocation.trim()) {
+        return { ok: false as const, error: "Укажите ручное местоположение" };
+      }
+      return { ok: true as const, payload: snapshot.payload };
+    },
+    save: async (payload) => {
+      await updateMutation.mutateAsync({ payload, silent: true });
     },
   });
 
@@ -554,7 +600,7 @@ export function EquipmentForm({
     },
   });
 
-  const onSubmit = (data: z.infer<typeof equipmentFormSchema>) => {
+  const onSubmit = async (data: z.infer<typeof equipmentFormSchema>) => {
     if (destinationChoice === "manual" && !manualLocation.trim()) {
       toast({
         title: "Укажите местоположение",
@@ -564,10 +610,25 @@ export function EquipmentForm({
       return;
     }
     if (equipment) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data);
+      await equipmentAutosave.flush();
+      return;
     }
+    createMutation.mutate(data);
+  };
+
+  const requestClose = async () => {
+    if (equipment && mode === "full") {
+      const saved = await equipmentAutosave.flush();
+      if (!saved) {
+        toast({
+          title: "Изменения не сохранены",
+          description: equipmentAutosave.error || "Исправьте данные или повторите сохранение.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    onClose();
   };
 
   const handleTakeReturn = (action: 'take' | 'return') => {
@@ -709,7 +770,9 @@ export function EquipmentForm({
 
   if (isTakeReturnMode && equipment) {
     return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) onClose();
+      }}>
         <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto bg-white dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-slate-900 dark:text-white">
@@ -795,7 +858,9 @@ export function EquipmentForm({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) void requestClose();
+    }}>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar bg-white dark:bg-slate-900 sm:w-full">
         <DialogHeader>
           <DialogTitle className="text-slate-900 dark:text-white">
@@ -1132,25 +1197,46 @@ export function EquipmentForm({
               onPhotosChange={setPhotos}
             />
 
-            <div className="flex justify-end space-x-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose}
-                className="border-slate-300 dark:border-slate-600"
-              >
-                Отмена
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="bg-primary hover:bg-primary/90 text-white"
-              >
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Сохранение..." 
-                  : equipment ? "Обновить" : "Добавить"
-                }
-              </Button>
+            <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+              {equipment ? (
+                <div
+                  className={`text-sm ${
+                    equipmentAutosave.status === "error" || (equipmentAutosave.status === "dirty" && equipmentAutosave.error)
+                      ? "text-destructive"
+                      : "text-slate-500 dark:text-slate-400"
+                  }`}
+                  role="status"
+                >
+                  {equipmentAutosave.status === "saving"
+                    ? "Сохранение изменений..."
+                    : equipmentAutosave.status === "dirty"
+                      ? equipmentAutosave.error || "Изменения будут сохранены автоматически"
+                      : equipmentAutosave.status === "error"
+                        ? equipmentAutosave.error || "Не удалось сохранить изменения"
+                        : "Все изменения сохранены"}
+                </div>
+              ) : (
+                <div />
+              )}
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void requestClose()}
+                  className="border-slate-300 dark:border-slate-600"
+                >
+                  {equipment ? "Закрыть" : "Отмена"}
+                </Button>
+                {!equipment && (
+                  <Button
+                    type="submit"
+                    disabled={createMutation.isPending}
+                    className="bg-primary hover:bg-primary/90 text-white"
+                  >
+                    {createMutation.isPending ? "Сохранение..." : "Добавить"}
+                  </Button>
+                )}
+              </div>
             </div>
           </form>
         </Form>
