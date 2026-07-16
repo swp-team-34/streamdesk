@@ -1591,39 +1591,43 @@ export default function Calendar() {
         }}
       >
         <div className="min-w-max" style={{ width: timelineContentWidth }}>
-          {renderAllDayZone(timelineDays, timelineViewMode)}
-          {renderCompressedHoursControl(timelineVisibleDays, "before", true)}
-          <div className="grid" style={{ gridTemplateColumns }}>
-            <div
-              data-calendar-horizontal-pan
-              className="sticky left-0 z-30 cursor-grab border-b border-r border-border/35 bg-card px-2 py-2 text-[10px] font-medium text-foreground active:cursor-grabbing sm:text-xs"
-            >
-              Н{timelineWeekNumber}
+          <div className="sticky top-0 z-50 bg-card shadow-sm shadow-background/30">
+            {renderAllDayZone(timelineDays, timelineViewMode)}
+            {renderCompressedHoursControl(timelineVisibleDays, "before", true)}
+            <div className="grid bg-card" style={{ gridTemplateColumns }}>
+              <div
+                data-calendar-horizontal-pan
+                className="sticky left-0 z-30 cursor-grab border-b border-r border-border/35 bg-card px-2 py-2 text-[10px] font-medium text-foreground active:cursor-grabbing sm:text-xs"
+              >
+                Н{timelineWeekNumber}
+              </div>
+              {timelineDays.map((day) => {
+                const isToday = isSameDay(day, now);
+                return (
+                  <div
+                    key={day.toISOString()}
+                    data-calendar-horizontal-pan
+                    className="cursor-grab select-none border-b border-r border-border/35 bg-card px-1 py-2 text-center last:border-r-0 active:cursor-grabbing"
+                    style={{
+                      scrollSnapAlign: "start",
+                      scrollMarginLeft: CALENDAR_TIMELINE_GUTTER_WIDTH,
+                    }}
+                  >
+                    <div className="truncate text-[10px] uppercase text-muted-foreground sm:text-xs">
+                      {format(day, "EEE", { locale: ru })}
+                    </div>
+                    <div className={cn(
+                      "inline-block min-w-6 rounded-md text-sm font-semibold",
+                      isToday && "bg-red-500 px-1 text-white",
+                    )}>
+                      {format(day, "d")}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {timelineDays.map((day) => {
-              const isToday = isSameDay(day, now);
-              return (
-                <div
-                  key={day.toISOString()}
-                  data-calendar-horizontal-pan
-                  className="cursor-grab select-none border-b border-r border-border/35 px-1 py-2 text-center last:border-r-0 active:cursor-grabbing"
-                  style={{
-                    scrollSnapAlign: "start",
-                    scrollMarginLeft: CALENDAR_TIMELINE_GUTTER_WIDTH,
-                  }}
-                >
-                  <div className="truncate text-[10px] uppercase text-muted-foreground sm:text-xs">
-                    {format(day, "EEE", { locale: ru })}
-                  </div>
-                  <div className={cn(
-                    "inline-block min-w-6 rounded-md text-sm font-semibold",
-                    isToday && "bg-red-500 px-1 text-white",
-                  )}>
-                    {format(day, "d")}
-                  </div>
-                </div>
-              );
-            })}
+          </div>
+          <div className="grid" style={{ gridTemplateColumns }}>
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
               <Fragment key={hour}>
                 <div
