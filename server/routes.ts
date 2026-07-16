@@ -24,7 +24,6 @@ import {
   insertKanbanCardCommentSchema,
   insertKanbanCardAttachmentSchema,
   insertKanbanLabelSchema,
-  insertCustomLocationSchema,
   insertLocationIssueSchema,
   insertLocationIssueCommentSchema,
 } from "@shared/schema";
@@ -252,6 +251,40 @@ const kanbanAttachmentUpload = multer({
   limits: {
     fileSize: 25 * 1024 * 1024,
   },
+});
+
+const locationAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      const uploadDir = path.join(process.cwd(), "uploads", "locations");
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (error) {
+        console.error("Error creating location upload directory:", error);
+      }
+      cb(null, uploadDir);
+    },
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const originalName = file.originalname || "file";
+      const ext = path.extname(originalName).toLowerCase();
+      const base = path.basename(originalName, ext).replace(/[^\p{L}0-9_\- ]/gu, "_");
+      cb(null, `${base || "location-file"}-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowedMimeTypes = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "text/plain",
+    ]);
+    cb(null, allowedMimeTypes.has(file.mimetype));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 // Helper function to check IP connectivity
@@ -2050,9 +2083,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: labelResolution.message });
       }
       if (parsed.locationId) {
-        const locations = await storage.getCustomLocations();
-        if (!locations.some((location) => String(location.id) === String(parsed.locationId))) {
+        const location = await storage.getCustomLocationById(parsed.locationId);
+        if (!location || location.archivedAt) {
           return res.status(400).json({ message: "Выберите существующую площадку" });
+        }
+        if (access.board.companyId && String(location.companyId || "") !== String(access.board.companyId)) {
+          return res.status(403).json({ message: "Площадка принадлежит другой компании" });
         }
       }
 
@@ -2120,9 +2156,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
       if (parsed.locationId !== undefined) {
         if (parsed.locationId) {
-          const locations = await storage.getCustomLocations();
-          if (!locations.some((location) => String(location.id) === String(parsed.locationId))) {
+          const location = await storage.getCustomLocationById(parsed.locationId);
+          if (!location || location.archivedAt) {
             return res.status(400).json({ message: "Выберите существующую площадку" });
+          }
+          if (access.board.companyId && String(location.companyId || "") !== String(access.board.companyId)) {
+            return res.status(403).json({ message: "Площадка принадлежит другой компании" });
           }
         }
         updateData.locationId = parsed.locationId || null;
@@ -7693,13 +7732,106 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   // Custom Locations
   const recordingPlaceStatusSchema = z.enum(["available", "occupied", "reserved", "maintenance", "unavailable"]);
+  const customLocationPayloadSchema = z.object({
+    companyId: z.string().trim().min(1).optional(),
+    name: z.string().trim().min(1, "Название площадки обязательно").max(160),
+    type: z.string().trim().max(120).nullable().optional(),
+    address: z.string().trim().max(500).nullable().optional(),
+    description: z.string().trim().max(5000).nullable().optional(),
+    notes: z.string().trim().max(20_000).nullable().optional(),
+    status: recordingPlaceStatusSchema.default("available"),
+  });
+  const customLocationUpdateSchema = customLocationPayloadSchema.partial().omit({ companyId: true });
+
+  const canManageLocationCompany = async (user: any, companyId: string) => {
+    if (!user?.id) return false;
+    if (user.role === "admin") return true;
+    if (!companyId) return false;
+    if (await canManageCompany(user, companyId).catch(() => false)) return true;
+    const companyIds: string[] = await getUserCompanyIds(user).catch(() => [] as string[]);
+    return user.role === "manager" && companyIds.includes(companyId);
+  };
+
+  const canAccessLocation = async (user: any, location: any) => {
+    if (!user?.id || !location) return false;
+    if (user.role === "admin") return true;
+    const companyId = String(location.companyId || "").trim();
+    if (!companyId) return false;
+    const companyIds: string[] = await getUserCompanyIds(user).catch(() => [] as string[]);
+    return companyIds.includes(companyId);
+  };
+
+  const getLocationActiveLinkSummary = async (location: any) => {
+    const unresolvedIssues = (await storage.getLocationIssues(location.id).catch(() => []))
+      .filter((issue: any) => !["resolved", "cancelled"].includes(String(issue.status))).length;
+    const boards = await storage.getKanbanBoards().catch(() => []);
+    let activeKanbanCards = 0;
+    for (const board of boards as any[]) {
+      if (location.companyId && String(board.companyId || "") !== String(location.companyId)) continue;
+      const lists = await storage.getKanbanListsByBoardId(board.id).catch(() => []);
+      const activeListIds = new Set((lists as any[])
+        .filter((list) => !["closed", "archive", "trash"].includes(String(list.type || "")))
+        .map((list) => String(list.id)));
+      const cards = await storage.getKanbanCardsByBoardId(board.id).catch(() => []);
+      activeKanbanCards += (cards as any[]).filter((card) =>
+        String(card.locationId || "") === String(location.id) &&
+        activeListIds.has(String(card.listId || "")),
+      ).length;
+    }
+    return {
+      activeKanbanCards,
+      unresolvedDiscussions: unresolvedIssues,
+      total: activeKanbanCards + unresolvedIssues,
+    };
+  };
+
+  const serializeCustomLocation = async (location: any) => {
+    const [updatedBy, archivedBy] = await Promise.all([
+      location.updatedByUserId ? storage.getUser(String(location.updatedByUserId)).catch(() => undefined) : undefined,
+      location.archivedByUserId ? storage.getUser(String(location.archivedByUserId)).catch(() => undefined) : undefined,
+    ]);
+    return {
+      ...location,
+      attachments: Array.isArray(location.attachments) ? location.attachments : [],
+      updatedByName: updatedBy?.name || updatedBy?.username || null,
+      archivedByName: archivedBy?.name || archivedBy?.username || null,
+    };
+  };
 
   app.get("/api/locations", async (req, res) => {
     try {
-      const locations = await storage.getCustomLocations();
-      res.json(locations);
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const companyIds = await getUserCompanyIds(currentUser);
+      const archive = ["active", "archived", "all"].includes(String(req.query.archive))
+        ? String(req.query.archive)
+        : "active";
+      const locations = (await storage.getCustomLocations())
+        .filter((location: any) =>
+          currentUser.role === "admin" ||
+          (location.companyId && companyIds.includes(String(location.companyId))),
+        )
+        .filter((location: any) =>
+          archive === "all" ||
+          (archive === "archived" ? Boolean(location.archivedAt) : !location.archivedAt),
+        );
+      res.json(await Promise.all(locations.map(serializeCustomLocation)));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch locations" });
+    }
+  });
+
+  app.get("/api/locations/:id", async (req, res) => {
+    try {
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (!(await canAccessLocation(req.user, location))) return res.status(403).json({ message: "Нет доступа к площадке" });
+      res.json({
+        ...(await serializeCustomLocation(location)),
+        activeLinks: await getLocationActiveLinkSummary(location),
+      });
+    } catch {
+      res.status(500).json({ message: "Не удалось загрузить площадку" });
     }
   });
 
@@ -7707,17 +7839,29 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const parsed = insertCustomLocationSchema.parse({
-        ...req.body,
-        status: recordingPlaceStatusSchema.catch("available").parse(req.body?.status),
-      });
-      const location = await storage.createCustomLocation(parsed);
-      res.status(201).json(location);
+      const parsed = customLocationPayloadSchema.parse(req.body || {});
+      const companyIds = await getUserCompanyIds(currentUser);
+      const companyId = String(parsed.companyId || companyIds[0] || "").trim();
+      if (!companyId) return res.status(400).json({ message: "Выберите компанию для площадки" });
+      if (!(await canManageLocationCompany(currentUser, companyId))) {
+        return res.status(403).json({ message: "Нет прав на создание площадки этой компании" });
+      }
+      const duplicate = (await storage.getCustomLocations()).some((location: any) =>
+        String(location.companyId || "") === companyId &&
+        String(location.name || "").trim().toLocaleLowerCase("ru-RU") === parsed.name.toLocaleLowerCase("ru-RU"),
+      );
+      if (duplicate) return res.status(409).json({ message: "Площадка с таким названием уже существует в компании" });
+      const location = await storage.createCustomLocation({
+        ...parsed,
+        companyId,
+        updatedByUserId: currentUser.id,
+      } as any);
+      res.status(201).json(await serializeCustomLocation(location));
     } catch (error: any) {
       if (error?.name === "ZodError") {
-        return res.status(400).json({ message: "Invalid location data", errors: error.errors });
+        return res.status(400).json({ message: "Проверьте данные площадки", errors: error.flatten?.() });
       }
-      res.status(500).json({ message: "Failed to create location" });
+      res.status(500).json({ message: error?.message || "Не удалось создать площадку" });
     }
   });
 
@@ -7725,39 +7869,178 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      if (!["admin", "manager"].includes(String(currentUser.role))) {
-        return res.status(403).json({ message: "Только менеджер или администратор может менять статус площадки" });
+      const existing = await storage.getCustomLocationById(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Площадка не найдена" });
+      if (existing.archivedAt) {
+        return res.status(409).json({ message: "Сначала восстановите площадку из архива" });
       }
-
+      const companyId = String(existing.companyId || "").trim();
+      if (!(await canManageLocationCompany(currentUser, companyId))) {
+        return res.status(403).json({ message: "Нет прав на изменение площадки" });
+      }
+      const parsed = customLocationUpdateSchema.parse(req.body || {});
       const update = {
-        ...(req.body?.name !== undefined ? { name: String(req.body.name).trim() } : {}),
-        ...(req.body?.description !== undefined ? { description: req.body.description || null } : {}),
-        ...(req.body?.type !== undefined ? { type: req.body.type || null } : {}),
-        ...(req.body?.status !== undefined ? { status: recordingPlaceStatusSchema.parse(req.body.status) } : {}),
+        ...parsed,
+        ...(parsed.type !== undefined ? { type: parsed.type || null } : {}),
+        ...(parsed.address !== undefined ? { address: parsed.address || null } : {}),
+        ...(parsed.description !== undefined ? { description: parsed.description || null } : {}),
+        ...(parsed.notes !== undefined ? { notes: parsed.notes || null } : {}),
+        updatedByUserId: currentUser.id,
       };
       if (Object.keys(update).length === 0) return res.status(400).json({ message: "Нет данных для обновления" });
       const location = await storage.updateCustomLocation(req.params.id, update as any);
-      if (!location) return res.status(404).json({ message: "Location not found" });
-      res.json(location);
+      res.json(await serializeCustomLocation(location));
     } catch (error: any) {
       if (error?.name === "ZodError") {
-        return res.status(400).json({ message: "Invalid location status", errors: error.errors });
+        return res.status(400).json({ message: "Проверьте данные площадки", errors: error.flatten?.() });
       }
-      res.status(500).json({ message: "Failed to update location" });
+      res.status(500).json({ message: "Не удалось обновить площадку" });
+    }
+  });
+
+  app.get("/api/locations/:id/archive-preview", async (req, res) => {
+    try {
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (!(await canManageLocationCompany(req.user, String(location.companyId || "")))) {
+        return res.status(403).json({ message: "Нет прав на архивирование площадки" });
+      }
+      res.json({ locationId: location.id, activeLinks: await getLocationActiveLinkSummary(location) });
+    } catch {
+      res.status(500).json({ message: "Не удалось проверить связи площадки" });
+    }
+  });
+
+  app.post("/api/locations/:id/archive", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (location.archivedAt) return res.status(409).json({ message: "Сначала восстановите площадку из архива" });
+      if (!(await canManageLocationCompany(currentUser, String(location.companyId || "")))) {
+        return res.status(403).json({ message: "Нет прав на архивирование площадки" });
+      }
+      const activeLinks = await getLocationActiveLinkSummary(location);
+      if (activeLinks.total > 0 && req.body?.confirmed !== true) {
+        return res.status(409).json({
+          message: "У площадки есть активные связи. Подтвердите архивирование.",
+          code: "LOCATION_ARCHIVE_CONFIRMATION_REQUIRED",
+          activeLinks,
+        });
+      }
+      const updated = await storage.updateCustomLocation(location.id, {
+        archivedAt: new Date(),
+        archivedByUserId: currentUser.id,
+        updatedByUserId: currentUser.id,
+      } as any);
+      res.json({ location: await serializeCustomLocation(updated), activeLinks });
+    } catch {
+      res.status(500).json({ message: "Не удалось архивировать площадку" });
+    }
+  });
+
+  app.post("/api/locations/:id/restore", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (!(await canManageLocationCompany(currentUser, String(location.companyId || "")))) {
+        return res.status(403).json({ message: "Нет прав на восстановление площадки" });
+      }
+      if (!location.archivedAt) return res.status(409).json({ message: "Площадка не находится в архиве" });
+      const updated = await storage.updateCustomLocation(location.id, {
+        archivedAt: null,
+        archivedByUserId: null,
+        updatedByUserId: currentUser.id,
+      } as any);
+      res.json(await serializeCustomLocation(updated));
+    } catch {
+      res.status(500).json({ message: "Не удалось восстановить площадку" });
     }
   });
 
   app.delete("/api/locations/:id", async (req, res) => {
+    req.body = { ...(req.body || {}), confirmed: req.body?.confirmed === true };
+    const location = await storage.getCustomLocationById(req.params.id).catch(() => undefined);
+    if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+    const currentUser = req.user as any;
+    if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+    if (!(await canManageLocationCompany(currentUser, String(location.companyId || "")))) {
+      return res.status(403).json({ message: "Нет прав на архивирование площадки" });
+    }
+    const activeLinks = await getLocationActiveLinkSummary(location);
+    if (activeLinks.total > 0 && req.body.confirmed !== true) {
+      return res.status(409).json({
+        message: "У площадки есть активные связи. Подтвердите архивирование.",
+        code: "LOCATION_ARCHIVE_CONFIRMATION_REQUIRED",
+        activeLinks,
+      });
+    }
+    const updated = await storage.updateCustomLocation(location.id, {
+      archivedAt: new Date(),
+      archivedByUserId: currentUser.id,
+      updatedByUserId: currentUser.id,
+    } as any);
+    res.json({ success: true, mode: "archived", location: await serializeCustomLocation(updated), activeLinks });
+  });
+
+  app.post("/api/locations/:id/attachments", locationAttachmentUpload.single("file"), async (req, res) => {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      if (!["admin", "manager"].includes(String(currentUser.role))) {
-        return res.status(403).json({ message: "Только менеджер или администратор может удалять площадки" });
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (location.archivedAt) return res.status(409).json({ message: "Сначала восстановите площадку из архива" });
+      if (!(await canManageLocationCompany(currentUser, String(location.companyId || "")))) {
+        return res.status(403).json({ message: "Нет прав на добавление файлов" });
       }
-      await storage.deleteCustomLocation(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete location" });
+      if (!req.file) return res.status(400).json({ message: "Выберите поддерживаемый файл до 10 МБ" });
+      const attachment = {
+        id: crypto.randomUUID(),
+        fileName: req.file.originalname,
+        fileUrl: `/uploads/locations/${req.file.filename}`,
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        uploadedByUserId: currentUser.id,
+        uploadedByName: currentUser.name || currentUser.username || null,
+        createdAt: new Date().toISOString(),
+      };
+      const attachments = Array.isArray(location.attachments) ? location.attachments : [];
+      const updated = await storage.updateCustomLocation(location.id, {
+        attachments: [...attachments, attachment],
+        updatedByUserId: currentUser.id,
+      } as any);
+      res.status(201).json({ attachment, location: await serializeCustomLocation(updated) });
+    } catch {
+      res.status(500).json({ message: "Не удалось добавить файл площадки" });
+    }
+  });
+
+  app.delete("/api/locations/:id/attachments/:attachmentId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const location = await storage.getCustomLocationById(req.params.id);
+      if (!location) return res.status(404).json({ message: "Площадка не найдена" });
+      if (location.archivedAt) return res.status(409).json({ message: "Сначала восстановите площадку из архива" });
+      if (!(await canManageLocationCompany(currentUser, String(location.companyId || "")))) {
+        return res.status(403).json({ message: "Нет прав на удаление файлов" });
+      }
+      const attachments = Array.isArray(location.attachments) ? location.attachments as any[] : [];
+      const attachment = attachments.find((item) => String(item?.id) === String(req.params.attachmentId));
+      if (!attachment) return res.status(404).json({ message: "Файл площадки не найден" });
+      const updated = await storage.updateCustomLocation(location.id, {
+        attachments: attachments.filter((item) => String(item?.id) !== String(req.params.attachmentId)),
+        updatedByUserId: currentUser.id,
+      } as any);
+      if (typeof attachment.fileUrl === "string" && attachment.fileUrl.startsWith("/uploads/locations/")) {
+        await fs.unlink(path.join(process.cwd(), attachment.fileUrl)).catch(() => undefined);
+      }
+      res.json({ success: true, location: await serializeCustomLocation(updated) });
+    } catch {
+      res.status(500).json({ message: "Не удалось удалить файл площадки" });
     }
   });
 
@@ -7766,8 +8049,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.get("/api/location-issues", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const locationId = typeof req.query.locationId === "string" ? req.query.locationId : undefined;
-      const issues = await storage.getLocationIssues(locationId);
+      const locations = await storage.getCustomLocations();
+      const accessibleLocationIds = new Set((await Promise.all(locations.map(async (location) =>
+        (await canAccessLocation(currentUser, location)) ? String(location.id) : "",
+      ))).filter(Boolean));
+      if (locationId && !accessibleLocationIds.has(locationId)) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
+      const issues = (await storage.getLocationIssues(locationId))
+        .filter((issue) => accessibleLocationIds.has(String(issue.locationId)));
       res.json(await Promise.all(issues.map(async (issue) => ({
         ...issue,
         comments: await storage.getLocationIssueComments(issue.id),
@@ -7788,10 +8081,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         status: "reported",
         photos: [],
       });
-      const location = await storage.getCustomLocations();
-      if (!location.some((item) => item.id === parsed.locationId)) {
+      const location = await storage.getCustomLocationById(parsed.locationId);
+      if (!location) {
         return res.status(400).json({ message: "Выберите существующую площадку" });
       }
+      if (!(await canAccessLocation(currentUser, location))) return res.status(403).json({ message: "Нет доступа к площадке" });
+      if (location.archivedAt) return res.status(409).json({ message: "Нельзя создать новую проблему для архивной площадки" });
       const issue = await storage.createLocationIssue(parsed);
       res.status(201).json(issue);
     } catch (error: any) {
@@ -7807,6 +8102,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const issue = await storage.getLocationIssueById(req.params.id);
       if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const location = await storage.getCustomLocationById(issue.locationId);
+      if (!location || !(await canAccessLocation(currentUser, location))) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
       const canManage = ["admin", "manager"].includes(String(currentUser.role));
       if (!canManage && String(issue.reportedByUserId) !== String(currentUser.id)) {
         return res.status(403).json({ message: "Недостаточно прав для изменения ошибки" });
@@ -7825,7 +8124,17 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   app.get("/api/location-issues/:id/comments", async (req, res) => {
-    try { res.json(await storage.getLocationIssueComments(req.params.id)); }
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const issue = await storage.getLocationIssueById(req.params.id);
+      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const location = await storage.getCustomLocationById(issue.locationId);
+      if (!location || !(await canAccessLocation(currentUser, location))) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
+      res.json(await storage.getLocationIssueComments(req.params.id));
+    }
     catch { res.status(500).json({ message: "Не удалось загрузить комментарии" }); }
   });
 
@@ -7833,7 +8142,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      if (!await storage.getLocationIssueById(req.params.id)) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const issue = await storage.getLocationIssueById(req.params.id);
+      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const location = await storage.getCustomLocationById(issue.locationId);
+      if (!location || !(await canAccessLocation(currentUser, location))) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
       const comment = insertLocationIssueCommentSchema.parse({
         issueId: req.params.id,
         userId: currentUser.id,
@@ -7853,6 +8167,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const issue = await storage.getLocationIssueById(req.params.id);
       if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      const location = await storage.getCustomLocationById(issue.locationId);
+      if (!location || !(await canAccessLocation(currentUser, location))) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
       if (!req.file) return res.status(400).json({ message: "Выберите изображение до 5 МБ" });
       const photos = Array.isArray(issue.photos) ? issue.photos : [];
       const updated = await storage.updateLocationIssue(issue.id, { photos: [...photos, `/uploads/${req.file.filename}`] } as any);

@@ -302,6 +302,7 @@ export interface IStorage {
   
   // Custom Locations
   getCustomLocations(): Promise<CustomLocation[]>;
+  getCustomLocationById(id: string): Promise<CustomLocation | undefined>;
   createCustomLocation(location: InsertCustomLocation): Promise<CustomLocation>;
   updateCustomLocation(id: string, location: Partial<CustomLocation>): Promise<CustomLocation | undefined>;
   deleteCustomLocation(id: string): Promise<boolean>;
@@ -389,6 +390,7 @@ export class PostgreSQLStorage implements IStorage {
     return {
       ...location,
       status: this.normalizeCustomLocationStatus((location as any).status),
+      attachments: Array.isArray((location as any).attachments) ? (location as any).attachments : [],
     } as CustomLocation;
   }
 
@@ -1509,10 +1511,17 @@ export class PostgreSQLStorage implements IStorage {
     return rows.map((location) => this.withCustomLocationFallback(location));
   }
 
+  async getCustomLocationById(id: string): Promise<CustomLocation | undefined> {
+    const rows = await db!.select().from(customLocations).where(eq(customLocations.id, id)).limit(1);
+    return rows[0] ? this.withCustomLocationFallback(rows[0]) : undefined;
+  }
+
   async createCustomLocation(insertLocation: InsertCustomLocation): Promise<CustomLocation> {
     const result = await db!.insert(customLocations).values({
       ...insertLocation,
       status: this.normalizeCustomLocationStatus((insertLocation as any).status),
+      attachments: [],
+      updatedAt: new Date(),
     }).returning();
     return this.withCustomLocationFallback(result[0]);
   }
@@ -1522,9 +1531,17 @@ export class PostgreSQLStorage implements IStorage {
     if (locationData.name !== undefined) updateData.name = String(locationData.name).trim();
     if (locationData.description !== undefined) updateData.description = locationData.description;
     if (locationData.type !== undefined) updateData.type = locationData.type;
+    if ((locationData as any).companyId !== undefined) updateData.companyId = (locationData as any).companyId;
+    if ((locationData as any).address !== undefined) updateData.address = (locationData as any).address;
+    if ((locationData as any).notes !== undefined) updateData.notes = (locationData as any).notes;
+    if ((locationData as any).attachments !== undefined) updateData.attachments = (locationData as any).attachments;
+    if ((locationData as any).archivedAt !== undefined) updateData.archivedAt = (locationData as any).archivedAt;
+    if ((locationData as any).archivedByUserId !== undefined) updateData.archivedByUserId = (locationData as any).archivedByUserId;
+    if ((locationData as any).updatedByUserId !== undefined) updateData.updatedByUserId = (locationData as any).updatedByUserId;
     if ((locationData as any).status !== undefined) {
       updateData.status = this.normalizeCustomLocationStatus((locationData as any).status);
     }
+    updateData.updatedAt = new Date();
 
     const result = await db!.update(customLocations)
       .set(updateData)
@@ -2729,15 +2746,29 @@ class StubStorage implements IStorage {
   }
   async getCustomLocations(): Promise<CustomLocation[]> {
     return Array.from(this.customLocationsMap.values())
-      .map((location) => ({ ...location, status: this.normalizeCustomLocationStatus((location as any).status) } as CustomLocation))
+      .map((location) => ({
+        ...location,
+        status: this.normalizeCustomLocationStatus((location as any).status),
+        attachments: Array.isArray((location as any).attachments) ? (location as any).attachments : [],
+      } as CustomLocation))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+  async getCustomLocationById(id: string): Promise<CustomLocation | undefined> {
+    const location = this.customLocationsMap.get(id);
+    return location ? {
+      ...location,
+      status: this.normalizeCustomLocationStatus((location as any).status),
+      attachments: Array.isArray((location as any).attachments) ? (location as any).attachments : [],
+    } as CustomLocation : undefined;
   }
   async createCustomLocation(data: InsertCustomLocation): Promise<CustomLocation> {
     const location = {
       ...data,
       status: this.normalizeCustomLocationStatus((data as any).status),
+      attachments: [],
       id: this.uid(),
       createdAt: this.now(),
+      updatedAt: this.now(),
     } as CustomLocation;
     this.customLocationsMap.set(location.id, location);
     return location;
@@ -2751,6 +2782,12 @@ class StubStorage implements IStorage {
       status: data.status !== undefined
         ? this.normalizeCustomLocationStatus(data.status)
         : this.normalizeCustomLocationStatus((location as any).status),
+      attachments: Array.isArray((data as any).attachments)
+        ? (data as any).attachments
+        : Array.isArray((location as any).attachments)
+          ? (location as any).attachments
+          : [],
+      updatedAt: this.now(),
     } as CustomLocation;
     this.customLocationsMap.set(id, updated);
     return updated;
@@ -3053,7 +3090,27 @@ export async function initDatabase(): Promise<void> {
       }
       try {
         await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS status text DEFAULT 'available'`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS company_id varchar`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS address text`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS notes text`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS archived_at timestamp`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS archived_by_user_id varchar`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS updated_by_user_id varchar`;
+        await client`ALTER TABLE custom_locations ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now()`;
         await client`UPDATE custom_locations SET status = 'available' WHERE status IS NULL`;
+        await client`UPDATE custom_locations SET attachments = '[]'::jsonb WHERE attachments IS NULL`;
+        await client`UPDATE custom_locations SET updated_at = COALESCE(updated_at, created_at, now())`;
+        await client`UPDATE custom_locations
+          SET company_id = (
+            SELECT id
+            FROM companies
+            WHERE status = 'active'
+            ORDER BY created_at ASC
+            LIMIT 1
+          )
+          WHERE company_id IS NULL
+            AND (SELECT COUNT(*) FROM companies WHERE status = 'active') = 1`;
         await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS location_id text`;
         await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS location_id text`;
         await client`CREATE TABLE IF NOT EXISTS location_issues (
