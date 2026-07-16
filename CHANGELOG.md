@@ -19,6 +19,8 @@ changes are collected under `Unreleased`.
 - Added manual and checkout-derived equipment links in Kanban V2 cards, bidirectional Warehouse/project navigation, and unified project statistics for tasks, deadlines, workload, Locations, issues, and equipment state.
 - Added company-scoped equipment activity with attributed comments, timezone-correct timestamps, validated photos/files, legacy-history preservation, realtime refresh, kit-component access, and compact Warehouse card indicators.
 - Added company-scoped Warehouse settings for categories, subcategories, and hierarchical storage locations, including ordering, archiving, usage counts, and selection during equipment creation, editing, and return.
+- Added deterministic Kanban V2 smart input for dates, ranges, times, priorities, and company-scoped assignee mentions, with preview, cancellation, and contextual help.
+- Added distinct Kanban V2 initiator, responsible-person, and multiple-assignee roles with company validation, activity history, filters, and workload-aware statistics.
 
 ### Changed
 
@@ -26,6 +28,7 @@ changes are collected under `Unreleased`.
 - Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.
 - Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
 - Changed Warehouse cards, filters, kit creation, and exports to use configured categories while retaining legacy equipment types only as a compatibility fallback.
+- Changed Kanban V2 card creation and editing to use a compact common-fields workflow, progressive disclosure for secondary content, contextual custom-field filter guidance, and accessible quick actions.
 
 ### Fixed
 

@@ -4,6 +4,7 @@ import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropRe
 import { Link } from "wouter";
 import {
   AlertTriangle,
+  Archive,
   ArrowDown,
   ArrowLeft,
   ArrowUpDown,
@@ -11,8 +12,10 @@ import {
   Building2,
   Check,
   ChevronDown,
+  Copy,
   Download,
   GripVertical,
+  HelpCircle,
   Layers3,
   LayoutList,
   MessageSquare,
@@ -26,18 +29,23 @@ import {
   Trash2,
   UserRound,
   Users,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -45,6 +53,7 @@ import { Progress } from "@/components/ui/progress";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { DiscussionThread } from "@/components/discussion-thread";
+import { KanbanUserMultiSelect } from "@/components/kanban/kanban-user-multi-select";
 import { useToast } from "@/hooks/use-toast";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
@@ -76,6 +85,21 @@ import {
   getKanbanBoardSelectionStorageKey,
   resolveKanbanBoardSelection,
 } from "@/lib/kanban-board-selection";
+import {
+  KANBAN_EMPTY_FIELD_FILTER,
+  getKanbanCustomFieldFilterHelp,
+  matchesKanbanCustomFieldFilter,
+} from "@/lib/kanban-custom-field-filters";
+import {
+  getKanbanMentionQuery,
+  insertKanbanMention,
+  parseKanbanSmartInput,
+} from "@/lib/kanban-smart-input";
+import {
+  getKanbanCardAssigneeUserIds,
+  getKanbanCardInitiatorUserId,
+  getKanbanCardWorkloadUserIds,
+} from "@shared/kanban-card-roles";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -201,7 +225,9 @@ interface KanbanCardView {
   position: number;
   priority: KanbanCardPriority;
   startDate?: string | Date | null;
+  startDateHasTime?: boolean;
   dueDate?: string | Date | null;
+  dueDateHasTime?: boolean;
   locationId?: string | null;
   locationIds?: string[];
   locations?: Array<{ id: string; name: string; archivedAt?: string | Date | null }>;
@@ -226,6 +252,9 @@ interface KanbanCardView {
   subtasks?: KanbanSubtask[];
   customFieldValues?: Record<string, unknown>;
   creatorUserId: string;
+  initiatorUserId?: string | null;
+  responsibleUserId?: string | null;
+  assigneeUserIds?: string[];
   assigneeUserId?: string | null;
   commentCount?: number;
   latestCommentAt?: string | Date | null;
@@ -390,9 +419,14 @@ const EMPTY_CARD_FORM = {
   description: "",
   priority: "medium" as KanbanCardPriority,
   startDate: "",
+  startDateHasTime: true,
   dueDate: "",
+  dueDateHasTime: true,
   locationId: "",
   locationIds: [] as string[],
+  initiatorUserId: "",
+  responsibleUserId: "",
+  assigneeUserIds: [] as string[],
   assigneeUserId: "",
   labelIds: [] as string[],
   customFieldValues: {} as Record<string, unknown>,
@@ -428,6 +462,8 @@ const EMPTY_FILTERS = {
   search: "",
   status: "all",
   assigneeUserId: "",
+  responsibleUserId: "",
+  initiatorUserId: "",
   priority: "all",
   dueStatus: "all",
   workload: "all" as TaskManagerWorkloadFilter,
@@ -564,6 +600,8 @@ const getKanbanHistoryActionLabel = (action: string) => {
       return "Переместил карточку";
     case "labels_updated":
       return "Обновил метки карточки";
+    case "roles_updated":
+      return "Обновил роли карточки";
     case "commented":
       return "Добавил комментарий";
     case "attachment_added":
@@ -638,8 +676,14 @@ const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
     title: form.title.trim(),
     description: form.description.trim(),
     priority: form.priority,
+    startDate: form.startDate || "",
+    startDateHasTime: form.startDateHasTime,
     dueDate: form.dueDate || "",
+    dueDateHasTime: form.dueDateHasTime,
     locationIds: normalizeLocationIds(form.locationIds).sort(),
+    initiatorUserId: form.initiatorUserId || "",
+    responsibleUserId: form.responsibleUserId || "",
+    assigneeUserIds: getKanbanCardAssigneeUserIds(form).sort(),
     assigneeUserId: form.assigneeUserId || "",
     labelIds: normalizeLabelIds(form.labelIds).sort(),
     customFieldValues: form.customFieldValues ?? {},
@@ -669,6 +713,10 @@ const stopInteractiveEvent = (event: {
 }) => {
   event.stopPropagation();
   event.preventDefault?.();
+};
+
+const stopEventPropagation = (event: { stopPropagation: () => void }) => {
+  event.stopPropagation();
 };
 
 const confirmDelete = (message: string) =>
@@ -741,8 +789,13 @@ interface SaveCardInput {
   description?: string | null;
   priority?: KanbanCardPriority;
   startDate?: string | null;
+  startDateHasTime?: boolean;
   dueDate?: string | null;
+  dueDateHasTime?: boolean;
   locationIds?: string[];
+  initiatorUserId?: string | null;
+  responsibleUserId?: string | null;
+  assigneeUserIds?: string[];
   assigneeUserId?: string | null;
   labelIds?: string[];
   customFieldValues?: Record<string, unknown>;
@@ -880,6 +933,7 @@ export default function TasksV2Page() {
   const [cardSortBy, setCardSortBy] = useState<TaskManagerSortBy>("position");
   const [cardSortDirection, setCardSortDirection] = useState<TaskManagerSortDirection>("asc");
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
+  const [smartInputHelpOpen, setSmartInputHelpOpen] = useState(false);
   const [boardStatsOpen, setBoardStatsOpen] = useState(false);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
   const [detailSubtaskDraft, setDetailSubtaskDraft] = useState("");
@@ -908,6 +962,9 @@ export default function TasksV2Page() {
   const [detailLabelQuery, setDetailLabelQuery] = useState("");
   const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
   const [detailSaveError, setDetailSaveError] = useState("");
+  const [detailAdvancedOpen, setDetailAdvancedOpen] = useState(false);
+  const [inlineSmartCancelledTokenIds, setInlineSmartCancelledTokenIds] = useState<string[]>([]);
+  const [detailSmartCancelledTokenIds, setDetailSmartCancelledTokenIds] = useState<string[]>([]);
   const [detailHistoryExpanded, setDetailHistoryExpanded] = useState(false);
   const [equipmentLinkSelection, setEquipmentLinkSelection] = useState("");
   const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
@@ -1169,6 +1226,29 @@ export default function TasksV2Page() {
 
     return users.filter((user) => activeMemberIds.has(String(user.id)) && user.active !== false);
   }, [currentUser?.id, selectedBoard, selectedCompanyItem, users]);
+  const inlineSmartInput = useMemo(
+    () => parseKanbanSmartInput(inlineCardTitle, {
+      users: availableAssignees,
+      cancelledTokenIds: inlineSmartCancelledTokenIds,
+    }),
+    [availableAssignees, inlineCardTitle, inlineSmartCancelledTokenIds],
+  );
+  const inlineMentionSuggestions = useMemo(() => {
+    const query = getKanbanMentionQuery(inlineCardTitle);
+    if (query == null) return [];
+    return availableAssignees
+      .filter((user) => [user.name, user.username]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase("ru").includes(query)))
+      .slice(0, 6);
+  }, [availableAssignees, inlineCardTitle]);
+  const detailSmartInput = useMemo(
+    () => parseKanbanSmartInput(detailCardForm.title, {
+      users: availableAssignees,
+      cancelledTokenIds: detailSmartCancelledTokenIds,
+    }),
+    [availableAssignees, detailCardForm.title, detailSmartCancelledTokenIds],
+  );
   const availableBoardMembers = useMemo(() => {
     if (!selectedBoard?.companyId || !selectedCompanyItem) return [];
     if (!selectedCompanyItem) return [];
@@ -1216,12 +1296,20 @@ export default function TasksV2Page() {
       makeGroup(list.id, list.name, cards.filter((card) => card.listId === list.id), LIST_TYPE_LABELS[list.type]),
     );
 
-    const assigneeIds = Array.from(new Set(cards.map((card) => String(card.assigneeUserId || "unassigned"))));
+    const assigneeIds = Array.from(new Set(cards.flatMap((card) => {
+      const workloadUserIds = getKanbanCardWorkloadUserIds(card);
+      return workloadUserIds.length > 0 ? workloadUserIds : ["unassigned"];
+    })));
     const assigneeGroups = assigneeIds.map((assigneeId) =>
       makeGroup(
         assigneeId,
         assigneeId === "unassigned" ? "Без исполнителя" : userById.get(assigneeId)?.name || assigneeId,
-        cards.filter((card) => String(card.assigneeUserId || "unassigned") === assigneeId),
+        cards.filter((card) => {
+          const workloadUserIds = getKanbanCardWorkloadUserIds(card);
+          return assigneeId === "unassigned"
+            ? workloadUserIds.length === 0
+            : workloadUserIds.includes(assigneeId);
+        }),
       ),
     );
 
@@ -1317,6 +1405,8 @@ export default function TasksV2Page() {
       cardFilters.search.trim() !== "" ||
       cardFilters.status !== "all" ||
       cardFilters.assigneeUserId !== "" ||
+      cardFilters.responsibleUserId !== "" ||
+      cardFilters.initiatorUserId !== "" ||
       cardFilters.priority !== "all" ||
       cardFilters.dueStatus !== "all" ||
       cardFilters.workload !== "all" ||
@@ -1355,11 +1445,15 @@ export default function TasksV2Page() {
           .filter((field) => field.showOnCard !== false || field.showInList !== false)
           .map((field) => formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById))
           .filter(Boolean);
-        const assignee = card.assigneeUserId ? userById.get(card.assigneeUserId)?.name : "";
+        const roleUsers = [
+          ...getKanbanCardAssigneeUserIds(card),
+          card.responsibleUserId,
+          getKanbanCardInitiatorUserId(card),
+        ].filter(Boolean).map((userId) => userById.get(String(userId))?.name || String(userId));
         const haystack = [
           card.title,
           card.description || "",
-          assignee || "",
+          ...roleUsers,
           list?.name || "",
           list ? LIST_TYPE_LABELS[list.type] : "",
           CARD_PRIORITY_LABELS[card.priority],
@@ -1377,7 +1471,24 @@ export default function TasksV2Page() {
         }
       }
 
-      if (cardFilters.assigneeUserId && String(card.assigneeUserId || "") !== cardFilters.assigneeUserId) {
+      if (
+        cardFilters.assigneeUserId &&
+        !getKanbanCardAssigneeUserIds(card).includes(cardFilters.assigneeUserId)
+      ) {
+        return false;
+      }
+
+      if (
+        cardFilters.responsibleUserId &&
+        String(card.responsibleUserId || "") !== cardFilters.responsibleUserId
+      ) {
+        return false;
+      }
+
+      if (
+        cardFilters.initiatorUserId &&
+        getKanbanCardInitiatorUserId(card) !== cardFilters.initiatorUserId
+      ) {
         return false;
       }
 
@@ -1398,12 +1509,12 @@ export default function TasksV2Page() {
       }
 
       for (const [fieldId, rawNeedle] of Object.entries(cardFilters.customFieldValues)) {
-        const needle = rawNeedle.trim().toLowerCase();
-        if (!needle) continue;
+        if (!rawNeedle.trim()) continue;
         const field = activeCustomFields.find((item) => item.id === fieldId);
         if (!field) continue;
-        const value = formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById).toLowerCase();
-        if (!value.includes(needle)) return false;
+        const rawValue = card.customFieldValues?.[field.id];
+        const value = formatCustomFieldValue(field, rawValue, userById);
+        if (!matchesKanbanCustomFieldFilter(field, rawValue, rawNeedle, value)) return false;
       }
 
       if (cardFilters.dueStatus !== "all") {
@@ -1412,7 +1523,11 @@ export default function TasksV2Page() {
       }
 
       if (!matchesTaskManagerWorkloadFilter(
-        { assigneeUserId: card.assigneeUserId, dueDate: card.dueDate, listType: list?.type },
+        {
+          assigneeUserId: getKanbanCardWorkloadUserIds(card)[0] || null,
+          dueDate: card.dueDate,
+          listType: list?.type,
+        },
         cardFilters.workload,
         now,
       )) {
@@ -1497,8 +1612,14 @@ export default function TasksV2Page() {
       }
 
       if (listGrouping === "assignee") {
-        const assigneeId = card.assigneeUserId || "unassigned";
-        addCard(assigneeId, card.assigneeUserId ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId : "Без исполнителя", card);
+        const assigneeIds = getKanbanCardAssigneeUserIds(card);
+        if (assigneeIds.length === 0) {
+          addCard("unassigned", "Без исполнителя", card);
+        } else {
+          assigneeIds.forEach((assigneeId) =>
+            addCard(assigneeId, userById.get(assigneeId)?.name || assigneeId, card),
+          );
+        }
         continue;
       }
 
@@ -1581,6 +1702,25 @@ export default function TasksV2Page() {
       if (added.length) lines.push(`Добавлены метки: ${added.join(", ")}`);
       if (removed.length) lines.push(`Удалены метки: ${removed.join(", ")}`);
       if (!lines.length) lines.push("Состав меток изменен");
+      return lines;
+    }
+
+    if (entry.action === "roles_updated") {
+      const oldAssignees = Array.isArray(oldValue?.assigneeUserIds)
+        ? (oldValue.assigneeUserIds as unknown[]).map(getUserNameById)
+        : [];
+      const newAssignees = Array.isArray(newValue?.assigneeUserIds)
+        ? (newValue.assigneeUserIds as unknown[]).map(getUserNameById)
+        : [];
+      if (String(oldValue?.initiatorUserId || "") !== String(newValue?.initiatorUserId || "")) {
+        lines.push(`Инициатор: ${getUserNameById(oldValue?.initiatorUserId)} -> ${getUserNameById(newValue?.initiatorUserId)}`);
+      }
+      if (String(oldValue?.responsibleUserId || "") !== String(newValue?.responsibleUserId || "")) {
+        lines.push(`Ответственный: ${getUserNameById(oldValue?.responsibleUserId)} -> ${getUserNameById(newValue?.responsibleUserId)}`);
+      }
+      if (oldAssignees.join("|") !== newAssignees.join("|")) {
+        lines.push(`Исполнители: ${oldAssignees.join(", ") || "нет"} -> ${newAssignees.join(", ") || "нет"}`);
+      }
       return lines;
     }
 
@@ -1759,6 +1899,9 @@ export default function TasksV2Page() {
     setDetailCardForm(EMPTY_CARD_FORM);
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailAdvancedOpen(false);
+    setInlineSmartCancelledTokenIds([]);
+    setDetailSmartCancelledTokenIds([]);
     setDetailHistoryExpanded(false);
     setEquipmentLinkSelection("");
     detailLastSavedSignatureRef.current = "";
@@ -1802,11 +1945,20 @@ export default function TasksV2Page() {
       title: selectedDetailCard.title,
       description: selectedDetailCard.description || "",
       priority: selectedDetailCard.priority,
-      startDate: toDateTimeLocalValue(selectedDetailCard.startDate),
-      dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
+      startDate: selectedDetailCard.startDateHasTime === false
+        ? toDateTimeLocalValue(selectedDetailCard.startDate).slice(0, 10)
+        : toDateTimeLocalValue(selectedDetailCard.startDate),
+      startDateHasTime: selectedDetailCard.startDateHasTime !== false,
+      dueDate: selectedDetailCard.dueDateHasTime === false
+        ? toDateTimeLocalValue(selectedDetailCard.dueDate).slice(0, 10)
+        : toDateTimeLocalValue(selectedDetailCard.dueDate),
+      dueDateHasTime: selectedDetailCard.dueDateHasTime !== false,
       locationId: selectedDetailCard.locationId || "",
       locationIds: getCardLocationIds(selectedDetailCard),
-      assigneeUserId: selectedDetailCard.assigneeUserId || "",
+      initiatorUserId: getKanbanCardInitiatorUserId(selectedDetailCard) || "",
+      responsibleUserId: selectedDetailCard.responsibleUserId || "",
+      assigneeUserIds: getKanbanCardAssigneeUserIds(selectedDetailCard),
+      assigneeUserId: getKanbanCardAssigneeUserIds(selectedDetailCard)[0] || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
       customFieldValues: selectedDetailCard.customFieldValues || {},
     };
@@ -2028,9 +2180,19 @@ export default function TasksV2Page() {
         description: input?.description !== undefined ? input.description : (cardForm.description.trim() || null),
         priority: input?.priority ?? cardForm.priority,
         startDate: input?.startDate !== undefined ? input.startDate : (cardForm.startDate || null),
+        startDateHasTime: input?.startDateHasTime ?? cardForm.startDateHasTime,
         dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
+        dueDateHasTime: input?.dueDateHasTime ?? cardForm.dueDateHasTime,
         locationIds: input?.locationIds !== undefined ? input.locationIds : normalizeLocationIds(cardForm.locationIds),
-        assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
+        initiatorUserId: input?.initiatorUserId !== undefined
+          ? input.initiatorUserId
+          : (cardForm.initiatorUserId || currentUser?.id || null),
+        responsibleUserId: input?.responsibleUserId !== undefined
+          ? input.responsibleUserId
+          : (cardForm.responsibleUserId || null),
+        assigneeUserIds: input?.assigneeUserIds !== undefined
+          ? input.assigneeUserIds
+          : getKanbanCardAssigneeUserIds(cardForm),
         labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
         customFieldValues: input?.customFieldValues ?? cardForm.customFieldValues ?? {},
       };
@@ -2065,6 +2227,7 @@ export default function TasksV2Page() {
       if (input?.inlineListId) {
         setInlineCardListId(null);
         setInlineCardTitle("");
+        setInlineSmartCancelledTokenIds([]);
       }
       if (input?.cardId) {
         setInlineEditingCardId(null);
@@ -2200,9 +2363,13 @@ export default function TasksV2Page() {
           description: form.description.trim() || null,
           priority: form.priority,
           startDate: form.startDate || null,
+          startDateHasTime: form.startDateHasTime,
           dueDate: form.dueDate || null,
+          dueDateHasTime: form.dueDateHasTime,
           locationIds: normalizeLocationIds(form.locationIds),
-          assigneeUserId: form.assigneeUserId || null,
+          initiatorUserId: form.initiatorUserId || currentUser?.id || null,
+          responsibleUserId: form.responsibleUserId || null,
+          assigneeUserIds: getKanbanCardAssigneeUserIds(form),
           labelIds: normalizeLabelIds(form.labelIds),
           customFieldValues: form.customFieldValues ?? {},
         },
@@ -2226,11 +2393,20 @@ export default function TasksV2Page() {
         title: card.title,
         description: card.description || "",
         priority: card.priority,
-        startDate: toDateTimeLocalValue(card.startDate),
-        dueDate: toDateTimeLocalValue(card.dueDate),
+        startDate: card.startDateHasTime === false
+          ? toDateTimeLocalValue(card.startDate).slice(0, 10)
+          : toDateTimeLocalValue(card.startDate),
+        startDateHasTime: card.startDateHasTime !== false,
+        dueDate: card.dueDateHasTime === false
+          ? toDateTimeLocalValue(card.dueDate).slice(0, 10)
+          : toDateTimeLocalValue(card.dueDate),
+        dueDateHasTime: card.dueDateHasTime !== false,
         locationId: card.locationId || "",
         locationIds: getCardLocationIds(card),
-        assigneeUserId: card.assigneeUserId || "",
+        initiatorUserId: getKanbanCardInitiatorUserId(card) || "",
+        responsibleUserId: card.responsibleUserId || "",
+        assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+        assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || "",
         labelIds: normalizeLabelIds(card.labelIds),
         customFieldValues: card.customFieldValues || {},
       });
@@ -2243,11 +2419,20 @@ export default function TasksV2Page() {
           title: card.title,
           description: card.description || "",
           priority: card.priority,
-          startDate: toDateTimeLocalValue(card.startDate),
-          dueDate: toDateTimeLocalValue(card.dueDate),
+          startDate: card.startDateHasTime === false
+            ? toDateTimeLocalValue(card.startDate).slice(0, 10)
+            : toDateTimeLocalValue(card.startDate),
+          startDateHasTime: card.startDateHasTime !== false,
+          dueDate: card.dueDateHasTime === false
+            ? toDateTimeLocalValue(card.dueDate).slice(0, 10)
+            : toDateTimeLocalValue(card.dueDate),
+          dueDateHasTime: card.dueDateHasTime !== false,
           locationId: card.locationId || "",
           locationIds: getCardLocationIds(card),
-          assigneeUserId: card.assigneeUserId || "",
+          initiatorUserId: getKanbanCardInitiatorUserId(card) || "",
+          responsibleUserId: card.responsibleUserId || "",
+          assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+          assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || "",
           labelIds: normalizeLabelIds(card.labelIds),
           customFieldValues: card.customFieldValues || {},
         });
@@ -2742,11 +2927,20 @@ export default function TasksV2Page() {
       title: card.title,
       description: card.description || "",
       priority: card.priority,
-      startDate: toDateTimeLocalValue(card.startDate),
-      dueDate: toDateTimeLocalValue(card.dueDate),
+      startDate: card.startDateHasTime === false
+        ? toDateTimeLocalValue(card.startDate).slice(0, 10)
+        : toDateTimeLocalValue(card.startDate),
+      startDateHasTime: card.startDateHasTime !== false,
+      dueDate: card.dueDateHasTime === false
+        ? toDateTimeLocalValue(card.dueDate).slice(0, 10)
+        : toDateTimeLocalValue(card.dueDate),
+      dueDateHasTime: card.dueDateHasTime !== false,
       locationId: card.locationId || "",
       locationIds: getCardLocationIds(card),
-      assigneeUserId: card.assigneeUserId || "",
+      initiatorUserId: getKanbanCardInitiatorUserId(card) || "",
+      responsibleUserId: card.responsibleUserId || "",
+      assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+      assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || "",
       labelIds: normalizeLabelIds(card.labelIds),
       customFieldValues: card.customFieldValues || {},
     });
@@ -2760,8 +2954,10 @@ export default function TasksV2Page() {
     }));
   };
 
-  const handleOpenCardDetail = (cardId: string) => {
+  const handleOpenCardDetail = (cardId: string, openAdvanced = false) => {
     setDetailHistoryExpanded(false);
+    setDetailAdvancedOpen(openAdvanced);
+    setDetailSmartCancelledTokenIds([]);
     setEquipmentLinkSelection("");
     setDetailCardId(cardId);
   };
@@ -2794,6 +2990,8 @@ export default function TasksV2Page() {
     setDetailSubtaskDraft("");
     setDetailSaveStatus("idle");
     setDetailSaveError("");
+    setDetailAdvancedOpen(false);
+    setDetailSmartCancelledTokenIds([]);
     setDetailHistoryExpanded(false);
     setEquipmentLinkSelection("");
   };
@@ -2843,25 +3041,30 @@ export default function TasksV2Page() {
   };
 
   const handleSubmitInlineCard = (listId: string) => {
-    const title = inlineCardTitle.trim();
-    if (!title || !canEditSelectedBoard || saveCardMutation.isPending) return;
-      saveCardMutation.mutate({
-        listId,
-        title,
-        description: null,
-        priority: "medium",
-        startDate: null,
-        dueDate: null,
-        assigneeUserId: null,
-        labelIds: [],
-        customFieldValues: {},
-        inlineListId: listId,
+    const title = inlineSmartInput.title.trim();
+    if (!title || inlineSmartInput.errors.length > 0 || !canEditSelectedBoard || saveCardMutation.isPending) return;
+    saveCardMutation.mutate({
+      listId,
+      title,
+      description: null,
+      priority: inlineSmartInput.priority || "medium",
+      startDate: inlineSmartInput.startDate,
+      startDateHasTime: inlineSmartInput.startDateHasTime,
+      dueDate: inlineSmartInput.dueDate,
+      dueDateHasTime: inlineSmartInput.dueDateHasTime,
+      initiatorUserId: currentUser?.id || null,
+      responsibleUserId: null,
+      assigneeUserIds: inlineSmartInput.assigneeUserIds,
+      labelIds: [],
+      customFieldValues: {},
+      inlineListId: listId,
     });
   };
 
   const handleCancelInlineCard = () => {
     setInlineCardListId(null);
     setInlineCardTitle("");
+    setInlineSmartCancelledTokenIds([]);
   };
 
   const handleBeginInlineCardTitleEdit = (card: KanbanCardView) => {
@@ -2885,8 +3088,12 @@ export default function TasksV2Page() {
       description: card.description || null,
       priority: card.priority,
       startDate: card.startDate ? toDateTimeLocalValue(card.startDate) : null,
+      startDateHasTime: card.startDateHasTime !== false,
       dueDate: card.dueDate ? toDateTimeLocalValue(card.dueDate) : null,
-      assigneeUserId: card.assigneeUserId || null,
+      dueDateHasTime: card.dueDateHasTime !== false,
+      initiatorUserId: getKanbanCardInitiatorUserId(card),
+      responsibleUserId: card.responsibleUserId || null,
+      assigneeUserIds: getKanbanCardAssigneeUserIds(card),
       labelIds: normalizeLabelIds(card.labelIds),
       customFieldValues: card.customFieldValues || {},
     });
@@ -2895,6 +3102,44 @@ export default function TasksV2Page() {
   const handleCancelInlineCardTitleEdit = () => {
     setInlineEditingCardId(null);
     setInlineEditingCardTitle("");
+  };
+
+  const handleDuplicateCard = (card: KanbanCardView) => {
+    saveCardMutation.mutate({
+      listId: card.listId,
+      title: `${card.title} (копия)`,
+      description: card.description || null,
+      priority: card.priority,
+      startDate: card.startDate
+        ? card.startDateHasTime === false
+          ? toDateTimeLocalValue(card.startDate).slice(0, 10)
+          : toDateTimeLocalValue(card.startDate)
+        : null,
+      startDateHasTime: card.startDateHasTime !== false,
+      dueDate: card.dueDate
+        ? card.dueDateHasTime === false
+          ? toDateTimeLocalValue(card.dueDate).slice(0, 10)
+          : toDateTimeLocalValue(card.dueDate)
+        : null,
+      dueDateHasTime: card.dueDateHasTime !== false,
+      initiatorUserId: currentUser?.id || null,
+      responsibleUserId: card.responsibleUserId || null,
+      assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+      locationIds: getCardLocationIds(card),
+      labelIds: normalizeLabelIds(card.labelIds),
+      customFieldValues: card.customFieldValues || {},
+    });
+  };
+
+  const handleMoveCardFromMenu = (card: KanbanCardView, targetListId: string) => {
+    if (!selectedBoardId || targetListId === card.listId) return;
+    const targetPosition = cards.filter((candidate) => candidate.listId === targetListId).length;
+    moveCardMutation.mutate({
+      boardId: selectedBoardId,
+      cardId: card.id,
+      targetListId,
+      targetPosition,
+    });
   };
 
   const handleAttachDetailLabel = (labelId: string) => {
@@ -2996,8 +3241,12 @@ export default function TasksV2Page() {
         description: null,
         priority: "medium",
         startDate: null,
+        startDateHasTime: true,
         dueDate: null,
-        assigneeUserId: null,
+        dueDateHasTime: true,
+        initiatorUserId: currentUser?.id || null,
+        responsibleUserId: null,
+        assigneeUserIds: [],
         labelIds: [],
         customFieldValues: {},
       },
@@ -3192,7 +3441,9 @@ export default function TasksV2Page() {
 
   const renderListViewCardRow = (card: KanbanCardView) => {
     const list = lists.find((item) => item.id === card.listId);
-    const assigneeName = card.assigneeUserId ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId : "Без исполнителя";
+    const assigneeNames = getKanbanCardAssigneeUserIds(card)
+      .map((userId) => userById.get(userId)?.name || userId);
+    const assigneeName = assigneeNames.length > 0 ? assigneeNames.join(", ") : "Без исполнителя";
     const dueDateStatus = getDueDateStatus(card.dueDate, {
       isComplete: list?.type === "closed" || list?.type === "archive" || list?.type === "trash",
     });
@@ -3524,6 +3775,7 @@ export default function TasksV2Page() {
                 onClick={() => {
                   setInlineCardListId(lists[0]?.id || null);
                   setInlineCardTitle("");
+                  setInlineSmartCancelledTokenIds([]);
                 }}
               >
                 Создать карточку
@@ -3542,6 +3794,10 @@ export default function TasksV2Page() {
               <DropdownMenuItem disabled={!selectedBoard} onClick={() => setBoardStatsOpen(true)}>
                 <BarChart3 className="h-4 w-4" />
                 Статистика доски
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!selectedBoard} onClick={() => setSmartInputHelpOpen(true)}>
+                <HelpCircle className="h-4 w-4" />
+                Подсказка умного ввода
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled>Всего: {formatPluralRu(boards.length, "доска", "доски", "досок")}</DropdownMenuItem>
@@ -3958,7 +4214,7 @@ export default function TasksV2Page() {
                                           <Input
                                             value={inlineCardTitle}
                                             onChange={(event) => setInlineCardTitle(event.target.value)}
-                                            placeholder="Название задачи"
+                                            placeholder="Задача завтра 14:00 высокий приоритет @user"
                                             autoFocus
                                             disabled={isCardPending}
                                             className={KANBAN_PANEL_INPUT_CLASS}
@@ -3976,6 +4232,45 @@ export default function TasksV2Page() {
                                               if (!inlineCardTitle.trim()) handleCancelInlineCard();
                                             }}
                                           />
+                                          {inlineMentionSuggestions.length > 0 && (
+                                            <div className="rounded-xl border border-border/40 bg-popover p-1 shadow-lg">
+                                              {inlineMentionSuggestions.map((user) => (
+                                                <button
+                                                  key={user.id}
+                                                  type="button"
+                                                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted/60"
+                                                  onMouseDown={(event) => event.preventDefault()}
+                                                  onClick={() => setInlineCardTitle((current) =>
+                                                    insertKanbanMention(current, user.username || user.name),
+                                                  )}
+                                                >
+                                                  <span>{user.name}</span>
+                                                  {user.username && <span className="text-xs text-muted-foreground">@{user.username}</span>}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {inlineSmartInput.tokens.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {inlineSmartInput.tokens.map((token) => (
+                                                <button
+                                                  key={token.id}
+                                                  type="button"
+                                                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-xs text-primary"
+                                                  title="Нажмите, чтобы оставить эту фразу обычным текстом"
+                                                  onMouseDown={(event) => event.preventDefault()}
+                                                  onClick={() => setInlineSmartCancelledTokenIds((current) => [...current, token.id])}
+                                                >
+                                                  <WandSparkles className="h-3 w-3" />
+                                                  {token.label}
+                                                  <X className="h-3 w-3" />
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {inlineSmartInput.errors.map((error) => (
+                                            <p key={error} className="text-xs text-destructive">{error}</p>
+                                          ))}
                                           <div className="flex justify-end gap-2">
                                             <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={handleCancelInlineCard}>
                                               Отмена
@@ -3985,7 +4280,7 @@ export default function TasksV2Page() {
                                               className="rounded-xl"
                                               onMouseDown={(event) => event.preventDefault()}
                                               onClick={() => handleSubmitInlineCard(list.id)}
-                                              disabled={!inlineCardTitle.trim() || isCardPending}
+                                              disabled={!inlineSmartInput.title.trim() || inlineSmartInput.errors.length > 0 || isCardPending}
                                             >
                                               Добавить
                                             </Button>
@@ -3998,6 +4293,7 @@ export default function TasksV2Page() {
                                           onClick={() => {
                                             setInlineCardListId(list.id);
                                             setInlineCardTitle("");
+                                            setInlineSmartCancelledTokenIds([]);
                                           }}
                                           disabled={isCardPending}
                                         >
@@ -4027,9 +4323,9 @@ export default function TasksV2Page() {
                                       const dueDateStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
                                       const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
                                       const subtaskProgress = getSubtaskProgress(card.subtasks);
-                                      const assigneeName = card.assigneeUserId
-                                        ? userById.get(card.assigneeUserId)?.name || card.assigneeUserId
-                                        : null;
+                                      const assigneeName = getKanbanCardAssigneeUserIds(card)
+                                        .map((userId) => userById.get(userId)?.name || userId)
+                                        .join(", ") || null;
                                       const cardLabels = normalizeLabelIds(card.labelIds)
                                         .map((labelId) => labelById.get(labelId))
                                         .filter((label): label is KanbanLabelView => Boolean(label));
@@ -4068,6 +4364,17 @@ export default function TasksV2Page() {
                                                   borderColor: dragSnapshot.isDragging || dragSnapshot.isDropAnimating
                                                     ? undefined
                                                     : (list.color || "hsl(var(--app-border))"),
+                                                }}
+                                                onDoubleClick={(event) => {
+                                                  const target = event.target;
+                                                  const interactiveTarget = target instanceof Element
+                                                    ? target.closest("button, a, input, textarea, select, [role='button'], [role='menuitem'], [contenteditable='true'], .task-drag-handle")
+                                                    : null;
+                                                  if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+                                                    return;
+                                                  }
+                                                  event.stopPropagation();
+                                                  handleOpenCardDetail(card.id);
                                                 }}
                                               >
                                                 <div className="flex gap-3">
@@ -4153,7 +4460,12 @@ export default function TasksV2Page() {
 
                                                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                                       <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>#{Number(card.position) + 1}</span>
-                                                      {assigneeName && <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>Исполнитель: {assigneeName}</span>}
+                                                      {assigneeName && <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>Исполнители: {assigneeName}</span>}
+                                                      {card.responsibleUserId && (
+                                                        <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                                                          Ответственный: {userById.get(card.responsibleUserId)?.name || card.responsibleUserId}
+                                                        </span>
+                                                      )}
                                                       {dueDateLabel && <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>Срок: {dueDateLabel}</span>}
                                                       {subtaskProgress.total > 0 && (
                                                         <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
@@ -4214,46 +4526,97 @@ export default function TasksV2Page() {
                                                     )}
                                                   </div>
 
-                                                  <div className="flex shrink-0 flex-col items-center gap-2 border-l border-border/40 pl-2">
+                                                  <div className="flex shrink-0 flex-col items-center gap-1 border-l border-border/40 pl-2">
                                                     <Button
                                                       variant="ghost"
                                                       size="icon"
                                                       className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                      aria-label="Изменить карточку"
-                                                      title="Изменить карточку"
-                                                      onMouseDown={stopInteractiveEvent}
-                                                      onPointerDown={stopInteractiveEvent}
-                                                      onTouchStart={stopInteractiveEvent}
+                                                      aria-label="Быстрое редактирование"
+                                                      title="Быстрое редактирование"
                                                       onClick={(event) => {
-                                                        stopInteractiveEvent(event);
+                                                        event.stopPropagation();
                                                         handleOpenCardDetail(card.id);
                                                       }}
+                                                      onMouseDown={stopEventPropagation}
+                                                      onPointerDown={stopEventPropagation}
+                                                      onTouchStart={stopEventPropagation}
                                                       disabled={detailCardLoading && detailCardId === card.id}
                                                     >
                                                       <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    {canEditSelectedBoard && (
-                                                      <>
+                                                    <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild>
                                                         <Button
                                                           variant="ghost"
                                                           size="icon"
-                                                          className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                                          aria-label="Удалить"
-                                                          title="Удалить"
-                                                          onMouseDown={stopInteractiveEvent}
-                                                          onPointerDown={stopInteractiveEvent}
-                                                          onTouchStart={stopInteractiveEvent}
-                                                          onClick={(event) => {
-                                                            stopInteractiveEvent(event);
-                                                            if (!confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
-                                                            deleteCardMutation.mutate(card.id);
-                                                          }}
-                                                          disabled={isCardPending}
+                                                          className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                          aria-label="Действия с карточкой"
+                                                          title="Действия с карточкой"
+                                                          onClick={stopEventPropagation}
+                                                          onMouseDown={stopEventPropagation}
+                                                          onPointerDown={stopEventPropagation}
+                                                          onTouchStart={stopEventPropagation}
+                                                          disabled={detailCardLoading && detailCardId === card.id}
                                                         >
-                                                          <Trash2 className="h-4 w-4" />
+                                                          <MoreHorizontal className="h-4 w-4" />
                                                         </Button>
-                                                      </>
-                                                    )}
+                                                      </DropdownMenuTrigger>
+                                                      <DropdownMenuContent align="end" className="w-64">
+                                                        <DropdownMenuItem onClick={() => handleOpenCardDetail(card.id, true)}>
+                                                          <Layers3 className="mr-2 h-4 w-4" />
+                                                          Открыть все детали
+                                                        </DropdownMenuItem>
+                                                        {canEditSelectedBoard && (
+                                                          <>
+                                                            <DropdownMenuItem onClick={() => handleDuplicateCard(card)} disabled={isCardPending}>
+                                                              <Copy className="mr-2 h-4 w-4" />
+                                                              Дублировать
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSub>
+                                                              <DropdownMenuSubTrigger>
+                                                                <ArrowDown className="mr-2 h-4 w-4 -rotate-90" />
+                                                                Переместить
+                                                              </DropdownMenuSubTrigger>
+                                                              <DropdownMenuSubContent className="w-56">
+                                                                {lists.map((targetList) => (
+                                                                  <DropdownMenuItem
+                                                                    key={targetList.id}
+                                                                    disabled={targetList.id === card.listId || moveCardMutation.isPending}
+                                                                    onClick={() => handleMoveCardFromMenu(card, targetList.id)}
+                                                                  >
+                                                                    {targetList.name}
+                                                                  </DropdownMenuItem>
+                                                                ))}
+                                                              </DropdownMenuSubContent>
+                                                            </DropdownMenuSub>
+                                                            {lists.some((targetList) => targetList.type === "archive" && targetList.id !== card.listId) && (
+                                                              <DropdownMenuItem
+                                                                onClick={() => {
+                                                                  const archiveList = lists.find((targetList) => targetList.type === "archive");
+                                                                  if (archiveList) handleMoveCardFromMenu(card, archiveList.id);
+                                                                }}
+                                                                disabled={moveCardMutation.isPending}
+                                                              >
+                                                                <Archive className="mr-2 h-4 w-4" />
+                                                                Архивировать
+                                                              </DropdownMenuItem>
+                                                            )}
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem
+                                                              className="text-destructive focus:text-destructive"
+                                                              onClick={() => {
+                                                                if (!confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
+                                                                deleteCardMutation.mutate(card.id);
+                                                              }}
+                                                              disabled={isCardPending}
+                                                            >
+                                                              <Trash2 className="mr-2 h-4 w-4" />
+                                                              Удалить
+                                                            </DropdownMenuItem>
+                                                          </>
+                                                        )}
+                                                      </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                   </div>
                                                 </div>
                                               </div>
@@ -4449,6 +4812,32 @@ export default function TasksV2Page() {
         </CardContent>
 	      </Card>
 
+      <Dialog open={smartInputHelpOpen} onOpenChange={setSmartInputHelpOpen}>
+        <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
+          <DialogHeader>
+            <DialogTitle>Умный ввод карточки</DialogTitle>
+            <DialogDescription>
+              Контрольные фразы распознаются локально и показываются отдельными чипами до сохранения.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="rounded-xl border border-border/35 bg-muted/20 p-3">
+              <code>Подготовить эфир завтра 14:00 высокий приоритет @tim</code>
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Даты: сегодня, завтра, дни недели, следующая неделя, 21.07 или 2026-07-21.</li>
+              <li>Диапазон: «с сегодня 14:00 до завтра 16:00».</li>
+              <li>Приоритет: low/medium/high/urgent или русский эквивалент.</li>
+              <li>Исполнитель: начните ввод с @ и выберите участника компании.</li>
+              <li>Нажмите на распознанный чип, чтобы оставить фразу обычным текстом.</li>
+            </ul>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setSmartInputHelpOpen(false)}>Понятно</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={filtersDialogOpen} onOpenChange={setFiltersDialogOpen}>
         <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
           <DialogHeader>
@@ -4487,6 +4876,36 @@ export default function TasksV2Page() {
                   <option key={user.id} value={user.id}>{user.name}</option>
                 ))}
               </select>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-responsible">Ответственный</label>
+                <select
+                  id="kanban-mobile-filter-responsible"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.responsibleUserId}
+                  onChange={(event) => setCardFilters((prev) => ({ ...prev, responsibleUserId: event.target.value }))}
+                >
+                  <option value="">Все</option>
+                  {availableAssignees.map((user) => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-initiator">Инициатор</label>
+                <select
+                  id="kanban-mobile-filter-initiator"
+                  className={KANBAN_PANEL_SELECT_CLASS}
+                  value={cardFilters.initiatorUserId}
+                  onChange={(event) => setCardFilters((prev) => ({ ...prev, initiatorUserId: event.target.value }))}
+                >
+                  <option value="">Все</option>
+                  {availableAssignees.map((user) => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -4601,22 +5020,89 @@ export default function TasksV2Page() {
                 <div className="grid gap-2">
                   {activeCustomFields.map((field) => (
                     <div key={field.id} className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground" htmlFor={`kanban-filter-field-${field.id}`}>{field.name}</label>
-                      <Input
-                        id={`kanban-filter-field-${field.id}`}
-                        value={cardFilters.customFieldValues[field.id] || ""}
-                        onChange={(event) =>
-                          setCardFilters((prev) => ({
-                            ...prev,
-                            customFieldValues: {
-                              ...prev.customFieldValues,
-                              [field.id]: event.target.value,
-                            },
-                          }))
-                        }
-                        placeholder={CUSTOM_FIELD_TYPE_LABELS[field.type]}
-                        className={KANBAN_PANEL_INPUT_CLASS}
-                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-medium text-muted-foreground" htmlFor={`kanban-filter-field-${field.id}`}>{field.name}</label>
+                        <details className="text-xs text-muted-foreground">
+                          <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50">
+                            <HelpCircle className="h-3.5 w-3.5" />
+                            Как работает
+                          </summary>
+                          <p className="mt-1 max-w-xs rounded-lg border border-border/35 bg-popover p-2 text-popover-foreground shadow-lg">
+                            {getKanbanCustomFieldFilterHelp(field)}
+                          </p>
+                        </details>
+                      </div>
+                      {field.type === "select" || field.type === "multi-select" || field.type === "checkbox" ? (
+                        <select
+                          id={`kanban-filter-field-${field.id}`}
+                          className={KANBAN_PANEL_SELECT_CLASS}
+                          value={cardFilters.customFieldValues[field.id] || ""}
+                          onChange={(event) =>
+                            setCardFilters((prev) => ({
+                              ...prev,
+                              customFieldValues: {
+                                ...prev.customFieldValues,
+                                [field.id]: event.target.value,
+                              },
+                            }))
+                          }
+                        >
+                          <option value="">Любое значение</option>
+                          <option value={KANBAN_EMPTY_FIELD_FILTER}>Без значения</option>
+                          {field.type === "checkbox" ? (
+                            <>
+                              <option value="true">Да</option>
+                              <option value="false">Нет</option>
+                            </>
+                          ) : (
+                            (field.options ?? []).map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))
+                          )}
+                        </select>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            id={`kanban-filter-field-${field.id}`}
+                            value={
+                              cardFilters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
+                                ? ""
+                                : cardFilters.customFieldValues[field.id] || ""
+                            }
+                            onChange={(event) =>
+                              setCardFilters((prev) => ({
+                                ...prev,
+                                customFieldValues: {
+                                  ...prev.customFieldValues,
+                                  [field.id]: event.target.value,
+                                },
+                              }))
+                            }
+                            placeholder={CUSTOM_FIELD_TYPE_LABELS[field.type]}
+                            className={KANBAN_PANEL_INPUT_CLASS}
+                          />
+                          <Button
+                            type="button"
+                            variant={
+                              cardFilters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
+                                ? "secondary"
+                                : "outline"
+                            }
+                            className="shrink-0 rounded-xl"
+                            onClick={() => setCardFilters((prev) => ({
+                              ...prev,
+                              customFieldValues: {
+                                ...prev.customFieldValues,
+                                [field.id]: prev.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
+                                  ? ""
+                                  : KANBAN_EMPTY_FIELD_FILTER,
+                              },
+                            }))}
+                          >
+                            Пусто
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -4763,7 +5249,7 @@ export default function TasksV2Page() {
       </Dialog>
 
       <Dialog open={!!detailCardId} onOpenChange={(open) => !open && handleCloseCardDetail()}>
-        <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
+        <DialogContent className="flex max-h-[92vh] w-[min(96vw,760px)] max-w-3xl flex-col overflow-hidden border-border/50 bg-card p-0 shadow-2xl shadow-black/10 text-card-foreground">
           {!selectedDetailCard ? (
             <>
               <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
@@ -4798,7 +5284,7 @@ export default function TasksV2Page() {
               <DialogHeader className="space-y-3 border-b border-border/35 bg-muted/20 px-6 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                   <div className="space-y-1">
-                    <DialogTitle className="break-words text-2xl font-semibold tracking-tight">{selectedDetailCard.title}</DialogTitle>
+                    <DialogTitle className="break-words text-xl font-semibold tracking-tight">{selectedDetailCard.title}</DialogTitle>
                     <DialogDescription className="break-words">
                       {selectedDetailCard.description || "У этой карточки пока нет описания."}
                     </DialogDescription>
@@ -4859,6 +5345,64 @@ export default function TasksV2Page() {
                       disabled={!canEditSelectedBoard}
                       className={KANBAN_PANEL_INPUT_CLASS}
                     />
+                    {detailSmartInput.tokens.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {detailSmartInput.tokens.map((token) => (
+                          <button
+                            key={token.id}
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-xs text-primary"
+                            title="Оставить эту фразу обычным текстом"
+                            onClick={() => setDetailSmartCancelledTokenIds((current) => [...current, token.id])}
+                          >
+                            <WandSparkles className="h-3 w-3" />
+                            {token.label}
+                            <X className="h-3 w-3" />
+                          </button>
+                        ))}
+                        {canEditSelectedBoard && detailSmartInput.errors.length === 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 rounded-full px-2 text-xs"
+                            onClick={() => {
+                              setDetailCardForm((prev) => {
+                                const nextAssigneeUserIds = Array.from(new Set([
+                                  ...getKanbanCardAssigneeUserIds(prev),
+                                  ...detailSmartInput.assigneeUserIds,
+                                ]));
+                                return {
+                                  ...prev,
+                                  title: detailSmartInput.title || prev.title,
+                                  priority: detailSmartInput.priority || prev.priority,
+                                  startDate: detailSmartInput.startDate ?? prev.startDate,
+                                  startDateHasTime: detailSmartInput.startDate
+                                    ? detailSmartInput.startDateHasTime
+                                    : prev.startDateHasTime,
+                                  dueDate: detailSmartInput.dueDate ?? prev.dueDate,
+                                  dueDateHasTime: detailSmartInput.dueDate
+                                    ? detailSmartInput.dueDateHasTime
+                                    : prev.dueDateHasTime,
+                                  assigneeUserIds: nextAssigneeUserIds,
+                                  assigneeUserId: nextAssigneeUserIds[0] || "",
+                                };
+                              });
+                              setDetailSmartCancelledTokenIds([]);
+                              toast({
+                                title: "Умный ввод применён",
+                                description: "Ручные изменения полей после этого имеют приоритет.",
+                              });
+                            }}
+                          >
+                            Применить
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {detailSmartInput.errors.map((error) => (
+                      <p key={error} className="text-xs text-destructive">{error}</p>
+                    ))}
                   </div>
 
                   <div className="space-y-2">
@@ -4893,7 +5437,7 @@ export default function TasksV2Page() {
                     onChange={(event) =>
                       setDetailCardForm((prev) => ({ ...prev, description: event.target.value }))
                     }
-                    rows={6}
+                    rows={3}
                     disabled={!canEditSelectedBoard}
                     className={KANBAN_PANEL_TEXTAREA_CLASS}
                   />
@@ -4925,25 +5469,75 @@ export default function TasksV2Page() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="kanban-detail-assignee">
-                      Исполнитель
+                    <label className="text-sm font-medium" htmlFor="kanban-detail-responsible">
+                      Ответственный
                     </label>
                     <select
-                      id="kanban-detail-assignee"
+                      id="kanban-detail-responsible"
                       className={KANBAN_PANEL_SELECT_CLASS}
-                      value={detailCardForm.assigneeUserId}
+                      value={detailCardForm.responsibleUserId}
                       onChange={(event) =>
-                        setDetailCardForm((prev) => ({ ...prev, assigneeUserId: event.target.value }))
+                        setDetailCardForm((prev) => ({ ...prev, responsibleUserId: event.target.value }))
                       }
                       disabled={!canEditSelectedBoard}
                     >
-                      <option value="">Без исполнителя</option>
+                      <option value="">Без ответственного</option>
+                      {detailCardForm.responsibleUserId &&
+                        !availableAssignees.some((user) => user.id === detailCardForm.responsibleUserId) && (
+                          <option value={detailCardForm.responsibleUserId}>
+                            {userById.get(detailCardForm.responsibleUserId)?.name || detailCardForm.responsibleUserId} (недоступен)
+                          </option>
+                        )}
                       {availableAssignees.map((user) => (
                         <option key={user.id} value={user.id}>
                           {user.name}
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="kanban-detail-initiator">
+                      Инициатор
+                    </label>
+                    <select
+                      id="kanban-detail-initiator"
+                      className={KANBAN_PANEL_SELECT_CLASS}
+                      value={detailCardForm.initiatorUserId}
+                      onChange={(event) =>
+                        setDetailCardForm((prev) => ({ ...prev, initiatorUserId: event.target.value }))
+                      }
+                      disabled={!canEditSelectedBoard}
+                    >
+                      {detailCardForm.initiatorUserId &&
+                        !availableAssignees.some((user) => user.id === detailCardForm.initiatorUserId) && (
+                          <option value={detailCardForm.initiatorUserId}>
+                            {userById.get(detailCardForm.initiatorUserId)?.name || detailCardForm.initiatorUserId} (недоступен)
+                          </option>
+                        )}
+                      {availableAssignees.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="kanban-detail-assignees">
+                      Исполнители
+                    </label>
+                    <KanbanUserMultiSelect
+                      id="kanban-detail-assignees"
+                      users={availableAssignees}
+                      value={getKanbanCardAssigneeUserIds(detailCardForm)}
+                      onChange={(assigneeUserIds) => setDetailCardForm((prev) => ({
+                        ...prev,
+                        assigneeUserIds,
+                        assigneeUserId: assigneeUserIds[0] || "",
+                      }))}
+                      disabled={!canEditSelectedBoard}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -5011,9 +5605,12 @@ export default function TasksV2Page() {
                     id="kanban-detail-start-date"
                     label="Дата старта"
                     value={detailCardForm.startDate}
+                    allDay={!detailCardForm.startDateHasTime}
+                    showAllDay
                     minValue={null}
                     onChange={(value) => setDetailCardForm((prev) => {
                       if (!value || !prev.dueDate) return { ...prev, startDate: value };
+                      if (!prev.startDateHasTime || !prev.dueDateHasTime) return { ...prev, startDate: value };
                       const normalized = normalizeDateRange(new Date(value), new Date(prev.dueDate), 60);
                       return {
                         ...prev,
@@ -5021,6 +5618,9 @@ export default function TasksV2Page() {
                         dueDate: toDateTimeLocalValue(normalized.end),
                       };
                     })}
+                    onAllDayChange={(allDay) =>
+                      setDetailCardForm((prev) => ({ ...prev, startDateHasTime: !allDay }))
+                    }
                     disabled={!canEditSelectedBoard}
                   />
 
@@ -5028,15 +5628,21 @@ export default function TasksV2Page() {
                     id="kanban-detail-due-date"
                     label="Срок"
                     value={detailCardForm.dueDate}
+                    allDay={!detailCardForm.dueDateHasTime}
+                    showAllDay
                     minValue={detailCardForm.startDate || null}
                     onChange={(value) => setDetailCardForm((prev) => {
                       if (!value || !prev.startDate) return { ...prev, dueDate: value };
+                      if (!prev.startDateHasTime || !prev.dueDateHasTime) return { ...prev, dueDate: value };
                       const normalized = normalizeDateRange(new Date(prev.startDate), new Date(value), 60);
                       return {
                         ...prev,
                         dueDate: toDateTimeLocalValue(normalized.end),
                       };
                     })}
+                    onAllDayChange={(allDay) =>
+                      setDetailCardForm((prev) => ({ ...prev, dueDateHasTime: !allDay }))
+                    }
                     disabled={!canEditSelectedBoard}
                   />
                 </div>
@@ -5127,7 +5733,19 @@ export default function TasksV2Page() {
                   )}
                 </div>
 
-                <div className="space-y-3">
+                <Collapsible open={detailAdvancedOpen} onOpenChange={setDetailAdvancedOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="outline" className="w-full justify-between rounded-xl">
+                      <span className="inline-flex items-center gap-2">
+                        <Settings2 className="h-4 w-4" />
+                        Дополнительные поля и активность
+                      </span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${detailAdvancedOpen ? "rotate-180" : ""}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </Collapsible>
+
+                <div className={detailAdvancedOpen ? "space-y-3" : "hidden"}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold">Поля карточки</h3>
@@ -5186,7 +5804,7 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
                     <p>
                       Подзадачи: {getSubtaskProgress(selectedDetailCard.subtasks).completed}/
@@ -5223,7 +5841,7 @@ export default function TasksV2Page() {
                   )}
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold">Оборудование</h3>
@@ -5367,7 +5985,7 @@ export default function TasksV2Page() {
                   )}
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">
@@ -5473,7 +6091,7 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">Вложения</h3>
@@ -5565,7 +6183,7 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -5642,7 +6260,7 @@ export default function TasksV2Page() {
                 </div>
                 </div>
 
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                <div className={detailAdvancedOpen ? KANBAN_DETAIL_SECTION_CLASS : "hidden"}>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold">Комментарии и ответы</h3>
