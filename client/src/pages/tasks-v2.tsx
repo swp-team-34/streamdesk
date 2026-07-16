@@ -71,6 +71,10 @@ import {
   type TaskManagerSortBy,
   type TaskManagerSortDirection,
 } from "@/lib/task-manager-sort";
+import {
+  getKanbanBoardSelectionStorageKey,
+  resolveKanbanBoardSelection,
+} from "@/lib/kanban-board-selection";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -850,6 +854,14 @@ export default function TasksV2Page() {
       return null;
     }
   }, []);
+  const boardSelectionStorageKey = useMemo(
+    () => getKanbanBoardSelectionStorageKey({
+      userId: currentUser?.id,
+      workspaceType: workspace?.type,
+      companyId: workspace?.companyId,
+    }),
+    [currentUser?.id, workspace?.companyId, workspace?.type],
+  );
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [editingListId, setEditingListId] = useState<string | null>(null);
@@ -1054,6 +1066,8 @@ export default function TasksV2Page() {
   } = useQuery<KanbanBoardEquipmentLinksResponse>({
     queryKey: ["kanban-equipment-links", selectedBoardId],
     enabled: !!selectedBoardId && Boolean(selectedBoard?.companyId),
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/equipment-links`);
       return await res.json();
@@ -1693,20 +1707,33 @@ export default function TasksV2Page() {
   }, [availableBoardMembers, editingMemberId, memberForm.userId]);
 
   useEffect(() => {
-    if (initialBoardIdRef.current && boards.some((board) => board.id === initialBoardIdRef.current)) {
-      setSelectedBoardId(initialBoardIdRef.current);
-      initialBoardIdRef.current = null;
-      return;
-    }
+    if (boardsLoading) return;
     if (boards.length === 0) {
       setSelectedBoardId(null);
       return;
     }
-
-    if (!selectedBoardId || !boards.some((board) => board.id === selectedBoardId)) {
-      setSelectedBoardId(boards[0].id);
+    const requestedBoardId = initialBoardIdRef.current;
+    const storedBoardId = boardSelectionStorageKey && typeof window !== "undefined"
+      ? window.localStorage.getItem(boardSelectionStorageKey)
+      : null;
+    const nextBoardId = resolveKanbanBoardSelection({
+      boardIds: boards.map((board) => board.id),
+      requestedBoardId,
+      currentBoardId: selectedBoardId,
+      storedBoardId,
+    });
+    if (requestedBoardId) {
+      initialBoardIdRef.current = null;
     }
-  }, [boards, selectedBoardId]);
+    if (nextBoardId !== selectedBoardId) {
+      setSelectedBoardId(nextBoardId);
+    }
+  }, [boardSelectionStorageKey, boards, boardsLoading, selectedBoardId]);
+
+  useEffect(() => {
+    if (!boardSelectionStorageKey || !selectedBoardId || typeof window === "undefined") return;
+    window.localStorage.setItem(boardSelectionStorageKey, selectedBoardId);
+  }, [boardSelectionStorageKey, selectedBoardId]);
 
   useEffect(() => {
     if (!initialCardIdRef.current || !selectedBoardId) return;

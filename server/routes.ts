@@ -6508,6 +6508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         },
       });
+      publishEquipmentContextChanged(item, "status");
       res.json(result);
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;

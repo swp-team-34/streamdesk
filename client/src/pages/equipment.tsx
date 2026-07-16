@@ -1315,10 +1315,14 @@ export default function EquipmentPage() {
       const response = await apiRequest("DELETE", `/api/equipment/${equipmentId}`, { kitExtraction });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_result, input) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-equipment-links"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setDetailsEquipment((current) => current?.id === input.equipmentId ? null : current);
       toast({ title: "Удалено", description: "Позиция убрана со склада." });
     },
     onError: (e: any) => {
