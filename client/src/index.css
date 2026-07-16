@@ -193,12 +193,63 @@ body::-webkit-scrollbar,
   overflow-anchor: auto;
 }
 
+.dashboard-widget-grid {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-widget-placement {
+  min-width: 0;
+}
+
+.dashboard-resize-handle {
+  display: none;
+  cursor: nwse-resize;
+}
+
 .dashboard-widget-dragging {
   z-index: 30;
+  opacity: 0.96;
 }
 
 .dashboard-widget-dragging > div {
+  border-color: hsl(var(--primary) / 0.6);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+}
+
+.dashboard-widget-invalid-target > div {
+  border-color: hsl(var(--destructive));
+  box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-widget-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: 12px;
+    gap: 8px;
+  }
+
+  .dashboard-widget-placement {
+    grid-column: var(--dashboard-widget-x) / span var(--dashboard-widget-w);
+    grid-row: var(--dashboard-widget-y) / span var(--dashboard-widget-h);
+  }
+
+  .dashboard-direct-drag-handle {
+    cursor: grab;
+  }
+
+  .dashboard-widget-dragging .dashboard-direct-drag-handle {
+    cursor: grabbing;
+  }
+
+  .dashboard-resize-handle {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
 }
 
 /* Плавное вращение рамки логотипа на странице входа */

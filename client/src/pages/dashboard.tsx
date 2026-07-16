@@ -1,14 +1,31 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  type DraggableProvided,
-  type DraggableStateSnapshot,
-  type DropResult,
-} from "@hello-pangea/dnd";
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import StatusCards from "@/components/dashboard/status-cards";
 import CurrentActivity from "@/components/dashboard/current-activity";
 import QuickCalendar from "@/components/dashboard/quick-calendar";
@@ -21,37 +38,52 @@ import DashboardCountdownWidget from "@/components/dashboard/dashboard-countdown
 import DashboardServicesSection from "@/components/dashboard/dashboard-services-section";
 import DeadlineTasksWidget from "@/components/dashboard/deadline-tasks-widget";
 import {
-  ActiveProjectsWidget,
   AttentionSummaryWidget,
-  EquipmentAttentionWidget,
   MyWorkloadWidget,
   OverdueTasksWidget,
   UpcomingEventsWidget,
 } from "@/components/dashboard/follow-up-widgets";
+import {
+  ActiveProjectsOperationalWidget,
+  EquipmentForTasksWidget,
+  TeamWorkloadOperationalWidget,
+  UnassignedTasksWidget,
+  UpcomingReturnsOperationalWidget,
+} from "@/components/dashboard/operational-widgets";
 import WorkProgressWidget from "@/components/dashboard/work-progress-widget";
 import LocationIssuesWidget from "@/components/dashboard/location-issues-widget";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { tabPermission } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  calculateDashboardWidgetRowSpan,
+  DASHBOARD_GRID_COLUMNS,
+  moveDashboardWidget,
   normalizeDashboardLayoutState,
+  reflowDashboardLayout,
   reorderDashboardWidgetIds,
+  resetDashboardLayout,
+  resizeDashboardWidget,
   type DashboardLayoutState,
-  type DashboardWidgetSize,
+  type DashboardSavedLayout,
+  type DashboardWidgetConstraints,
+  type DashboardWidgetPlacement,
 } from "@/lib/dashboard-layout";
-import { ArrowDown, ArrowUp, GripVertical, Settings2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  GripVertical,
+  MoveDiagonal2,
+  RotateCcw,
+  Settings2,
+} from "lucide-react";
 
-const DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetOrder.v1";
-const DASHBOARD_WIDGET_SIZE_LABELS: Record<DashboardWidgetSize, string> = {
-  compact: "S",
-  normal: "M",
-  wide: "L",
-  full: "XL",
-};
-const DASHBOARD_WIDGET_SIZE_OPTIONS: DashboardWidgetSize[] = ["compact", "normal", "wide", "full"];
-const DASHBOARD_MASONRY_ROW_HEIGHT = 8;
-const DASHBOARD_MASONRY_ROW_GAP = 8;
+const DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetLayout.v2";
+const LEGACY_DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetOrder.v1";
+const DASHBOARD_GRID_ROW_HEIGHT = 12;
+const DASHBOARD_GRID_GAP = 8;
 
 type DashboardWidgetId =
   | "status"
@@ -61,6 +93,9 @@ type DashboardWidgetId =
   | "deadline-tasks"
   | "overdue-tasks"
   | "my-workload"
+  | "unassigned-tasks"
+  | "team-workload"
+  | "equipment-current-tasks"
   | "equipment-attention"
   | "upcoming-events"
   | "active-projects"
@@ -74,7 +109,7 @@ type DashboardWidgetId =
 interface DashboardWidgetDefinition {
   id: DashboardWidgetId;
   title: string;
-  defaultSize: DashboardWidgetSize;
+  layout: DashboardWidgetConstraints;
   render: () => ReactNode;
 }
 
@@ -95,113 +130,107 @@ function canAccessTab(user: any, tabKey: string): boolean {
   return true;
 }
 
-function getWidgetSizeClass(size: DashboardWidgetSize) {
-  return {
-    compact: "xl:col-span-4",
-    normal: "xl:col-span-6",
-    wide: "xl:col-span-8",
-    full: "xl:col-span-12",
-  }[size];
-}
-
-function readSavedWidgetLayout(): Partial<DashboardLayoutState> | string[] {
+function readSavedWidgetLayout(storageKey = DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY): DashboardSavedLayout {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(storageKey) ??
+      window.localStorage.getItem(DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (Array.isArray(parsed)) return parsed.map(String);
-    if (parsed && typeof parsed === "object") return parsed as Partial<DashboardLayoutState>;
+    if (parsed && typeof parsed === "object") return parsed as DashboardSavedLayout;
     return [];
   } catch {
     return [];
   }
 }
 
-function saveWidgetLayout(layout: DashboardLayoutState) {
+function saveWidgetLayout(layout: DashboardLayoutState, storageKey = DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  window.localStorage.setItem(storageKey, JSON.stringify(layout));
 }
 
-function DashboardMasonryWidget({
+function DashboardGridWidget({
   widget,
   index,
   total,
-  size,
-  dragProvided,
-  snapshot,
+  placement,
+  isInteracting,
+  isInvalidTarget,
   onMove,
-  onSizeChange,
+  onPointerInteraction,
+  onResizeStep,
 }: {
   widget: DashboardWidgetDefinition;
   index: number;
   total: number;
-  size: DashboardWidgetSize;
-  dragProvided: DraggableProvided;
-  snapshot: DraggableStateSnapshot;
+  placement: DashboardWidgetPlacement;
+  isInteracting: boolean;
+  isInvalidTarget: boolean;
   onMove: (index: number, direction: "up" | "down") => void;
-  onSizeChange: (widgetId: DashboardWidgetId, nextSize: DashboardWidgetSize) => void;
+  onPointerInteraction: (
+    widgetId: DashboardWidgetId,
+    mode: "move" | "resize",
+    event: ReactPointerEvent<HTMLElement>,
+  ) => void;
+  onResizeStep: (widgetId: DashboardWidgetId, deltaW: number, deltaH: number) => void;
 }) {
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [rowSpan, setRowSpan] = useState(12);
-
-  useEffect(() => {
-    const element = contentRef.current;
-    if (!element) return;
-
-    const updateRowSpan = () => {
-      const measuredHeight = Math.max(
-        element.getBoundingClientRect().height,
-        element.scrollHeight,
-        element.offsetHeight,
-      );
-      setRowSpan(calculateDashboardWidgetRowSpan(
-        measuredHeight,
-        DASHBOARD_MASONRY_ROW_HEIGHT,
-        DASHBOARD_MASONRY_ROW_GAP,
-      ));
-    };
-
-    updateRowSpan();
-    const observer = new ResizeObserver(updateRowSpan);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [widget.id, size]);
-
   return (
     <div
-      ref={dragProvided.innerRef}
-      {...dragProvided.draggableProps}
       className={[
-        "min-w-0",
-        getWidgetSizeClass(size),
-        snapshot.isDragging ? "dashboard-widget-dragging" : "",
+        "dashboard-widget-placement min-w-0",
+        isInteracting ? "dashboard-widget-dragging" : "",
+        isInvalidTarget ? "dashboard-widget-invalid-target" : "",
       ].join(" ")}
       style={{
-        ...dragProvided.draggableProps.style,
-        gridRowEnd: `span ${rowSpan}`,
+        "--dashboard-widget-x": placement.x + 1,
+        "--dashboard-widget-y": placement.y + 1,
+        "--dashboard-widget-w": placement.w,
+        "--dashboard-widget-h": placement.h,
       } as CSSProperties}
     >
-      <div ref={contentRef} className="min-w-0 rounded-xl border border-border/35 bg-background/30 p-1 shadow-sm transition-colors">
+      <div className="relative flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/35 bg-background/30 p-1 shadow-sm transition-colors">
         <div className="mb-1 flex items-center justify-between gap-2 px-1">
-          <div
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium text-muted-foreground"
-            {...dragProvided.dragHandleProps}
+          <button
+            type="button"
+            className="dashboard-direct-drag-handle flex min-w-0 flex-1 touch-none items-center gap-1.5 rounded-md text-left text-xs font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            onPointerDown={(event) => onPointerInteraction(widget.id, "move", event)}
+            aria-label={`Переместить виджет ${widget.title}`}
+            title="Перетащить виджет"
           >
             <GripVertical className="h-4 w-4 shrink-0" />
             <span className="truncate">{widget.title}</span>
-          </div>
+          </button>
           <div className="flex shrink-0 items-center gap-1">
-            <select
-              aria-label={`Габарит виджета ${widget.title}`}
-              title="Габарит виджета"
-              value={size}
-              onChange={(event) => onSizeChange(widget.id, event.target.value as DashboardWidgetSize)}
-              className="h-7 rounded-lg border border-border bg-background px-1.5 text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              {DASHBOARD_WIDGET_SIZE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{DASHBOARD_WIDGET_SIZE_LABELS[option]}</option>
-              ))}
-            </select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  aria-label={`Настроить размер виджета ${widget.title}`}
+                  title="Размер виджета"
+                >
+                  <MoveDiagonal2 className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onResizeStep(widget.id, -1, 0)}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Уже
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onResizeStep(widget.id, 1, 0)}>
+                  <ArrowRight className="mr-2 h-4 w-4" /> Шире
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onResizeStep(widget.id, 0, -1)}>
+                  <ArrowUp className="mr-2 h-4 w-4" /> Меньше по высоте
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onResizeStep(widget.id, 0, 1)}>
+                  <ArrowDown className="mr-2 h-4 w-4" /> Больше по высоте
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="icon"
@@ -226,7 +255,29 @@ function DashboardMasonryWidget({
             </Button>
           </div>
         </div>
-        <div className="min-h-[96px] min-w-0">{widget.render()}</div>
+        <div className="dashboard-widget-content min-h-[96px] min-w-0 flex-1 overflow-auto">
+          {widget.render()}
+        </div>
+        <button
+          type="button"
+          className="dashboard-resize-handle absolute bottom-0 right-0 h-7 w-7 touch-none rounded-tl-lg text-muted-foreground outline-none transition hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/60"
+          onPointerDown={(event) => onPointerInteraction(widget.id, "resize", event)}
+          onKeyDown={(event) => {
+            const delta =
+              event.key === "ArrowLeft" ? [-1, 0] :
+              event.key === "ArrowRight" ? [1, 0] :
+              event.key === "ArrowUp" ? [0, -1] :
+              event.key === "ArrowDown" ? [0, 1] :
+              null;
+            if (!delta) return;
+            event.preventDefault();
+            onResizeStep(widget.id, delta[0], delta[1]);
+          }}
+          aria-label={`Изменить размер виджета ${widget.title}. Используйте клавиши со стрелками.`}
+          title="Потяните для изменения размера"
+        >
+          <MoveDiagonal2 className="ml-auto mt-auto h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -234,7 +285,26 @@ function DashboardMasonryWidget({
 
 export default function Dashboard() {
   const currentUser = getCurrentUser();
-  const [widgetLayout, setWidgetLayout] = useState<Partial<DashboardLayoutState> | string[]>(() => readSavedWidgetLayout());
+  const { workspace } = useWorkspace();
+  const layoutStorageKey = [
+    DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY,
+    String(currentUser?.id || "anonymous"),
+    String(workspace?.type || "none"),
+    String(workspace?.companyId || "personal"),
+  ].join(":");
+  const [widgetLayout, setWidgetLayout] = useState<DashboardSavedLayout>(() => readSavedWidgetLayout());
+  const previousLayoutStorageKeyRef = useRef(layoutStorageKey);
+  const skipLayoutPersistRef = useRef(false);
+  const [previewLayout, setPreviewLayout] = useState<DashboardLayoutState | null>(null);
+  const previewLayoutRef = useRef<DashboardLayoutState | null>(null);
+  const interactionCleanupRef = useRef<(() => void) | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [activeInteraction, setActiveInteraction] = useState<{
+    widgetId: DashboardWidgetId;
+    mode: "move" | "resize";
+  } | null>(null);
+  const [isInvalidTarget, setIsInvalidTarget] = useState(false);
+  const [resetMode, setResetMode] = useState<"positions" | "positions-and-sizes" | null>(null);
   const [isWidgetSettingsOpen, setIsWidgetSettingsOpen] = useState(false);
   const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
@@ -274,6 +344,17 @@ export default function Dashboard() {
   // WebSocket не критичен - приложение должно работать без него
   useWebSocket();
 
+  useEffect(() => () => interactionCleanupRef.current?.(), []);
+
+  useEffect(() => {
+    if (previousLayoutStorageKeyRef.current === layoutStorageKey) return;
+    previousLayoutStorageKeyRef.current = layoutStorageKey;
+    skipLayoutPersistRef.current = true;
+    setWidgetLayout(readSavedWidgetLayout(layoutStorageKey));
+    setPreviewLayout(null);
+    previewLayoutRef.current = null;
+  }, [layoutStorageKey]);
+
   const isLoading = statsLoading || eventsLoading || systemsLoading || equipmentLoading || streamsLoading;
   const hasError = statsError || eventsError || systemsError || equipmentError || streamsError;
 
@@ -286,7 +367,7 @@ export default function Dashboard() {
       {
         id: "status",
         title: "Статус",
-        defaultSize: "full",
+        layout: { defaultW: 12, defaultH: 8, minW: 6, maxW: 12, minH: 6, maxH: 18 },
         render: () => <StatusCards stats={stats} user={currentUser} />,
       },
     ];
@@ -296,32 +377,44 @@ export default function Dashboard() {
         {
           id: "attention-summary",
           title: "Требует внимания",
-          defaultSize: "compact",
+          layout: { defaultW: 4, defaultH: 10, minW: 3, maxW: 8, minH: 8, maxH: 20 },
           render: () => <AttentionSummaryWidget />,
         },
         {
           id: "work-progress",
           title: "Ход работ",
-          defaultSize: "full",
+          layout: { defaultW: 12, defaultH: 18, minW: 6, maxW: 12, minH: 12, maxH: 32 },
           render: () => <WorkProgressWidget />,
         },
         {
           id: "deadline-tasks",
           title: "Задачи по срокам",
-          defaultSize: "wide",
+          layout: { defaultW: 8, defaultH: 22, minW: 5, maxW: 12, minH: 12, maxH: 34 },
           render: () => <DeadlineTasksWidget limit={5} />,
         },
         {
           id: "overdue-tasks",
           title: "Просроченные задачи",
-          defaultSize: "normal",
+          layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
           render: () => <OverdueTasksWidget />,
         },
         {
           id: "my-workload",
           title: "Моя нагрузка",
-          defaultSize: "normal",
+          layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
           render: () => <MyWorkloadWidget user={currentUser} />,
+        },
+        {
+          id: "unassigned-tasks",
+          title: "Задачи без исполнителя",
+          layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
+          render: () => <UnassignedTasksWidget />,
+        },
+        {
+          id: "team-workload",
+          title: "Нагрузка команды",
+          layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
+          render: () => <TeamWorkloadOperationalWidget />,
         },
       );
     }
@@ -329,18 +422,27 @@ export default function Dashboard() {
     if (canAccessTab(currentUser, "locations")) {
       widgets.push({
         id: "location-issues",
-        title: "Площадки требуют внимания",
-        defaultSize: "normal",
+        title: "Обновления площадок",
+        layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
         render: () => <LocationIssuesWidget />,
+      });
+    }
+
+    if (canAccessTab(currentUser, "tasks") && canAccessTab(currentUser, "equipment")) {
+      widgets.push({
+        id: "equipment-current-tasks",
+        title: "Оборудование текущих задач",
+        layout: { defaultW: 6, defaultH: 18, minW: 4, maxW: 12, minH: 12, maxH: 30 },
+        render: () => <EquipmentForTasksWidget user={currentUser} />,
       });
     }
 
     if (canAccessTab(currentUser, "equipment")) {
       widgets.push({
         id: "equipment-attention",
-        title: "Оборудование требует внимания",
-        defaultSize: "normal",
-        render: () => <EquipmentAttentionWidget />,
+        title: "Ближайшие возвраты",
+        layout: { defaultW: 6, defaultH: 14, minW: 4, maxW: 12, minH: 10, maxH: 26 },
+        render: () => <UpcomingReturnsOperationalWidget />,
       });
     }
 
@@ -348,7 +450,7 @@ export default function Dashboard() {
       widgets.push({
         id: "upcoming-events",
         title: "Ближайшие события",
-        defaultSize: "normal",
+        layout: { defaultW: 6, defaultH: 16, minW: 4, maxW: 12, minH: 10, maxH: 28 },
         render: () => <UpcomingEventsWidget events={events} />,
       });
     }
@@ -356,9 +458,9 @@ export default function Dashboard() {
     if (canAccessTab(currentUser, "projects")) {
       widgets.push({
         id: "active-projects",
-        title: "Проекты в работе",
-        defaultSize: "wide",
-        render: () => <ActiveProjectsWidget />,
+        title: "Активные проекты",
+        layout: { defaultW: 8, defaultH: 18, minW: 5, maxW: 12, minH: 12, maxH: 30 },
+        render: () => <ActiveProjectsOperationalWidget />,
       });
     }
 
@@ -366,7 +468,7 @@ export default function Dashboard() {
       widgets.push({
         id: "current-activity",
         title: "Текущая активность",
-        defaultSize: "wide",
+        layout: { defaultW: 8, defaultH: 16, minW: 5, maxW: 12, minH: 10, maxH: 28 },
         render: () => (
           <CurrentActivity
             streams={canAccessTab(currentUser, "streams") ? streams : []}
@@ -380,7 +482,7 @@ export default function Dashboard() {
       widgets.push({
         id: "vmix-scheduler",
         title: "vMix Scheduler",
-        defaultSize: "wide",
+        layout: { defaultW: 8, defaultH: 20, minW: 5, maxW: 12, minH: 12, maxH: 34 },
         render: () => <VmixScheduler />,
       });
     }
@@ -389,7 +491,7 @@ export default function Dashboard() {
       widgets.push({
         id: "quick-calendar",
         title: "Календарь",
-        defaultSize: "wide",
+        layout: { defaultW: 8, defaultH: 18, minW: 5, maxW: 12, minH: 12, maxH: 30 },
         render: () => <QuickCalendar events={events} />,
       });
     }
@@ -398,7 +500,7 @@ export default function Dashboard() {
       widgets.push({
         id: "streaming-stats",
         title: "Статистика стримов",
-        defaultSize: "compact",
+        layout: { defaultW: 4, defaultH: 16, minW: 3, maxW: 8, minH: 10, maxH: 28 },
         render: () => <StreamingStats />,
       });
     }
@@ -407,7 +509,7 @@ export default function Dashboard() {
       widgets.push({
         id: "system-status",
         title: "Системы",
-        defaultSize: "compact",
+        layout: { defaultW: 4, defaultH: 14, minW: 3, maxW: 8, minH: 10, maxH: 26 },
         render: () => <SystemStatus systems={systems} />,
       });
     }
@@ -416,7 +518,7 @@ export default function Dashboard() {
       widgets.push({
         id: "equipment-status",
         title: "Склад техники",
-        defaultSize: "compact",
+        layout: { defaultW: 4, defaultH: 16, minW: 3, maxW: 8, minH: 10, maxH: 28 },
         render: () => <EquipmentStatus equipment={equipment} />,
       });
     }
@@ -425,73 +527,174 @@ export default function Dashboard() {
   }, [currentUser, equipment, events, stats, streams, systems]);
 
   const visibleWidgetIds = useMemo(() => widgetDefinitions.map((widget) => widget.id), [widgetDefinitions]);
-  const widgetSizeDefaults = useMemo(
-    () => Object.fromEntries(widgetDefinitions.map((widget) => [widget.id, widget.defaultSize])),
+  const widgetConstraints = useMemo(
+    () => Object.fromEntries(widgetDefinitions.map((widget) => [widget.id, widget.layout])),
     [widgetDefinitions],
   );
   const normalizedWidgetLayout = useMemo(
-    () => normalizeDashboardLayoutState(widgetLayout, visibleWidgetIds, widgetSizeDefaults),
-    [visibleWidgetIds, widgetLayout, widgetSizeDefaults],
+    () => normalizeDashboardLayoutState(widgetLayout, visibleWidgetIds, widgetConstraints),
+    [visibleWidgetIds, widgetConstraints, widgetLayout],
   );
-  const normalizedWidgetOrder = normalizedWidgetLayout.order;
-  const hiddenWidgetIds = normalizedWidgetLayout.hidden;
-  const widgetSizes = normalizedWidgetLayout.sizes;
+  const displayedWidgetLayout = previewLayout ?? normalizedWidgetLayout;
+  const displayedWidgetOrder = displayedWidgetLayout.order;
+  const hiddenWidgetIds = displayedWidgetLayout.hidden;
   const widgetsById = useMemo(() => new Map(widgetDefinitions.map((widget) => [widget.id, widget])), [widgetDefinitions]);
-  const orderedWidgets = normalizedWidgetOrder
+  const orderedWidgets = displayedWidgetOrder
     .filter((id) => !hiddenWidgetIds.includes(id))
     .map((id) => widgetsById.get(id as DashboardWidgetId))
     .filter((widget): widget is DashboardWidgetDefinition => Boolean(widget));
 
   useEffect(() => {
+    if (skipLayoutPersistRef.current) {
+      skipLayoutPersistRef.current = false;
+      return;
+    }
     if (JSON.stringify(normalizedWidgetLayout) === JSON.stringify(widgetLayout)) return;
     setWidgetLayout(normalizedWidgetLayout);
-    saveWidgetLayout(normalizedWidgetLayout);
-  }, [normalizedWidgetLayout, widgetLayout]);
+    saveWidgetLayout(normalizedWidgetLayout, layoutStorageKey);
+  }, [layoutStorageKey, normalizedWidgetLayout, widgetLayout]);
 
   const commitWidgetLayout = (nextLayout: DashboardLayoutState) => {
+    previewLayoutRef.current = null;
+    setPreviewLayout(null);
     setWidgetLayout(nextLayout);
-    saveWidgetLayout(nextLayout);
+    saveWidgetLayout(nextLayout, layoutStorageKey);
   };
 
   const commitWidgetOrder = (nextOrder: string[]) => {
-    const hiddenOrderTail = normalizedWidgetOrder.filter((id) => !nextOrder.includes(id));
-    commitWidgetLayout({ ...normalizedWidgetLayout, order: [...nextOrder, ...hiddenOrderTail] });
+    const hiddenOrderTail = normalizedWidgetLayout.order.filter((id) => !nextOrder.includes(id));
+    commitWidgetLayout(reflowDashboardLayout(
+      { ...normalizedWidgetLayout, order: [...nextOrder, ...hiddenOrderTail] },
+      widgetConstraints,
+    ));
   };
 
-  const changeWidgetSize = (widgetId: DashboardWidgetId, nextSize: DashboardWidgetSize) => {
-    commitWidgetLayout({
-      ...normalizedWidgetLayout,
-      sizes: {
-        ...normalizedWidgetLayout.sizes,
-        [widgetId]: nextSize,
-      },
-    });
+  const resizeWidgetByStep = (widgetId: DashboardWidgetId, deltaW: number, deltaH: number) => {
+    const placement = normalizedWidgetLayout.items[widgetId];
+    if (!placement) return;
+    commitWidgetLayout(resizeDashboardWidget(
+      normalizedWidgetLayout,
+      widgetId,
+      { w: placement.w + deltaW, h: placement.h + deltaH },
+      widgetConstraints,
+    ));
   };
 
   const toggleWidgetVisibility = (widgetId: DashboardWidgetId, nextVisible: boolean) => {
     const hidden = nextVisible
       ? hiddenWidgetIds.filter((id) => id !== widgetId)
       : [...hiddenWidgetIds, widgetId];
-    commitWidgetLayout({
-      ...normalizedWidgetLayout,
-      hidden: hidden.filter((id, index) => hidden.indexOf(id) === index),
-    });
+    commitWidgetLayout(reflowDashboardLayout(
+      {
+        ...normalizedWidgetLayout,
+        hidden: hidden.filter((id, index) => hidden.indexOf(id) === index),
+      },
+      widgetConstraints,
+    ));
   };
 
-  const resetWidgetLayout = () => {
-    const nextLayout = normalizeDashboardLayoutState(null, visibleWidgetIds, widgetSizeDefaults);
-    commitWidgetLayout(nextLayout);
+  const confirmWidgetLayoutReset = () => {
+    if (!resetMode) return;
+    commitWidgetLayout(resetDashboardLayout(
+      normalizedWidgetLayout,
+      visibleWidgetIds,
+      widgetConstraints,
+      resetMode,
+    ));
+    setResetMode(null);
   };
 
-  const handleWidgetDragEnd = (result: DropResult) => {
-    if (!result.destination || result.destination.index === result.source.index) return;
-    commitWidgetOrder(reorderDashboardWidgetIds(normalizedWidgetOrder, result.source.index, result.destination.index));
+  const startPointerInteraction = (
+    widgetId: DashboardWidgetId,
+    mode: "move" | "resize",
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    if (event.button !== 0 || !window.matchMedia("(min-width: 1024px)").matches) return;
+    const grid = gridRef.current;
+    const initialPlacement = displayedWidgetLayout.items[widgetId];
+    if (!grid || !initialPlacement) return;
+
+    event.preventDefault();
+    interactionCleanupRef.current?.();
+    const gridRect = grid.getBoundingClientRect();
+    const columnPitch = (gridRect.width + DASHBOARD_GRID_GAP) / DASHBOARD_GRID_COLUMNS;
+    const rowPitch = DASHBOARD_GRID_ROW_HEIGHT + DASHBOARD_GRID_GAP;
+    const initialLayout = displayedWidgetLayout;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let invalidTarget = false;
+
+    previewLayoutRef.current = initialLayout;
+    setPreviewLayout(initialLayout);
+    setActiveInteraction({ widgetId, mode });
+    setIsInvalidTarget(false);
+
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      const deltaColumns = Math.round((pointerEvent.clientX - startX) / columnPitch);
+      const deltaRows = Math.round((pointerEvent.clientY - startY) / rowPitch);
+      let nextLayout = initialLayout;
+
+      if (mode === "move") {
+        const targetX = initialPlacement.x + deltaColumns;
+        const targetY = initialPlacement.y + deltaRows;
+        invalidTarget =
+          targetX < 0 ||
+          targetX + initialPlacement.w > DASHBOARD_GRID_COLUMNS ||
+          targetY < 0;
+        if (!invalidTarget) {
+          nextLayout = moveDashboardWidget(
+            initialLayout,
+            widgetId,
+            { x: targetX, y: targetY },
+            widgetConstraints,
+          );
+        }
+      } else {
+        invalidTarget = false;
+        nextLayout = resizeDashboardWidget(
+          initialLayout,
+          widgetId,
+          { w: initialPlacement.w + deltaColumns, h: initialPlacement.h + deltaRows },
+          widgetConstraints,
+        );
+      }
+
+      previewLayoutRef.current = nextLayout;
+      setPreviewLayout(nextLayout);
+      setIsInvalidTarget(invalidTarget);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      interactionCleanupRef.current = null;
+      setActiveInteraction(null);
+      setIsInvalidTarget(false);
+    };
+
+    const finish = (shouldCommit: boolean) => {
+      const nextLayout = previewLayoutRef.current;
+      cleanup();
+      previewLayoutRef.current = null;
+      setPreviewLayout(null);
+      if (shouldCommit && !invalidTarget && nextLayout) commitWidgetLayout(nextLayout);
+    };
+
+    const handlePointerUp = () => finish(true);
+    const handlePointerCancel = () => finish(false);
+
+    interactionCleanupRef.current = () => finish(false);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+    window.addEventListener("pointercancel", handlePointerCancel, { once: true });
   };
 
   const moveWidgetByButton = (index: number, direction: "up" | "down") => {
     const destinationIndex = direction === "up" ? index - 1 : index + 1;
-    if (destinationIndex < 0 || destinationIndex >= normalizedWidgetOrder.length) return;
-    commitWidgetOrder(reorderDashboardWidgetIds(normalizedWidgetOrder, index, destinationIndex));
+    const activeOrder = normalizedWidgetLayout.order.filter((id) => !hiddenWidgetIds.includes(id));
+    if (destinationIndex < 0 || destinationIndex >= activeOrder.length) return;
+    commitWidgetOrder(reorderDashboardWidgetIds(activeOrder, index, destinationIndex));
   };
 
   if (isLoading) {
@@ -524,9 +727,22 @@ export default function Dashboard() {
             <Settings2 className="mr-2 h-4 w-4" />
             Виджеты
           </Button>
-          <Button variant="ghost" size="sm" className="h-8 rounded-lg" onClick={resetWidgetLayout}>
-            Сбросить layout
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 rounded-lg">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Сбросить layout
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setResetMode("positions")}>
+                Сбросить только позиции
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setResetMode("positions-and-sizes")}>
+                Сбросить позиции и размеры
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         {isWidgetSettingsOpen && (
           <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -551,37 +767,46 @@ export default function Dashboard() {
         )}
       </div>
 
-      <DragDropContext onDragEnd={handleWidgetDragEnd}>
-        <Droppable droppableId="dashboard-widgets" direction="vertical">
-          {(provided) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="grid grid-flow-dense auto-rows-[8px] grid-cols-1 gap-1.5 sm:gap-2 xl:grid-cols-12"
-            >
-              {orderedWidgets.map((widget, index) => (
-                <Draggable key={widget.id} draggableId={widget.id} index={index}>
-                  {(dragProvided, snapshot) => (
-                    <DashboardMasonryWidget
-                      widget={widget}
-                      index={index}
-                      total={orderedWidgets.length}
-                      size={widgetSizes[widget.id] ?? widget.defaultSize}
-                      dragProvided={dragProvided}
-                      snapshot={snapshot}
-                      onMove={moveWidgetByButton}
-                      onSizeChange={changeWidgetSize}
-                    />
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+      <div ref={gridRef} className="dashboard-widget-grid">
+        {orderedWidgets.map((widget, index) => {
+          const placement = displayedWidgetLayout.items[widget.id];
+          if (!placement) return null;
+          const isCurrentInteraction = activeInteraction?.widgetId === widget.id;
+          return (
+            <DashboardGridWidget
+              key={widget.id}
+              widget={widget}
+              index={index}
+              total={orderedWidgets.length}
+              placement={placement}
+              isInteracting={isCurrentInteraction}
+              isInvalidTarget={isCurrentInteraction && isInvalidTarget}
+              onMove={moveWidgetByButton}
+              onPointerInteraction={startPointerInteraction}
+              onResizeStep={resizeWidgetByStep}
+            />
+          );
+        })}
+      </div>
 
       <DashboardServicesSection user={currentUser} />
+
+      <AlertDialog open={resetMode !== null} onOpenChange={(open) => !open && setResetMode(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Сбросить расположение виджетов?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {resetMode === "positions"
+                ? "Позиции вернутся к значениям по умолчанию, текущие размеры и выбор видимых виджетов сохранятся."
+                : "Позиции и размеры вернутся к значениям по умолчанию. Скрытые виджеты останутся скрытыми."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmWidgetLayoutReset}>Сбросить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

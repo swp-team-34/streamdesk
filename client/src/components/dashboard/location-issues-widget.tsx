@@ -1,7 +1,8 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, MapPin } from "lucide-react";
+import { AlertTriangle, MapPin, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { queryClient } from "@/lib/queryClient";
@@ -54,16 +55,40 @@ export default function LocationIssuesWidget() {
     .slice(0, 5);
 
   return (
-    <Card className="border-l-4 border-l-amber-500/80">
+    <Card className="h-full border-l-4 border-l-amber-500/80">
       <CardHeader className="flex flex-row items-center justify-between px-3 py-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Площадки требуют внимания
+          Обновления площадок
         </CardTitle>
-        <Link href="/locations" className="text-xs text-primary hover:underline">Все</Link>
+        <div className="flex items-center gap-1">
+          <Link href="/locations" className="px-1 text-xs text-primary hover:underline">Все</Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              issuesQuery.refetch();
+              locationsQuery.refetch();
+            }}
+            disabled={issuesQuery.isFetching || locationsQuery.isFetching}
+            aria-label="Обновить площадки"
+          >
+            <RefreshCw className={issuesQuery.isFetching || locationsQuery.isFetching ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-2 px-3 pb-3 pt-0">
-        {active.length === 0 ? (
+        {(issuesQuery.isError || locationsQuery.isError) && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            Не удалось обновить данные. Показаны последние доступные значения.
+          </div>
+        )}
+        {issuesQuery.isLoading || locationsQuery.isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-12 animate-pulse rounded-md bg-muted/60" />
+          ))
+        ) : active.length === 0 ? (
           <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
             Активных проблем нет
           </div>
