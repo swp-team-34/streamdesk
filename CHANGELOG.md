@@ -16,6 +16,7 @@ changes are collected under `Unreleased`.
 - Added attributable threaded comments and replies for projects and Kanban V2 cards, including realtime counts, latest-activity indicators, reconnect states, and preserved historical authorship.
 - Added an authenticated, permission-scoped WebSocket transport with bounded subscriptions, reconnect/refetch recovery, duplicate-event protection, and HTTP/storage as the source of truth.
 - Added company-scoped Location topics with note/problem types, severity, replies, safe file attachments, resolve/reopen/archive lifecycle, optional Kanban V2/project links, realtime refresh, and compact summaries in related work and Dashboard views.
+- Added manual and checkout-derived equipment links in Kanban V2 cards, bidirectional Warehouse/project navigation, and unified project statistics for tasks, deadlines, workload, Locations, issues, and equipment state.
 
 ### Changed
 
@@ -30,6 +31,7 @@ changes are collected under `Unreleased`.
 - Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.
 - Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
 - Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
+- Fixed first-click project board opening, remembered the selected Kanban V2 board per user/workspace, and refreshed card equipment immediately after Warehouse deletion.
 
 ## [v3.0.0-rc.1] - 2026-07-11
 
