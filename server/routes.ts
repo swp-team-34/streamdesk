@@ -31,6 +31,12 @@ import {
   getTaskDeadlineStatus,
   isTaskDeadlineOverdue,
 } from "@shared/task-deadlines";
+import {
+  getKanbanCardAssigneeUserIds,
+  getKanbanCardInitiatorUserId,
+  getKanbanCardWorkloadUserIds,
+  normalizeKanbanUserIds,
+} from "@shared/kanban-card-roles";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
@@ -1342,9 +1348,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     startDate: z.string().trim().nullable().optional(),
+    startDateHasTime: z.boolean().optional(),
     dueDate: z.string().trim().nullable().optional(),
+    dueDateHasTime: z.boolean().optional(),
     locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
     locationIds: z.array(z.string().trim().min(1)).max(20).optional(),
+    initiatorUserId: z.string().trim().min(1, "initiatorUserId не должен быть пустым").nullable().optional(),
+    responsibleUserId: z.string().trim().min(1, "responsibleUserId не должен быть пустым").nullable().optional(),
+    assigneeUserIds: z.array(z.string().trim().min(1)).max(50).optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -1361,9 +1372,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     description: z.string().trim().max(5000, "Описание слишком длинное").nullable().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     startDate: z.string().trim().nullable().optional(),
+    startDateHasTime: z.boolean().optional(),
     dueDate: z.string().trim().nullable().optional(),
+    dueDateHasTime: z.boolean().optional(),
     locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
     locationIds: z.array(z.string().trim().min(1)).max(20).optional(),
+    initiatorUserId: z.string().trim().min(1, "initiatorUserId не должен быть пустым").nullable().optional(),
+    responsibleUserId: z.string().trim().min(1, "responsibleUserId не должен быть пустым").nullable().optional(),
+    assigneeUserIds: z.array(z.string().trim().min(1)).max(50).optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -1672,6 +1688,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Number.isNaN(date.getTime()) ? null : date;
   };
 
+  const validateKanbanDateRange = (input: {
+    startDate?: unknown;
+    startDateHasTime?: boolean;
+    dueDate?: unknown;
+    dueDateHasTime?: boolean;
+  }) => {
+    const rawStartDate = input.startDate == null ? "" : String(input.startDate).trim();
+    const rawDueDate = input.dueDate == null ? "" : String(input.dueDate).trim();
+    const startDate = parseOptionalKanbanDate(input.startDate);
+    const dueDate = parseOptionalKanbanDate(input.dueDate);
+
+    if (rawStartDate && !startDate) return { ok: false as const, message: "Некорректная дата начала" };
+    if (rawDueDate && !dueDate) return { ok: false as const, message: "Некорректный срок" };
+    if (startDate && dueDate && input.startDateHasTime === true && input.dueDateHasTime === false) {
+      return {
+        ok: false as const,
+        message: "Если у даты начала указано время, у срока оно тоже обязательно",
+      };
+    }
+    if (startDate && dueDate && dueDate.getTime() <= startDate.getTime()) {
+      return { ok: false as const, message: "Срок должен быть позже даты начала" };
+    }
+    return { ok: true as const, startDate, dueDate };
+  };
+
   const normalizeKanbanSubtasks = (subtasks: Array<{ id: string; title: string; completed?: boolean }> | undefined) => {
     if (!Array.isArray(subtasks)) return [];
     return subtasks
@@ -1726,30 +1767,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  const resolveKanbanAssigneeUserId = async (board: any, actorUser: any, assigneeUserId: unknown) => {
-    if (assigneeUserId == null) return { ok: true as const, userId: null };
+  const resolveKanbanRoleUserId = async (
+    board: any,
+    actorUser: any,
+    roleUserId: unknown,
+    roleLabel: string,
+    existingUserIds: string[] = [],
+  ) => {
+    if (roleUserId == null) return { ok: true as const, userId: null };
 
-    const normalized = String(assigneeUserId).trim();
+    const normalized = String(roleUserId).trim();
     if (!normalized) return { ok: true as const, userId: null };
 
     const user = await storage.getUser(normalized).catch(() => undefined);
-    if (!user || user.active === false) {
-      return { ok: false as const, message: "Исполнитель не найден или деактивирован" };
+    if (!user) {
+      return { ok: false as const, message: `${roleLabel} не найден` };
+    }
+    if (user.active === false && !existingUserIds.includes(normalized)) {
+      return { ok: false as const, message: `${roleLabel} деактивирован` };
     }
 
     if (!board.companyId) {
       if (String(normalized) !== String(actorUser?.id || "")) {
-        return { ok: false as const, message: "В личной доске можно назначать задачи только себе" };
+        return { ok: false as const, message: `В личной доске роль «${roleLabel}» можно назначить только себе` };
       }
       return { ok: true as const, userId: normalized };
     }
 
     const membership = await storage.getCompanyMembershipByUser(String(board.companyId), normalized).catch(() => undefined);
-    if (!membership || membership.status !== "active") {
-      return { ok: false as const, message: "Исполнитель должен быть активным участником компании доски" };
+    if (
+      (!membership || membership.status !== "active") &&
+      !existingUserIds.includes(normalized)
+    ) {
+      return { ok: false as const, message: `${roleLabel} должен быть активным участником компании доски` };
     }
 
     return { ok: true as const, userId: normalized };
+  };
+
+  const resolveKanbanRoleUserIds = async (
+    board: any,
+    actorUser: any,
+    roleUserIds: unknown,
+    roleLabel: string,
+    existingUserIds: string[] = [],
+  ) => {
+    if (roleUserIds == null) return { ok: true as const, userIds: [] as string[] };
+    if (!Array.isArray(roleUserIds)) {
+      return { ok: false as const, message: `${roleLabel} должны передаваться массивом` };
+    }
+
+    const normalized = normalizeKanbanUserIds(roleUserIds);
+    for (const userId of normalized) {
+      const resolution = await resolveKanbanRoleUserId(
+        board,
+        actorUser,
+        userId,
+        roleLabel,
+        existingUserIds,
+      );
+      if (!resolution.ok) return resolution;
+    }
+    return { ok: true as const, userIds: normalized };
   };
 
   const resolveKanbanLabelIds = async (boardId: string, labelIds: unknown) => {
@@ -1876,6 +1955,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       return {
       ...card,
+      initiatorUserId: getKanbanCardInitiatorUserId(card),
+      responsibleUserId: card.responsibleUserId || null,
+      assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+      assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || null,
+      startDateHasTime: card.startDateHasTime !== false,
+      dueDateHasTime: card.dueDateHasTime !== false,
       labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
       commentCount: activeComments.length,
       latestCommentAt,
@@ -2778,7 +2863,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       await createKanbanNotifications(
-        [card.assigneeUserId, card.creatorUserId].filter(
+        [
+          ...getKanbanCardWorkloadUserIds(card),
+          getKanbanCardInitiatorUserId(card),
+          card.creatorUserId,
+        ].filter(
           (userId) => String(userId || "") !== String(currentUser.id),
         ),
         "Новое вложение в Kanban",
@@ -2868,7 +2957,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       await createKanbanNotifications(
-        [card.assigneeUserId, card.creatorUserId].filter(
+        [
+          ...getKanbanCardWorkloadUserIds(card),
+          getKanbanCardInitiatorUserId(card),
+          card.creatorUserId,
+        ].filter(
           (userId) => String(userId || "") !== String(currentUser.id),
         ),
         "Новый комментарий в Kanban",
@@ -3089,7 +3182,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const nextPosition = existingCards.reduce((maxPosition: number, card: any) => {
         return Math.max(maxPosition, Number(card?.position ?? 0));
       }, -1) + 1;
-      const assigneeResolution = await resolveKanbanAssigneeUserId(access.board, currentUser, parsed.assigneeUserId);
+      const dateResolution = validateKanbanDateRange(parsed);
+      if (!dateResolution.ok) {
+        return res.status(400).json({ message: dateResolution.message });
+      }
+      const initiatorResolution = await resolveKanbanRoleUserId(
+        access.board,
+        currentUser,
+        parsed.initiatorUserId ?? currentUser.id,
+        "Инициатор",
+      );
+      if (!initiatorResolution.ok) {
+        return res.status(400).json({ message: initiatorResolution.message });
+      }
+      const responsibleResolution = await resolveKanbanRoleUserId(
+        access.board,
+        currentUser,
+        parsed.responsibleUserId,
+        "Ответственный",
+      );
+      if (!responsibleResolution.ok) {
+        return res.status(400).json({ message: responsibleResolution.message });
+      }
+      const requestedAssigneeUserIds = parsed.assigneeUserIds !== undefined
+        ? parsed.assigneeUserIds
+        : parsed.assigneeUserId ? [parsed.assigneeUserId] : [];
+      const assigneeResolution = await resolveKanbanRoleUserIds(
+        access.board,
+        currentUser,
+        requestedAssigneeUserIds,
+        "Исполнители",
+      );
       if (!assigneeResolution.ok) {
         return res.status(400).json({ message: assigneeResolution.message });
       }
@@ -3112,13 +3235,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title: parsed.title,
         description: parsed.description?.trim() || null,
         priority: parsed.priority,
-        startDate: parseOptionalKanbanDate(parsed.startDate),
-        dueDate: parseOptionalKanbanDate(parsed.dueDate),
+        startDate: dateResolution.startDate,
+        startDateHasTime: parsed.startDateHasTime ?? true,
+        dueDate: dateResolution.dueDate,
+        dueDateHasTime: parsed.dueDateHasTime ?? true,
         locationId: locationResolution.locationIds[0] || null,
         subtasks: normalizeKanbanSubtasks(parsed.subtasks),
         customFieldValues: parsed.customFieldValues ?? {},
         creatorUserId: currentUser.id,
-        assigneeUserId: assigneeResolution.userId,
+        initiatorUserId: initiatorResolution.userId || currentUser.id,
+        responsibleUserId: responsibleResolution.userId,
+        assigneeUserIds: assigneeResolution.userIds,
+        assigneeUserId: assigneeResolution.userIds[0] || null,
         position: nextPosition,
       });
       await storage.setKanbanCardLocations(card.id, locationResolution.locationIds);
@@ -3126,9 +3254,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await createKanbanCardHistoryEntry(currentUser.id, card.id, "created", null, card);
 
-      if (card.assigneeUserId && String(card.assigneeUserId) !== String(currentUser.id)) {
+      const createdRoleRecipients = getKanbanCardWorkloadUserIds(card)
+        .filter((userId) => String(userId) !== String(currentUser.id));
+      if (createdRoleRecipients.length > 0) {
         await createKanbanNotifications(
-          [card.assigneeUserId],
+          createdRoleRecipients,
           "Новая карточка Kanban",
           `Вам назначена карточка: ${card.title}`,
         );
@@ -3164,12 +3294,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData: Record<string, unknown> = {};
       const previousLocationIds = await getKanbanCardLocationIds(card);
       let nextLocationIds: string[] | undefined;
+      const previousRoleState = {
+        initiatorUserId: getKanbanCardInitiatorUserId(card),
+        responsibleUserId: card.responsibleUserId || null,
+        assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+      };
 
       if (parsed.title !== undefined) updateData.title = parsed.title;
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
-      if (parsed.startDate !== undefined) updateData.startDate = parseOptionalKanbanDate(parsed.startDate);
-      if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
+      if (
+        parsed.startDate !== undefined ||
+        parsed.dueDate !== undefined ||
+        parsed.startDateHasTime !== undefined ||
+        parsed.dueDateHasTime !== undefined
+      ) {
+        const dateResolution = validateKanbanDateRange({
+          startDate: parsed.startDate !== undefined ? parsed.startDate : card.startDate,
+          startDateHasTime: parsed.startDateHasTime ?? card.startDateHasTime ?? true,
+          dueDate: parsed.dueDate !== undefined ? parsed.dueDate : card.dueDate,
+          dueDateHasTime: parsed.dueDateHasTime ?? card.dueDateHasTime ?? true,
+        });
+        if (!dateResolution.ok) {
+          return res.status(400).json({ message: dateResolution.message });
+        }
+        if (parsed.startDate !== undefined) updateData.startDate = dateResolution.startDate;
+        if (parsed.dueDate !== undefined) updateData.dueDate = dateResolution.dueDate;
+        if (parsed.startDateHasTime !== undefined) updateData.startDateHasTime = parsed.startDateHasTime;
+        if (parsed.dueDateHasTime !== undefined) updateData.dueDateHasTime = parsed.dueDateHasTime;
+      }
       if (parsed.locationIds !== undefined || parsed.locationId !== undefined) {
         const requestedLocationIds = parsed.locationIds !== undefined
           ? parsed.locationIds
@@ -3187,12 +3340,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.customFieldValues !== undefined) updateData.customFieldValues = parsed.customFieldValues ?? {};
-      if (parsed.assigneeUserId !== undefined) {
-        const assigneeResolution = await resolveKanbanAssigneeUserId(access.board, currentUser, parsed.assigneeUserId);
+      if (parsed.initiatorUserId !== undefined) {
+        const initiatorResolution = await resolveKanbanRoleUserId(
+          access.board,
+          currentUser,
+          parsed.initiatorUserId ?? card.creatorUserId,
+          "Инициатор",
+          previousRoleState.initiatorUserId ? [previousRoleState.initiatorUserId] : [],
+        );
+        if (!initiatorResolution.ok) {
+          return res.status(400).json({ message: initiatorResolution.message });
+        }
+        updateData.initiatorUserId = initiatorResolution.userId || card.creatorUserId;
+      }
+      if (parsed.responsibleUserId !== undefined) {
+        const responsibleResolution = await resolveKanbanRoleUserId(
+          access.board,
+          currentUser,
+          parsed.responsibleUserId,
+          "Ответственный",
+          previousRoleState.responsibleUserId ? [previousRoleState.responsibleUserId] : [],
+        );
+        if (!responsibleResolution.ok) {
+          return res.status(400).json({ message: responsibleResolution.message });
+        }
+        updateData.responsibleUserId = responsibleResolution.userId;
+      }
+      if (parsed.assigneeUserIds !== undefined || parsed.assigneeUserId !== undefined) {
+        const requestedAssigneeUserIds = parsed.assigneeUserIds !== undefined
+          ? parsed.assigneeUserIds
+          : parsed.assigneeUserId ? [parsed.assigneeUserId] : [];
+        const assigneeResolution = await resolveKanbanRoleUserIds(
+          access.board,
+          currentUser,
+          requestedAssigneeUserIds,
+          "Исполнители",
+          previousRoleState.assigneeUserIds,
+        );
         if (!assigneeResolution.ok) {
           return res.status(400).json({ message: assigneeResolution.message });
         }
-        updateData.assigneeUserId = assigneeResolution.userId;
+        updateData.assigneeUserIds = assigneeResolution.userIds;
+        updateData.assigneeUserId = assigneeResolution.userIds[0] || null;
       }
       const previousLabelIds = (await storage.getKanbanCardLabels(card.id).catch(() => []))
         .map((link: any) => String(link.labelId));
@@ -3251,13 +3440,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await createKanbanCardHistoryEntry(currentUser.id, updated.id, "updated", card, updated);
 
-      if (
-        updated.assigneeUserId &&
-        String(updated.assigneeUserId) !== String(currentUser.id) &&
-        String(updated.assigneeUserId) !== String(card.assigneeUserId || "")
-      ) {
+      const nextRoleState = {
+        initiatorUserId: getKanbanCardInitiatorUserId(updated),
+        responsibleUserId: updated.responsibleUserId || null,
+        assigneeUserIds: getKanbanCardAssigneeUserIds(updated),
+      };
+      if (JSON.stringify(previousRoleState) !== JSON.stringify(nextRoleState)) {
+        await createKanbanCardHistoryEntry(
+          currentUser.id,
+          updated.id,
+          "roles_updated",
+          previousRoleState,
+          nextRoleState,
+        );
+      }
+
+      const previousRecipients = new Set(getKanbanCardWorkloadUserIds(card));
+      const newRecipients = getKanbanCardWorkloadUserIds(updated)
+        .filter((userId) =>
+          String(userId) !== String(currentUser.id) &&
+          !previousRecipients.has(userId),
+        );
+      if (newRecipients.length > 0) {
         await createKanbanNotifications(
-          [updated.assigneeUserId],
+          newRecipients,
           "Карточка Kanban назначена",
           `Вам назначена карточка: ${updated.title}`,
         );
@@ -11537,7 +11743,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const completedCards = visibleCards.filter(isCompletedCard);
       const inProgressCards = activeCards.filter(isInProgressCard);
       const overdueCards = activeCards.filter(isOverdueCard);
-      const unassignedCards = activeCards.filter((card) => !card.assigneeUserId);
+      const unassignedCards = activeCards.filter((card) => getKanbanCardWorkloadUserIds(card).length === 0);
 
       const deadlines = {
         overdue: 0,
@@ -11569,7 +11775,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         project.assignedTo,
         ...(Array.isArray(project.participants) ? project.participants : []),
         ...boardMembers.map((member) => member.userId),
-        ...visibleCards.map((card) => card.assigneeUserId),
+        ...visibleCards.flatMap((card) => [
+          ...getKanbanCardWorkloadUserIds(card),
+          getKanbanCardInitiatorUserId(card),
+        ]),
       ].map((id) => String(id || "").trim()).filter((id) => id && visibleUserIds.has(id))));
       const allUsers = await storage.getUsers().catch(() => []);
       const userNames: Record<string, string> = {};
@@ -11580,7 +11789,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       const assignees = projectMemberIds
         .map((userId) => {
-          const assignedCards = visibleCards.filter((card) => String(card.assigneeUserId || "") === userId);
+          const assignedCards = visibleCards.filter((card) =>
+            getKanbanCardWorkloadUserIds(card).includes(userId),
+          );
           return {
             userId,
             name: userNames[userId] || userId,
@@ -11592,6 +11803,20 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         })
         .sort((left, right) => right.active - left.active || left.name.localeCompare(right.name, "ru"));
       const byUser = Object.fromEntries(assignees.map((assignee) => [assignee.userId, assignee.total]));
+      const roleStats = {
+        initiators: Object.fromEntries(projectMemberIds.map((userId) => [
+          userId,
+          visibleCards.filter((card) => getKanbanCardInitiatorUserId(card) === userId).length,
+        ])),
+        responsible: Object.fromEntries(projectMemberIds.map((userId) => [
+          userId,
+          visibleCards.filter((card) => String(card.responsibleUserId || "") === userId).length,
+        ])),
+        assignees: Object.fromEntries(projectMemberIds.map((userId) => [
+          userId,
+          visibleCards.filter((card) => getKanbanCardAssigneeUserIds(card).includes(userId)).length,
+        ])),
+      };
 
       const [directLocationIds, cardLocationIds, allLocations, allLocationIssues] = await Promise.all([
         getProjectDirectLocationIds(project.id),
@@ -11764,8 +11989,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         completed: isCompletedCard(card),
         inProgress: isInProgressCard(card),
         overdue: isOverdueCard(card),
-        unassigned: !card.assigneeUserId,
-        assigneeUserId: card.assigneeUserId || null,
+        unassigned: getKanbanCardWorkloadUserIds(card).length === 0,
+        initiatorUserId: getKanbanCardInitiatorUserId(card),
+        responsibleUserId: card.responsibleUserId || null,
+        assigneeUserIds: getKanbanCardAssigneeUserIds(card),
+        assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || null,
         dueDate: card.dueDate || null,
       }));
       const total = visibleCards.length;
@@ -11780,6 +12008,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         byStatus,
         statusNames,
         byUser,
+        byRole: roleStats,
         userNames,
         tasks: {
           total,

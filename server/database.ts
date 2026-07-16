@@ -3730,6 +3730,21 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE kanban_boards ADD COLUMN IF NOT EXISTS label_groups jsonb DEFAULT '[]'::jsonb`;
         await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS project_id text`;
         await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS custom_field_values jsonb DEFAULT '{}'::jsonb`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS initiator_user_id varchar`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS responsible_user_id varchar`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS assignee_user_ids jsonb DEFAULT '[]'::jsonb`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS start_date_has_time boolean NOT NULL DEFAULT true`;
+        await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS due_date_has_time boolean NOT NULL DEFAULT true`;
+        await client`UPDATE kanban_cards
+          SET initiator_user_id = creator_user_id
+          WHERE initiator_user_id IS NULL`;
+        await client`UPDATE kanban_cards
+          SET assignee_user_ids = jsonb_build_array(assignee_user_id)
+          WHERE assignee_user_id IS NOT NULL
+            AND (
+              assignee_user_ids IS NULL
+              OR assignee_user_ids = '[]'::jsonb
+            )`;
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS group_id text`;
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS archived_at timestamp`;
         await client`ALTER TABLE kanban_card_comments ADD COLUMN IF NOT EXISTS parent_comment_id varchar`;
