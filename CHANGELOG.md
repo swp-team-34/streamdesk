@@ -8,6 +8,10 @@ changes are collected under `Unreleased`.
 
 ## [Unreleased]
 
+### Added
+
+- Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
+
 ## [v3.0.0-rc.1] - 2026-07-11
 
 ### Added

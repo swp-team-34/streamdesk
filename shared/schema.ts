@@ -462,11 +462,19 @@ export const kanbanCardAttachments = pgTable("kanban_card_attachments", {
 
 export const customLocations = pgTable("custom_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id),
   name: text("name").notNull().unique(),
   description: text("description"),
   type: text("type").default("storage"),
+  address: text("address"),
+  notes: text("notes"),
   status: text("status").notNull().default("available"),
+  attachments: jsonb("attachments").default('[]'),
+  archivedAt: timestamp("archived_at"),
+  archivedByUserId: varchar("archived_by_user_id").references(() => users.id),
+  updatedByUserId: varchar("updated_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const locationIssues = pgTable("location_issues", {
@@ -821,7 +829,12 @@ export const insertKanbanCardAttachmentSchema = createInsertSchema(kanbanCardAtt
 
 export const insertCustomLocationSchema = createInsertSchema(customLocations).omit({
   id: true,
+  attachments: true,
+  archivedAt: true,
+  archivedByUserId: true,
   createdAt: true,
+  updatedAt: true,
+  updatedByUserId: true,
 });
 
 export const insertLocationIssueSchema = createInsertSchema(locationIssues).omit({
