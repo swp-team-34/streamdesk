@@ -203,6 +203,16 @@ interface KanbanCardView {
     title: string;
     severity: string;
   }>;
+  locationTopics?: Array<{
+    id: string;
+    locationId: string;
+    locationName: string;
+    title: string;
+    type: "note" | "issue";
+    severity?: string | null;
+    status: "active" | "resolved" | "archived";
+    updatedAt?: string | Date | null;
+  }>;
   labelIds?: string[];
   subtasks?: KanbanSubtask[];
   customFieldValues?: Record<string, unknown>;
@@ -926,8 +936,11 @@ export default function TasksV2Page() {
     },
   });
   const cardDiscussionChannels = useMemo(
-    () => cards.map((card) => `kanban-card:${card.id}:comments`),
-    [cards],
+    () => [
+      ...cards.map((card) => `kanban-card:${card.id}:comments`),
+      selectedBoard?.companyId ? `company:${selectedBoard.companyId}` : null,
+    ].filter(Boolean) as string[],
+    [cards, selectedBoard?.companyId],
   );
   useRealtimeSubscriptions(cardDiscussionChannels, (message) => {
     if (
@@ -3062,6 +3075,16 @@ export default function TasksV2Page() {
               {card.latestCommentAt && <span>· {formatDueDateLabel(card.latestCommentAt)}</span>}
             </Badge>
           )}
+          {(card.locationTopics?.length ?? 0) > 0 && (
+            <a
+              href={`/locations?locationId=${encodeURIComponent(card.locationTopics![0].locationId)}&topicId=${encodeURIComponent(card.locationTopics![0].id)}`}
+              onClick={(event) => event.stopPropagation()}
+              className="mt-1.5 flex w-fit items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 hover:bg-violet-500/20 dark:text-violet-200"
+            >
+              <MessageSquare className="h-3 w-3" />
+              Темы площадки: {card.locationTopics?.length}
+            </a>
+          )}
           {list?.type === "active" && (card.locationWarnings?.length ?? 0) > 0 && (
             <Badge variant="destructive" className="mt-1.5 w-fit gap-1 rounded-full text-xs">
               <AlertTriangle className="h-3 w-3" />
@@ -3896,6 +3919,16 @@ export default function TasksV2Page() {
                                                       <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
                                                         {getDueDateStatusLabel(dueDateStatus)}
                                                       </Badge>
+                                                      {(card.locationTopics?.length ?? 0) > 0 && (
+                                                        <a
+                                                          href={`/locations?locationId=${encodeURIComponent(card.locationTopics![0].locationId)}&topicId=${encodeURIComponent(card.locationTopics![0].id)}`}
+                                                          onClick={(event) => event.stopPropagation()}
+                                                          className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-700 hover:bg-violet-500/20 dark:text-violet-200"
+                                                        >
+                                                          <MessageSquare className="h-3 w-3" />
+                                                          Темы: {card.locationTopics?.length}
+                                                        </a>
+                                                      )}
                                                       {list.type === "active" && (card.locationWarnings?.length ?? 0) > 0 && (
                                                         <Badge variant="destructive" className="gap-1 rounded-full">
                                                           <AlertTriangle className="h-3 w-3" />
@@ -4533,6 +4566,7 @@ export default function TasksV2Page() {
                 const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
                 const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
                 const activeLocationIssues = selectedDetailCard.locationWarnings ?? [];
+                const activeLocationTopics = selectedDetailCard.locationTopics ?? [];
 
                 return (
                   <>
@@ -4564,6 +4598,25 @@ export default function TasksV2Page() {
                       На связанных площадках есть проблемы высокой важности:{" "}
                       {activeLocationIssues.map((issue) => `${issue.locationName}: ${issue.title}`).join(", ")}.
                     </span>
+                  </div>
+                )}
+                {activeLocationTopics.length > 0 && (
+                  <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2">
+                    <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-violet-800 dark:text-violet-200">
+                      <MessageSquare className="h-4 w-4" />
+                      Активные темы связанных площадок
+                    </div>
+                    <div className="space-y-1">
+                      {activeLocationTopics.map((topic) => (
+                        <a
+                          key={topic.id}
+                          href={`/locations?locationId=${encodeURIComponent(topic.locationId)}&topicId=${encodeURIComponent(topic.id)}`}
+                          className="block text-sm text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          {topic.locationName}: {topic.title}
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
