@@ -8,6 +8,27 @@ async function createAppWithRoutes() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
   await registerRoutes(app);
+  const unscopedItems = (await storage.getEquipment()).filter((item) => {
+    const specifications = item.specifications && typeof item.specifications === "object"
+      ? item.specifications as any
+      : {};
+    return !String(specifications.companyId || "").trim();
+  });
+  if (unscopedItems.length > 0) {
+    const company = await storage.createCompany({
+      name: `Equipment regression company ${Date.now()}-${++kitSequence}`,
+      ownerId: "admin-stub-default-id",
+      status: "active",
+    } as any);
+    await Promise.all(unscopedItems.map((item) =>
+      storage.updateEquipment(item.id, {
+        specifications: {
+          ...(item.specifications && typeof item.specifications === "object" ? item.specifications : {}),
+          companyId: company.id,
+        },
+      } as any),
+    ));
+  }
   return app;
 }
 
@@ -23,7 +44,62 @@ function registeredRoutes(app: express.Express) {
 function routeHandler(app: express.Express, method: string, path: string) {
   const layer = ((app as any)._router?.stack || [])
     .find((item: any) => item.route?.path === path && item.route?.methods?.[method.toLowerCase()]);
-  return layer?.route?.stack?.[0]?.handle as ((req: any, res: any) => Promise<void>) | undefined;
+  const handler = layer?.route?.stack?.[0]?.handle as ((req: any, res: any) => Promise<void>) | undefined;
+  if (!handler) return undefined;
+  return async (req: any, res: any) => {
+    if (req.user?.id && !req.workspace) {
+      const equipmentId = String(
+        req.params?.id ||
+        req.params?.bundleId ||
+        req.params?.componentId ||
+        req.body?.equipmentId ||
+        req.body?.equipmentIds?.[0] ||
+        "",
+      ).trim();
+      const item = equipmentId
+        ? await storage.getEquipmentById(equipmentId).catch(() => undefined)
+        : undefined;
+      const project = req.params?.projectId
+        ? await storage.getProjectById(String(req.params.projectId)).catch(() => undefined)
+        : undefined;
+      const checkoutRequest = path.includes("/api/equipment-checkout-requests/:id") && req.params?.id
+        ? await storage.getEquipmentCheckoutRequestById(String(req.params.id)).catch(() => undefined)
+        : undefined;
+      const specifications = item?.specifications && typeof item.specifications === "object"
+        ? item.specifications as any
+        : {};
+      const companyId = String(
+        req.body?.companyId ||
+        specifications.companyId ||
+        project?.companyId ||
+        checkoutRequest?.companyId ||
+        "",
+      ).trim();
+      if (companyId) {
+        const membership = await storage.getCompanyMembershipByUser(companyId, req.user.id).catch(() => undefined);
+        if (!membership) {
+          await storage.createCompanyMember({
+            companyId,
+            userId: req.user.id,
+            role: req.user.role === "admin" ? "admin" : "member",
+            status: "active",
+          } as any);
+        }
+        req.workspace = {
+          type: "company",
+          companyId,
+          requiresSelection: false,
+          source: "session",
+        };
+        req.user = {
+          ...req.user,
+          activeWorkspaceType: "company",
+          activeCompanyId: companyId,
+        };
+      }
+    }
+    return handler(req, res);
+  };
 }
 
 function createJsonResponse() {
@@ -42,10 +118,23 @@ function createJsonResponse() {
 }
 
 let kitSequence = 0;
+let defaultKitCompanyId = "";
+
+async function getDefaultKitCompanyId() {
+  if (defaultKitCompanyId) return defaultKitCompanyId;
+  const company = await storage.createCompany({
+    name: `Kit default company ${Date.now()}-${++kitSequence}`,
+    ownerId: "admin-stub-default-id",
+    status: "active",
+  } as any);
+  defaultKitCompanyId = company.id;
+  return defaultKitCompanyId;
+}
 
 async function createEquipmentKit(options: { active?: boolean; companyId?: string } = {}) {
   kitSequence += 1;
   const suffix = `${Date.now()}-${kitSequence}`;
+  const companyId = options.companyId || await getDefaultKitCompanyId();
   const component = await storage.createEquipment({
     name: `Kit component ${suffix}`,
     type: "camera",
@@ -53,7 +142,7 @@ async function createEquipmentKit(options: { active?: boolean; companyId?: strin
     status: "in-use",
     operabilityStatus: "working",
     location: "В составе комплекта",
-    specifications: options.companyId ? { companyId: options.companyId } : {},
+    specifications: { companyId },
   } as any);
   const bundle = await storage.createEquipment({
     name: `Kit ${suffix}`,
@@ -63,7 +152,7 @@ async function createEquipmentKit(options: { active?: boolean; companyId?: strin
     operabilityStatus: "working",
     location: "Склад A",
     specifications: {
-      ...(options.companyId ? { companyId: options.companyId } : {}),
+      companyId,
       isSuperPosition: true,
       bundleType: "super_position",
       bundleComponentIds: [component.id],
@@ -77,7 +166,7 @@ async function createEquipmentKit(options: { active?: boolean; companyId?: strin
   } as any);
   const linkedComponent = await storage.updateEquipment(component.id, {
     specifications: {
-      ...(options.companyId ? { companyId: options.companyId } : {}),
+      companyId,
       parentBundleId: bundle.id,
       parentBundleName: bundle.name,
       parentBundleCreatedAt: new Date().toISOString(),
@@ -445,7 +534,7 @@ describe("equipment request actions", () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "PUT", "/api/equipment/:id");
     const summaryHandler = routeHandler(app, "GET", "/api/equipment-on-projects");
-    const { project, location, cards, item } = await createEquipmentContextFixture();
+    const { company, project, location, cards, item } = await createEquipmentContextFixture();
     await storage.updateEquipment(item.id, {
       status: "in-use",
       assignedTo: "admin-stub-default-id",
@@ -472,7 +561,20 @@ describe("equipment request actions", () => {
     const links = await storage.getEquipmentContextLinks(item.id);
     expect(links.filter((link) => link.active && link.source === "manual")).toHaveLength(2);
     const summaryResponse = createJsonResponse();
-    await summaryHandler!({ user: { id: "admin-stub-default-id", role: "admin" } }, summaryResponse);
+    await summaryHandler!({
+      user: {
+        id: "admin-stub-default-id",
+        role: "admin",
+        activeWorkspaceType: "company",
+        activeCompanyId: company.id,
+      },
+      workspace: {
+        type: "company",
+        companyId: company.id,
+        requiresSelection: false,
+        source: "session",
+      },
+    }, summaryResponse);
     expect((summaryResponse.body as any[]).filter((row) =>
       row.equipmentId === item.id && row.projectId === project.id,
     )).toHaveLength(1);
@@ -912,7 +1014,14 @@ describe("warehouse kit safety", () => {
     const sendHandler = routeHandler(app, "POST", "/api/projects/:projectId/equipment-bundle");
     const listHandler = routeHandler(app, "GET", "/api/projects/:projectId/equipment-bundles");
     const { component, bundle } = await createEquipmentKit();
-    const projectId = `project-kit-${Date.now()}`;
+    const companyId = String((component.specifications as any).companyId);
+    const project = await storage.createProject({
+      name: `Project kit ${Date.now()}`,
+      companyId,
+      ownerId: admin.id,
+      status: "planning",
+    } as any);
+    const projectId = project.id;
     const res = createJsonResponse();
 
     await sendHandler!({
@@ -939,7 +1048,10 @@ describe("warehouse kit safety", () => {
       kitExtractionHistory: [expect.objectContaining({ context: `project-send:${projectId}` })],
     });
     const listResponse = createJsonResponse();
-    await listHandler!({ params: { projectId } }, listResponse);
+    await listHandler!({
+      user: admin,
+      params: { projectId },
+    }, listResponse);
     expect(listResponse.body).toEqual([
       expect.objectContaining({ projectId, equipmentIds: [component.id] }),
     ]);
@@ -949,11 +1061,17 @@ describe("warehouse kit safety", () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "POST", "/api/projects/:projectId/equipment-bundle");
     const { component, bundle } = await createEquipmentKit();
+    const project = await storage.createProject({
+      name: `Project kit failure ${Date.now()}`,
+      companyId: String((component.specifications as any).companyId),
+      ownerId: admin.id,
+      status: "planning",
+    } as any);
     const res = createJsonResponse();
 
     await handler!({
       user: admin,
-      params: { projectId: `project-kit-failure-${Date.now()}` },
+      params: { projectId: project.id },
       body: {
         equipmentIds: [component.id, "missing-equipment"],
         returnDate: "2026-07-30",
@@ -1081,7 +1199,7 @@ describe("warehouse kit safety", () => {
       status: "available",
       operabilityStatus: "working",
       location: "Склад B",
-      specifications: {},
+      specifications: { companyId: (bundle.specifications as any).companyId },
     } as any);
     const res = createJsonResponse();
 
@@ -1221,7 +1339,7 @@ describe("warehouse kit safety", () => {
       status: "available",
       operabilityStatus: "working",
       location: "Склад",
-      specifications: {},
+      specifications: { companyId: (bundle.specifications as any).companyId },
     } as any);
     const weakResponse = createJsonResponse();
 

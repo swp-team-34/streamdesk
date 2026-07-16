@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { publishGlobalSyncState } from "@/lib/global-sync-state";
+import { registerWorkspaceFlushHandler } from "@/lib/workspace-switch";
 
 export type AutosaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -164,6 +165,8 @@ export function useDebouncedAutosave<TValue, TPayload>({
     }
     return true;
   }, [clearTimer, enabled, executeSave]);
+
+  useEffect(() => registerWorkspaceFlushHandler(flush), [flush]);
 
   return { status, error, flush };
 }

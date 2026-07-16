@@ -14,6 +14,7 @@ import {
   Menu,
 } from "lucide-react";
 import { tabPermission } from "@shared/schema";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 const STORAGE_KEY = "streamdesk_bottom_nav_tabs";
 
@@ -73,6 +74,7 @@ interface BottomNavProps {
 
 export function BottomNav({ user, onOpenMenu }: BottomNavProps) {
   const [location] = useLocation();
+  const { workspace } = useWorkspace();
   const tabKeys = loadSavedTabKeys();
 
   const canAccessTab = (tabKey: string): boolean => {
@@ -89,7 +91,12 @@ export function BottomNav({ user, onOpenMenu }: BottomNavProps) {
       return { key: "more", label: "Ещё", shortLabel: "Ещё", icon: Menu, href: "", isMore: true };
     }
     const c = CANDIDATES.find((x) => x.tabKey === key);
-    if (!c || !canAccessTab(key)) return null;
+    const personalTabKeys = new Set(["dashboard", "calendar", "tasks", "notifications", "settings"]);
+    if (
+      !c ||
+      !canAccessTab(key) ||
+      (workspace?.type === "personal" && !personalTabKeys.has(key))
+    ) return null;
     return { ...c, isMore: false };
   }).filter(Boolean) as Array<{
     key: string;

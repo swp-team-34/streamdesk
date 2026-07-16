@@ -79,6 +79,8 @@ export class MemStorage implements IStorage {
       active: true,
       onboardingCompleted: false,
       workspaceMode: "pending",
+      activeWorkspaceType: null,
+      activeCompanyId: null,
       lastLogin: null,
       createdAt: new Date(),
       ...user,
@@ -252,6 +254,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.events.values());
   }
 
+  async getEventById(id: string): Promise<Event | undefined> {
+    return this.events.get(id);
+  }
+
   async getEventsByUser(userId: string): Promise<Event[]> {
     return Array.from(this.events.values()).filter(event => event.organizerId === userId);
   }
@@ -264,6 +270,7 @@ export class MemStorage implements IStorage {
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
     const event: Event = {
+      companyId: null,
       description: null,
       status: "scheduled",
       customLocation: null,

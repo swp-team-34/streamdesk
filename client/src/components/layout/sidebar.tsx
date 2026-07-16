@@ -37,6 +37,7 @@ import { useState, useRef, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tabPermission, PERMISSIONS } from "@shared/schema";
 import { apiUrl } from "@/lib/queryClient";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 interface SidebarProps {
   user?: any;
@@ -120,6 +121,7 @@ function SidebarLink({
 }
 export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
   const [location] = useLocation();
+  const { workspace } = useWorkspace();
   const touchStartX = useRef(0);
   const { data: terminalAccess } = useQuery({
     queryKey: ["/api/terminal/access"],
@@ -140,16 +142,18 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
   const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const canViewTerminal = Boolean(user?.role && terminalAccess?.allowedRoles?.includes(user.role));
   const canViewCompanyAdmin =
-    user?.role === "admin" ||
-    user?.role === "manager" ||
-    user?.workspaceMode === "company_owner" ||
-    permissions.includes(PERMISSIONS.ADMIN_PANEL);
+    workspace?.type === "company" && (
+      user?.role === "admin" ||
+      user?.role === "manager" ||
+      user?.workspaceMode === "company_owner" ||
+      permissions.includes(PERMISSIONS.ADMIN_PANEL)
+    );
   const canViewPlatformAdmin = user?.role === "admin" && permissions.includes(PERMISSIONS.PLATFORM_ADMIN);
-  const isOwnerMode = canViewPlatformAdmin;
   const currentHref =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
       : location;
+  const isOwnerMode = canViewPlatformAdmin && currentHref.startsWith("/platform-admin");
   const isNavActive = (href: string) => {
     if (href.startsWith("/platform-admin")) {
       const currentTab = new URLSearchParams(currentHref.split("?")[1] || "").get("tab") || "overview";
@@ -181,11 +185,17 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
 
   const visibleServiceNavigation = serviceNavigation.filter((item) => {
     if (isOwnerMode) return false;
-    if (item.visibility === "terminal") return canViewTerminal;
+    if (item.visibility === "terminal") return workspace?.type === "company" && canViewTerminal;
     if (item.visibility === "platform-admin") return canViewPlatformAdmin;
     return canViewCompanyAdmin;
   });
-  const visiblePrimaryNavigation = isOwnerMode ? navigation.filter((item) => item.tabKey === "settings") : navigation.filter((item) => canAccessTab(item.tabKey));
+  const personalTabKeys = new Set(["dashboard", "calendar", "tasks", "projects", "notifications", "settings"]);
+  const visiblePrimaryNavigation = isOwnerMode
+    ? []
+    : navigation.filter((item) =>
+        canAccessTab(item.tabKey) &&
+        (workspace?.type !== "personal" || personalTabKeys.has(item.tabKey)),
+      );
 
   const toggleCollapse = () => {
     const nextCollapsed = !collapsed;
@@ -262,7 +272,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
             />
           ))}
 
-          {!isOwnerMode && canAccessTab("vmix-scheduler") && (
+          {!isOwnerMode && workspace?.type === "company" && canAccessTab("vmix-scheduler") && (
             <div className="my-4 border-t border-border/40 pt-4">
               <Link
                 href="/vmix-scheduler"

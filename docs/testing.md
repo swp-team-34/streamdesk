@@ -16,10 +16,10 @@ Critical modules are selected by product risk: permission checks, access control
 
 | Check | Command or workflow | Current purpose | Evidence |
 | --- | --- | --- | --- |
-| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | Passed locally on 2026-07-11 and in `Quality`. |
-| Vitest test suite | `npm test` | Runs unit, component, route, and authenticated WebSocket integration tests across client and server code. | 18 test files and 90 tests passed locally on 2026-07-16; CI confirmation pending. |
-| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | 18 test files and 90 tests passed locally on 2026-07-16 with 2.16% line coverage; CI confirmation pending. |
-| Build | `npm run build` | Verifies the production client and server build. | Passed locally on 2026-07-11 and in `Quality`. |
+| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | Passed locally on 2026-07-16; CI confirmation pending. |
+| Vitest test suite | `npm test` | Runs unit, component, route, and authenticated WebSocket integration tests across client and server code. | 24 test files and 114 tests passed locally on 2026-07-16; CI confirmation pending. |
+| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | 24 test files and 114 tests passed locally on 2026-07-16 with 2.87% line coverage; CI confirmation pending. |
+| Build | `npm run build` | Verifies the production client and server build. | Passed locally on 2026-07-16; CI confirmation pending. |
 | Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain. |
 | Link checking | `Link Check` workflow | Runs Lychee against repository links using `lychee.toml`. | GitHub Actions link-check workflow. |
 

@@ -45,6 +45,8 @@ import AuthWrapper from "@/components/auth-wrapper";
 import { ProtectedRoute } from "@/components/protected-route";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PERMISSIONS } from "@shared/schema";
+import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { WorkspaceBoundary } from "@/components/workspace/workspace-boundary";
 
 function StubModeBanner() {
   const { data } = useQuery<{ stubMode?: boolean }>({
@@ -214,8 +216,6 @@ function Router({ user }: { user: any }) {
 }
 
 function getDefaultAuthenticatedPath(user: any): string {
-  const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes("platform:admin");
-  if (isPlatformAdmin) return "/platform-admin";
   return "/";
 }
 
@@ -309,18 +309,6 @@ function App() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!user || typeof window === "undefined") return;
-    const isPlatformAdminUser = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.PLATFORM_ADMIN);
-    if (!isPlatformAdminUser) return;
-    const path = window.location.pathname;
-    const allowedPaths = ["/platform-admin", "/settings", "/login", "/onboarding"];
-    if (!allowedPaths.includes(path)) {
-      const t = setTimeout(() => { window.location.href = "/platform-admin"; }, 100);
-      return () => clearTimeout(t);
-    }
-  }, [user]);
-
   if (isLoading && user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -373,17 +361,19 @@ function App() {
     );
   }
 
-  const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.PLATFORM_ADMIN);
   const showWorkspaceChrome = user.onboardingCompleted !== false && location !== "/onboarding";
-  const showBottomNav = showWorkspaceChrome && !isPlatformAdmin;
+  const isPlatformAdminArea = location === "/platform-admin";
+  const showBottomNav = showWorkspaceChrome && !isPlatformAdminArea;
   const isTasksWorkspace = location === "/tasks" || location === "/tasks-v2";
   const isFullWidthWorkspace = isTasksWorkspace;
 
   return (
     <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <div
+        <WorkspaceProvider>
+          <WorkspaceBoundary>
+            <TooltipProvider>
+              <div
             className={cn(
               "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
               isTasksWorkspace ? "overflow-visible" : "overflow-x-hidden",
@@ -468,9 +458,11 @@ function App() {
               {showWorkspaceChrome && <Footer />}
               {showBottomNav && <BottomNav user={user} onOpenMenu={() => setMobileNavOpen(true)} />}
             </div>
-          </div>
-          <Toaster />
-        </TooltipProvider>
+              </div>
+              <Toaster />
+            </TooltipProvider>
+          </WorkspaceBoundary>
+        </WorkspaceProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
