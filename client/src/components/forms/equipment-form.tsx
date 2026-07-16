@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { insertEquipmentSchema } from "@shared/schema";
 import { canCreateEquipment, canEditEquipment, canReserveEquipment } from "@/lib/equipment-permissions";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoUpload } from "@/components/equipment/photo-upload";
 import { useState, useEffect, useRef } from "react";
+import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { z } from "zod";
 import { QrCode, Download, Printer, RefreshCw, ScanBarcode, MapPin, AlertTriangle } from "lucide-react";
 import {
@@ -116,6 +118,28 @@ interface EquipmentFormProps {
   equipment?: any;
   mode?: "full" | "take_return";
   companyManager?: boolean;
+  companyId?: string;
+  locations?: Array<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+    archivedAt?: string | null;
+  }>;
+  projects?: Array<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+    status?: string | null;
+  }>;
+  kanbanCards?: Array<{
+    id: string;
+    title: string;
+    boardName?: string | null;
+    listName?: string | null;
+    projectId?: string | null;
+    boardProjectId?: string | null;
+    companyId?: string | null;
+  }>;
 }
 
 function getCurrentUser() {
@@ -200,12 +224,21 @@ export function EquipmentForm({
   equipment,
   mode = "full",
   companyManager = false,
+  companyId = "",
+  locations = [],
+  projects = [],
+  kanbanCards = [],
 }: EquipmentFormProps) {
   const [photos, setPhotos] = useState<string[]>(equipment?.photos || []);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [barcodeValue, setBarcodeValue] = useState("");
   const [specificationsText, setSpecificationsText] = useState("");
   const [estimatePrice, setEstimatePrice] = useState("");
+  const [destinationChoice, setDestinationChoice] = useState("");
+  const [manualLocation, setManualLocation] = useState("");
+  const [contextProjectId, setContextProjectId] = useState("none");
+  const [contextCardIds, setContextCardIds] = useState<Set<string>>(new Set());
+  const [autosaveReady, setAutosaveReady] = useState(false);
   const barcodeRef = useRef<SVGSVGElement>(null);
   const { toast } = useToast();
 
@@ -214,20 +247,45 @@ export function EquipmentForm({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      if (equipment) {
-        setPhotos(equipment.photos || []);
-        const existingBarcode = equipment.barcode || equipment.inventoryNumber || equipment.serialNumber || "";
-        setBarcodeValue(existingBarcode);
-        setSpecificationsText(serializeSpecifications(equipment.specifications));
-        setEstimatePrice(getEstimatePriceValue(equipment.specifications));
-      } else {
-        setPhotos([]);
-        setBarcodeValue("");
-        setSpecificationsText("");
-        setEstimatePrice("");
-      }
+    setAutosaveReady(false);
+    if (!isOpen) return;
+    if (equipment) {
+      setPhotos(equipment.photos || []);
+      const existingBarcode = equipment.barcode || equipment.inventoryNumber || equipment.serialNumber || "";
+      setBarcodeValue(existingBarcode);
+      setSpecificationsText(serializeSpecifications(equipment.specifications));
+      setEstimatePrice(getEstimatePriceValue(equipment.specifications));
+      const destination = asRecord(equipment.physicalDestination);
+      const locationId = String(destination.locationId || equipment.locationId || "").trim();
+      const currentManualLocation = String(
+        destination.manualLocation ||
+        equipment.manualLocation ||
+        (!locationId ? destination.legacyLocation || equipment.location : "") ||
+        "",
+      ).trim();
+      setDestinationChoice(locationId || (currentManualLocation ? "manual" : ""));
+      setManualLocation(currentManualLocation);
+      const activeManualLinks = Array.isArray(asRecord(equipment.workContext).links)
+        ? (asRecord(equipment.workContext).links as any[])
+            .filter((link) => link.active && link.source === "manual")
+        : [];
+      const projectId = String(activeManualLinks.find((link) => link.projectId)?.projectId || "").trim();
+      setContextProjectId(projectId || "none");
+      setContextCardIds(new Set(
+        activeManualLinks.map((link) => String(link.kanbanCardId || "").trim()).filter(Boolean),
+      ));
+    } else {
+      setPhotos([]);
+      setBarcodeValue("");
+      setSpecificationsText("");
+      setEstimatePrice("");
+      setDestinationChoice("");
+      setManualLocation("");
+      setContextProjectId("none");
+      setContextCardIds(new Set());
     }
+    const readyTimer = window.setTimeout(() => setAutosaveReady(true), 0);
+    return () => window.clearTimeout(readyTimer);
   }, [isOpen, equipment]);
 
   useEffect(() => {
@@ -316,6 +374,66 @@ export function EquipmentForm({
   const userCanEdit = canEditEquipment(currentUser) || companyManager;
   const userCanReserve = canReserveEquipment(currentUser) || companyManager;
   const canManageBarcode = userCanEdit || (!equipment && userCanCreate);
+  const equipmentCompanyId = String(asRecord(equipment?.specifications).companyId || companyId || "").trim();
+  const currentDestination = asRecord(equipment?.physicalDestination);
+  const currentLocationId = String(currentDestination.locationId || equipment?.locationId || "").trim();
+  const availableLocations = locations.filter((location) =>
+    (!equipmentCompanyId || String(location.companyId || "") === equipmentCompanyId) &&
+    (!location.archivedAt || String(location.id) === currentLocationId),
+  );
+  const availableProjects = projects.filter((project) =>
+    (!equipmentCompanyId || String(project.companyId || "") === equipmentCompanyId) &&
+    String(project.status || "") !== "archived",
+  );
+  const cardProjectId = (card: NonNullable<EquipmentFormProps["kanbanCards"]>[number]) =>
+    String(card.projectId || card.boardProjectId || "").trim();
+  const availableKanbanCards = kanbanCards.filter((card) =>
+    (!equipmentCompanyId || String(card.companyId || "") === equipmentCompanyId) &&
+    (contextProjectId === "none" || cardProjectId(card) === contextProjectId),
+  );
+
+  const changeContextProject = (projectId: string) => {
+    setContextProjectId(projectId);
+    if (projectId === "none") return;
+    setContextCardIds((current) => new Set(
+      [...current].filter((cardId) => {
+        const card = kanbanCards.find((entry) => entry.id === cardId);
+        return card && cardProjectId(card) === projectId;
+      }),
+    ));
+  };
+
+  const toggleContextCard = (card: NonNullable<EquipmentFormProps["kanbanCards"]>[number], checked: boolean) => {
+    const projectId = cardProjectId(card);
+    if (checked && contextProjectId === "none" && projectId) {
+      setContextProjectId(projectId);
+      setContextCardIds((current) => new Set([
+        ...[...current].filter((cardId) => {
+          const selectedCard = kanbanCards.find((entry) => entry.id === cardId);
+          return selectedCard && cardProjectId(selectedCard) === projectId;
+        }),
+        card.id,
+      ]));
+      return;
+    }
+    setContextCardIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(card.id);
+      else next.delete(card.id);
+      return next;
+    });
+  };
+
+  const physicalDestinationPayload = () => destinationChoice === "manual"
+    ? { manualLocation: manualLocation.trim() || null, locationId: null }
+    : destinationChoice
+      ? { locationId: destinationChoice, manualLocation: null }
+      : { locationId: null, manualLocation: null };
+
+  const workContextPayload = () => ({
+    projectId: contextProjectId === "none" ? null : contextProjectId,
+    kanbanCardIds: [...contextCardIds],
+  });
 
   const buildGeneratedInventoryNumber = (data: z.infer<typeof equipmentFormSchema>) => {
     const prefix = getInventoryPrefix(data.type);
@@ -324,7 +442,9 @@ export function EquipmentForm({
   };
 
   const buildEquipmentPayload = (data: z.infer<typeof equipmentFormSchema>) => {
-    const inventoryNumber = String(data.inventoryNumber ?? "").trim() || buildGeneratedInventoryNumber(data);
+    const inventoryNumber = String(data.inventoryNumber ?? "").trim() ||
+      String(equipment?.inventoryNumber || "").trim() ||
+      buildGeneratedInventoryNumber(data);
     const nextBarcode = canManageBarcode ? (barcodeValue.trim() || inventoryNumber) : equipment?.barcode;
     const preservedInternalSpecifications = Object.fromEntries(
       Object.entries(asRecord(equipment?.specifications)).filter(([key]) => isInternalSpecificationKey(key)),
@@ -340,6 +460,8 @@ export function EquipmentForm({
       notes: String(data.notes ?? "").trim(),
       photos,
       barcode: nextBarcode,
+      physicalDestination: physicalDestinationPayload(),
+      workContext: workContextPayload(),
     };
   };
 
@@ -386,34 +508,75 @@ export function EquipmentForm({
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof equipmentFormSchema>) => {
-      const payload = buildEquipmentPayload(data);
+    mutationFn: async ({ payload }: { payload: Record<string, unknown>; silent?: boolean }) => {
       const response = await apiRequest("PUT", `/api/equipment/${equipment.id}`, payload);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      queryClient.refetchQueries({ queryKey: ["/api/equipment"] });
-      toast({
-        title: "Успешно",
-        description: "Оборудование обновлено",
-      });
-      onClose();
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      if (!variables.silent) {
+        toast({ title: "Успешно", description: "Оборудование обновлено" });
+      }
     },
-    onError: (error: any) => {
-      toast({
-        title: "Ошибка",
-        description: error.message || "Не удалось обновить оборудование",
-        variant: "destructive",
-      });
+    onError: (error: any, variables) => {
+      if (!variables.silent) {
+        toast({
+          title: "Ошибка",
+          description: error.message || "Не удалось обновить оборудование",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
+  const watchedEquipmentValues = form.watch();
+  const parsedAutosaveValues = equipmentFormSchema.safeParse(watchedEquipmentValues);
+  const equipmentAutosaveValue = {
+    formValues: watchedEquipmentValues,
+    barcodeValue,
+    specificationsText,
+    estimatePrice,
+    photos,
+    destinationChoice,
+    manualLocation,
+    contextProjectId,
+    contextCardIds: [...contextCardIds].sort(),
+    payload: parsedAutosaveValues.success ? buildEquipmentPayload(parsedAutosaveValues.data) : null,
+    validationError: parsedAutosaveValues.success
+      ? ""
+      : parsedAutosaveValues.error.issues[0]?.message || "Проверьте данные оборудования",
+  };
+  const equipmentAutosave = useDebouncedAutosave({
+    enabled: autosaveReady && isOpen && mode === "full" && Boolean(equipment?.id),
+    resetKey: `${equipment?.id || "new"}:${isOpen ? "open" : "closed"}`,
+    source: `equipment:${equipment?.id || "new"}`,
+    value: equipmentAutosaveValue,
+    validate: (snapshot) => {
+      if (!snapshot.payload || !String(snapshot.formValues.name || "").trim()) {
+        return { ok: false as const, error: snapshot.validationError || "Введите название оборудования" };
+      }
+      if (snapshot.destinationChoice === "manual" && !snapshot.manualLocation.trim()) {
+        return { ok: false as const, error: "Укажите ручное местоположение" };
+      }
+      return { ok: true as const, payload: snapshot.payload };
+    },
+    save: async (payload) => {
+      await updateMutation.mutateAsync({ payload, silent: true });
     },
   });
 
   const takeReturnMutation = useMutation({
-    mutationFn: async (data: { location: string; action: 'take' | 'return' }) => {
+    mutationFn: async (data: { action: 'take' | 'return' }) => {
       const response = await apiRequest("PUT", `/api/equipment/${equipment.id}`, {
         status: data.action === 'take' ? 'in-use' : 'available',
-        location: data.location,
+        physicalDestination: physicalDestinationPayload(),
+        ...(data.action === "take" ? { workContext: workContextPayload() } : {}),
         assignedTo: data.action === 'take' ? currentUser?.id : null,
         lastUsed: new Date(),
       });
@@ -437,16 +600,38 @@ export function EquipmentForm({
     },
   });
 
-  const onSubmit = (data: z.infer<typeof equipmentFormSchema>) => {
-    if (equipment) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data);
+  const onSubmit = async (data: z.infer<typeof equipmentFormSchema>) => {
+    if (destinationChoice === "manual" && !manualLocation.trim()) {
+      toast({
+        title: "Укажите местоположение",
+        description: "Заполните ручное местоположение или выберите площадку.",
+        variant: "destructive",
+      });
+      return;
     }
+    if (equipment) {
+      await equipmentAutosave.flush();
+      return;
+    }
+    createMutation.mutate(data);
+  };
+
+  const requestClose = async () => {
+    if (equipment && mode === "full") {
+      const saved = await equipmentAutosave.flush();
+      if (!saved) {
+        toast({
+          title: "Изменения не сохранены",
+          description: equipmentAutosave.error || "Исправьте данные или повторите сохранение.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    onClose();
   };
 
   const handleTakeReturn = (action: 'take' | 'return') => {
-    const location = form.getValues("location") || "";
     if (action === "take" && getEquipmentOperabilityStatus(equipment) !== "working") {
       toast({
         title: "Недоступно для выдачи",
@@ -457,15 +642,15 @@ export function EquipmentForm({
       });
       return;
     }
-    if (!location && action === 'take') {
+    if (action === "take" && (!destinationChoice || (destinationChoice === "manual" && !manualLocation.trim()))) {
       toast({
         title: "Укажите локацию",
-        description: "Необходимо указать место, куда берёте оборудование",
+        description: "Выберите площадку или укажите место вручную.",
         variant: "destructive",
       });
       return;
     }
-    takeReturnMutation.mutate({ location, action });
+    takeReturnMutation.mutate({ action });
   };
 
   const generateBarcode = () => {
@@ -495,10 +680,100 @@ export function EquipmentForm({
     Boolean(parentBundleId) &&
     parentBundleExists !== false;
 
+  const renderDestinationAndContext = (includeWorkContext: boolean) => (
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          <MapPin className="mr-1 inline h-4 w-4" />
+          Физическое местоположение
+        </div>
+        <Select
+          value={destinationChoice || "none"}
+          onValueChange={(value) => {
+            setDestinationChoice(value === "none" ? "" : value);
+            if (value !== "manual") setManualLocation("");
+          }}
+        >
+          <SelectTrigger className="bg-white dark:bg-slate-900">
+            <SelectValue placeholder="Выберите площадку или ручной ввод" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Не указано</SelectItem>
+            {availableLocations.map((location) => (
+              <SelectItem key={location.id} value={location.id}>
+                {location.name}{location.archivedAt ? " · в архиве" : ""}
+              </SelectItem>
+            ))}
+            <SelectItem value="manual">Указать место вручную</SelectItem>
+          </SelectContent>
+        </Select>
+        {destinationChoice === "manual" && (
+          <Input
+            value={manualLocation}
+            onChange={(event) => setManualLocation(event.target.value)}
+            placeholder="Например: выездная площадка, монтажная 2"
+            className="bg-white dark:bg-slate-900"
+          />
+        )}
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Это место назначения оборудования. Полка или стеллаж указываются отдельно в поле хранения.
+        </p>
+      </div>
+
+      {includeWorkContext && (
+        <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+          <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Рабочий контекст
+          </div>
+          <Select value={contextProjectId} onValueChange={changeContextProject}>
+            <SelectTrigger className="bg-white dark:bg-slate-900">
+              <SelectValue placeholder="Без проекта" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Без проекта</SelectItem>
+              {availableProjects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="max-h-44 space-y-2 overflow-y-auto rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+            {availableKanbanCards.length > 0 ? availableKanbanCards.slice(0, 100).map((card) => (
+              <label key={card.id} className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <Checkbox
+                  checked={contextCardIds.has(card.id)}
+                  onCheckedChange={(checked) => toggleContextCard(card, checked === true)}
+                />
+                <span className="min-w-0 text-sm">
+                  <span className="block break-words font-medium">{card.title || "Карточка"}</span>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400">
+                    {[card.boardName, card.listName].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+              </label>
+            )) : (
+              <div className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
+                {contextProjectId === "none"
+                  ? "Нет доступных карточек Kanban V2"
+                  : "У проекта нет доступных карточек Kanban V2"}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Можно выбрать несколько карточек. Legacy Task Manager здесь не используется.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   if (isTakeReturnMode && equipment) {
     return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) onClose();
+      }}>
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto bg-white dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-slate-900 dark:text-white">
               {returnViaParentBundle
@@ -534,29 +809,7 @@ export function EquipmentForm({
 
             <Form {...form}>
               <div className="space-y-4">
-                {!returnViaParentBundle && (
-                  <FormField
-                    control={form.control}
-                    name="location"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-slate-700 dark:text-slate-300">
-                          <MapPin className="w-4 h-4 inline mr-1" />
-                          Локация
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Студия А, Монтажная 2..."
-                            className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                            {...field}
-                            value={field.value || ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                {!returnViaParentBundle && renderDestinationAndContext(equipment.status !== "in-use")}
 
                 <div className="flex gap-3">
                   <Button
@@ -605,7 +858,9 @@ export function EquipmentForm({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) void requestClose();
+    }}>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar bg-white dark:bg-slate-900 sm:w-full">
         <DialogHeader>
           <DialogTitle className="text-slate-900 dark:text-white">
@@ -807,27 +1062,9 @@ export function EquipmentForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel className="text-slate-700 dark:text-slate-300">
-                      <MapPin className="w-4 h-4 inline mr-1" />
-                      Местоположение
-                    </FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Студия А, Стойка 1" 
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                        {...field}
-                        value={field.value || ""} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="md:col-span-2">
+                {renderDestinationAndContext(true)}
+              </div>
 
               <FormField
                 control={form.control}
@@ -960,25 +1197,46 @@ export function EquipmentForm({
               onPhotosChange={setPhotos}
             />
 
-            <div className="flex justify-end space-x-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose}
-                className="border-slate-300 dark:border-slate-600"
-              >
-                Отмена
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="bg-primary hover:bg-primary/90 text-white"
-              >
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Сохранение..." 
-                  : equipment ? "Обновить" : "Добавить"
-                }
-              </Button>
+            <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+              {equipment ? (
+                <div
+                  className={`text-sm ${
+                    equipmentAutosave.status === "error" || (equipmentAutosave.status === "dirty" && equipmentAutosave.error)
+                      ? "text-destructive"
+                      : "text-slate-500 dark:text-slate-400"
+                  }`}
+                  role="status"
+                >
+                  {equipmentAutosave.status === "saving"
+                    ? "Сохранение изменений..."
+                    : equipmentAutosave.status === "dirty"
+                      ? equipmentAutosave.error || "Изменения будут сохранены автоматически"
+                      : equipmentAutosave.status === "error"
+                        ? equipmentAutosave.error || "Не удалось сохранить изменения"
+                        : "Все изменения сохранены"}
+                </div>
+              ) : (
+                <div />
+              )}
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void requestClose()}
+                  className="border-slate-300 dark:border-slate-600"
+                >
+                  {equipment ? "Закрыть" : "Отмена"}
+                </Button>
+                {!equipment && (
+                  <Button
+                    type="submit"
+                    disabled={createMutation.isPending}
+                    className="bg-primary hover:bg-primary/90 text-white"
+                  >
+                    {createMutation.isPending ? "Сохранение..." : "Добавить"}
+                  </Button>
+                )}
+              </div>
             </div>
           </form>
         </Form>

@@ -34,6 +34,10 @@ function isOverdue(item: any, now: Date) {
   return !isComplete(item) && getTime(item.dueDate) < now.getTime();
 }
 
+function isOperationalEquipmentAssignment(item: any) {
+  return !Array.isArray(item?.sources) || item.sources.includes("project-bundle");
+}
+
 function useTaskSources() {
   const cardsQuery = useQuery<any[]>({
     queryKey: ["/api/kanban/cards"],
@@ -182,7 +186,9 @@ export function EquipmentAttentionWidget() {
   const equipmentOnProjectsQuery = useQuery<any[]>({ queryKey: ["/api/equipment-on-projects"], retry: 1, refetchInterval: 15000 });
   const checkoutRequestsQuery = useQuery<any[]>({ queryKey: ["/api/equipment-checkout-requests"], retry: 1, refetchInterval: 15000 });
   const now = new Date();
-  const overdueReturns = (equipmentOnProjectsQuery.data ?? []).filter((item) => getTime(item.returnDate) < now.getTime());
+  const overdueReturns = (equipmentOnProjectsQuery.data ?? []).filter((item) =>
+    isOperationalEquipmentAssignment(item) && getTime(item.returnDate) < now.getTime(),
+  );
   const pendingRequests = (checkoutRequestsQuery.data ?? []).filter((request) => String(request.status || "pending") === "pending");
 
   return (
@@ -239,7 +245,9 @@ export function AttentionSummaryWidget() {
   const checkoutRequestsQuery = useQuery<any[]>({ queryKey: ["/api/equipment-checkout-requests"], retry: 1, refetchInterval: 15000 });
   const now = new Date();
   const overdueTasks = tasks.filter((task) => isOverdue(task, now)).length;
-  const overdueReturns = (equipmentOnProjectsQuery.data ?? []).filter((item) => getTime(item.returnDate) < now.getTime()).length;
+  const overdueReturns = (equipmentOnProjectsQuery.data ?? []).filter((item) =>
+    isOperationalEquipmentAssignment(item) && getTime(item.returnDate) < now.getTime(),
+  ).length;
   const pendingRequests = (checkoutRequestsQuery.data ?? []).filter((request) => String(request.status || "pending") === "pending").length;
 
   return (

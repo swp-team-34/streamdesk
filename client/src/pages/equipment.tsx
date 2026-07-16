@@ -17,6 +17,8 @@ import { canCreateEquipment, canEditEquipment, canReserveEquipment } from "@/lib
 import { buildBarcodeLabelBitmapPayload, renderCompactBarcodeLabel } from "@/lib/barcode-label";
 import { apiRequest, apiUrl, encodeUserHeader } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
+import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { cn } from "@/lib/utils";
 import type { Equipment } from "@shared/schema";
 
@@ -172,7 +174,7 @@ function getEquipmentComments(item: Equipment | null | undefined): EquipmentComm
 }
 
 function getEquipmentStorageLocation(item: Equipment | null | undefined) {
-  return String(item?.storageLocation || item?.location || "").trim();
+  return String(item?.storageLocation || "").trim();
 }
 
 function getEquipmentResponsiblePerson(item: Equipment | null | undefined) {
@@ -181,6 +183,27 @@ function getEquipmentResponsiblePerson(item: Equipment | null | undefined) {
 
 function getEquipmentResponsibleContact(item: Equipment | null | undefined) {
   return String(item?.responsibleContact || "").trim();
+}
+
+function getEquipmentCompanyId(item: Equipment | null | undefined) {
+  return String(asRecord(item?.specifications).companyId || "").trim();
+}
+
+function getEquipmentPhysicalDestination(item: Equipment | null | undefined) {
+  const destination = asRecord((item as any)?.physicalDestination);
+  return {
+    locationId: String(destination.locationId || (item as any)?.locationId || "").trim(),
+    locationName: String(destination.locationName || "").trim(),
+    manualLocation: String(destination.manualLocation || (item as any)?.manualLocation || "").trim(),
+    displayName: String(destination.displayName || item?.location || "").trim(),
+    archived: destination.archived === true,
+    legacyLocation: String(destination.legacyLocation || "").trim(),
+  };
+}
+
+function getEquipmentContextLinks(item: Equipment | null | undefined) {
+  const workContext = asRecord((item as any)?.workContext);
+  return Array.isArray(workContext.links) ? workContext.links as any[] : [];
 }
 
 function getEquipmentOperabilityStatus(item: Equipment | null | undefined) {
@@ -318,10 +341,12 @@ export default function EquipmentPage() {
   const [passResponsiblePhone, setPassResponsiblePhone] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [requestEquipment, setRequestEquipment] = useState<Equipment | null>(null);
-  const [requestLocation, setRequestLocation] = useState<string>("");
+  const [requestLocationChoice, setRequestLocationChoice] = useState<string>("");
+  const [requestManualLocation, setRequestManualLocation] = useState<string>("");
   const [requestNote, setRequestNote] = useState<string>("");
   const [requestQuantity, setRequestQuantity] = useState<string>("1");
-  const [requestLinkId, setRequestLinkId] = useState<string>("none");
+  const [requestProjectId, setRequestProjectId] = useState<string>("none");
+  const [requestCardIds, setRequestCardIds] = useState<Set<string>>(new Set());
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
   const [bundleType, setBundleType] = useState("computer");
@@ -365,12 +390,27 @@ export default function EquipmentPage() {
     enabled: Boolean(currentUser?.id),
   });
 
-  const { data: projects = [] } = useQuery<{ id: string; name: string }[]>({
+  const { data: projects = [] } = useQuery<Array<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+    status?: string | null;
+  }>>({
     queryKey: ["/api/projects"],
   });
 
-  const { data: tasks = [] } = useQuery<Array<{ id: string; title: string; status?: string | null }>>({
-    queryKey: ["/api/tasks"],
+  const { data: locations = [] } = useQuery<Array<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+    archivedAt?: string | null;
+    status?: string | null;
+  }>>({
+    queryKey: ["/api/locations", { archive: "all" }],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/locations?archive=all");
+      return response.json();
+    },
     enabled: Boolean(currentUser?.id),
   });
 
@@ -378,6 +418,10 @@ export default function EquipmentPage() {
     id: string;
     title: string;
     boardName?: string | null;
+    boardId?: string | null;
+    projectId?: string | null;
+    boardProjectId?: string | null;
+    companyId?: string | null;
     listName?: string | null;
     listType?: string | null;
   }>>({
@@ -385,7 +429,18 @@ export default function EquipmentPage() {
     enabled: Boolean(currentUser?.id),
   });
 
-  const { data: equipmentOnProjects = [] } = useQuery<Array<{ equipmentId: string; projectId: string; projectName?: string; sentAt?: string; returnDate: string; returnTime?: string; assignedByName: string; assignedByUserId?: string }>>({
+  const { data: equipmentOnProjects = [] } = useQuery<Array<{
+    equipmentId: string;
+    projectId: string;
+    projectName?: string;
+    sentAt?: string;
+    returnDate: string;
+    returnTime?: string;
+    assignedByName: string;
+    assignedByUserId?: string;
+    sources?: string[];
+    kanbanCardIds?: string[];
+  }>>({
     queryKey: ["/api/equipment-on-projects"],
   });
 
@@ -410,10 +465,22 @@ export default function EquipmentPage() {
     reviewedBy?: string | null;
     status: string;
     location?: string | null;
+    locationId?: string | null;
+    manualLocation?: string | null;
     note?: string | null;
     decisionNote?: string | null;
     kanbanCardId?: string | null;
-    taskId?: string | null;
+    kanbanCardIds?: string[] | null;
+    projectId?: string | null;
+    physicalDestination?: {
+      displayName?: string | null;
+      locationName?: string | null;
+      manualLocation?: string | null;
+    };
+    workContext?: {
+      project?: { id: string; name: string; status?: string | null } | null;
+      kanbanCards?: Array<{ id: string; title: string; boardId?: string | null; projectId?: string | null }>;
+    };
     quantity?: number | null;
     createdAt?: string;
     updatedAt?: string;
@@ -424,7 +491,7 @@ export default function EquipmentPage() {
   });
 
   const companyMemberships = Array.isArray(companyData?.companies) ? companyData.companies : [];
-  const activeCompanyIds = companyMemberships
+  const activeCompanyIds: string[] = companyMemberships
     .map((item: any) => String(item?.company?.id || "").trim())
     .filter(Boolean);
   const manageableCompanyIds = companyMemberships
@@ -438,6 +505,17 @@ export default function EquipmentPage() {
   const userCanReserve = canReserveEquipment(currentUser) || canApproveCheckout;
   const canRequestCheckout = activeCompanyIds.length > 0;
 
+  useRealtimeSubscriptions(
+    activeCompanyIds.map((companyId) => `company:${companyId}`),
+    () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+    },
+  );
+
   const updateEquipmentNoteMutation = useMutation({
     mutationFn: async ({ equipmentId, notes }: { equipmentId: string; notes: string }) => {
       const response = await apiRequest("PUT", `/api/equipment/${equipmentId}`, { notes });
@@ -445,15 +523,46 @@ export default function EquipmentPage() {
     },
     onSuccess: (updated: Equipment) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       if (updated?.id) {
         setDetailsEquipment(updated);
       }
-      toast({ title: "Сохранено", description: "Примечание обновлено." });
-    },
-    onError: (e: any) => {
-      toast({ title: "Ошибка", description: e?.message || "Не удалось сохранить примечание", variant: "destructive" });
     },
   });
+
+  const equipmentNoteAutosave = useDebouncedAutosave({
+    enabled: Boolean(detailsEquipment?.id && userCanEdit),
+    resetKey: String(detailsEquipment?.id || ""),
+    source: `equipment-note:${detailsEquipment?.id || "closed"}`,
+    value: {
+      equipmentId: String(detailsEquipment?.id || ""),
+      notes: detailsNote,
+    },
+    validate: (snapshot) => snapshot.equipmentId
+      ? { ok: true as const, payload: snapshot }
+      : { ok: false as const, error: "Оборудование не выбрано" },
+    save: async (payload) => {
+      await updateEquipmentNoteMutation.mutateAsync(payload);
+    },
+  });
+
+  const closeEquipmentDetails = async () => {
+    if (detailsEquipment?.id && userCanEdit) {
+      const saved = await equipmentNoteAutosave.flush();
+      if (!saved) {
+        toast({
+          title: "Изменения не сохранены",
+          description: equipmentNoteAutosave.error || "Не удалось сохранить примечание.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setDetailsEquipment(null);
+    setDetailsReturnBundleId(null);
+  };
 
   const addEquipmentCommentMutation = useMutation({
     mutationFn: async ({ equipmentItem, text }: { equipmentItem: Equipment; text: string }) => {
@@ -728,7 +837,7 @@ export default function EquipmentPage() {
     ];
     const rows = toExport
       .map((item: Equipment) => {
-        const projectInfo = getOnProjectInfo(item.id);
+        const projectInfo = getAnyProjectContext(item.id);
         return [
           getTypeText(item.type ?? "other"),
           item.name ?? "",
@@ -1046,34 +1155,31 @@ export default function EquipmentPage() {
   const requestCheckoutMutation = useMutation({
     mutationFn: async ({
       equipmentId,
-      location,
+      physicalDestination,
+      workContext,
       note,
       companyId,
       requestType,
       quantity,
-      kanbanCardId,
-      taskId,
       kitExtraction,
     }: {
       equipmentId: string;
-      location?: string;
+      physicalDestination: { locationId?: string; manualLocation?: string };
+      workContext?: { projectId?: string; kanbanCardIds: string[] };
       note?: string;
       companyId?: string;
       requestType?: "checkout" | "transfer";
       quantity: number;
-      kanbanCardId?: string;
-      taskId?: string;
       kitExtraction?: KitExtractionPayload;
     }) => {
       const response = await apiRequest("POST", "/api/equipment-checkout-requests", {
         equipmentId,
-        location,
+        physicalDestination,
+        workContext,
         note,
         companyId,
         requestType,
         quantity,
-        kanbanCardId,
-        taskId,
         kitExtraction,
       });
       return response.json();
@@ -1081,6 +1187,7 @@ export default function EquipmentPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       const isTransfer = variables.requestType === "transfer";
       toast({
@@ -1090,10 +1197,12 @@ export default function EquipmentPage() {
           : "Главный по компании увидит запрос и сможет подтвердить выдачу.",
       });
       setRequestEquipment(null);
-      setRequestLocation("");
+      setRequestLocationChoice("");
+      setRequestManualLocation("");
       setRequestNote("");
       setRequestQuantity("1");
-      setRequestLinkId("none");
+      setRequestProjectId("none");
+      setRequestCardIds(new Set());
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось отправить запрос", variant: "destructive" });
@@ -1152,7 +1261,9 @@ export default function EquipmentPage() {
       return Promise.all(responses.map((response) => response.json().catch(() => null)));
     },
     onSuccess: (_, requestIdOrIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       const requestId = Array.isArray(requestIdOrIds) ? requestIdOrIds[0] : requestIdOrIds;
       const request = checkoutRequests.find((item) => item.id === requestId);
       const count = Array.isArray(requestIdOrIds) ? requestIdOrIds.length : 1;
@@ -1286,7 +1397,11 @@ export default function EquipmentPage() {
   };
 
   const getOnProjectInfo = (equipmentId: string) =>
-    equipmentOnProjects.find((x) => x.equipmentId === equipmentId);
+    equipmentOnProjects.find((entry) =>
+      entry.equipmentId === equipmentId && (entry.sources || ["project-bundle"]).includes("project-bundle"),
+    );
+  const getAnyProjectContext = (equipmentId: string) =>
+    equipmentOnProjects.find((entry) => entry.equipmentId === equipmentId);
 
   const getKitOperationalContext = (item: Equipment) => {
     let current = item;
@@ -1489,6 +1604,62 @@ export default function EquipmentPage() {
     return item.status === "in-use" && Boolean(item.assignedTo) && !isCurrentUserMatch(item.assignedTo);
   };
 
+  const resetRequestContext = () => {
+    setRequestEquipment(null);
+    setRequestLocationChoice("");
+    setRequestManualLocation("");
+    setRequestNote("");
+    setRequestQuantity("1");
+    setRequestProjectId("none");
+    setRequestCardIds(new Set());
+  };
+  const requestCompanyId = getEquipmentCompanyId(requestEquipment) || primaryCompanyId;
+  const requestLocations = locations.filter((location) =>
+    !location.archivedAt && String(location.companyId || "") === requestCompanyId,
+  );
+  const requestProjects = projects.filter((project) =>
+    String(project.companyId || "") === requestCompanyId && String(project.status || "") !== "archived",
+  );
+  const getCardProjectId = (card: {
+    projectId?: string | null;
+    boardProjectId?: string | null;
+  }) => String(card.projectId || card.boardProjectId || "").trim();
+  const requestKanbanCards = kanbanCards.filter((card) => {
+    if (String(card.companyId || "") !== requestCompanyId) return false;
+    const cardProjectId = getCardProjectId(card);
+    return requestProjectId === "none" || cardProjectId === requestProjectId;
+  });
+  const changeRequestProject = (projectId: string) => {
+    setRequestProjectId(projectId);
+    if (projectId === "none") return;
+    setRequestCardIds((current) => new Set(
+      [...current].filter((cardId) => {
+        const card = kanbanCards.find((entry) => entry.id === cardId);
+        return card && getCardProjectId(card) === projectId;
+      }),
+    ));
+  };
+  const toggleRequestCard = (card: typeof kanbanCards[number], checked: boolean) => {
+    const cardProjectId = getCardProjectId(card);
+    if (checked && requestProjectId === "none" && cardProjectId) {
+      setRequestProjectId(cardProjectId);
+      setRequestCardIds((current) => new Set([
+        ...[...current].filter((cardId) => {
+          const selectedCard = kanbanCards.find((entry) => entry.id === cardId);
+          return selectedCard && getCardProjectId(selectedCard) === cardProjectId;
+        }),
+        card.id,
+      ]));
+      return;
+    }
+    setRequestCardIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(card.id);
+      else next.delete(card.id);
+      return next;
+    });
+  };
+
   const pendingRequests = checkoutRequests.filter((item) => item.status === "pending");
   const managedPendingRequests = pendingRequests.filter((item) =>
     manageableCompanyIds.includes(String(item.companyId || "").trim()),
@@ -1511,7 +1682,9 @@ export default function EquipmentPage() {
       const key = [
         request.requestedBy,
         request.requestType || "checkout",
-        request.location || "",
+        request.physicalDestination?.displayName || request.location || "",
+        request.projectId || "",
+        [...(request.kanbanCardIds || [])].sort().join(","),
         requestGroupTime(request.createdAt),
       ].join("|");
       if (!acc[key]) {
@@ -1520,7 +1693,7 @@ export default function EquipmentPage() {
           requests: [],
           requester: request.requestedBy,
           requestType: request.requestType || "checkout",
-          location: request.location,
+          location: request.physicalDestination?.displayName || request.location,
           createdAt: request.createdAt,
         };
       }
@@ -1660,7 +1833,10 @@ export default function EquipmentPage() {
     return due.getTime() < Date.now();
   };
 
-  const overdueCount = equipmentOnProjects.filter((x) => isReturnOverdue(x.returnDate, x.returnTime)).length;
+  const overdueCount = equipmentOnProjects.filter((entry) =>
+    (entry.sources || ["project-bundle"]).includes("project-bundle") &&
+    isReturnOverdue(entry.returnDate, entry.returnTime),
+  ).length;
   const activeFilterCount =
     Number(statusFilter !== "all") +
     Number(operabilityFilter !== "all") +
@@ -2377,9 +2553,19 @@ export default function EquipmentPage() {
                         {isKitExtractionRequest ? "Активный комплект" : "Сейчас у сотрудника"}: {currentHolderName}
                       </div>
                     )}
-                    {request.location && (
+                    {(request.physicalDestination?.displayName || request.location) && (
                       <div className="text-sm text-slate-500 dark:text-slate-400">
-                        {requestType === "transfer" ? "Куда переносит" : "Куда берёт"}: {request.location}
+                        {requestType === "transfer" ? "Куда переносит" : "Куда берёт"}: {request.physicalDestination?.displayName || request.location}
+                      </div>
+                    )}
+                    {request.workContext?.project && (
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
+                        Проект: {request.workContext.project.name}
+                      </div>
+                    )}
+                    {Boolean(request.workContext?.kanbanCards?.length) && (
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
+                        Kanban V2: {request.workContext?.kanbanCards?.map((card) => card.title).join(", ")}
                       </div>
                     )}
                     {request.note && (
@@ -2474,6 +2660,7 @@ export default function EquipmentPage() {
         ) : (
           filteredEquipment.map((item: Equipment) => {
             const projectInfo = getOnProjectInfo(item.id);
+            const contextProjectInfo = getAnyProjectContext(item.id);
             const pendingRequest = getPendingRequestForEquipment(item.id);
             const requestType = getCheckoutRequestType(pendingRequest, item);
             const requestedByMe = pendingRequest?.requestedBy && isCurrentUserMatch(pendingRequest.requestedBy);
@@ -2491,6 +2678,7 @@ export default function EquipmentPage() {
                 getSpecificationEntries(item.specifications).length > 0,
             );
             const itemComments = getEquipmentComments(item);
+            const physicalDestination = getEquipmentPhysicalDestination(item);
             const storageLocation = getEquipmentStorageLocation(item);
             const responsiblePerson = getEquipmentResponsiblePerson(item);
             const responsibleContact = getEquipmentResponsibleContact(item);
@@ -2661,8 +2849,11 @@ export default function EquipmentPage() {
                             return;
                           }
                           setRequestEquipment(item);
-                          setRequestLocation(item.location || "");
+                          setRequestLocationChoice("");
+                          setRequestManualLocation("");
                           setRequestNote("");
+                          setRequestProjectId("none");
+                          setRequestCardIds(new Set());
                         }}
                         title={
                           pendingRequest
@@ -2809,6 +3000,16 @@ export default function EquipmentPage() {
                       <span className="max-w-full min-w-0 break-all text-left font-medium sm:max-w-[68%] sm:text-right">{item.inventoryNumber}</span>
                     </div>
                   )}
+                  {physicalDestination.displayName && (
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                      <MapPin className="mt-1 h-3 w-3 shrink-0 text-violet-500" />
+                      <span className="text-slate-500 dark:text-slate-400">Сейчас:</span>
+                      <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
+                        {physicalDestination.displayName}
+                        {physicalDestination.archived ? " · архив" : ""}
+                      </span>
+                    </div>
+                  )}
                   {storageLocation && (
                     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
                       <MapPin className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
@@ -2823,6 +3024,13 @@ export default function EquipmentPage() {
                       <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
                         {[responsiblePerson, responsibleContact].filter(Boolean).join(" · ")}
                       </span>
+                    </div>
+                  )}
+                  {contextProjectInfo && !projectInfo && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-blue-700 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-300">
+                      <div className="min-w-0 break-words">
+                        Рабочий контекст: {contextProjectInfo.projectName || contextProjectInfo.projectId}
+                      </div>
                     </div>
                   )}
                   {itemComments.length > 0 && (
@@ -2873,6 +3081,10 @@ export default function EquipmentPage() {
                         {requestedByMe
                           ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
                           : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
+                      </Badge>
+                    ) : contextProjectInfo ? (
+                      <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        Контекст проекта
                       </Badge>
                     ) : (
                       <Badge className={`${getStatusColor(item.status)} max-w-full rounded-full text-[11px]`}>
@@ -3036,6 +3248,10 @@ export default function EquipmentPage() {
         equipment={selectedEquipment}
         mode={formMode}
         companyManager={canApproveCheckout}
+        companyId={selectedEquipment ? getEquipmentCompanyId(selectedEquipment) : primaryCompanyId}
+        locations={locations}
+        projects={projects}
+        kanbanCards={kanbanCards}
         parentBundleExists={selectedEquipment
           ? Boolean(equipment.some((candidate) => candidate.id === getParentBundleId(selectedEquipment)))
           : true}
@@ -3080,8 +3296,11 @@ export default function EquipmentPage() {
               return;
             }
             setRequestEquipment(foundEquipment);
-            setRequestLocation(foundEquipment.location || "");
+            setRequestLocationChoice("");
+            setRequestManualLocation("");
             setRequestNote("");
+            setRequestProjectId("none");
+            setRequestCardIds(new Set());
           } else {
             setDetailsEquipment(foundEquipment);
           }
@@ -3337,16 +3556,10 @@ export default function EquipmentPage() {
       <Dialog
         open={Boolean(requestEquipment)}
         onOpenChange={(open) => {
-          if (!open) {
-            setRequestEquipment(null);
-            setRequestLocation("");
-            setRequestNote("");
-            setRequestQuantity("1");
-            setRequestLinkId("none");
-          }
+          if (!open) resetRequestContext();
         }}
       >
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-white dark:bg-slate-900">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto bg-white dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-slate-900 dark:text-white">
               {requestEquipment && getCheckoutRequestType(undefined, requestEquipment) === "transfer"
@@ -3382,11 +3595,35 @@ export default function EquipmentPage() {
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   {getCheckoutRequestType(undefined, requestEquipment) === "transfer" ? "Куда переносите" : "Куда берёте"}
                 </label>
-                <Input
-                  value={requestLocation}
-                  onChange={(event) => setRequestLocation(event.target.value)}
-                  placeholder="Например: студия А, выезд, монтажная"
-                />
+                <Select
+                  value={requestLocationChoice}
+                  onValueChange={(value) => {
+                    setRequestLocationChoice(value);
+                    if (value !== "manual") setRequestManualLocation("");
+                  }}
+                >
+                  <SelectTrigger className="bg-white dark:bg-slate-800">
+                    <SelectValue placeholder="Выберите площадку или ручной ввод" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {requestLocations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="manual">Указать место вручную</SelectItem>
+                  </SelectContent>
+                </Select>
+                {requestLocationChoice === "manual" && (
+                  <Input
+                    value={requestManualLocation}
+                    onChange={(event) => setRequestManualLocation(event.target.value)}
+                    placeholder="Например: выездная площадка, монтажная 2"
+                  />
+                )}
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Площадка и ручное место — взаимоисключающие варианты.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
@@ -3405,37 +3642,55 @@ export default function EquipmentPage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Связать с задачей
+                    Проект
                   </label>
-                  <Select value={requestLinkId} onValueChange={setRequestLinkId}>
+                  <Select value={requestProjectId} onValueChange={changeRequestProject}>
                     <SelectTrigger className="bg-white dark:bg-slate-800">
-                      <SelectValue placeholder="Без связи" />
+                      <SelectValue placeholder="Без проекта" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Без связи</SelectItem>
-                      {kanbanCards.length > 0 && (
-                        <SelectItem value="cards-heading" disabled>
-                          Карточки Kanban
-                        </SelectItem>
-                      )}
-                      {kanbanCards.slice(0, 50).map((card) => (
-                        <SelectItem key={`card-${card.id}`} value={`card:${card.id}`}>
-                          {card.title || "Карточка"}{card.boardName ? ` · ${card.boardName}` : ""}
-                        </SelectItem>
-                      ))}
-                      {tasks.length > 0 && (
-                        <SelectItem value="tasks-heading" disabled>
-                          Задачи
-                        </SelectItem>
-                      )}
-                      {tasks.slice(0, 50).map((task) => (
-                        <SelectItem key={`task-${task.id}`} value={`task:${task.id}`}>
-                          {task.title || "Задача"}
+                      <SelectItem value="none">Без проекта</SelectItem>
+                      {requestProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Карточки Kanban V2
+                </label>
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  {requestKanbanCards.length > 0 ? requestKanbanCards.slice(0, 100).map((card) => (
+                    <label key={card.id} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                      <Checkbox
+                        checked={requestCardIds.has(card.id)}
+                        onCheckedChange={(checked) => toggleRequestCard(card, checked === true)}
+                      />
+                      <span className="min-w-0 text-sm">
+                        <span className="block break-words font-medium text-slate-800 dark:text-slate-200">
+                          {card.title || "Карточка"}
+                        </span>
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">
+                          {[card.boardName, card.listName].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                    </label>
+                  )) : (
+                    <div className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
+                      {requestProjectId === "none"
+                        ? "В компании нет доступных карточек Kanban V2"
+                        : "У проекта нет доступных карточек Kanban V2"}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Можно выбрать несколько карточек. Проект карточки подставляется автоматически.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -3456,20 +3711,14 @@ export default function EquipmentPage() {
                   type="button"
                   variant="outline"
                   className="flex-1"
-                  onClick={() => {
-                    setRequestEquipment(null);
-                    setRequestLocation("");
-                    setRequestNote("");
-                    setRequestQuantity("1");
-                    setRequestLinkId("none");
-                  }}
+                  onClick={resetRequestContext}
                 >
                   Отмена
                 </Button>
                 <Button
                   type="button"
                   className="flex-1"
-                  disabled={!primaryCompanyId || requestCheckoutMutation.isPending || !isEquipmentOperable(requestEquipment)}
+                  disabled={!requestCompanyId || requestCheckoutMutation.isPending || !isEquipmentOperable(requestEquipment)}
                   onClick={() => {
                     if (!isEquipmentOperable(requestEquipment)) {
                       toast({ title: "Недоступно для выдачи", description: getInoperableMessage(requestEquipment), variant: "destructive" });
@@ -3484,25 +3733,32 @@ export default function EquipmentPage() {
                       });
                       return;
                     }
-                    const linkPayload =
-                      requestLinkId.startsWith("card:")
-                        ? { kanbanCardId: requestLinkId.slice("card:".length) }
-                        : requestLinkId.startsWith("task:")
-                          ? { taskId: requestLinkId.slice("task:".length) }
-                          : {};
+                    if (!requestLocationChoice || (requestLocationChoice === "manual" && !requestManualLocation.trim())) {
+                      toast({
+                        title: "Укажите место",
+                        description: "Выберите площадку или заполните ручное местоположение.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
                     runWithKitSafety(
                       [requestEquipment],
                       getCheckoutRequestType(undefined, requestEquipment) === "transfer" ? "Запросить перенос" : "Запросить выдачу",
                       "single-checkout-request",
                       (kitExtractions) => requestCheckoutMutation.mutate({
                         equipmentId: requestEquipment.id,
-                        location: requestLocation,
+                        physicalDestination: requestLocationChoice === "manual"
+                          ? { manualLocation: requestManualLocation.trim() }
+                          : { locationId: requestLocationChoice },
+                        workContext: {
+                          projectId: requestProjectId === "none" ? undefined : requestProjectId,
+                          kanbanCardIds: [...requestCardIds],
+                        },
                         note: requestNote,
-                        companyId: primaryCompanyId,
+                        companyId: requestCompanyId,
                         requestType: getCheckoutRequestType(undefined, requestEquipment) as "checkout" | "transfer",
                         quantity,
                         kitExtraction: kitExtractions[requestEquipment.id],
-                        ...linkPayload,
                       }),
                     );
                   }}
@@ -3648,10 +3904,7 @@ export default function EquipmentPage() {
       <Dialog
         open={Boolean(detailsEquipment)}
         onOpenChange={(open) => {
-          if (!open) {
-            setDetailsEquipment(null);
-            setDetailsReturnBundleId(null);
-          }
+          if (!open) void closeEquipmentDetails();
         }}
       >
         <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden bg-white dark:bg-slate-900">
@@ -3878,6 +4131,74 @@ export default function EquipmentPage() {
                 </div>
 
                 {(() => {
+                  const destination = getEquipmentPhysicalDestination(detailsEquipment);
+                  if (!destination.displayName) return null;
+                  return (
+                    <div className="rounded-md border border-violet-200/80 bg-violet-50/70 px-4 py-3 dark:border-violet-900 dark:bg-violet-950/20">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-violet-600 dark:text-violet-300">
+                        Физическое местоположение
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                        <div className="min-w-0">
+                          <div className="break-words font-medium">{destination.displayName}</div>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <Badge className="bg-white text-[10px] text-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                              {destination.locationId ? "Площадка" : destination.legacyLocation ? "Историческое значение" : "Ручной ввод"}
+                            </Badge>
+                            {destination.archived && (
+                              <Badge className="bg-slate-200 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                В архиве
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {(() => {
+                  const links = getEquipmentContextLinks(detailsEquipment).filter((link) => link.active);
+                  if (links.length === 0) return null;
+                  return (
+                    <div className="rounded-md border border-blue-200/80 bg-blue-50/70 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-blue-600 dark:text-blue-300">
+                        Рабочий контекст
+                      </div>
+                      <div className="space-y-2">
+                        {links.map((link) => (
+                          <div key={link.id} className="rounded-md border border-blue-200/70 bg-white/80 px-3 py-2 dark:border-blue-900/70 dark:bg-slate-900/70">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge className={link.source === "checkout"
+                                ? "bg-blue-100 text-[10px] text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
+                                : "bg-violet-100 text-[10px] text-violet-800 dark:bg-violet-900/50 dark:text-violet-200"}>
+                                {link.source === "checkout" ? "Выдача / запрос" : "Ручная связь"}
+                              </Badge>
+                              {link.checkoutRequest?.status && (
+                                <Badge className="bg-slate-100 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                  {getRequestStatusText(link.checkoutRequest.status)}
+                                </Badge>
+                              )}
+                            </div>
+                            {link.project?.name && (
+                              <div className="mt-1.5 break-words font-medium text-slate-900 dark:text-white">
+                                Проект: {link.project.name}
+                              </div>
+                            )}
+                            {link.kanbanCard?.title && (
+                              <div className="mt-1 break-words text-slate-600 dark:text-slate-300">
+                                Kanban V2: {link.kanbanCard.title}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {(() => {
                   const storageLocation = getEquipmentStorageLocation(detailsEquipment);
                   const responsiblePerson = getEquipmentResponsiblePerson(detailsEquipment);
                   const responsibleContact = getEquipmentResponsibleContact(detailsEquipment);
@@ -3925,7 +4246,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
 
-                {userCanEdit && String(detailsEquipment.notes ?? "").trim() && (
+                {!userCanEdit && String(detailsEquipment.notes ?? "").trim() && (
                   <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                       Описание
@@ -3947,7 +4268,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
 
-                {!userCanEdit && (
+                {userCanEdit && (
                   <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                       Примечание
@@ -3969,17 +4290,23 @@ export default function EquipmentPage() {
                       placeholder="Напишите примечание по оборудованию"
                       className="min-h-28 resize-y bg-white dark:bg-slate-950"
                     />
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        onClick={() => updateEquipmentNoteMutation.mutate({ equipmentId: detailsEquipment.id, notes: detailsNote })}
-                        disabled={
-                          updateEquipmentNoteMutation.isPending ||
-                          detailsNote === String(detailsEquipment.notes ?? "")
-                        }
-                      >
-                        {updateEquipmentNoteMutation.isPending ? "Сохранение..." : "Сохранить"}
-                      </Button>
+                    <div
+                      className={cn(
+                        "mt-2 text-xs",
+                        equipmentNoteAutosave.status === "error" ||
+                          (equipmentNoteAutosave.status === "dirty" && equipmentNoteAutosave.error)
+                          ? "text-destructive"
+                          : "text-slate-500 dark:text-slate-400",
+                      )}
+                      role="status"
+                    >
+                      {equipmentNoteAutosave.status === "saving"
+                        ? "Сохранение..."
+                        : equipmentNoteAutosave.status === "dirty"
+                          ? equipmentNoteAutosave.error || "Изменения будут сохранены автоматически"
+                          : equipmentNoteAutosave.status === "error"
+                            ? equipmentNoteAutosave.error || "Не удалось сохранить изменения"
+                            : "Все изменения сохранены"}
                     </div>
                   </div>
                 )}

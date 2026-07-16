@@ -10,10 +10,15 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added company-scoped equipment destinations and work context: Warehouse checkout/edit flows can use an active Location or manual place, an optional project, and multiple project-consistent Kanban V2 cards without creating new Legacy Task Manager links.
 - Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
 - Added attributable threaded comments and replies for projects and Kanban V2 cards, including realtime counts, latest-activity indicators, reconnect states, and preserved historical authorship.
 - Added an authenticated, permission-scoped WebSocket transport with bounded subscriptions, reconnect/refetch recovery, duplicate-event protection, and HTTP/storage as the source of truth.
 - Added company-scoped Location topics with note/problem types, severity, replies, safe file attachments, resolve/reopen/archive lifecycle, optional Kanban V2/project links, realtime refresh, and compact summaries in related work and Dashboard views.
+
+### Changed
+
+- Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
 
 ### Fixed
 

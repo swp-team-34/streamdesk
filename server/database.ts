@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, projectComments, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, projectComments, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, equipmentContextLinks, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
   kanbanLabels, kanbanCardLabels,
   kanbanCardHistory,
   kanbanCardComments,
@@ -49,6 +49,7 @@ import {
   type KanbanCardAttachment, type InsertKanbanCardAttachment,
   type CustomLocation, type InsertCustomLocation,
   type ProjectLocation, type KanbanCardLocation,
+  type EquipmentContextLink, type InsertEquipmentContextLink,
   type LocationIssue, type InsertLocationIssue,
   type LocationIssueComment, type InsertLocationIssueComment,
   type ChatSession, type InsertChatSession,
@@ -147,6 +148,19 @@ export interface IStorage {
   updateEquipment(id: string, equipment: Partial<Equipment>): Promise<Equipment | undefined>;
   deleteEquipment(id: string): Promise<boolean>;
   uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined>;
+  getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]>;
+  replaceEquipmentContextLinks(input: {
+    equipmentId: string;
+    source: "manual" | "checkout";
+    checkoutRequestId?: string | null;
+    projectId?: string | null;
+    kanbanCardIds: string[];
+    createdByUserId?: string | null;
+  }): Promise<EquipmentContextLink[]>;
+  deactivateEquipmentContextLinks(
+    equipmentId: string,
+    options?: { source?: "manual" | "checkout"; checkoutRequestId?: string | null },
+  ): Promise<EquipmentContextLink[]>;
   
   // Systems
   getSystems(): Promise<System[]>;
@@ -603,6 +617,7 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteEquipment(id: string): Promise<boolean> {
+    await db!.delete(equipmentContextLinks).where(eq(equipmentContextLinks.equipmentId, id));
     const result = await db!.delete(equipment).where(eq(equipment.id, id)).returning({ id: equipment.id });
     return result.length > 0;
   }
@@ -615,6 +630,88 @@ export class PostgreSQLStorage implements IStorage {
     const newPhotos = [...currentPhotos, photoUrl];
     
     return await this.updateEquipment(equipmentId, { photos: newPhotos });
+  }
+
+  async getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]> {
+    const query = db!.select().from(equipmentContextLinks)
+      .orderBy(sql`${equipmentContextLinks.createdAt} DESC`);
+    return equipmentId
+      ? await query.where(eq(equipmentContextLinks.equipmentId, equipmentId))
+      : await query;
+  }
+
+  async replaceEquipmentContextLinks(input: {
+    equipmentId: string;
+    source: "manual" | "checkout";
+    checkoutRequestId?: string | null;
+    projectId?: string | null;
+    kanbanCardIds: string[];
+    createdByUserId?: string | null;
+  }): Promise<EquipmentContextLink[]> {
+    const checkoutRequestId = input.checkoutRequestId || null;
+    const uniqueCardIds = Array.from(new Set(input.kanbanCardIds.map(String).filter(Boolean)));
+    return await db!.transaction(async (tx) => {
+      await tx.update(equipmentContextLinks)
+        .set({ active: false, endedAt: new Date(), updatedAt: new Date() })
+        .where(and(
+        eq(equipmentContextLinks.equipmentId, input.equipmentId),
+        eq(equipmentContextLinks.source, input.source),
+        eq(equipmentContextLinks.active, true),
+        checkoutRequestId
+          ? eq(equipmentContextLinks.checkoutRequestId, checkoutRequestId)
+          : isNull(equipmentContextLinks.checkoutRequestId),
+        ));
+      const rows: InsertEquipmentContextLink[] = uniqueCardIds.length > 0
+        ? uniqueCardIds.map((kanbanCardId) => ({
+            equipmentId: input.equipmentId,
+            projectId: input.projectId || null,
+            kanbanCardId,
+            source: input.source,
+            checkoutRequestId,
+            createdByUserId: input.createdByUserId || null,
+            active: true,
+            endedAt: null,
+          }))
+        : input.projectId
+          ? [{
+              equipmentId: input.equipmentId,
+              projectId: input.projectId,
+              kanbanCardId: null,
+              source: input.source,
+              checkoutRequestId,
+              createdByUserId: input.createdByUserId || null,
+              active: true,
+              endedAt: null,
+            }]
+          : [];
+      if (rows.length === 0) return [];
+      return await tx.insert(equipmentContextLinks)
+        .values(rows.map((row) => ({ ...row, id: crypto.randomUUID() })))
+        .returning();
+    });
+  }
+
+  async deactivateEquipmentContextLinks(
+    equipmentId: string,
+    options: { source?: "manual" | "checkout"; checkoutRequestId?: string | null } = {},
+  ): Promise<EquipmentContextLink[]> {
+    let condition: any = and(
+      eq(equipmentContextLinks.equipmentId, equipmentId),
+      eq(equipmentContextLinks.active, true),
+    );
+    if (options.source) condition = and(condition, eq(equipmentContextLinks.source, options.source));
+    if (options.checkoutRequestId !== undefined) {
+      condition = and(
+        condition,
+        options.checkoutRequestId
+          ? eq(equipmentContextLinks.checkoutRequestId, options.checkoutRequestId)
+          : isNull(equipmentContextLinks.checkoutRequestId),
+      );
+    }
+    return await db!.update(equipmentContextLinks)
+      .set({ active: false, endedAt: new Date(), updatedAt: new Date() })
+      .where(condition)
+      .returning();
   }
 
   // Systems
@@ -2039,6 +2136,7 @@ class StubStorage implements IStorage {
   private platformSettingsMap = new Map<string, PlatformSetting>();
   private platformIncidentsMap = new Map<string, PlatformIncident>();
   private equipmentCheckoutRequestsMap = new Map<string, EquipmentCheckoutRequest>();
+  private equipmentContextLinksMap = new Map<string, EquipmentContextLink>();
   private events = new Map<string, Event>();
   private tasks = new Map<string, Task>();
   private connectionSchemas = new Map<string, ConnectionSchema>();
@@ -2090,11 +2188,11 @@ class StubStorage implements IStorage {
     } as User);
     // Тестовые карточки оборудования для локального теста (склад)
     const seedEq: Equipment[] = [
-      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
-      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Подкаст зона", storageLocation: "Подкаст зона", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", operabilityStatus: "working", location: "Мобильная съёмка", storageLocation: "Мобильная съёмка", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Техническая", storageLocation: "Техническая", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
+      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Подкаст зона", locationId: null, manualLocation: null, storageLocation: "Подкаст зона", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", operabilityStatus: "working", location: "Мобильная съёмка", locationId: null, manualLocation: null, storageLocation: "Мобильная съёмка", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Техническая", locationId: null, manualLocation: null, storageLocation: "Техническая", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
     ];
     seedEq.forEach((e) => this.equipment.set(e.id, e));
     // Тестовый проект для локального теста (корзина → проект)
@@ -2231,6 +2329,8 @@ class StubStorage implements IStorage {
       ...data,
       id,
       operabilityStatus: data.operabilityStatus ?? equipmentOperabilityFallback(data.status),
+      locationId: data.locationId ?? null,
+      manualLocation: data.manualLocation ?? null,
       storageLocation: data.storageLocation ?? null,
       responsiblePerson: data.responsiblePerson ?? null,
       responsibleContact: data.responsibleContact ?? null,
@@ -2246,8 +2346,95 @@ class StubStorage implements IStorage {
     this.equipment.set(id, updated);
     return updated;
   }
-  async deleteEquipment(id: string): Promise<boolean> { return this.equipment.delete(id); }
+  async deleteEquipment(id: string): Promise<boolean> {
+    for (const [linkId, link] of this.equipmentContextLinksMap) {
+      if (link.equipmentId === id) this.equipmentContextLinksMap.delete(linkId);
+    }
+    return this.equipment.delete(id);
+  }
   async uploadEquipmentPhoto(): Promise<Equipment | undefined> { return undefined; }
+  async getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]> {
+    return Array.from(this.equipmentContextLinksMap.values())
+      .filter((link) => !equipmentId || link.equipmentId === equipmentId)
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  }
+  async replaceEquipmentContextLinks(input: {
+    equipmentId: string;
+    source: "manual" | "checkout";
+    checkoutRequestId?: string | null;
+    projectId?: string | null;
+    kanbanCardIds: string[];
+    createdByUserId?: string | null;
+  }): Promise<EquipmentContextLink[]> {
+    const requestId = input.checkoutRequestId || null;
+    for (const [id, link] of this.equipmentContextLinksMap) {
+      if (
+        link.equipmentId === input.equipmentId &&
+        link.source === input.source &&
+        link.active &&
+        String(link.checkoutRequestId || "") === String(requestId || "")
+      ) {
+        this.equipmentContextLinksMap.set(id, {
+          ...link,
+          active: false,
+          endedAt: this.now(),
+          updatedAt: this.now(),
+        });
+      }
+    }
+    const uniqueCardIds = Array.from(new Set(input.kanbanCardIds.map(String).filter(Boolean)));
+    const rows: InsertEquipmentContextLink[] = uniqueCardIds.length > 0
+      ? uniqueCardIds.map((kanbanCardId) => ({
+          equipmentId: input.equipmentId,
+          projectId: input.projectId || null,
+          kanbanCardId,
+          source: input.source,
+          checkoutRequestId: requestId,
+          createdByUserId: input.createdByUserId || null,
+          active: true,
+          endedAt: null,
+        }))
+      : input.projectId
+        ? [{
+            equipmentId: input.equipmentId,
+            projectId: input.projectId,
+            kanbanCardId: null,
+            source: input.source,
+            checkoutRequestId: requestId,
+            createdByUserId: input.createdByUserId || null,
+            active: true,
+            endedAt: null,
+          }]
+        : [];
+    return rows.map((row) => {
+      const link = {
+        ...row,
+        id: this.uid(),
+        createdAt: this.now(),
+        updatedAt: this.now(),
+      } as EquipmentContextLink;
+      this.equipmentContextLinksMap.set(link.id, link);
+      return link;
+    });
+  }
+  async deactivateEquipmentContextLinks(
+    equipmentId: string,
+    options: { source?: "manual" | "checkout"; checkoutRequestId?: string | null } = {},
+  ): Promise<EquipmentContextLink[]> {
+    const updated: EquipmentContextLink[] = [];
+    for (const [id, link] of this.equipmentContextLinksMap) {
+      if (link.equipmentId !== equipmentId || !link.active) continue;
+      if (options.source && link.source !== options.source) continue;
+      if (
+        options.checkoutRequestId !== undefined &&
+        String(link.checkoutRequestId || "") !== String(options.checkoutRequestId || "")
+      ) continue;
+      const next = { ...link, active: false, endedAt: this.now(), updatedAt: this.now() };
+      this.equipmentContextLinksMap.set(id, next);
+      updated.push(next);
+    }
+    return updated;
+  }
 
   async getSystems(): Promise<System[]> { return Array.from(this.systems.values()); }
   async getSystemById(id: string): Promise<System | undefined> { return this.systems.get(id); }
@@ -2365,6 +2552,14 @@ class StubStorage implements IStorage {
       equipmentId: data.equipmentId,
       requestedBy: data.requestedBy,
       kanbanCardId: data.kanbanCardId ?? null,
+      kanbanCardIds: Array.isArray(data.kanbanCardIds)
+        ? Array.from(new Set(data.kanbanCardIds.map(String).filter(Boolean)))
+        : data.kanbanCardId
+          ? [data.kanbanCardId]
+          : [],
+      projectId: data.projectId ?? null,
+      locationId: data.locationId ?? null,
+      manualLocation: data.manualLocation ?? null,
       taskId: data.taskId ?? null,
       quantity: data.quantity ?? 1,
       requestType: data.requestType ?? "checkout",
@@ -3282,12 +3477,43 @@ export async function initDatabase(): Promise<void> {
       }
       try {
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS operability_status text`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS location_id varchar`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS manual_location text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS storage_location text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_person text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS responsible_contact text`;
         await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS kanban_card_id text`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS kanban_card_ids jsonb DEFAULT '[]'::jsonb`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS project_id varchar`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS location_id varchar`;
+        await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS manual_location text`;
         await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS task_id text`;
         await client`ALTER TABLE equipment_checkout_requests ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 1`;
+        await client`UPDATE equipment_checkout_requests
+          SET kanban_card_ids = jsonb_build_array(kanban_card_id)
+          WHERE kanban_card_id IS NOT NULL
+            AND (kanban_card_ids IS NULL OR kanban_card_ids = '[]'::jsonb)`;
+        await client`CREATE TABLE IF NOT EXISTS equipment_context_links (
+          id varchar PRIMARY KEY,
+          equipment_id varchar NOT NULL,
+          project_id varchar,
+          kanban_card_id varchar,
+          source text NOT NULL DEFAULT 'manual',
+          checkout_request_id varchar,
+          created_by_user_id varchar,
+          active boolean NOT NULL DEFAULT true,
+          ended_at timestamp,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        )`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_context_links_equipment_active_idx
+          ON equipment_context_links (equipment_id, active, created_at DESC)`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_context_links_project_active_idx
+          ON equipment_context_links (project_id, active)
+          WHERE project_id IS NOT NULL`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_context_links_card_active_idx
+          ON equipment_context_links (kanban_card_id, active)
+          WHERE kanban_card_id IS NOT NULL`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить equipment schema:", schemaErr);
       }

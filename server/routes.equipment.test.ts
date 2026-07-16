@@ -102,6 +102,57 @@ async function createCompanyMember(role = "member") {
   return { company, user: { id: userId, role: "employee", name: "Kit employee" } };
 }
 
+async function createEquipmentContextFixture() {
+  const suffix = `${Date.now()}-${++kitSequence}`;
+  const company = await storage.createCompany({
+    name: `Equipment context company ${suffix}`,
+    ownerId: "admin-stub-default-id",
+    status: "active",
+  } as any);
+  const project = await storage.createProject({
+    name: `Equipment context project ${suffix}`,
+    companyId: company.id,
+    ownerId: "admin-stub-default-id",
+    status: "planning",
+  } as any);
+  const location = await storage.createCustomLocation({
+    name: `Equipment context location ${suffix}`,
+    companyId: company.id,
+    status: "available",
+  } as any);
+  const board = await storage.createKanbanBoard({
+    name: `Equipment context board ${suffix}`,
+    companyId: company.id,
+    projectId: project.id,
+    visibility: "company",
+    createdByUserId: "admin-stub-default-id",
+  } as any);
+  const list = await storage.createKanbanList({
+    boardId: board.id,
+    name: "Requests",
+    type: "active",
+    position: 0,
+  } as any);
+  const cards = await Promise.all(["First", "Second"].map((title, position) =>
+    storage.createKanbanCard({
+      boardId: board.id,
+      projectId: project.id,
+      listId: list.id,
+      title: `${title} ${suffix}`,
+      creatorUserId: "admin-stub-default-id",
+      position,
+    } as any),
+  ));
+  const item = await storage.createEquipment({
+    name: `Equipment context item ${suffix}`,
+    type: "camera",
+    status: "available",
+    operabilityStatus: "working",
+    specifications: { companyId: company.id },
+  } as any);
+  return { company, project, location, board, list, cards, item };
+}
+
 describe("equipment detail route registration", () => {
   it("registers GET /api/equipment/:id for item details", async () => {
     const app = await createAppWithRoutes();
@@ -216,43 +267,20 @@ describe("equipment request actions", () => {
     });
   });
 
-  it("stores checkout request quantity and task links", async () => {
+  it("stores checkout destination, project and multiple Kanban V2 cards", async () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
-    const [item] = await storage.getEquipment();
-    const board = await storage.createKanbanBoard({
-      name: "Equipment request board",
-      visibility: "personal",
-      createdByUserId: "admin-stub-default-id",
-    } as any);
-    const list = await storage.createKanbanList({
-      boardId: board.id,
-      name: "Requests",
-      type: "active",
-      position: 0,
-    } as any);
-    const card = await storage.createKanbanCard({
-      boardId: board.id,
-      listId: list.id,
-      title: "Linked Kanban card",
-      creatorUserId: "admin-stub-default-id",
-      position: 0,
-    } as any);
-    const task = await storage.createTask({
-      title: "Linked legacy task",
-      status: "todo",
-      priority: "medium",
-      creatorId: "admin-stub-default-id",
-    } as any);
+    const { company, project, location, cards, item } = await createEquipmentContextFixture();
     const res = createJsonResponse();
 
     await handler!({
       user: { id: "admin-stub-default-id", role: "admin" },
       body: {
         equipmentId: item.id,
+        companyId: company.id,
         quantity: "2",
-        kanbanCardId: card.id,
-        taskId: task.id,
+        physicalDestination: { locationId: location.id },
+        workContext: { kanbanCardIds: [cards[0].id, cards[1].id, cards[0].id] },
       },
     }, res);
 
@@ -260,23 +288,34 @@ describe("equipment request actions", () => {
     expect(res.body).toMatchObject({
       equipmentId: item.id,
       quantity: 2,
-      kanbanCardId: card.id,
-      taskId: task.id,
+      locationId: location.id,
+      projectId: project.id,
+      kanbanCardId: cards[0].id,
+      kanbanCardIds: [cards[0].id, cards[1].id],
+      taskId: null,
       status: "pending",
     });
+    const links = await storage.getEquipmentContextLinks(item.id);
+    expect(links).toHaveLength(2);
+    expect(links).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "checkout", projectId: project.id, kanbanCardId: cards[0].id, active: true }),
+      expect.objectContaining({ source: "checkout", projectId: project.id, kanbanCardId: cards[1].id, active: true }),
+    ]));
   });
 
-  it("allows checkout requests without task links", async () => {
+  it("allows checkout requests without work-context links", async () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
-    const [item] = await storage.getEquipment();
+    const { company, item } = await createEquipmentContextFixture();
     const res = createJsonResponse();
 
     await handler!({
       user: { id: "admin-stub-default-id", role: "admin" },
       body: {
         equipmentId: item.id,
+        companyId: company.id,
         quantity: 1,
+        physicalDestination: { manualLocation: "Выездная площадка" },
       },
     }, res);
 
@@ -288,6 +327,10 @@ describe("equipment request actions", () => {
     });
     expect((res.body as any).kanbanCardId ?? null).toBeNull();
     expect((res.body as any).taskId ?? null).toBeNull();
+    expect(res.body).toMatchObject({
+      manualLocation: "Выездная площадка",
+      physicalDestination: { displayName: "Выездная площадка" },
+    });
   });
 
   it("blocks checkout requests for broken or on-repair equipment", async () => {
@@ -328,18 +371,20 @@ describe("equipment request actions", () => {
     await storage.updateEquipment(item.id, { status: "available", operabilityStatus: "working" } as any);
   });
 
-  it("rejects checkout requests with missing task or Kanban card links", async () => {
+  it("rejects missing Kanban cards and all new Legacy Task links", async () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
-    const [item] = await storage.getEquipment();
+    const { company, item } = await createEquipmentContextFixture();
     const missingCardResponse = createJsonResponse();
 
     await handler!({
       user: { id: "admin-stub-default-id", role: "admin" },
       body: {
         equipmentId: item.id,
+        companyId: company.id,
         quantity: 1,
-        kanbanCardId: "missing-card",
+        physicalDestination: { manualLocation: "Studio" },
+        workContext: { kanbanCardIds: ["missing-card"] },
       },
     }, missingCardResponse);
 
@@ -353,6 +398,7 @@ describe("equipment request actions", () => {
       user: { id: "admin-stub-default-id", role: "admin" },
       body: {
         equipmentId: item.id,
+        companyId: company.id,
         quantity: 1,
         taskId: "missing-task",
       },
@@ -360,8 +406,202 @@ describe("equipment request actions", () => {
 
     expect(missingTaskResponse.statusCode).toBe(400);
     expect(missingTaskResponse.body).toMatchObject({
-      message: expect.stringContaining("задач"),
+      code: "LEGACY_TASK_LINK_FORBIDDEN",
+      message: expect.stringContaining("Legacy Task Manager"),
     });
+  });
+
+  it("rejects a project that conflicts with the selected Kanban V2 card", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const { company, location, cards, item } = await createEquipmentContextFixture();
+    const otherProject = await storage.createProject({
+      name: `Other equipment project ${Date.now()}-${++kitSequence}`,
+      companyId: company.id,
+      ownerId: "admin-stub-default-id",
+      status: "planning",
+    } as any);
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        companyId: company.id,
+        quantity: 1,
+        physicalDestination: { locationId: location.id },
+        workContext: { projectId: otherProject.id, kanbanCardIds: [cards[0].id] },
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toMatchObject({
+      code: "EQUIPMENT_PROJECT_CARD_CONFLICT",
+      message: expect.stringContaining("проект"),
+    });
+  });
+
+  it("updates manual context without changing equipment workflow state", async () => {
+    const app = await createAppWithRoutes();
+    const handler = routeHandler(app, "PUT", "/api/equipment/:id");
+    const summaryHandler = routeHandler(app, "GET", "/api/equipment-on-projects");
+    const { project, location, cards, item } = await createEquipmentContextFixture();
+    await storage.updateEquipment(item.id, {
+      status: "in-use",
+      assignedTo: "admin-stub-default-id",
+      operabilityStatus: "working",
+    } as any);
+    const res = createJsonResponse();
+
+    await handler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: item.id },
+      body: {
+        physicalDestination: { locationId: location.id },
+        workContext: { projectId: project.id, kanbanCardIds: [cards[0].id, cards[1].id, cards[0].id] },
+      },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      status: "in-use",
+      assignedTo: "admin-stub-default-id",
+      operabilityStatus: "working",
+      locationId: location.id,
+    });
+    const links = await storage.getEquipmentContextLinks(item.id);
+    expect(links.filter((link) => link.active && link.source === "manual")).toHaveLength(2);
+    const summaryResponse = createJsonResponse();
+    await summaryHandler!({ user: { id: "admin-stub-default-id", role: "admin" } }, summaryResponse);
+    expect((summaryResponse.body as any[]).filter((row) =>
+      row.equipmentId === item.id && row.projectId === project.id,
+    )).toHaveLength(1);
+  });
+
+  it("rejects archived locations for a new checkout but preserves them historically", async () => {
+    const app = await createAppWithRoutes();
+    const checkoutHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const detailHandler = routeHandler(app, "GET", "/api/equipment/:id");
+    const { company, location, item } = await createEquipmentContextFixture();
+    await storage.updateCustomLocation(location.id, { archivedAt: new Date() } as any);
+    await storage.updateEquipment(item.id, {
+      locationId: location.id,
+      location: location.name,
+    } as any);
+    const checkoutResponse = createJsonResponse();
+
+    await checkoutHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        companyId: company.id,
+        quantity: 1,
+        physicalDestination: { locationId: location.id },
+      },
+    }, checkoutResponse);
+    expect(checkoutResponse.statusCode).toBe(409);
+    expect(checkoutResponse.body).toMatchObject({ code: "EQUIPMENT_LOCATION_ARCHIVED" });
+
+    const detailResponse = createJsonResponse();
+    await detailHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: item.id },
+    }, detailResponse);
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.body).toMatchObject({
+      physicalDestination: {
+        locationId: location.id,
+        displayName: location.name,
+        archived: true,
+      },
+    });
+  });
+
+  it("deactivates automatic checkout links when a request is rejected", async () => {
+    const app = await createAppWithRoutes();
+    const createHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const rejectHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests/:id/reject");
+    const { company, project, location, cards, item } = await createEquipmentContextFixture();
+    const createResponse = createJsonResponse();
+    await createHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        companyId: company.id,
+        quantity: 1,
+        physicalDestination: { locationId: location.id },
+        workContext: { projectId: project.id, kanbanCardIds: [cards[0].id] },
+      },
+    }, createResponse);
+    expect(createResponse.statusCode).toBe(200);
+
+    const rejectResponse = createJsonResponse();
+    await rejectHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: (createResponse.body as any).id },
+      body: {},
+    }, rejectResponse);
+    expect(rejectResponse.statusCode).toBe(200);
+    expect((await storage.getEquipmentContextLinks(item.id))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "checkout", active: false }),
+    ]));
+  });
+
+  it("applies the structured destination and keeps automatic links on approval", async () => {
+    const app = await createAppWithRoutes();
+    const createHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const approveHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests/:id/approve");
+    const updateHandler = routeHandler(app, "PUT", "/api/equipment/:id");
+    const { company, project, location, cards, item } = await createEquipmentContextFixture();
+    const createResponse = createJsonResponse();
+    await createHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      body: {
+        equipmentId: item.id,
+        companyId: company.id,
+        quantity: 1,
+        physicalDestination: { locationId: location.id },
+        workContext: { projectId: project.id, kanbanCardIds: [cards[0].id] },
+      },
+    }, createResponse);
+    expect(createResponse.statusCode).toBe(200);
+
+    const approveResponse = createJsonResponse();
+    await approveHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: (createResponse.body as any).id },
+      body: {},
+    }, approveResponse);
+
+    expect(approveResponse.statusCode).toBe(200);
+    expect(approveResponse.body).toMatchObject({
+      request: { status: "approved" },
+      equipment: {
+        id: item.id,
+        status: "in-use",
+        locationId: location.id,
+        physicalDestination: { displayName: location.name },
+      },
+    });
+    expect(await storage.getEquipmentContextLinks(item.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: "checkout",
+        projectId: project.id,
+        kanbanCardId: cards[0].id,
+        active: true,
+      }),
+    ]));
+
+    const returnResponse = createJsonResponse();
+    await updateHandler!({
+      user: { id: "admin-stub-default-id", role: "admin" },
+      params: { id: item.id },
+      body: { status: "available", assignedTo: null },
+    }, returnResponse);
+    expect(returnResponse.statusCode).toBe(200);
+    expect(await storage.getEquipmentContextLinks(item.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "checkout", active: false }),
+    ]));
   });
 });
 
@@ -646,7 +886,7 @@ describe("warehouse kit safety", () => {
       body: {
         equipmentId: component.id,
         quantity: 1,
-        location: "Studio B",
+        physicalDestination: { manualLocation: "Studio B" },
         kitExtraction: {
           confirmed: true,
           override: false,

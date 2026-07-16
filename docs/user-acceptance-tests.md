@@ -126,6 +126,35 @@ All steps execute without errors. The equipment store displays the correct loadi
 ### Execution result
 The user easily and intuitively executed the whole process with no complainings or errors found.
 
+## UAT-004A: Verify Equipment Destination and Kanban V2 Work Context
+
+- **Scenario ID:** UAT-004A
+- **Title:** Verify equipment destination and optional project/Kanban V2 context
+- **Status:** Ready for execution
+- **Related feature:** Warehouse, Locations, Projects, Kanban V2
+
+### Objective
+Verify that checkout and authorized editing keep physical destination separate from work context, reject cross-company or archived selections for new records, and never create new Legacy Task Manager links.
+
+### Preconditions
+The user belongs to a company with at least two active Locations, one archived Location, one project, and two Kanban V2 cards linked to that project. A working equipment item belongs to the same company.
+
+### Test steps
+
+- Open a working Warehouse item and start a checkout request.
+- Select an active company Location, then optionally select the project and both Kanban V2 cards. Submit the request.
+- Verify the manager view shows the destination, project, and both cards. Approve the request and verify the equipment becomes in use at the selected Location.
+- Return the item, create another request with a manual destination, and verify the manual text is shown instead of a Location.
+- Attempt to select both a Location and manual destination through the API. Verify the request is rejected.
+- Attempt to use the archived Location or a Location/project/card from another company. Verify each new relation is rejected while an existing archived destination remains readable in equipment details.
+- Edit only the destination and work context of an item. Verify status, holder, reservation state, and operability do not change.
+- Select multiple cards from the same project and verify the project equipment summary contains the item only once.
+- Verify no Legacy Task Manager selector appears and a direct API attempt to create a new `taskId` relation is rejected.
+- Open the Warehouse in a second authenticated session and verify the affected Warehouse/project summaries refresh without a page reload.
+
+### Expected result
+The Warehouse persists one physical destination alternative and optional project/multiple-card Kanban V2 context with company authorization. Manual and checkout-created links remain distinguishable, project summaries are deduplicated, archived history stays readable, and context-only edits do not change inventory workflow state.
+
 ## UAT-005 — Verify Task Manager features: Workload, Deadline Ordering, Calendar Color-Coding, and Drag-and-Drop
 
 - **Scenario ID:** UAT-005
@@ -262,6 +291,38 @@ The user has access to the Task Manager that displays at least 3–4 widgets in 
 
 ### Expected result
 All widgets are draggable. Visual feedback (cursor tracking, shifting neighbors) works smoothly. Dropped positions persist across page reloads and sessions. The grid remains intact with no overlapping or broken elements during and after drag operations.
+
+### Execution result
+To be filled
+
+## UAT-009 — Verify Warehouse and Project Autosave
+
+- **Scenario ID:** UAT-009
+- **Title:** Verify existing Warehouse and project records save automatically and synchronize globally
+- **Status:** Draft
+- **Related feature:** Warehouse, Projects, Global Sync
+
+### Objective
+Verify that valid edits to existing equipment, equipment notes, and projects persist without a Save button, pending changes are not lost when the editor closes, and related views receive synchronized data.
+
+### Preconditions
+The user can edit Warehouse equipment and projects. At least one equipment item, project, active Location, and Kanban V2 card exist. A second authorized browser session is available for realtime verification.
+
+### Test steps
+
+- Open an existing equipment item for editing and change its name, storage data, physical destination, project, and Kanban V2 context.
+- Verify the editor reports pending and saving states, then reports that all changes are saved without pressing a Save button.
+- Close the equipment editor immediately after another valid change, reopen it, and verify the latest value was flushed and persisted.
+- Enter an invalid state such as an empty required name or an empty manual destination. Verify invalid data is not sent and the editor remains open on close with a clear error.
+- Open equipment details, edit the note, and verify it autosaves without a separate Save action.
+- Open an existing project and change its name, description, assignee, participants, Task Manager visibility, and linked Locations.
+- Verify valid project changes autosave, closing flushes pending changes, and invalid project data is not persisted.
+- Observe the global synchronization control in the header during Warehouse and project edits. Verify it shows synchronization, success, and error states consistently.
+- In the second authorized session, verify the equipment or project update appears after the scoped realtime event without a manual page reload.
+- Create a new equipment item and a new project. Verify creation still requires the explicit Add/Create action and does not create incomplete records automatically.
+
+### Expected result
+Existing Warehouse and project records persist valid changes automatically, pending changes flush safely before close, invalid data remains local with a visible error, related query data refreshes, the header reflects synchronization state, and other authorized sessions receive realtime refreshes. New records are created only after explicit confirmation.
 
 ### Execution result
 To be filled

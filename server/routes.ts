@@ -1668,6 +1668,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const listTypeById = new Map(lists.map((list) => [String(list.id), String(list.type || "active")]));
       const listColorById = new Map(lists.map((list) => [String(list.id), list.color ? String(list.color) : null]));
       const boardNameById = new Map((boards as any[]).map((board) => [String(board.id), String(board.name || "Доска")]));
+      const boardProjectById = new Map((boards as any[]).map((board) => [String(board.id), board.projectId || null]));
+      const boardCompanyById = new Map((boards as any[]).map((board) => [String(board.id), board.companyId || null]));
       const cardsWithLabels = await buildKanbanCardResponses(cards as any[]);
       res.json(
         cardsWithLabels.map((card: any) => ({
@@ -1676,6 +1678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           listType: listTypeById.get(String(card.listId)) || "active",
           listColor: listColorById.get(String(card.listId)) || null,
           boardName: boardNameById.get(String(card.boardId)) || "Доска",
+          boardProjectId: boardProjectById.get(String(card.boardId)) || null,
+          companyId: boardCompanyById.get(String(card.boardId)) || null,
         })),
       );
     } catch (error) {
@@ -4213,6 +4217,314 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  type EquipmentContextError = Error & { statusCode?: number; code?: string };
+  type ValidatedPhysicalDestination = {
+    provided: boolean;
+    locationId: string | null;
+    manualLocation: string | null;
+    displayName: string | null;
+    location?: any;
+  };
+  type ValidatedEquipmentWorkContext = {
+    provided: boolean;
+    projectId: string | null;
+    kanbanCardIds: string[];
+    project?: any;
+    cards: any[];
+  };
+
+  const equipmentContextError = (statusCode: number, code: string, message: string): EquipmentContextError =>
+    Object.assign(new Error(message), { statusCode, code });
+
+  const equipmentCompanyId = (item: any) => String(equipmentSpecs(item).companyId || "").trim();
+
+  const readPhysicalDestinationInput = (body: any) => {
+    const nested = body?.physicalDestination && typeof body.physicalDestination === "object"
+      ? body.physicalDestination
+      : null;
+    const provided = Boolean(nested) ||
+      Object.prototype.hasOwnProperty.call(body || {}, "locationId") ||
+      Object.prototype.hasOwnProperty.call(body || {}, "manualLocation");
+    return {
+      provided,
+      locationId: String(nested?.locationId ?? body?.locationId ?? "").trim(),
+      manualLocation: String(nested?.manualLocation ?? body?.manualLocation ?? "").trim(),
+    };
+  };
+
+  const validatePhysicalDestination = async (input: {
+    body: any;
+    user: any;
+    companyId: string;
+    required?: boolean;
+    existingLocationId?: string | null;
+  }): Promise<ValidatedPhysicalDestination> => {
+    const requested = readPhysicalDestinationInput(input.body);
+    if (!requested.provided && !input.required) {
+      return { provided: false, locationId: null, manualLocation: null, displayName: null };
+    }
+    if (requested.locationId && requested.manualLocation) {
+      throw equipmentContextError(
+        400,
+        "EQUIPMENT_DESTINATION_CONFLICT",
+        "Выберите площадку или укажите место вручную, но не оба варианта одновременно",
+      );
+    }
+    if (!requested.locationId && !requested.manualLocation) {
+      if (input.required) {
+        throw equipmentContextError(400, "EQUIPMENT_DESTINATION_REQUIRED", "Укажите, где будет находиться оборудование");
+      }
+      return { provided: true, locationId: null, manualLocation: null, displayName: null };
+    }
+    if (requested.manualLocation.length > 500) {
+      throw equipmentContextError(400, "EQUIPMENT_MANUAL_LOCATION_TOO_LONG", "Ручное описание места не должно превышать 500 символов");
+    }
+    if (requested.manualLocation) {
+      return {
+        provided: true,
+        locationId: null,
+        manualLocation: requested.manualLocation,
+        displayName: requested.manualLocation,
+      };
+    }
+
+    const location = await storage.getCustomLocationById(requested.locationId).catch(() => undefined);
+    if (!location) {
+      throw equipmentContextError(400, "EQUIPMENT_LOCATION_NOT_FOUND", "Выбранная площадка не найдена");
+    }
+    const userCompanyIds = await getUserCompanyIds(input.user).catch(() => []);
+    if (input.user?.role !== "admin" && !userCompanyIds.map(String).includes(String(location.companyId || ""))) {
+      throw equipmentContextError(403, "EQUIPMENT_LOCATION_FORBIDDEN", "Нет доступа к выбранной площадке");
+    }
+    if (!input.companyId || String(location.companyId || "") !== input.companyId) {
+      throw equipmentContextError(403, "EQUIPMENT_LOCATION_COMPANY_MISMATCH", "Площадка принадлежит другой компании");
+    }
+    if (location.archivedAt && String(input.existingLocationId || "") !== String(location.id)) {
+      throw equipmentContextError(409, "EQUIPMENT_LOCATION_ARCHIVED", "Архивную площадку нельзя выбрать для новой выдачи или связи");
+    }
+    return {
+      provided: true,
+      locationId: String(location.id),
+      manualLocation: null,
+      displayName: String(location.name),
+      location,
+    };
+  };
+
+  const readEquipmentWorkContextInput = (body: any) => {
+    const nested = body?.workContext && typeof body.workContext === "object" ? body.workContext : null;
+    const rawCardIds = nested?.kanbanCardIds ?? body?.kanbanCardIds ??
+      (body?.kanbanCardId ? [body.kanbanCardId] : []);
+    const provided = Boolean(nested) ||
+      Object.prototype.hasOwnProperty.call(body || {}, "projectId") ||
+      Object.prototype.hasOwnProperty.call(body || {}, "kanbanCardIds") ||
+      Object.prototype.hasOwnProperty.call(body || {}, "kanbanCardId");
+    return {
+      provided,
+      projectId: String(nested?.projectId ?? body?.projectId ?? "").trim(),
+      kanbanCardIds: Array.isArray(rawCardIds)
+        ? Array.from(new Set(rawCardIds.map((id: unknown) => String(id || "").trim()).filter(Boolean)))
+        : [],
+    };
+  };
+
+  const validateEquipmentWorkContext = async (input: {
+    body: any;
+    user: any;
+    companyId: string;
+  }): Promise<ValidatedEquipmentWorkContext> => {
+    const requested = readEquipmentWorkContextInput(input.body);
+    if (!requested.provided) {
+      return { provided: false, projectId: null, kanbanCardIds: [], cards: [] };
+    }
+    if (requested.kanbanCardIds.length > 20) {
+      throw equipmentContextError(400, "EQUIPMENT_TOO_MANY_KANBAN_CARDS", "Можно привязать не более 20 карточек Kanban V2");
+    }
+
+    let project = requested.projectId
+      ? await storage.getProjectById(requested.projectId).catch(() => undefined)
+      : undefined;
+    if (requested.projectId && !project) {
+      throw equipmentContextError(400, "EQUIPMENT_PROJECT_NOT_FOUND", "Выбранный проект не найден");
+    }
+    if (project) {
+      const userCompanyIds = await getUserCompanyIds(input.user).catch(() => []);
+      if (input.user?.role !== "admin" && !userCompanyIds.map(String).includes(String(project.companyId || ""))) {
+        throw equipmentContextError(403, "EQUIPMENT_PROJECT_FORBIDDEN", "Нет доступа к выбранному проекту");
+      }
+      if (!input.companyId || String(project.companyId || "") !== input.companyId) {
+        throw equipmentContextError(403, "EQUIPMENT_PROJECT_COMPANY_MISMATCH", "Проект принадлежит другой компании");
+      }
+    }
+
+    const cards: any[] = [];
+    const cardProjectIds = new Set<string>();
+    for (const cardId of requested.kanbanCardIds) {
+      const card = await storage.getKanbanCardById(cardId).catch(() => undefined);
+      if (!card) {
+        throw equipmentContextError(400, "EQUIPMENT_KANBAN_CARD_NOT_FOUND", "Одна из выбранных карточек Kanban V2 не найдена");
+      }
+      const access = await getKanbanBoardAccess(input.user, String(card.boardId)).catch(() => null);
+      if (!access) {
+        throw equipmentContextError(403, "EQUIPMENT_KANBAN_CARD_FORBIDDEN", "Одна из выбранных карточек Kanban V2 недоступна");
+      }
+      if (!access.board.companyId || String(access.board.companyId) !== input.companyId) {
+        throw equipmentContextError(403, "EQUIPMENT_KANBAN_COMPANY_MISMATCH", "Карточка Kanban V2 принадлежит другой компании");
+      }
+      const cardProjectId = String(card.projectId || access.board.projectId || "").trim();
+      if (cardProjectId) cardProjectIds.add(cardProjectId);
+      cards.push({ ...card, board: access.board, effectiveProjectId: cardProjectId || null });
+    }
+
+    if (cardProjectIds.size > 1) {
+      throw equipmentContextError(409, "EQUIPMENT_KANBAN_PROJECT_CONFLICT", "Выбранные карточки относятся к разным проектам");
+    }
+    const derivedProjectId = Array.from(cardProjectIds)[0] || "";
+    if (requested.projectId && derivedProjectId && requested.projectId !== derivedProjectId) {
+      throw equipmentContextError(409, "EQUIPMENT_PROJECT_CARD_CONFLICT", "Выбранные карточки Kanban V2 не относятся к выбранному проекту");
+    }
+    if (requested.projectId && cards.some((card) => !card.effectiveProjectId)) {
+      throw equipmentContextError(409, "EQUIPMENT_PROJECT_CARD_CONFLICT", "Для выбранного проекта доступны только его карточки Kanban V2");
+    }
+    const projectId = requested.projectId || derivedProjectId || "";
+    if (!project && projectId) {
+      project = await storage.getProjectById(projectId).catch(() => undefined);
+      if (!project || String(project.companyId || "") !== input.companyId) {
+        throw equipmentContextError(403, "EQUIPMENT_PROJECT_COMPANY_MISMATCH", "Проект карточки недоступен в компании оборудования");
+      }
+    }
+
+    return {
+      provided: true,
+      projectId: projectId || null,
+      kanbanCardIds: requested.kanbanCardIds,
+      project,
+      cards,
+    };
+  };
+
+  const serializeEquipmentContext = async (item: any) => {
+    const [links, location] = await Promise.all([
+      storage.getEquipmentContextLinks(String(item.id)).catch(() => []),
+      item.locationId
+        ? storage.getCustomLocationById(String(item.locationId)).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ]);
+    const enrichedLinks = await Promise.all((links as any[]).map(async (link) => {
+      const [project, card, request] = await Promise.all([
+        link.projectId ? storage.getProjectById(String(link.projectId)).catch(() => undefined) : undefined,
+        link.kanbanCardId ? storage.getKanbanCardById(String(link.kanbanCardId)).catch(() => undefined) : undefined,
+        link.checkoutRequestId
+          ? storage.getEquipmentCheckoutRequestById(String(link.checkoutRequestId)).catch(() => undefined)
+          : undefined,
+      ]);
+      return {
+        ...link,
+        project: project ? { id: project.id, name: project.name, status: project.status } : null,
+        kanbanCard: card ? { id: card.id, title: card.title, boardId: card.boardId, projectId: card.projectId } : null,
+        checkoutRequest: request ? { id: request.id, status: request.status, requestType: request.requestType } : null,
+      };
+    }));
+    const manualLocation = String(item.manualLocation || "").trim() || null;
+    const legacyLocation = !item.locationId && !manualLocation && String(item.location || "").trim()
+      ? String(item.location).trim()
+      : null;
+    return {
+      ...item,
+      physicalDestination: {
+        locationId: item.locationId || null,
+        locationName: location?.name || null,
+        manualLocation,
+        displayName: location?.name || manualLocation || legacyLocation,
+        archived: Boolean(location?.archivedAt),
+        legacyLocation,
+      },
+      workContext: {
+        links: enrichedLinks,
+        activeLinks: enrichedLinks.filter((link) => link.active),
+      },
+    };
+  };
+
+  const serializeEquipmentCheckoutRequest = async (request: any) => {
+    const [location, project] = await Promise.all([
+      request.locationId
+        ? storage.getCustomLocationById(String(request.locationId)).catch(() => undefined)
+        : Promise.resolve(undefined),
+      request.projectId
+        ? storage.getProjectById(String(request.projectId)).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ]);
+    const cardIds = Array.from(new Set([
+      ...(Array.isArray(request.kanbanCardIds) ? request.kanbanCardIds : []),
+      request.kanbanCardId,
+    ].map((id) => String(id || "").trim()).filter(Boolean)));
+    const cards = (await Promise.all(cardIds.map((id) =>
+      storage.getKanbanCardById(id).catch(() => undefined),
+    ))).filter(Boolean);
+    return {
+      ...request,
+      physicalDestination: {
+        locationId: request.locationId || null,
+        locationName: location?.name || null,
+        manualLocation: request.manualLocation || null,
+        displayName: location?.name || request.manualLocation || request.location || null,
+        archived: Boolean(location?.archivedAt),
+      },
+      workContext: {
+        project: project ? { id: project.id, name: project.name, status: project.status } : null,
+        kanbanCards: cards.map((card: any) => ({
+          id: card.id,
+          title: card.title,
+          boardId: card.boardId,
+          projectId: card.projectId,
+        })),
+      },
+    };
+  };
+
+  const deactivateCurrentEquipmentCheckoutContext = async (equipmentId: string) => {
+    const links = (await storage.getEquipmentContextLinks(equipmentId).catch(() => []))
+      .filter((link: any) => link.active && link.source === "checkout");
+    if (links.some((link: any) => !link.checkoutRequestId)) {
+      await storage.deactivateEquipmentContextLinks(equipmentId, {
+        source: "checkout",
+        checkoutRequestId: null,
+      });
+    }
+    const requestIds = Array.from(new Set(
+      links.map((link: any) => String(link.checkoutRequestId || "").trim()).filter(Boolean),
+    ));
+    for (const requestId of requestIds) {
+      const request = await storage.getEquipmentCheckoutRequestById(requestId).catch(() => undefined);
+      if (request?.status === "approved") {
+        await storage.deactivateEquipmentContextLinks(equipmentId, {
+          source: "checkout",
+          checkoutRequestId: requestId,
+        });
+      }
+    }
+  };
+
+  const publishEquipmentContextChanged = (item: any, action: "updated" | "status" = "updated") => {
+    const version = new Date();
+    publishDiscussionEvent(createDiscussionRealtimeEvent({
+      channel: `equipment:${item.id}:comments`,
+      action,
+      recordId: String(item.id),
+      version,
+    }));
+    const companyId = equipmentCompanyId(item);
+    if (companyId) {
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `company:${companyId}`,
+        action,
+        recordId: companyId,
+        version,
+      }));
+    }
+  };
+
   // Equipment
   app.get("/api/equipment", async (req, res) => {
     if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
@@ -4235,7 +4547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const companyId = String(equipmentSpecs(item).companyId || "").trim();
           return !companyId || companyIds.includes(companyId);
         });
-    res.json(status ? scopedList : scopedList.filter((item: any) => item.status !== "archived"));
+    const visibleList = status ? scopedList : scopedList.filter((item: any) => item.status !== "archived");
+    res.json(await Promise.all(visibleList.map(serializeEquipmentContext)));
   });
 
   app.get("/api/equipment/:id", async (req, res) => {
@@ -4258,7 +4571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
         (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
-      res.json({ ...item, operabilityStatus });
+      res.json(await serializeEquipmentContext({ ...item, operabilityStatus }));
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;
       const message = error?.message || "Не удалось загрузить оборудование";
@@ -4432,6 +4745,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentUser = req.user as any;
       const companyIds = await getUserCompanyIds(currentUser);
       const incomingSpecs = body.specifications && typeof body.specifications === "object" ? body.specifications as Record<string, unknown> : {};
+      const targetCompanyId = String((incomingSpecs as any).companyId || companyIds[0] || "").trim();
+      if (!targetCompanyId) {
+        return res.status(400).json({ message: "Выберите компанию для оборудования" });
+      }
+      if (currentUser?.role !== "admin" && !companyIds.includes(targetCompanyId)) {
+        return res.status(403).json({ message: "Нет доступа к выбранной компании" });
+      }
+      const physicalDestination = await validatePhysicalDestination({
+        body,
+        user: currentUser,
+        companyId: targetCompanyId,
+      });
+      const workContext = await validateEquipmentWorkContext({
+        body,
+        user: currentUser,
+        companyId: targetCompanyId,
+      });
       const sanitized: Record<string, unknown> = {
         name,
         type: (body.type && String(body.type).trim()) || "other",
@@ -4442,7 +4772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         specifications: {
           ...incomingSpecs,
           createdByUserId: String((incomingSpecs as any).createdByUserId || currentUser?.id || ""),
-          companyId: String((incomingSpecs as any).companyId || companyIds[0] || ""),
+          companyId: targetCompanyId,
         },
         notes: body.notes && String(body.notes).trim() ? String(body.notes).trim() : undefined,
         status: body.status && String(body.status).trim() ? String(body.status).trim() : "available",
@@ -4453,7 +4783,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : body.status === "maintenance"
               ? "on_repair"
               : "working",
-        location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        location: physicalDestination.provided
+          ? physicalDestination.displayName || undefined
+          : body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        locationId: physicalDestination.provided ? physicalDestination.locationId || undefined : undefined,
+        manualLocation: physicalDestination.provided ? physicalDestination.manualLocation || undefined : undefined,
         storageLocation: body.storageLocation && String(body.storageLocation).trim() ? String(body.storageLocation).trim() : undefined,
         responsiblePerson: body.responsiblePerson && String(body.responsiblePerson).trim() ? String(body.responsiblePerson).trim() : undefined,
         responsibleContact: body.responsibleContact && String(body.responsibleContact).trim() ? String(body.responsibleContact).trim() : undefined,
@@ -4477,8 +4811,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[Equipment] Saving to database...");
       const equipment = await storage.createEquipment(equipmentData);
+      if (workContext.provided) {
+        await storage.replaceEquipmentContextLinks({
+          equipmentId: equipment.id,
+          source: "manual",
+          projectId: workContext.projectId,
+          kanbanCardIds: workContext.kanbanCardIds,
+          createdByUserId: currentUser.id,
+        });
+      }
       console.log("[Equipment] Equipment created successfully:", equipment.id);
-      res.json(equipment);
+      publishEquipmentContextChanged(equipment);
+      res.json(await serializeEquipmentContext(equipment));
     } catch (error: any) {
       const msg = error?.message ?? String(error);
       console.error("[Equipment] Error creating equipment:", msg);
@@ -4487,7 +4831,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userMessage = isDbError
         ? "Ошибка подключения к базе данных. Проверьте, что PostgreSQL запущен и DATABASE_URL в .env указан верно (postgresql://USER:PASSWORD@HOST:PORT/DATABASE)."
         : (msg || "Не удалось добавить оборудование");
-      res.status(isDbError ? 500 : 400).json({ message: userMessage, error: msg });
+      res.status(error?.statusCode || (isDbError ? 500 : 400)).json({
+        message: userMessage,
+        code: error?.code,
+        error: msg,
+      });
     }
   });
 
@@ -4501,6 +4849,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let existing = await storage.getEquipmentById(id).catch(() => undefined);
       if (!existing) {
         return res.status(404).json({ message: "Equipment not found" });
+      }
+      await ensureEquipmentCompanyAccess(req.user, existing);
+      const directWorkflowFields = new Set([
+        "status",
+        "assignedTo",
+        "lastUsed",
+        "location",
+        "locationId",
+        "manualLocation",
+        "physicalDestination",
+        "workContext",
+        "kitExtraction",
+      ]);
+      const changesWorkflowState =
+        (Object.prototype.hasOwnProperty.call(body, "status") && String(body.status || "") !== String(existing.status || "")) ||
+        (Object.prototype.hasOwnProperty.call(body, "assignedTo") && String(body.assignedTo || "") !== String(existing.assignedTo || ""));
+      const hasMaintainedFieldEdit = Object.keys(body).some((key) => !directWorkflowFields.has(key));
+      if (
+        (hasMaintainedFieldEdit || (!changesWorkflowState && (body.physicalDestination || body.workContext))) &&
+        !(await canManageEquipmentKit(req.user, existing))
+      ) {
+        return res.status(403).json({ message: "Нет прав на редактирование оборудования" });
       }
       const originalParentBundleId = String(equipmentSpecs(existing).parentBundleId || "").trim();
       await getEquipmentKitContext(existing);
@@ -4526,6 +4896,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const companyId = equipmentCompanyId(existing);
+      const physicalDestination = await validatePhysicalDestination({
+        body,
+        user: req.user,
+        companyId,
+        existingLocationId: existing.locationId,
+      });
+      const workContext = await validateEquipmentWorkContext({
+        body,
+        user: req.user,
+        companyId,
+      });
       const updateData: Record<string, unknown> = {};
       const copyFields = [
         "name",
@@ -4549,6 +4931,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (Object.prototype.hasOwnProperty.call(body, field)) {
           updateData[field] = body[field];
         }
+      }
+      if (physicalDestination.provided) {
+        updateData.locationId = physicalDestination.locationId;
+        updateData.manualLocation = physicalDestination.manualLocation;
+        updateData.location = physicalDestination.displayName;
       }
       if (orphanedMembershipRecovered && Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
         const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
@@ -4620,10 +5007,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!equipment) {
         return res.status(404).json({ message: "Equipment not found" });
       }
-      res.json(equipment);
+      if (returnsToAvailable || clearsActiveHolder) {
+        await deactivateCurrentEquipmentCheckoutContext(id);
+      }
+      if (workContext.provided) {
+        await storage.replaceEquipmentContextLinks({
+          equipmentId: id,
+          source: changesToInUse ? "checkout" : "manual",
+          projectId: workContext.projectId,
+          kanbanCardIds: workContext.kanbanCardIds,
+          createdByUserId: (req.user as any)?.id || null,
+        });
+      }
+      publishEquipmentContextChanged(equipment, changesToInUse || returnsToAvailable ? "status" : "updated");
+      res.json(await serializeEquipmentContext(equipment));
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;
-      res.status(500).json({ message: error?.message || "Failed to update equipment" });
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Failed to update equipment",
+        code: error?.code,
+      });
     }
   });
 
@@ -4641,14 +5044,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requests = await storage.getEquipmentCheckoutRequests().catch(() => []);
 
       if (currentUser?.role === "admin") {
-        return res.json(requests);
+        return res.json(await Promise.all((requests as any[]).map(serializeEquipmentCheckoutRequest)));
       }
 
-      res.json((requests as any[]).filter((request) => {
+      const visibleRequests = (requests as any[]).filter((request) => {
         const companyId = String(request.companyId || "").trim();
         return request.requestedBy === currentUser?.id ||
           (companyId && manageableCompanyIds.includes(companyId));
-      }));
+      });
+      res.json(await Promise.all(visibleRequests.map(serializeEquipmentCheckoutRequest)));
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось загрузить запросы на оборудование" });
     }
@@ -4987,6 +5391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item || item.status === "archived") {
         return res.status(404).json({ message: "Оборудование не найдено" });
       }
+      await ensureEquipmentCompanyAccess(currentUser, item);
       const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
         (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
       if (operabilityStatus !== "working") {
@@ -4999,9 +5404,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userCompanyIds = await getUserCompanyIds(currentUser);
       const requestedCompanyId = String(body.companyId || "").trim();
-      const companyId = requestedCompanyId || userCompanyIds[0] || "";
+      const itemCompanyId = equipmentCompanyId(item);
+      const companyId = requestedCompanyId || itemCompanyId || userCompanyIds[0] || "";
       if (requestedCompanyId && !userCompanyIds.includes(requestedCompanyId)) {
         return res.status(403).json({ message: "Нет доступа к этой компании" });
+      }
+      if (itemCompanyId && companyId !== itemCompanyId) {
+        return res.status(403).json({ message: "Оборудование принадлежит другой компании" });
+      }
+      if (body.taskId && String(body.taskId).trim()) {
+        return res.status(400).json({
+          message: "Новые связи с Legacy Task Manager не поддерживаются. Выберите карточку Kanban V2",
+          code: "LEGACY_TASK_LINK_FORBIDDEN",
+        });
       }
 
       const requestType = body.requestType === "transfer" ? "transfer" : "checkout";
@@ -5012,29 +5427,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Number.isInteger(rawQuantity) || rawQuantity <= 0) {
         return res.status(400).json({ message: "Количество должно быть положительным целым числом" });
       }
-      const kanbanCardId = body.kanbanCardId && String(body.kanbanCardId).trim() ? String(body.kanbanCardId).trim() : "";
-      if (kanbanCardId) {
-        const card = await storage.getKanbanCardById(kanbanCardId).catch(() => undefined);
-        if (!card) return res.status(400).json({ message: "Выбранная карточка Kanban не найдена" });
-        const access = await getKanbanBoardAccess(currentUser, String(card.boardId)).catch(() => null);
-        if (!access) return res.status(400).json({ message: "Выбранная карточка Kanban недоступна" });
-      }
-      const taskId = body.taskId && String(body.taskId).trim() ? String(body.taskId).trim() : "";
-      if (taskId) {
-        const task = await storage.getTaskById(taskId).catch(() => undefined);
-        if (!task) return res.status(400).json({ message: "Выбранная задача не найдена" });
-      }
+      const physicalDestination = await validatePhysicalDestination({
+        body,
+        user: currentUser,
+        companyId,
+        required: true,
+      });
+      const workContext = await validateEquipmentWorkContext({
+        body,
+        user: currentUser,
+        companyId,
+      });
       const requestData = insertEquipmentCheckoutRequestSchema.parse({
         companyId: companyId || undefined,
         equipmentId,
         requestedBy: currentUser.id,
-        kanbanCardId: kanbanCardId || undefined,
-        taskId: taskId || undefined,
+        kanbanCardId: workContext.kanbanCardIds[0] || undefined,
+        kanbanCardIds: workContext.kanbanCardIds,
+        projectId: workContext.projectId || undefined,
+        locationId: physicalDestination.locationId || undefined,
+        manualLocation: physicalDestination.manualLocation || undefined,
         quantity: rawQuantity,
         requestType,
         currentHolder: requestType === "transfer" ? item.assignedTo || null : null,
         status: "pending",
-        location: body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
+        location: physicalDestination.displayName || undefined,
         note: body.note && String(body.note).trim() ? String(body.note).trim() : undefined,
       });
 
@@ -5043,12 +5460,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: currentUser,
         confirmation: body.kitExtraction,
         actionContext: requestType === "transfer" ? "equipment-transfer-request" : "equipment-checkout-request",
-        action: async () => storage.createEquipmentCheckoutRequest(requestData),
+        action: async () => {
+          const createdRequest = await storage.createEquipmentCheckoutRequest(requestData);
+          if (workContext.provided) {
+            await storage.replaceEquipmentContextLinks({
+              equipmentId,
+              source: "checkout",
+              checkoutRequestId: createdRequest.id,
+              projectId: workContext.projectId,
+              kanbanCardIds: workContext.kanbanCardIds,
+              createdByUserId: currentUser.id,
+            });
+          }
+          return createdRequest;
+        },
       });
-      res.json(request);
+      publishEquipmentContextChanged(item);
+      res.json(await serializeEquipmentCheckoutRequest(request));
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;
-      res.status(400).json({ message: error?.message || "Не удалось создать запрос на оборудование" });
+      res.status(error?.statusCode || 400).json({
+        message: error?.message || "Не удалось создать запрос на оборудование",
+        code: error?.code,
+      });
     }
   });
 
@@ -5133,6 +5567,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: "in-use",
             assignedTo: request.requestedBy,
             location: request.location || freshItem.location,
+            locationId: request.locationId || null,
+            manualLocation: request.manualLocation || null,
             lastUsed: new Date(),
           } as any);
           const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
@@ -5144,7 +5580,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      res.json(outcome);
+      if (outcome.equipment) publishEquipmentContextChanged(outcome.equipment, "status");
+      res.json({
+        request: outcome.request ? await serializeEquipmentCheckoutRequest(outcome.request) : outcome.request,
+        equipment: outcome.equipment ? await serializeEquipmentContext(outcome.equipment) : outcome.equipment,
+      });
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;
       res.status(500).json({ message: error?.message || "Не удалось подтвердить запрос" });
@@ -5173,8 +5613,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reviewedAt: new Date(),
         decisionNote: req.body?.decisionNote ? String(req.body.decisionNote).trim() : undefined,
       } as any);
+      await storage.deactivateEquipmentContextLinks(request.equipmentId, {
+        source: "checkout",
+        checkoutRequestId: request.id,
+      });
+      const item = await storage.getEquipmentById(request.equipmentId).catch(() => undefined);
+      if (item) publishEquipmentContextChanged(item, "status");
 
-      res.json({ request: updatedRequest });
+      res.json({
+        request: updatedRequest ? await serializeEquipmentCheckoutRequest(updatedRequest) : updatedRequest,
+      });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось отклонить запрос" });
     }
@@ -8601,19 +9049,67 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   // Сводка: какое оборудование на каких проектах (assignedByUserId — чтобы вернуть мог только тот, кто отправил)
-  app.get("/api/equipment-on-projects", async (_req, res) => {
-    const flat: Array<{ equipmentId: string; projectId: string; projectName?: string; sentAt: string; returnDate: string; assignedByName: string; assignedByUserId?: string }> = [];
-    const projectIds = [...new Set(projectEquipmentBundles.map((b) => b.projectId))];
-    const projectNames: Record<string, string> = {};
-    await Promise.all(projectIds.map(async (id) => {
-      try {
-        const p = await storage.getProjectById(id);
-        if (p?.name) projectNames[id] = p.name;
-      } catch (_) {}
+  app.get("/api/equipment-on-projects", async (req, res) => {
+    if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+    const currentUser = req.user as any;
+    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
+    const allContextLinks = (await storage.getEquipmentContextLinks().catch(() => []))
+      .filter((link: any) => link.active && link.projectId);
+    const projectIds = [...new Set([
+      ...projectEquipmentBundles.map((bundle) => bundle.projectId),
+      ...allContextLinks.map((link: any) => String(link.projectId)),
+    ])];
+    const projectList = (await Promise.all(projectIds.map((id) =>
+      storage.getProjectById(id).catch(() => undefined),
+    ))).filter(Boolean) as any[];
+    const projectById = new Map(projectList.map((project) => [String(project.id), project]));
+    const canSeeProject = (project: any) => {
+      if (currentUser?.role === "admin") return true;
+      const userId = String(currentUser?.id || "");
+      return String(project?.ownerId || "") === userId ||
+        String(project?.assignedTo || "") === userId ||
+        (Array.isArray(project?.participants) && project.participants.map(String).includes(userId)) ||
+        (project?.companyId && companyIds.map(String).includes(String(project.companyId)));
+    };
+    const visibleProjectIds = new Set(
+      projectList.filter(canSeeProject).map((project) => String(project.id)),
+    );
+    const visibleEquipmentIds = new Set<string>();
+    const candidateEquipmentIds = Array.from(new Set([
+      ...projectEquipmentBundles.flatMap((bundle) => bundle.equipmentIds),
+      ...allContextLinks.map((link: any) => String(link.equipmentId)),
+    ]));
+    await Promise.all(candidateEquipmentIds.map(async (equipmentId) => {
+      const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+      if (!item) return;
+      const companyId = equipmentCompanyId(item);
+      if (currentUser?.role === "admin" || !companyId || companyIds.map(String).includes(companyId)) {
+        visibleEquipmentIds.add(equipmentId);
+      }
     }));
+    const contextLinks = allContextLinks.filter((link: any) =>
+      visibleProjectIds.has(String(link.projectId)) &&
+      visibleEquipmentIds.has(String(link.equipmentId)),
+    );
+    const projectNames: Record<string, string> = Object.fromEntries(
+      projectList.map((project) => [String(project.id), String(project.name || "Проект")]),
+    );
+    const rows = new Map<string, {
+      equipmentId: string;
+      projectId: string;
+      projectName?: string;
+      sentAt: string;
+      returnDate: string;
+      assignedByName: string;
+      assignedByUserId?: string;
+      sources: string[];
+      kanbanCardIds: string[];
+    }>();
     for (const b of projectEquipmentBundles) {
+      if (!visibleProjectIds.has(String(b.projectId))) continue;
       for (const equipmentId of b.equipmentIds) {
-        flat.push({
+        if (!visibleEquipmentIds.has(String(equipmentId))) continue;
+        rows.set(`${equipmentId}:${b.projectId}`, {
           equipmentId,
           projectId: b.projectId,
           projectName: projectNames[b.projectId],
@@ -8621,10 +9117,34 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           returnDate: b.returnDate,
           assignedByName: b.assignedByName,
           assignedByUserId: b.assignedByUserId,
+          sources: ["project-bundle"],
+          kanbanCardIds: [],
         });
       }
     }
-    res.json(flat);
+    for (const link of contextLinks as any[]) {
+      const key = `${link.equipmentId}:${link.projectId}`;
+      const existing = rows.get(key);
+      if (existing) {
+        if (!existing.sources.includes(link.source)) existing.sources.push(link.source);
+        if (link.kanbanCardId && !existing.kanbanCardIds.includes(String(link.kanbanCardId))) {
+          existing.kanbanCardIds.push(String(link.kanbanCardId));
+        }
+        continue;
+      }
+      rows.set(key, {
+        equipmentId: String(link.equipmentId),
+        projectId: String(link.projectId),
+        projectName: projectNames[String(link.projectId)],
+        sentAt: new Date(link.createdAt || Date.now()).toISOString(),
+        returnDate: "",
+        assignedByName: link.source === "checkout" ? "Через выдачу" : "Ручная связь",
+        assignedByUserId: link.createdByUserId || undefined,
+        sources: [String(link.source)],
+        kanbanCardIds: link.kanbanCardId ? [String(link.kanbanCardId)] : [],
+      });
+    }
+    res.json(Array.from(rows.values()));
   });
 
   // Projects
@@ -8752,6 +9272,28 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     if (Array.isArray(project.participants) && project.participants.map(String).includes(userId)) return true;
     const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
     return Boolean(project.companyId && companyIds.map(String).includes(String(project.companyId)));
+  };
+
+  const publishProjectChanged = (
+    project: any,
+    action: "created" | "updated" | "deleted" = "updated",
+  ) => {
+    if (!project?.id) return;
+    const version = project.updatedAt || project.createdAt || new Date();
+    publishDiscussionEvent(createDiscussionRealtimeEvent({
+      channel: `project:${project.id}:comments`,
+      action,
+      recordId: String(project.id),
+      version,
+    }));
+    if (project.companyId) {
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `company:${project.companyId}`,
+        action,
+        recordId: String(project.id),
+        version,
+      }));
+    }
   };
 
   const canManageProjectDiscussion = async (currentUser: any, project: any) => {
@@ -8925,6 +9467,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       const project = await storage.createProject(projectData);
       await storage.setProjectLocations(project.id, locationResolution.locationIds);
+      publishProjectChanged(project, "created");
       res.status(201).json(await buildProjectResponse(project));
     } catch (error: any) {
       console.error("Error creating project:", error);
@@ -8974,6 +9517,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (nextLocationIds !== undefined) {
         await storage.setProjectLocations(project.id, nextLocationIds);
       }
+      publishProjectChanged(project, "updated");
       res.json(await buildProjectResponse(project));
     } catch (error) {
       res.status(500).json({ message: "Failed to update project" });
@@ -10550,7 +11094,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
     if (parsed.scope === "equipment") {
       const item = await storage.getEquipmentById(parsed.recordId).catch(() => undefined);
-      return Boolean(item && await hasWorkspaceAccess(user));
+      if (!item || !(await hasWorkspaceAccess(user))) return false;
+      if (user.role === "admin") return true;
+      const companyId = equipmentCompanyId(item);
+      if (!companyId) return true;
+      const companyIds = await getUserCompanyIds(user).catch(() => []);
+      return companyIds.map(String).includes(companyId);
     }
     return false;
   };
