@@ -14,15 +14,20 @@ import {
   Plus, HardDrive, Calendar,
   User, Edit, Trash2, Film, Clock, CheckCircle2,
   Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink,
-  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin
+  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin,
+  AlertTriangle
 } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DiscussionThread } from "@/components/discussion-thread";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
+import {
+  updateOpenedProject,
+  upsertProjectKanbanBoard,
+} from "@/lib/project-kanban";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -144,18 +149,94 @@ function AddColumnForm({
 }
 
 type TaskStats = {
+  source: {
+    type: "kanban-v2";
+    boardIds: string[];
+  };
   total: number;
   done: number;
   byStatus: Record<string, number>;
-  statusNames?: Record<string, string>;
-  byUser?: Record<string, number>;
-  byRepository?: Record<string, number>;
-  byCategory?: Record<string, number>;
-  userNames?: Record<string, string>;
-  categoryLabels?: Record<string, string>;
+  statusNames: Record<string, string>;
+  tasks: {
+    total: number;
+    active: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    unassigned: number;
+    deadlines: {
+      overdue: number;
+      dueSoon: number;
+      future: number;
+      noDeadline: number;
+    };
+    items: Array<{
+      id: string;
+      boardId: string;
+      title: string;
+      listId: string;
+      listName: string;
+      completed: boolean;
+      inProgress: boolean;
+      overdue: boolean;
+      unassigned: boolean;
+      assigneeUserId?: string | null;
+      dueDate?: string | null;
+    }>;
+  };
+  assignees: Array<{
+    userId: string;
+    name: string;
+    total: number;
+    active: number;
+    completed: number;
+    overdue: number;
+  }>;
+  locations: {
+    total: number;
+    active: number;
+    archived: number;
+    unresolvedIssues: number;
+    bySeverity: Record<string, number>;
+    items: Array<{
+      id: string;
+      name: string;
+      archived: boolean;
+      source: string;
+      unresolvedIssues: number;
+      bySeverity: Record<string, number>;
+    }>;
+  };
+  equipment: {
+    total: number;
+    linked: number;
+    requested: number;
+    approved: number;
+    issued: number;
+    returned: number;
+    overdue: number;
+    brokenOrRepair: number;
+    items: Array<{
+      id: string;
+      name: string;
+      model?: string | null;
+      linked: boolean;
+      workflowStatus?: "requested" | "approved" | "issued" | "returned" | "overdue" | null;
+      brokenOrRepair: boolean;
+      cardIds: string[];
+    }>;
+  };
 };
 
-function ProjectTaskStats({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+function ProjectTaskStats({
+  projectId,
+  companyId,
+  onClose,
+}: {
+  projectId: string;
+  companyId?: string | null;
+  onClose: () => void;
+}) {
   const { data: stats, isLoading } = useQuery<TaskStats>({
     queryKey: ["/api/projects", projectId, "task-stats"],
     queryFn: async () => {
@@ -163,7 +244,17 @@ function ProjectTaskStats({ projectId, onClose }: { projectId: string; onClose: 
       return res.json();
     },
     enabled: !!projectId,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
+  useRealtimeSubscriptions(
+    companyId ? [`company:${companyId}`] : [`project:${projectId}:comments`],
+    (message) => {
+      if (message.type === "discussion_event" || message.type === "realtime_reconnected") {
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-stats"] });
+      }
+    },
+  );
 
   if (isLoading || !stats) {
     return (
@@ -173,152 +264,286 @@ function ProjectTaskStats({ projectId, onClose }: { projectId: string; onClose: 
     );
   }
 
-  const { total, done, byStatus, statusNames: apiStatusNames = {}, byUser = {}, byRepository = {}, byCategory = {}, userNames = {}, categoryLabels: apiCategoryLabels = {} } = stats;
+  const { total, done, byStatus, statusNames, tasks, assignees, locations, equipment } = stats;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-  const statusLabels: Record<string, string> = {
-    todo: "К выполнению",
-    in_progress: "В работе",
-    done: "Готово",
-    not_ready: "Бэклог",
-    review: "На проверке",
+  const boardId = stats.source.boardIds[0] || "";
+  const boardHref = boardId ? `/tasks?boardId=${encodeURIComponent(boardId)}` : "/tasks";
+  const taskMetrics = [
+    { label: "Всего", value: tasks.total },
+    { label: "Активные", value: tasks.active },
+    { label: "В работе", value: tasks.inProgress },
+    { label: "Готово", value: tasks.completed },
+    { label: "Просрочено", value: tasks.overdue, danger: tasks.overdue > 0 },
+    { label: "Без исполнителя", value: tasks.unassigned, danger: tasks.unassigned > 0 },
+  ];
+  const deadlineMetrics = [
+    { label: "Просрочено", value: tasks.deadlines.overdue, danger: tasks.deadlines.overdue > 0 },
+    { label: "Ближайшие 7 дней", value: tasks.deadlines.dueSoon },
+    { label: "Позже", value: tasks.deadlines.future },
+    { label: "Без срока", value: tasks.deadlines.noDeadline },
+  ];
+  const equipmentMetrics = [
+    { label: "Всего", value: equipment.total },
+    { label: "Связано", value: equipment.linked },
+    { label: "Запрошено", value: equipment.requested },
+    { label: "Подтверждено", value: equipment.approved },
+    { label: "Выдано", value: equipment.issued },
+    { label: "Возвращено", value: equipment.returned },
+    { label: "Просрочено", value: equipment.overdue, danger: equipment.overdue > 0 },
+    { label: "Неисправно / ремонт", value: equipment.brokenOrRepair, danger: equipment.brokenOrRepair > 0 },
+  ];
+  const workflowLabels: Record<string, string> = {
+    requested: "Запрошено",
+    approved: "Подтверждено",
+    issued: "Выдано",
+    returned: "Возвращено",
+    overdue: "Просрочено",
   };
-  const getStatusLabel = (statusId: string) => apiStatusNames[statusId] ?? statusLabels[statusId] ?? statusId;
-  const r = 44;
-  const circ = 2 * Math.PI * r;
-  const doneOffset = total > 0 ? circ - (done / total) * circ : circ;
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Всего задач</p>
-          <p className="text-3xl font-bold mt-1">{total}</p>
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Источник: выделенная доска Kanban V2</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Сводка пересчитывается из карточек, площадок и складских связей проекта.
+          </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Выполнено</p>
-          <p className="text-3xl font-bold mt-1 text-green-600 dark:text-green-400">{done}</p>
-        </div>
+        <Button asChild variant="outline" size="sm" className="rounded-xl">
+          <Link href={boardHref}>Открыть задачи</Link>
+        </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-6 rounded-xl border border-border bg-muted/20 p-4">
-        <div className="relative w-32 h-32 shrink-0">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/30" />
-            <circle
-              cx="50"
-              cy="50"
-              r={r}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="10"
-              strokeDasharray={circ}
-              strokeDashoffset={doneOffset}
-              strokeLinecap="round"
-              className="text-green-500 dark:text-green-400 transition-[stroke-dashoffset] duration-500"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold">{percent}%</span>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Задачи</h3>
+            <p className="text-xs text-muted-foreground">Текущая готовность и риски по Kanban V2.</p>
           </div>
+          <Badge variant="outline">{percent}% готово</Badge>
         </div>
-        <div className="flex-1 w-full">
-          <p className="text-sm font-medium mb-2">Прогресс</p>
+        <div className="rounded-xl border border-border bg-card p-4">
           <Progress value={percent} className="h-3 rounded-full" />
-          <p className="text-xs text-muted-foreground mt-1.5">{done} из {total} задач выполнено</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {total > 0 ? `${done} из ${total} задач выполнено` : "На доске проекта пока нет карточек"}
+          </p>
         </div>
-      </div>
-
-      {Object.keys(byStatus).length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-semibold mb-3">По колонкам / статусам</p>
-          <div className="space-y-3">
-            {Object.entries(byStatus)
-              .sort((a, b) => b[1] - a[1])
-              .map(([status, count]) => {
-                const pct = total > 0 ? (count / total) * 100 : 0;
-                return (
-                  <div key={status} className="flex items-center gap-3">
-                    <div className="w-24 text-sm text-muted-foreground shrink-0">
-                      {getStatusLabel(status)}
-                    </div>
-                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          status === "done" ? "bg-green-500" : "bg-primary/70"
-                        )}
-                        style={{ width: `${pct}%`, minWidth: count > 0 ? 4 : 0 }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium w-8 text-right">{count}</span>
-                  </div>
-                );
-              })}
-          </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {taskMetrics.map((metric) => (
+            <Link
+              key={metric.label}
+              href={boardHref}
+              className={cn(
+                "rounded-xl border bg-card p-3 transition hover:border-primary/40 hover:bg-muted/30",
+                metric.danger && "border-red-500/35 bg-red-500/5",
+              )}
+            >
+              <div className="text-xs text-muted-foreground">{metric.label}</div>
+              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-red-500")}>
+                {metric.value}
+              </div>
+            </Link>
+          ))}
         </div>
-      )}
-
-      {Object.keys(byUser).length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-semibold mb-3">По исполнителям</p>
-          <div className="space-y-2">
-            {Object.entries(byUser)
-              .sort((a, b) => b[1] - a[1])
-              .map(([userId, count]) => {
-                const pct = total > 0 ? (count / total) * 100 : 0;
-                const name = userNames[userId] ?? userId;
-                return (
-                  <div key={userId} className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm truncate block">{name}</span>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-0.5">
-                        <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%`, minWidth: count > 0 ? 4 : 0 }} />
-                      </div>
-                    </div>
-                    <span className="text-sm font-medium w-8 text-right shrink-0">{count}</span>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {Object.keys(byRepository).length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-semibold mb-3">По репозиториям</p>
-          <ul className="space-y-1.5 text-sm">
-            {Object.entries(byRepository)
-              .sort((a, b) => b[1] - a[1])
-              .map(([repo, count]) => (
-                <li key={repo} className="flex justify-between items-center gap-2">
-                  <span className="truncate text-muted-foreground" title={repo}>{repo}</span>
-                  <span className="font-medium shrink-0">{count}</span>
-                </li>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="mb-3 text-sm font-semibold">Сроки активных задач</p>
+            <div className="grid grid-cols-2 gap-2">
+              {deadlineMetrics.map((metric) => (
+                <Link
+                  key={metric.label}
+                  href={boardHref}
+                  className={cn(
+                    "rounded-lg border border-border/60 bg-muted/20 p-3 hover:bg-muted/40",
+                    metric.danger && "border-red-500/35 text-red-500",
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground">{metric.label}</div>
+                  <div className="mt-1 text-xl font-semibold">{metric.value}</div>
+                </Link>
               ))}
-          </ul>
-        </div>
-      )}
-
-      {Object.keys(byCategory).length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-semibold mb-3">По категориям</p>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(byCategory)
-              .sort((a, b) => b[1] - a[1])
-              .map(([cat, count]) => (
-                <Badge key={cat} variant="secondary" className="text-xs">
-                  {apiCategoryLabels[cat] ?? cat}: {count}
-                </Badge>
-              ))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="mb-3 text-sm font-semibold">Колонки</p>
+            {Object.keys(byStatus).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Нет данных по колонкам.</p>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(byStatus)
+                  .sort((left, right) => right[1] - left[1])
+                  .map(([status, count]) => (
+                    <Link
+                      key={status}
+                      href={boardHref}
+                      className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/40"
+                    >
+                      <span className="truncate text-muted-foreground">{statusNames[status] || status}</span>
+                      <span className="font-medium">{count}</span>
+                    </Link>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </section>
 
-      {total === 0 && (
-        <p className="text-sm text-muted-foreground py-2 rounded-lg bg-muted/30 px-3">
-          Нет задач по этому проекту. Добавьте проект в таск-менеджер и создавайте задачи на доске.
-        </p>
-      )}
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold">Нагрузка участников</h3>
+          <p className="text-xs text-muted-foreground">Включены участники проекта и текущей доски.</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          {assignees.length === 0 ? (
+            <p className="text-sm text-muted-foreground">У проекта пока нет доступных участников.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {assignees.map((assignee) => (
+                <Link
+                  key={assignee.userId}
+                  href={boardHref}
+                  className="rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate text-sm font-medium">{assignee.name}</span>
+                    <Badge variant="secondary">{assignee.total}</Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                    <span>Активно: {assignee.active}</span>
+                    <span>· Готово: {assignee.completed}</span>
+                    {assignee.overdue > 0 && <span className="text-red-500">· Просрочено: {assignee.overdue}</span>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Площадки</h3>
+            <p className="text-xs text-muted-foreground">Прямые связи проекта и площадки карточек.</p>
+          </div>
+          <Button asChild variant="outline" size="sm" className="rounded-xl">
+            <Link href="/locations">Открыть площадки</Link>
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ["Всего", locations.total],
+            ["Активные", locations.active],
+            ["Архив", locations.archived],
+            ["Открытые проблемы", locations.unresolvedIssues],
+          ].map(([label, value]) => (
+            <Link
+              key={String(label)}
+              href="/locations"
+              className="rounded-xl border border-border bg-card p-3 hover:bg-muted/30"
+            >
+              <div className="text-xs text-muted-foreground">{label}</div>
+              <div className={cn(
+                "mt-1 text-2xl font-semibold",
+                label === "Открытые проблемы" && Number(value) > 0 && "text-amber-500",
+              )}>
+                {value}
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(["critical", "high", "medium", "low"] as const).map((severity) => (
+              <Badge
+                key={severity}
+                variant={severity === "critical" || severity === "high" ? "destructive" : "outline"}
+              >
+                {severity}: {locations.bySeverity[severity] || 0}
+              </Badge>
+            ))}
+          </div>
+          {locations.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">К проекту пока не привязаны площадки.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {locations.items.map((location) => (
+                <Link
+                  key={location.id}
+                  href="/locations"
+                  className="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{location.name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {location.archived ? "Архивная" : "Активная"} · проблем: {location.unresolvedIssues}
+                    </div>
+                  </div>
+                  {location.unresolvedIssues > 0 && <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Оборудование</h3>
+            <p className="text-xs text-muted-foreground">Уникальные позиции без повторного подсчёта связей.</p>
+          </div>
+          <Button asChild variant="outline" size="sm" className="rounded-xl">
+            <Link href="/equipment">Открыть склад</Link>
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {equipmentMetrics.map((metric) => (
+            <Link
+              key={metric.label}
+              href="/equipment"
+              className={cn(
+                "rounded-xl border border-border bg-card p-3 hover:bg-muted/30",
+                metric.danger && "border-red-500/35 bg-red-500/5",
+              )}
+            >
+              <div className="text-xs text-muted-foreground">{metric.label}</div>
+              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-red-500")}>
+                {metric.value}
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          {equipment.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">У проекта пока нет связанного оборудования.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {equipment.items.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/equipment?equipmentId=${encodeURIComponent(item.id)}`}
+                  className="rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                >
+                  <div className="truncate text-sm font-medium">
+                    {[item.name, item.model].filter(Boolean).join(" · ")}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {item.linked && <Badge variant="outline">Связано</Badge>}
+                    {item.workflowStatus && (
+                      <Badge variant={item.workflowStatus === "overdue" ? "destructive" : "secondary"}>
+                        {workflowLabels[item.workflowStatus]}
+                      </Badge>
+                    )}
+                    {item.brokenOrRepair && <Badge variant="destructive">Неисправно / ремонт</Badge>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       <Button variant="outline" size="sm" onClick={onClose} className="w-full rounded-xl">
         Закрыть
       </Button>
@@ -792,14 +1017,30 @@ export default function Projects() {
       }
       return res.json();
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({ queryKey: ["kanban-boards"] });
+    onSuccess: async (data: any, projectId: string) => {
       const boardId = data?.board?.id;
       if (!boardId) {
         toast({ title: "Ошибка", description: "Сервер не вернул доску проекта", variant: "destructive" });
         return;
       }
+      queryClient.setQueryData(
+        ["/api/kanban/boards"],
+        (current: any[] | undefined) => upsertProjectKanbanBoard(current, data.board),
+      );
+      if (data?.project?.id) {
+        queryClient.setQueryData(
+          ["/api/projects"],
+          (current: any[] | undefined) => updateOpenedProject(current, data.project),
+        );
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/kanban/boards"] }),
+        queryClient.invalidateQueries({ queryKey: ["kanban-lists", boardId] }),
+        queryClient.invalidateQueries({ queryKey: ["kanban-board-members", boardId] }),
+        queryClient.invalidateQueries({ queryKey: ["kanban-cards", boardId] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-stats"] }),
+      ]);
       navigate(`/tasks?boardId=${encodeURIComponent(boardId)}`);
     },
     onError: (e: any) => {
@@ -1451,7 +1692,7 @@ export default function Projects() {
 
       {/* Статистика по задачам проекта */}
       <Dialog open={!!projectForStats} onOpenChange={(open) => !open && setProjectForStats(null)}>
-        <DialogContent className="max-w-lg bg-background text-foreground">
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto bg-background text-foreground">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
@@ -1460,7 +1701,11 @@ export default function Projects() {
             </DialogTitle>
           </DialogHeader>
           {projectForStats && (
-            <ProjectTaskStats projectId={projectForStats.id} onClose={() => setProjectForStats(null)} />
+            <ProjectTaskStats
+              projectId={projectForStats.id}
+              companyId={projectForStats.companyId}
+              onClose={() => setProjectForStats(null)}
+            />
           )}
         </DialogContent>
       </Dialog>
