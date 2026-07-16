@@ -10,11 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Mic, Camera, Lightbulb, Monitor, Gavel, Edit, MapPin, ScanBarcode, QrCode, ArrowRightLeft, ShoppingCart, Send, Trash2, User, Calendar, AlertTriangle, FileSpreadsheet, PackageCheck, FileText, Search, X, Clock, SlidersHorizontal, History, MessageSquare, Printer, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
+import { Package, Plus, Mic, Camera, Lightbulb, Monitor, Gavel, Edit, MapPin, ScanBarcode, QrCode, ArrowRightLeft, ShoppingCart, Send, Trash2, User, Calendar, AlertTriangle, FileSpreadsheet, PackageCheck, FileText, Search, X, Clock, SlidersHorizontal, History, MessageSquare, Printer, ChevronDown, ChevronUp, ShieldAlert, Settings } from "lucide-react";
 import { EquipmentForm } from "@/components/forms/equipment-form";
 import { BarcodeScanner } from "@/components/equipment/barcode-scanner";
 import { EquipmentBarcodeModal } from "@/components/equipment/barcode-generator";
 import { EquipmentActivity } from "@/components/equipment/equipment-activity";
+import {
+  WarehouseSettings,
+  type WarehouseCategoryOption,
+  type WarehouseStorageLocationOption,
+} from "@/components/equipment/warehouse-settings";
 import { canCreateEquipment, canEditEquipment, canReserveEquipment } from "@/lib/equipment-permissions";
 import { buildBarcodeLabelBitmapPayload, renderCompactBarcodeLabel } from "@/lib/barcode-label";
 import { apiRequest, apiUrl, encodeUserHeader } from "@/lib/queryClient";
@@ -154,7 +159,21 @@ function getEquipmentPhotos(item: Equipment | null | undefined): string[] {
 }
 
 function getEquipmentStorageLocation(item: Equipment | null | undefined) {
-  return String(item?.storageLocation || "").trim();
+  return String((item as any)?.warehouseStorageLocation?.path || item?.storageLocation || "").trim();
+}
+
+function getEquipmentCategoryLabel(item: Equipment | null | undefined) {
+  const categoryName = String((item as any)?.category?.name || "").trim();
+  if (categoryName) return categoryName;
+  switch (String(item?.type || "")) {
+    case "microphone": return "Микрофон";
+    case "camera": return "Камера";
+    case "lighting": return "Освещение";
+    case "computer": return "Компьютер";
+    case "audio": return "Аудиооборудование";
+    case "video": return "Видеооборудование";
+    default: return String(item?.type || "").trim() || "Другое";
+  }
 }
 
 function getEquipmentResponsiblePerson(item: Equipment | null | undefined) {
@@ -320,6 +339,7 @@ export default function EquipmentPage() {
   const [cart, setCart] = useState<Equipment[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [warehouseSettingsOpen, setWarehouseSettingsOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sendToProjectId, setSendToProjectId] = useState<string>("");
   const [handoffAt, setHandoffAt] = useState<string>(() => toLocalDateTimeInputValue());
@@ -338,7 +358,7 @@ export default function EquipmentPage() {
   const [requestCardIds, setRequestCardIds] = useState<Set<string>>(new Set());
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
-  const [bundleType, setBundleType] = useState("computer");
+  const [bundleCategoryId, setBundleCategoryId] = useState("none");
   const [kitAddBundle, setKitAddBundle] = useState<Equipment | null>(null);
   const [kitAddSelectedIds, setKitAddSelectedIds] = useState<Set<string>>(new Set());
   const [kitAddSearch, setKitAddSearch] = useState("");
@@ -346,6 +366,10 @@ export default function EquipmentPage() {
   const [kitAddApprovalPhrase, setKitAddApprovalPhrase] = useState("");
   const [expandedBundleIds, setExpandedBundleIds] = useState<Set<string>>(new Set());
   const [detailsReturnBundleId, setDetailsReturnBundleId] = useState<string | null>(null);
+  const [projectReturnEquipment, setProjectReturnEquipment] = useState<Equipment | null>(null);
+  const [projectReturnMode, setProjectReturnMode] = useState<"direct" | "project">("direct");
+  const [projectReturnStorageId, setProjectReturnStorageId] = useState("none");
+  const [projectReturnManualStorage, setProjectReturnManualStorage] = useState("");
   const [kitSafetyEntries, setKitSafetyEntries] = useState<KitSafetyEntry[]>([]);
   const [kitSafetyActionLabel, setKitSafetyActionLabel] = useState("");
   const [kitSafetyContext, setKitSafetyContext] = useState("");
@@ -412,6 +436,24 @@ export default function EquipmentPage() {
     queryKey: ["/api/locations", { archive: "all" }],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/locations?archive=all");
+      return response.json();
+    },
+    enabled: Boolean(currentUser?.id),
+  });
+
+  const { data: warehouseCategories = [] } = useQuery<WarehouseCategoryOption[]>({
+    queryKey: ["/api/warehouse/categories", { archive: "all" }],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/warehouse/categories?archive=all");
+      return response.json();
+    },
+    enabled: Boolean(currentUser?.id),
+  });
+
+  const { data: warehouseStorageLocations = [] } = useQuery<WarehouseStorageLocationOption[]>({
+    queryKey: ["/api/warehouse/storage-locations", { archive: "all" }],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/warehouse/storage-locations?archive=all");
       return response.json();
     },
     enabled: Boolean(currentUser?.id),
@@ -516,6 +558,8 @@ export default function EquipmentPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouse/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouse/storage-locations"] });
     },
   );
 
@@ -696,6 +740,22 @@ export default function EquipmentPage() {
     return user ? matchesAssignedUser(assignedTo, user) : assignedTo === employeeFilter;
   };
 
+  const activeWarehouseCategories = warehouseCategories.filter((category) => !category.archivedAt);
+  const warehouseCategoryById = new Map(
+    warehouseCategories.map((category) => [String(category.id), category]),
+  );
+  const warehouseCategoryFilterOptions = activeWarehouseCategories
+    .sort((left, right) =>
+      Number(left.position || 0) - Number(right.position || 0) ||
+      left.name.localeCompare(right.name, "ru"),
+    )
+    .map((category) => ({
+      value: `category:${category.id}`,
+      label: category.parentId
+        ? `${warehouseCategoryById.get(String(category.parentId))?.name || "Категория"} / ${category.name}`
+        : category.name,
+    }));
+
   const matchesEquipmentBaseFilters = (item: Equipment) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = item.name.toLowerCase().includes(searchLower) ||
@@ -705,7 +765,8 @@ export default function EquipmentPage() {
                          item.barcode?.toLowerCase().includes(searchLower);
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     const matchesOperability = operabilityFilter === "all" || getEquipmentOperabilityStatus(item) === operabilityFilter;
-    const matchesType = typeFilter === "all" || item.type === typeFilter;
+    const matchesType = typeFilter === "all" ||
+      (typeFilter.startsWith("category:") && String(item.categoryId || "") === typeFilter.slice("category:".length));
 
     return matchesSearch && matchesStatus && matchesOperability && matchesType;
   };
@@ -771,16 +832,6 @@ export default function EquipmentPage() {
     }
   };
 
-  const getTypeText = (type: string) => {
-    switch (type) {
-      case "microphone": return "Микрофон";
-      case "camera": return "Камера";
-      case "lighting": return "Освещение";
-      case "computer": return "Компьютер";
-      default: return "Другое";
-    }
-  };
-
   const toExport = selectedIds.size > 0
     ? filteredEquipment.filter((e: Equipment) => selectedIds.has(e.id))
     : filteredEquipment;
@@ -811,7 +862,7 @@ export default function EquipmentPage() {
       .map((item: Equipment) => {
         const projectInfo = getAnyProjectContext(item.id);
         return [
-          getTypeText(item.type ?? "other"),
+          getEquipmentCategoryLabel(item),
           item.name ?? "",
           item.model ?? "",
           getStatusText(item.status ?? ""),
@@ -925,7 +976,17 @@ export default function EquipmentPage() {
   };
 
   const createBundleMutation = useMutation({
-    mutationFn: async ({ name, type, items }: { name: string; type: string; items: Equipment[] }) => {
+    mutationFn: async ({
+      name,
+      type,
+      categoryId,
+      items,
+    }: {
+      name: string;
+      type: string;
+      categoryId?: string | null;
+      items: Equipment[];
+    }) => {
       if (items.length < 2) throw new Error("Выберите минимум две позиции для сборки");
       const cleanName = name.trim();
       if (!cleanName) throw new Error("Введите название сборки");
@@ -943,6 +1004,7 @@ export default function EquipmentPage() {
       const createResponse = await apiRequest("POST", "/api/equipment", {
         name: cleanName,
         type,
+        categoryId: categoryId || null,
         model: `Сборка из ${items.length} позиций`,
         status: "available",
         location: items[0]?.location || "Склад",
@@ -980,7 +1042,7 @@ export default function EquipmentPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       setBundleDialogOpen(false);
       setBundleName("");
-      setBundleType("computer");
+      setBundleCategoryId("none");
       setSelectedIds(new Set());
       setDetailsEquipment(bundle);
       toast({
@@ -1090,14 +1152,39 @@ export default function EquipmentPage() {
   };
 
   const returnToWarehouseMutation = useMutation({
-    mutationFn: async (equipmentId: string) => {
+    mutationFn: async ({
+      equipmentId,
+      storageLocationId,
+      storageLocation,
+      fromProject,
+    }: {
+      equipmentId: string;
+      storageLocationId?: string | null;
+      storageLocation?: string | null;
+      fromProject: boolean;
+    }) => {
+      if (!fromProject) {
+        const response = await apiRequest("PUT", `/api/equipment/${equipmentId}`, {
+          status: "available",
+          assignedTo: null,
+          lastUsed: new Date(),
+          storageLocationId,
+          storageLocation,
+        });
+        return response.json();
+      }
       const headers: HeadersInit = { "Content-Type": "application/json" };
       if (currentUser) (headers as Record<string, string>)["x-user"] = encodeUserHeader(currentUser);
       const res = await fetch(apiUrl("/api/equipment-return"), {
         method: "POST",
         credentials: "include",
         headers,
-        body: JSON.stringify({ equipmentId, userId: currentUser?.id }),
+        body: JSON.stringify({
+          equipmentId,
+          userId: currentUser?.id,
+          storageLocationId,
+          storageLocation,
+        }),
       });
       const text = await res.text();
       if (!res.ok) {
@@ -1117,7 +1204,11 @@ export default function EquipmentPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
       toast({ title: "Готово", description: "Оборудование возвращено на склад" });
+      setProjectReturnEquipment(null);
+      setProjectReturnStorageId("none");
+      setProjectReturnManualStorage("");
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось вернуть", variant: "destructive" });
@@ -1246,24 +1337,6 @@ export default function EquipmentPage() {
     },
     onError: (e: any) => {
       toast({ title: "Ошибка", description: e?.message || "Не удалось отклонить запрос", variant: "destructive" });
-    },
-  });
-
-  const quickReturnMutation = useMutation({
-    mutationFn: async (equipmentId: string) => {
-      const response = await apiRequest("PUT", `/api/equipment/${equipmentId}`, {
-        status: "available",
-        assignedTo: null,
-        lastUsed: new Date(),
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast({ title: "Оборудование возвращено", description: "Позиция снова доступна на складе." });
-    },
-    onError: (e: any) => {
-      toast({ title: "Ошибка", description: e?.message || "Не удалось вернуть оборудование", variant: "destructive" });
     },
   });
 
@@ -1887,6 +1960,15 @@ export default function EquipmentPage() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 min-w-0 sm:flex-none border-slate-300 dark:border-slate-600"
+            onClick={() => setWarehouseSettingsOpen(true)}
+          >
+            <Settings className="w-4 h-4 mr-1.5 sm:mr-2" />
+            Настройки склада
+          </Button>
           <Button 
             variant="outline" 
             size="sm"
@@ -1988,7 +2070,7 @@ export default function EquipmentPage() {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium leading-snug break-words">{item.name}</p>
                         <p className="text-xs text-muted-foreground break-words">
-                          {[item.model, getTypeText(item.type)].filter(Boolean).join(" · ")}
+                          {[item.model, getEquipmentCategoryLabel(item)].filter(Boolean).join(" · ")}
                         </p>
                       </div>
                       <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={() => removeFromCart(item.id)}>
@@ -2240,12 +2322,10 @@ export default function EquipmentPage() {
                   <SelectValue placeholder="Тип" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Все типы</SelectItem>
-                  <SelectItem value="microphone">Микрофоны</SelectItem>
-                  <SelectItem value="camera">Камеры</SelectItem>
-                  <SelectItem value="lighting">Освещение</SelectItem>
-                  <SelectItem value="computer">Компьютеры</SelectItem>
-                  <SelectItem value="other">Другое</SelectItem>
+                  <SelectItem value="all">Все категории</SelectItem>
+                  {warehouseCategoryFilterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -2374,12 +2454,10 @@ export default function EquipmentPage() {
             <SelectValue placeholder="Тип" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Все типы</SelectItem>
-            <SelectItem value="microphone">Микрофоны</SelectItem>
-            <SelectItem value="camera">Камеры</SelectItem>
-            <SelectItem value="lighting">Освещение</SelectItem>
-            <SelectItem value="computer">Компьютеры</SelectItem>
-            <SelectItem value="other">Другое</SelectItem>
+            <SelectItem value="all">Все категории</SelectItem>
+            {warehouseCategoryFilterOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -2801,10 +2879,13 @@ export default function EquipmentPage() {
                             openKitReturnPath(item);
                             return;
                           }
-                          quickReturnMutation.mutate(item.id);
+                          setProjectReturnMode("direct");
+                          setProjectReturnEquipment(item);
+                          setProjectReturnStorageId(String(item.storageLocationId || "") || (getEquipmentStorageLocation(item) ? "manual" : "none"));
+                          setProjectReturnManualStorage(item.storageLocationId ? "" : getEquipmentStorageLocation(item));
                         }}
                         title={returnViaParentBundle ? "Открыть сборку для возврата" : "Вернуть"}
-                        disabled={quickReturnMutation.isPending}
+                        disabled={returnToWarehouseMutation.isPending}
                       >
                         {returnViaParentBundle ? (
                           <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -2899,7 +2980,7 @@ export default function EquipmentPage() {
                       {item.name}
                     </CardTitle>
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
-                      {getTypeText(item.type)}
+                      {getEquipmentCategoryLabel(item)}
                     </p>
                   </div>
                 </div>
@@ -2916,7 +2997,10 @@ export default function EquipmentPage() {
                       if (isKitComponent) {
                         openKitReturnPath(item);
                       } else {
-                        returnToWarehouseMutation.mutate(item.id);
+                        setProjectReturnMode("project");
+                        setProjectReturnEquipment(item);
+                        setProjectReturnStorageId(String(item.storageLocationId || "") || (getEquipmentStorageLocation(item) ? "manual" : "none"));
+                        setProjectReturnManualStorage(item.storageLocationId ? "" : getEquipmentStorageLocation(item));
                       }
                     }}
                   >
@@ -3216,6 +3300,93 @@ export default function EquipmentPage() {
         </div>
       </div>
 
+      <WarehouseSettings
+        open={warehouseSettingsOpen}
+        onOpenChange={setWarehouseSettingsOpen}
+        canManage={userCanEdit}
+      />
+
+      <Dialog
+        open={Boolean(projectReturnEquipment)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setProjectReturnEquipment(null);
+          setProjectReturnStorageId("none");
+          setProjectReturnManualStorage("");
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-lg bg-white dark:bg-slate-950 sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Вернуть оборудование</DialogTitle>
+            <DialogDescription>
+              Укажите, куда положить «{projectReturnEquipment?.name || "оборудование"}» после возврата.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select
+              value={projectReturnStorageId}
+              onValueChange={(value) => {
+                setProjectReturnStorageId(value);
+                if (value !== "manual") setProjectReturnManualStorage("");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Комната, стеллаж или полка" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Выберите место хранения</SelectItem>
+                {warehouseStorageLocations
+                  .filter((location) =>
+                    !location.archivedAt ||
+                    String(location.id) === String(projectReturnEquipment?.storageLocationId || ""),
+                  )
+                  .map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.path || location.name}{location.archivedAt ? " · в архиве" : ""}
+                    </SelectItem>
+                  ))}
+                <SelectItem value="manual">Указать вручную</SelectItem>
+              </SelectContent>
+            </Select>
+            {projectReturnStorageId === "manual" && (
+              <Input
+                value={projectReturnManualStorage}
+                onChange={(event) => setProjectReturnManualStorage(event.target.value)}
+                placeholder="Например: комната 204, стеллаж B, полка 3"
+              />
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setProjectReturnEquipment(null)}
+              >
+                Отмена
+              </Button>
+              <Button
+                disabled={
+                  returnToWarehouseMutation.isPending ||
+                  projectReturnStorageId === "none" ||
+                  (projectReturnStorageId === "manual" && !projectReturnManualStorage.trim())
+                }
+                onClick={() => {
+                  if (!projectReturnEquipment) return;
+                  returnToWarehouseMutation.mutate({
+                    equipmentId: projectReturnEquipment.id,
+                    storageLocationId: projectReturnStorageId === "manual" ? null : projectReturnStorageId,
+                    storageLocation: projectReturnStorageId === "manual"
+                      ? projectReturnManualStorage.trim()
+                      : null,
+                    fromProject: projectReturnMode === "project",
+                  });
+                }}
+              >
+                {returnToWarehouseMutation.isPending ? "Возврат..." : "Вернуть на склад"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Equipment Form */}
       <EquipmentForm
         isOpen={isFormOpen}
@@ -3227,6 +3398,8 @@ export default function EquipmentPage() {
         mode={formMode}
         companyManager={canApproveCheckout}
         companyId={selectedEquipment ? getEquipmentCompanyId(selectedEquipment) : primaryCompanyId}
+        categories={warehouseCategories}
+        storageLocations={warehouseStorageLocations}
         locations={locations}
         projects={projects}
         kanbanCards={kanbanCards}
@@ -3324,17 +3497,20 @@ export default function EquipmentPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Тип карточки</label>
-              <Select value={bundleType} onValueChange={setBundleType}>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Категория</label>
+              <Select value={bundleCategoryId} onValueChange={setBundleCategoryId}>
                 <SelectTrigger className="bg-white dark:bg-slate-800">
-                  <SelectValue />
+                  <SelectValue placeholder="Без категории" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="computer">Компьютер</SelectItem>
-                  <SelectItem value="camera">Камера</SelectItem>
-                  <SelectItem value="microphone">Микрофон</SelectItem>
-                  <SelectItem value="lighting">Освещение</SelectItem>
-                  <SelectItem value="other">Другое</SelectItem>
+                  <SelectItem value="none">Без категории</SelectItem>
+                  {warehouseCategoryFilterOptions
+                    .filter((option) => option.value.startsWith("category:"))
+                    .map((option) => (
+                      <SelectItem key={option.value} value={option.value.slice("category:".length)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3348,7 +3524,7 @@ export default function EquipmentPage() {
                   <div key={item.id} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
                     <div className="font-medium text-slate-900 dark:text-white">{item.name}</div>
                     <div className="mt-0.5 text-slate-500 dark:text-slate-400">
-                      {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(item.type)}
+                      {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getEquipmentCategoryLabel(item)}
                     </div>
                   </div>
                 ))}
@@ -3370,7 +3546,10 @@ export default function EquipmentPage() {
                 disabled={createBundleMutation.isPending || selectedEquipmentForBundle.length < 2 || !bundleName.trim()}
                 onClick={() => createBundleMutation.mutate({
                   name: bundleName,
-                  type: bundleType,
+                  type: bundleCategoryId === "none"
+                    ? "other"
+                    : warehouseCategoryById.get(bundleCategoryId)?.name || "other",
+                  categoryId: bundleCategoryId === "none" ? null : bundleCategoryId,
                   items: selectedEquipmentForBundle,
                 })}
               >
@@ -3461,7 +3640,7 @@ export default function EquipmentPage() {
                           )}
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                          {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(item.type)}
+                          {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getEquipmentCategoryLabel(item)}
                         </span>
                       </span>
                     </label>
@@ -3911,7 +4090,7 @@ export default function EquipmentPage() {
                   {detailsEquipment.name}
                 </DialogTitle>
                 <DialogDescription className="text-slate-500 dark:text-slate-400">
-                  {[detailsEquipment.model, getTypeText(detailsEquipment.type)].filter(Boolean).join(" · ")}
+                  {[detailsEquipment.model, getEquipmentCategoryLabel(detailsEquipment)].filter(Boolean).join(" · ")}
                 </DialogDescription>
               </DialogHeader>
 
@@ -3985,7 +4164,8 @@ export default function EquipmentPage() {
                                   )}
                                 </div>
                                 <div className="mt-0.5 text-slate-500 dark:text-slate-400">
-                                  {[component.model, component.inventoryNumber].filter(Boolean).join(" · ") || getTypeText(component.type)}
+                                  {[component.model, component.inventoryNumber].filter(Boolean).join(" · ") ||
+                                    getEquipmentCategoryLabel(component.live || ({ type: component.type } as Equipment))}
                                 </div>
                                 <div className="mt-1.5 flex flex-wrap gap-1">
                                   <Badge className={`${getStatusColor(component.status)} text-[10px]`}>

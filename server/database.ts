@@ -2,7 +2,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
-  users, companies, companyMembers, companyInvites, events, equipment, equipmentComments, systems, streams, notifications, platformSettings, platformIncidents,
+  users, companies, companyMembers, companyInvites, events, equipment, equipmentCategories, warehouseStorageLocations, equipmentComments, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
   computers, projects, projectColumns, projectComments, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, equipmentContextLinks, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
@@ -19,6 +19,8 @@ import {
   type CompanyInvite, type InsertCompanyInvite,
   type Event, type InsertEvent,
   type Equipment, type InsertEquipment,
+  type EquipmentCategory, type InsertEquipmentCategory,
+  type WarehouseStorageLocation, type InsertWarehouseStorageLocation,
   type EquipmentComment, type InsertEquipmentComment,
   type System, type InsertSystem,
   type Stream, type InsertStream,
@@ -149,6 +151,14 @@ export interface IStorage {
   createEquipment(equipment: InsertEquipment): Promise<Equipment>;
   updateEquipment(id: string, equipment: Partial<Equipment>): Promise<Equipment | undefined>;
   deleteEquipment(id: string): Promise<boolean>;
+  getEquipmentCategories(companyId: string): Promise<EquipmentCategory[]>;
+  getEquipmentCategoryById(id: string): Promise<EquipmentCategory | undefined>;
+  createEquipmentCategory(category: InsertEquipmentCategory): Promise<EquipmentCategory>;
+  updateEquipmentCategory(id: string, category: Partial<EquipmentCategory>): Promise<EquipmentCategory | undefined>;
+  getWarehouseStorageLocations(companyId: string): Promise<WarehouseStorageLocation[]>;
+  getWarehouseStorageLocationById(id: string): Promise<WarehouseStorageLocation | undefined>;
+  createWarehouseStorageLocation(location: InsertWarehouseStorageLocation): Promise<WarehouseStorageLocation>;
+  updateWarehouseStorageLocation(id: string, location: Partial<WarehouseStorageLocation>): Promise<WarehouseStorageLocation | undefined>;
   uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined>;
   getEquipmentComments(equipmentId: string): Promise<EquipmentComment[]>;
   getEquipmentCommentsByEquipmentIds(equipmentIds: string[]): Promise<EquipmentComment[]>;
@@ -635,6 +645,70 @@ export class PostgreSQLStorage implements IStorage {
       const result = await tx.delete(equipment).where(eq(equipment.id, id)).returning({ id: equipment.id });
       return result.length > 0;
     });
+  }
+
+  async getEquipmentCategories(companyId: string): Promise<EquipmentCategory[]> {
+    return await db!.select().from(equipmentCategories)
+      .where(eq(equipmentCategories.companyId, companyId))
+      .orderBy(equipmentCategories.position, equipmentCategories.name);
+  }
+
+  async getEquipmentCategoryById(id: string): Promise<EquipmentCategory | undefined> {
+    const result = await db!.select().from(equipmentCategories)
+      .where(eq(equipmentCategories.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createEquipmentCategory(category: InsertEquipmentCategory): Promise<EquipmentCategory> {
+    const result = await db!.insert(equipmentCategories)
+      .values({ ...category, id: crypto.randomUUID() })
+      .returning();
+    return result[0];
+  }
+
+  async updateEquipmentCategory(
+    id: string,
+    category: Partial<EquipmentCategory>,
+  ): Promise<EquipmentCategory | undefined> {
+    const result = await db!.update(equipmentCategories)
+      .set({ ...category, updatedAt: new Date() })
+      .where(eq(equipmentCategories.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getWarehouseStorageLocations(companyId: string): Promise<WarehouseStorageLocation[]> {
+    return await db!.select().from(warehouseStorageLocations)
+      .where(eq(warehouseStorageLocations.companyId, companyId))
+      .orderBy(warehouseStorageLocations.position, warehouseStorageLocations.name);
+  }
+
+  async getWarehouseStorageLocationById(id: string): Promise<WarehouseStorageLocation | undefined> {
+    const result = await db!.select().from(warehouseStorageLocations)
+      .where(eq(warehouseStorageLocations.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createWarehouseStorageLocation(
+    location: InsertWarehouseStorageLocation,
+  ): Promise<WarehouseStorageLocation> {
+    const result = await db!.insert(warehouseStorageLocations)
+      .values({ ...location, id: crypto.randomUUID() })
+      .returning();
+    return result[0];
+  }
+
+  async updateWarehouseStorageLocation(
+    id: string,
+    location: Partial<WarehouseStorageLocation>,
+  ): Promise<WarehouseStorageLocation | undefined> {
+    const result = await db!.update(warehouseStorageLocations)
+      .set({ ...location, updatedAt: new Date() })
+      .where(eq(warehouseStorageLocations.id, id))
+      .returning();
+    return result[0];
   }
 
   async uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined> {
@@ -2193,6 +2267,8 @@ class StubStorage implements IStorage {
   private connectionSchemas = new Map<string, ConnectionSchema>();
   private connectionSchemaComponents = new Map<string, ConnectionSchemaComponent>();
   private equipment = new Map<string, Equipment>();
+  private equipmentCategoriesMap = new Map<string, EquipmentCategory>();
+  private warehouseStorageLocationsMap = new Map<string, WarehouseStorageLocation>();
   private projects = new Map<string, Project>();
   private projectCommentsMap = new Map<string, ProjectComment>();
   private kanbanBoardsMap = new Map<string, KanbanBoard>();
@@ -2243,11 +2319,11 @@ class StubStorage implements IStorage {
     } as User);
     // Тестовые карточки оборудования для локального теста (склад)
     const seedEq: Equipment[] = [
-      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
-      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Подкаст зона", locationId: null, manualLocation: null, storageLocation: "Подкаст зона", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "Elgato Key Light", type: "lighting", model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "MacBook Pro M2", type: "computer", model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", operabilityStatus: "working", location: "Мобильная съёмка", locationId: null, manualLocation: null, storageLocation: "Мобильная съёмка", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
-      { id: this.uid(), name: "ATEM Mini Pro", type: "other", model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Техническая", locationId: null, manualLocation: null, storageLocation: "Техническая", responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Sony FX3 Камера", type: "camera", categoryId: null, model: "FX3", serialNumber: "SN001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", storageLocationId: null, responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: { portsIn: [{ id: "1", name: "HDMI", type: "in", portType: "HDMI" }], portsOut: [{ id: "1", name: "HDMI", type: "out", portType: "HDMI" }] }, createdAt: this.now() },
+      { id: this.uid(), name: "Микрофон AT2020", type: "microphone", categoryId: null, model: "AT2020", serialNumber: "MIC001", inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Подкаст зона", locationId: null, manualLocation: null, storageLocation: "Подкаст зона", storageLocationId: null, responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "Elgato Key Light", type: "lighting", categoryId: null, model: "Key Light Air", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Студия А", locationId: null, manualLocation: null, storageLocation: "Студия А", storageLocationId: null, responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "MacBook Pro M2", type: "computer", categoryId: null, model: "MacBook Pro 16\"", serialNumber: null, inventoryNumber: null, barcode: null, status: "in-use", operabilityStatus: "working", location: "Мобильная съёмка", locationId: null, manualLocation: null, storageLocation: "Мобильная съёмка", storageLocationId: null, responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
+      { id: this.uid(), name: "ATEM Mini Pro", type: "other", categoryId: null, model: "ATEM Mini Pro", serialNumber: null, inventoryNumber: null, barcode: null, status: "available", operabilityStatus: "working", location: "Техническая", locationId: null, manualLocation: null, storageLocation: "Техническая", storageLocationId: null, responsiblePerson: null, responsibleContact: null, assignedTo: null, lastUsed: null, notes: null, photos: [], specifications: null, createdAt: this.now() },
     ];
     seedEq.forEach((e) => this.equipment.set(e.id, e));
     // Тестовый проект для локального теста (корзина → проект)
@@ -2385,9 +2461,11 @@ class StubStorage implements IStorage {
       ...data,
       id,
       operabilityStatus: data.operabilityStatus ?? equipmentOperabilityFallback(data.status),
+      categoryId: data.categoryId ?? null,
       locationId: data.locationId ?? null,
       manualLocation: data.manualLocation ?? null,
       storageLocation: data.storageLocation ?? null,
+      storageLocationId: data.storageLocationId ?? null,
       responsiblePerson: data.responsiblePerson ?? null,
       responsibleContact: data.responsibleContact ?? null,
       createdAt: this.now(),
@@ -2410,6 +2488,66 @@ class StubStorage implements IStorage {
       if (comment.equipmentId === id) this.equipmentCommentsMap.delete(commentId);
     }
     return this.equipment.delete(id);
+  }
+  async getEquipmentCategories(companyId: string): Promise<EquipmentCategory[]> {
+    return Array.from(this.equipmentCategoriesMap.values())
+      .filter((category) => category.companyId === companyId)
+      .sort((left, right) => left.position - right.position || left.name.localeCompare(right.name));
+  }
+  async getEquipmentCategoryById(id: string): Promise<EquipmentCategory | undefined> {
+    return this.equipmentCategoriesMap.get(id);
+  }
+  async createEquipmentCategory(data: InsertEquipmentCategory): Promise<EquipmentCategory> {
+    const category = {
+      ...data,
+      id: this.uid(),
+      archivedAt: null,
+      createdAt: this.now(),
+      updatedAt: this.now(),
+    } as EquipmentCategory;
+    this.equipmentCategoriesMap.set(category.id, category);
+    return category;
+  }
+  async updateEquipmentCategory(
+    id: string,
+    data: Partial<EquipmentCategory>,
+  ): Promise<EquipmentCategory | undefined> {
+    const current = this.equipmentCategoriesMap.get(id);
+    if (!current) return undefined;
+    const updated = { ...current, ...data, updatedAt: this.now() };
+    this.equipmentCategoriesMap.set(id, updated);
+    return updated;
+  }
+  async getWarehouseStorageLocations(companyId: string): Promise<WarehouseStorageLocation[]> {
+    return Array.from(this.warehouseStorageLocationsMap.values())
+      .filter((location) => location.companyId === companyId)
+      .sort((left, right) => left.position - right.position || left.name.localeCompare(right.name));
+  }
+  async getWarehouseStorageLocationById(id: string): Promise<WarehouseStorageLocation | undefined> {
+    return this.warehouseStorageLocationsMap.get(id);
+  }
+  async createWarehouseStorageLocation(
+    data: InsertWarehouseStorageLocation,
+  ): Promise<WarehouseStorageLocation> {
+    const location = {
+      ...data,
+      id: this.uid(),
+      archivedAt: null,
+      createdAt: this.now(),
+      updatedAt: this.now(),
+    } as WarehouseStorageLocation;
+    this.warehouseStorageLocationsMap.set(location.id, location);
+    return location;
+  }
+  async updateWarehouseStorageLocation(
+    id: string,
+    data: Partial<WarehouseStorageLocation>,
+  ): Promise<WarehouseStorageLocation | undefined> {
+    const current = this.warehouseStorageLocationsMap.get(id);
+    if (!current) return undefined;
+    const updated = { ...current, ...data, updatedAt: this.now() };
+    this.warehouseStorageLocationsMap.set(id, updated);
+    return updated;
   }
   async uploadEquipmentPhoto(): Promise<Equipment | undefined> { return undefined; }
   async getEquipmentComments(equipmentId: string): Promise<EquipmentComment[]> {
@@ -3624,6 +3762,34 @@ export async function initDatabase(): Promise<void> {
         console.warn("[DB] Не удалось обновить Kanban V2 schema:", schemaErr);
       }
       try {
+        await client`CREATE TABLE IF NOT EXISTS equipment_categories (
+          id varchar PRIMARY KEY,
+          company_id varchar NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+          parent_id varchar,
+          name text NOT NULL,
+          position integer NOT NULL DEFAULT 0,
+          archived_at timestamptz,
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        )`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_categories_company_parent_idx
+          ON equipment_categories (company_id, parent_id, position, name)`;
+        await client`CREATE TABLE IF NOT EXISTS warehouse_storage_locations (
+          id varchar PRIMARY KEY,
+          company_id varchar NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+          parent_id varchar,
+          name text NOT NULL,
+          code text,
+          type text NOT NULL DEFAULT 'other',
+          position integer NOT NULL DEFAULT 0,
+          archived_at timestamptz,
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        )`;
+        await client`CREATE INDEX IF NOT EXISTS warehouse_storage_locations_company_parent_idx
+          ON warehouse_storage_locations (company_id, parent_id, position, name)`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category_id varchar`;
+        await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS storage_location_id varchar`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS operability_status text`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS location_id varchar`;
         await client`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS manual_location text`;

@@ -278,6 +278,7 @@ describe("project Kanban board actions", () => {
       listId: doneList.id,
       title: "Completed task",
       assigneeUserId: adminId,
+      dueDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
       position: 0,
     } as any);
 

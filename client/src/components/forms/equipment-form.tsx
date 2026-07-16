@@ -119,6 +119,20 @@ interface EquipmentFormProps {
   mode?: "full" | "take_return";
   companyManager?: boolean;
   companyId?: string;
+  categories?: Array<{
+    id: string;
+    name: string;
+    parentId?: string | null;
+    archivedAt?: string | null;
+  }>;
+  storageLocations?: Array<{
+    id: string;
+    name: string;
+    path?: string | null;
+    type?: string | null;
+    parentId?: string | null;
+    archivedAt?: string | null;
+  }>;
   locations?: Array<{
     id: string;
     name: string;
@@ -225,6 +239,8 @@ export function EquipmentForm({
   mode = "full",
   companyManager = false,
   companyId = "",
+  categories = [],
+  storageLocations = [],
   locations = [],
   projects = [],
   kanbanCards = [],
@@ -310,6 +326,7 @@ export function EquipmentForm({
     defaultValues: {
       name: equipment?.name || "",
       type: equipment?.type || "other",
+      categoryId: equipment?.categoryId || null,
       model: equipment?.model || "",
       serialNumber: equipment?.serialNumber || "",
       inventoryNumber: equipment?.inventoryNumber || "",
@@ -319,6 +336,7 @@ export function EquipmentForm({
       operabilityStatus: equipment?.operabilityStatus || (equipment?.status === "broken" ? "broken" : equipment?.status === "maintenance" ? "on_repair" : "working"),
       location: equipment?.location || "",
       storageLocation: equipment?.storageLocation || "",
+      storageLocationId: equipment?.storageLocationId || null,
       responsiblePerson: equipment?.responsiblePerson || "",
       responsibleContact: equipment?.responsibleContact || "",
     },
@@ -329,6 +347,7 @@ export function EquipmentForm({
       form.reset({
         name: equipment.name || "",
         type: equipment.type || "other",
+        categoryId: equipment.categoryId || null,
         model: equipment.model || "",
         serialNumber: equipment.serialNumber || "",
         inventoryNumber: equipment.inventoryNumber || "",
@@ -338,6 +357,7 @@ export function EquipmentForm({
         operabilityStatus: equipment.operabilityStatus || (equipment.status === "broken" ? "broken" : equipment.status === "maintenance" ? "on_repair" : "working"),
         location: equipment.location || "",
         storageLocation: equipment.storageLocation || "",
+        storageLocationId: equipment.storageLocationId || null,
         responsiblePerson: equipment.responsiblePerson || "",
         responsibleContact: equipment.responsibleContact || "",
       });
@@ -345,6 +365,7 @@ export function EquipmentForm({
       form.reset({
         name: "",
         type: "other",
+        categoryId: null,
         model: "",
         serialNumber: "",
         inventoryNumber: "",
@@ -354,6 +375,7 @@ export function EquipmentForm({
         operabilityStatus: "working",
         location: "",
         storageLocation: "",
+        storageLocationId: null,
         responsiblePerson: "",
         responsibleContact: "",
       });
@@ -377,6 +399,15 @@ export function EquipmentForm({
   const equipmentCompanyId = String(asRecord(equipment?.specifications).companyId || companyId || "").trim();
   const currentDestination = asRecord(equipment?.physicalDestination);
   const currentLocationId = String(currentDestination.locationId || equipment?.locationId || "").trim();
+  const currentCategoryId = String(equipment?.categoryId || "").trim();
+  const currentStorageLocationId = String(equipment?.storageLocationId || "").trim();
+  const categoryById = new Map(categories.map((category) => [String(category.id), category]));
+  const availableCategories = categories.filter((category) =>
+    !category.archivedAt || String(category.id) === currentCategoryId,
+  );
+  const availableStorageLocations = storageLocations.filter((location) =>
+    !location.archivedAt || String(location.id) === currentStorageLocationId,
+  );
   const availableLocations = locations.filter((location) =>
     (!equipmentCompanyId || String(location.companyId || "") === equipmentCompanyId) &&
     (!location.archivedAt || String(location.id) === currentLocationId),
@@ -575,8 +606,15 @@ export function EquipmentForm({
     mutationFn: async (data: { action: 'take' | 'return' }) => {
       const response = await apiRequest("PUT", `/api/equipment/${equipment.id}`, {
         status: data.action === 'take' ? 'in-use' : 'available',
-        physicalDestination: physicalDestinationPayload(),
-        ...(data.action === "take" ? { workContext: workContextPayload() } : {}),
+        ...(data.action === "take"
+          ? {
+              physicalDestination: physicalDestinationPayload(),
+              workContext: workContextPayload(),
+            }
+          : {
+              storageLocationId: form.getValues("storageLocationId") || null,
+              storageLocation: String(form.getValues("storageLocation") || "").trim() || null,
+            }),
         assignedTo: data.action === 'take' ? currentUser?.id : null,
         lastUsed: new Date(),
       });
@@ -646,6 +684,18 @@ export function EquipmentForm({
       toast({
         title: "Укажите локацию",
         description: "Выберите площадку или укажите место вручную.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      action === "return" &&
+      !String(form.getValues("storageLocationId") || "").trim() &&
+      !String(form.getValues("storageLocation") || "").trim()
+    ) {
+      toast({
+        title: "Укажите место хранения",
+        description: "Выберите полку или стеллаж либо укажите место вручную.",
         variant: "destructive",
       });
       return;
@@ -768,6 +818,85 @@ export function EquipmentForm({
     </div>
   );
 
+  const renderWarehouseStorageSelection = (required = false) => (
+    <FormField
+      control={form.control}
+      name="storageLocationId"
+      render={({ field }) => {
+        const manualValue = String(form.watch("storageLocation") || "").trim();
+        const selectValue = String(field.value || "").trim() || (manualValue ? "manual" : "none");
+        return (
+          <FormItem className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <FormLabel className="text-slate-700 dark:text-slate-300">
+              <MapPin className="mr-1 inline h-4 w-4" />
+              Место хранения{required ? " *" : ""}
+            </FormLabel>
+            <Select
+              value={selectValue}
+              onValueChange={(value) => {
+                if (value === "none") {
+                  field.onChange(null);
+                  form.setValue("storageLocation", "", { shouldDirty: true });
+                  return;
+                }
+                if (value === "manual") {
+                  field.onChange(null);
+                  return;
+                }
+                const selected = availableStorageLocations.find((location) => location.id === value);
+                field.onChange(value);
+                form.setValue(
+                  "storageLocation",
+                  String(selected?.path || selected?.name || ""),
+                  { shouldDirty: true },
+                );
+              }}
+            >
+              <FormControl>
+                <SelectTrigger className="bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="Выберите комнату, стеллаж или полку" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {required
+                  ? <SelectItem value="none" disabled>Выберите место хранения</SelectItem>
+                  : <SelectItem value="none">Не указано</SelectItem>}
+                {availableStorageLocations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.path || location.name}{location.archivedAt ? " · в архиве" : ""}
+                  </SelectItem>
+                ))}
+                <SelectItem value="manual">Указать вручную</SelectItem>
+              </SelectContent>
+            </Select>
+            {selectValue === "manual" && (
+              <FormField
+                control={form.control}
+                name="storageLocation"
+                render={({ field: storageField }) => (
+                  <FormControl>
+                    <Input
+                      placeholder="Комната 204, стеллаж B, полка 3"
+                      className="bg-white dark:bg-slate-900"
+                      {...storageField}
+                      value={storageField.value || ""}
+                    />
+                  </FormControl>
+                )}
+              />
+            )}
+            {availableStorageLocations.length === 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Справочник пока пуст. Можно указать место вручную или создать его в настройках склада.
+              </p>
+            )}
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
+  );
+
   if (isTakeReturnMode && equipment) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => {
@@ -809,7 +938,11 @@ export function EquipmentForm({
 
             <Form {...form}>
               <div className="space-y-4">
-                {!returnViaParentBundle && renderDestinationAndContext(equipment.status !== "in-use")}
+                {!returnViaParentBundle && (
+                  equipment.status === "in-use"
+                    ? renderWarehouseStorageSelection(true)
+                    : renderDestinationAndContext(true)
+                )}
 
                 <div className="flex gap-3">
                   <Button
@@ -891,24 +1024,37 @@ export function EquipmentForm({
 
               <FormField
                 control={form.control}
-                name="type"
+                name="categoryId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Тип оборудования *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Категория</FormLabel>
+                    <Select
+                      value={String(field.value || "") || "none"}
+                      onValueChange={(value) => {
+                        const categoryId = value === "none" ? null : value;
+                        field.onChange(categoryId);
+                        const category = categoryId ? categoryById.get(categoryId) : null;
+                        if (category) {
+                          form.setValue("type", category.name, { shouldDirty: true });
+                        }
+                      }}
+                    >
                       <FormControl>
                         <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
-                          <SelectValue placeholder="Выберите тип" />
+                          <SelectValue placeholder="Выберите категорию" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="camera">Камера</SelectItem>
-                        <SelectItem value="microphone">Микрофон</SelectItem>
-                        <SelectItem value="lighting">Освещение</SelectItem>
-                        <SelectItem value="computer">Компьютер</SelectItem>
-                        <SelectItem value="audio">Аудиооборудование</SelectItem>
-                        <SelectItem value="video">Видеооборудование</SelectItem>
-                        <SelectItem value="other">Другое</SelectItem>
+                        <SelectItem value="none">Без категории</SelectItem>
+                        {availableCategories.map((category) => {
+                          const parent = category.parentId ? categoryById.get(category.parentId) : null;
+                          return (
+                            <SelectItem key={category.id} value={category.id}>
+                              {parent ? `${parent.name} / ` : ""}{category.name}
+                              {category.archivedAt ? " · в архиве" : ""}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1066,24 +1212,9 @@ export function EquipmentForm({
                 {renderDestinationAndContext(true)}
               </div>
 
-              <FormField
-                control={form.control}
-                name="storageLocation"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Место хранения</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Комната 204, стеллаж B, полка 3"
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="md:col-span-2">
+                {renderWarehouseStorageSelection(false)}
+              </div>
 
               <FormField
                 control={form.control}

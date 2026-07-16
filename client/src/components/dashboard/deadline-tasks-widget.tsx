@@ -3,7 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  getTaskDeadlineTimestamp,
+  isTaskDeadlineOverdue,
+} from "@shared/task-deadlines";
 
 interface DeadlineTask {
   id: string;
@@ -26,13 +31,11 @@ const PRIORITY_WEIGHT: Record<string, number> = {
 };
 
 function getDueTime(value: unknown) {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const time = new Date(value as string | Date).getTime();
-  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+  return getTaskDeadlineTimestamp(value as string | Date | null) ?? Number.POSITIVE_INFINITY;
 }
 
 function isOverdue(task: DeadlineTask, now: Date) {
-  return !task.completed && getDueTime(task.dueDate) < now.getTime();
+  return isTaskDeadlineOverdue(task.dueDate, { isComplete: task.completed, now });
 }
 
 function compareDeadlineTasks(left: DeadlineTask, right: DeadlineTask, now: Date) {
@@ -64,6 +67,7 @@ function formatDueDate(value: unknown) {
 }
 
 export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
+  const now = useDeadlineNow();
   const cardsQuery = useQuery<any[]>({
     queryKey: ["/api/kanban/cards"],
     queryFn: async () => {
@@ -82,7 +86,6 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
     refetchIntervalInBackground: true,
   });
 
-  const now = new Date();
   const allActiveTasks = useMemo<DeadlineTask[]>(() => {
     const kanbanTasks = (cardsQuery.data ?? []).map((card) => ({
       id: `card:${card.id}`,
@@ -109,7 +112,7 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
     return [...kanbanTasks, ...legacyTasks]
       .filter((task) => !task.completed)
       .sort((left, right) => compareDeadlineTasks(left, right, now));
-  }, [cardsQuery.data, tasksQuery.data]);
+  }, [cardsQuery.data, now, tasksQuery.data]);
   const tasks = allActiveTasks.slice(0, limit);
 
   const isLoading = cardsQuery.isLoading || tasksQuery.isLoading;

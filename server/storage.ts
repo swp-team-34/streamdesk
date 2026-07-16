@@ -90,6 +90,7 @@ export class MemStorage implements IStorage {
   private withEquipmentDefaults(equipment: Pick<Equipment, "id" | "name" | "type"> & Partial<Equipment>): Equipment {
     return {
       model: null,
+      categoryId: null,
       serialNumber: null,
       inventoryNumber: null,
       barcode: null,
@@ -101,6 +102,7 @@ export class MemStorage implements IStorage {
       locationId: null,
       manualLocation: null,
       storageLocation: null,
+      storageLocationId: null,
       responsiblePerson: null,
       responsibleContact: null,
       assignedTo: null,
