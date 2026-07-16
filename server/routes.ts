@@ -27,6 +27,10 @@ import {
   insertLocationIssueSchema,
   insertLocationIssueCommentSchema,
 } from "@shared/schema";
+import {
+  getTaskDeadlineStatus,
+  isTaskDeadlineOverdue,
+} from "@shared/task-deadlines";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
@@ -4173,10 +4177,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalTasks = tasks.length;
       const completedTasks = tasks.filter(t => t.status === 'done').length;
       const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
-      const overdueTasks = tasks.filter(t => {
-        if (!t.dueDate) return false;
-        return new Date(t.dueDate) < new Date() && t.status !== 'done';
-      }).length;
+      const dashboardNow = new Date();
+      const overdueTasks = tasks.filter(t =>
+        isTaskDeadlineOverdue(t.dueDate, {
+          isComplete: t.status === 'done',
+          now: dashboardNow,
+        }),
+      ).length;
 
       // Среднее время выполнения (в часах)
       const completedTasksWithHistory = tasks.filter(t => t.status === 'done');
@@ -10854,7 +10861,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         return res.status(403).json({ message: "Нет доступа к проекту" });
       }
       const now = new Date();
-      const dueSoonBoundary = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const dueSoonWindowMs = 7 * 24 * 60 * 60 * 1000;
       const allBoards = await storage.getKanbanBoards().catch(() => []);
       const projectBoards = (allBoards as any[]).filter((board) =>
         String(board.projectId || "") === String(project.id),
@@ -10887,15 +10894,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         const listName = String(listById.get(String(card.listId))?.name || "").toLowerCase();
         return ["в работе", "in progress", "doing", "progress"].some((marker) => listName.includes(marker));
       };
-      const cardDueDate = (card: any) => {
-        if (!card.dueDate) return null;
-        const date = new Date(card.dueDate);
-        return Number.isNaN(date.getTime()) ? null : date;
-      };
-      const isOverdueCard = (card: any) => {
-        const dueDate = cardDueDate(card);
-        return Boolean(dueDate && !isCompletedCard(card) && dueDate.getTime() < now.getTime());
-      };
+      const cardDeadlineStatus = (card: any) =>
+        getTaskDeadlineStatus(card.dueDate, {
+          isComplete: isCompletedCard(card),
+          now,
+          soonWindowMs: dueSoonWindowMs,
+        });
+      const isOverdueCard = (card: any) => cardDeadlineStatus(card) === "overdue";
       const activeCards = visibleCards.filter((card) => !isCompletedCard(card));
       const completedCards = visibleCards.filter(isCompletedCard);
       const inProgressCards = activeCards.filter(isInProgressCard);
@@ -10909,10 +10914,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         noDeadline: 0,
       };
       for (const card of activeCards) {
-        const dueDate = cardDueDate(card);
-        if (!dueDate) deadlines.noDeadline += 1;
-        else if (dueDate.getTime() < now.getTime()) deadlines.overdue += 1;
-        else if (dueDate.getTime() <= dueSoonBoundary.getTime()) deadlines.dueSoon += 1;
+        const status = cardDeadlineStatus(card);
+        if (status === "none") deadlines.noDeadline += 1;
+        else if (status === "overdue") deadlines.overdue += 1;
+        else if (status === "soon") deadlines.dueSoon += 1;
         else deadlines.future += 1;
       }
 

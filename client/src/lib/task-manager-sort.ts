@@ -1,3 +1,8 @@
+import {
+  getTaskDeadlineStatus,
+  getTaskDeadlineTimestamp,
+} from "@shared/task-deadlines";
+
 export type TaskManagerSortBy = "position" | "deadline" | "priority" | "createdAt" | "updatedAt" | "title";
 export type TaskManagerSortDirection = "asc" | "desc";
 
@@ -25,9 +30,8 @@ const PRIORITY_WEIGHT: Record<string, number> = {
 };
 
 const getTimeValue = (value?: string | Date | null) => {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? Number.POSITIVE_INFINITY : date.getTime();
+  const timestamp = getTaskDeadlineTimestamp(value);
+  return timestamp ?? Number.POSITIVE_INFINITY;
 };
 
 const getDeadlineBucket = (
@@ -37,9 +41,10 @@ const getDeadlineBucket = (
 ) => {
   const list = listsById.get(card.listId);
   const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
-  const dueTime = getTimeValue(card.dueDate);
-  if (!Number.isFinite(dueTime) || isCompleteLikeList) return 2;
-  return dueTime < now.getTime() ? 0 : 1;
+  const status = getTaskDeadlineStatus(card.dueDate, { isComplete: isCompleteLikeList, now });
+  if (status === "overdue") return 0;
+  if (status === "soon" || status === "upcoming") return 1;
+  return 2;
 };
 
 const compareText = (left?: string | null, right?: string | null) =>

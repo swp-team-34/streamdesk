@@ -3,15 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, BriefcaseBusiness, CalendarClock, CheckCircle2, PackageCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  getTaskDeadlineTimestamp,
+  isTaskDeadlineOverdue,
+} from "@shared/task-deadlines";
 
 const COMPLETE_LEGACY_STATUSES = new Set(["done", "completed", "cancelled"]);
 const COMPLETE_KANBAN_LIST_TYPES = new Set(["closed", "archive", "trash"]);
 
 function getTime(value: unknown) {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const time = new Date(value as string | Date).getTime();
-  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+  return getTaskDeadlineTimestamp(value as string | Date | null) ?? Number.POSITIVE_INFINITY;
 }
 
 function formatShortDate(value: unknown) {
@@ -31,7 +34,7 @@ function isComplete(item: any) {
 }
 
 function isOverdue(item: any, now: Date) {
-  return !isComplete(item) && getTime(item.dueDate) < now.getTime();
+  return isTaskDeadlineOverdue(item.dueDate, { isComplete: isComplete(item), now });
 }
 
 function isOperationalEquipmentAssignment(item: any) {
@@ -122,7 +125,7 @@ function EmptyState({ text }: { text: string }) {
 
 export function OverdueTasksWidget() {
   const { tasks, isLoading, hasError } = useTaskSources();
-  const now = new Date();
+  const now = useDeadlineNow();
   const overdue = tasks
     .filter((task) => isOverdue(task, now))
     .sort((left, right) => getTime(left.dueDate) - getTime(right.dueDate))
@@ -147,7 +150,7 @@ export function OverdueTasksWidget() {
 export function MyWorkloadWidget({ user }: { user?: any }) {
   const { tasks, isLoading } = useTaskSources();
   const userId = String(user?.id || "");
-  const now = new Date();
+  const now = useDeadlineNow();
   const mine = tasks.filter((task) => userId && String(task.assigneeUserId || task.assigneeId || "") === userId);
   const active = mine.filter((task) => !isComplete(task)).length;
   const overdue = mine.filter((task) => isOverdue(task, now)).length;
@@ -243,7 +246,7 @@ export function AttentionSummaryWidget() {
   const { tasks } = useTaskSources();
   const equipmentOnProjectsQuery = useQuery<any[]>({ queryKey: ["/api/equipment-on-projects"], retry: 1, refetchInterval: 15000 });
   const checkoutRequestsQuery = useQuery<any[]>({ queryKey: ["/api/equipment-checkout-requests"], retry: 1, refetchInterval: 15000 });
-  const now = new Date();
+  const now = useDeadlineNow();
   const overdueTasks = tasks.filter((task) => isOverdue(task, now)).length;
   const overdueReturns = (equipmentOnProjectsQuery.data ?? []).filter((item) =>
     isOperationalEquipmentAssignment(item) && getTime(item.returnDate) < now.getTime(),

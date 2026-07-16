@@ -33,6 +33,7 @@ changes are collected under `Unreleased`.
 - Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
 - Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
 - Fixed first-click project board opening, remembered the selected Kanban V2 board per user/workspace, and refreshed card equipment immediately after Warehouse deletion.
+- Fixed Kanban V2 overdue status across Calendar, board/list/details, project statistics, and Dashboard by using one Moscow-timezone rule, excluding completed cards, and refreshing deadline state while views remain open.
 
 ## [v3.0.0-rc.1] - 2026-07-11
 

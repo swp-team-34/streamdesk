@@ -833,23 +833,21 @@ export default function Calendar() {
 
     const dueDateValue = entry.task.dueDate;
     if (!dueDateValue) return "none";
-    const dueDate = new Date(dueDateValue);
-    if (Number.isNaN(dueDate.getTime())) return "none";
 
+    let isComplete = false;
     if (entry.kind === "task") {
       const status = String(entry.task.status || "");
-      if (status === "done" || status === "completed" || status === "cancelled") return "none";
+      isComplete = status === "done" || status === "completed" || status === "cancelled";
     } else {
-      const isCompleteLikeList =
+      isComplete =
         entry.task.listType === "closed" ||
         entry.task.listType === "archive" ||
         entry.task.listType === "trash";
-      if (isCompleteLikeList) return "none";
     }
 
-    const diffMs = dueDate.getTime() - currentTime.getTime();
-    if (diffMs < 0) return "overdue";
-    if (diffMs <= 24 * 60 * 60 * 1000) return "soon";
+    const status = getDueDateStatus(dueDateValue, { isComplete, now: currentTime });
+    if (status === "overdue") return "overdue";
+    if (status === "soon") return "soon";
     return "none";
   };
 
@@ -1921,7 +1919,10 @@ export default function Calendar() {
                         <div className="flex items-start gap-3">
                           <Flag className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
                           <span className="text-foreground">
-                            Статус срока: {getDueDateStatusLabel(getDueDateStatus(selectedEntry.task.dueDate, { isComplete: selectedEntry.task.listType === "closed" || selectedEntry.task.listType === "archive" || selectedEntry.task.listType === "trash" }))}
+                            Статус срока: {getDueDateStatusLabel(getDueDateStatus(selectedEntry.task.dueDate, {
+                              isComplete: selectedEntry.task.listType === "closed" || selectedEntry.task.listType === "archive" || selectedEntry.task.listType === "trash",
+                              now: currentTime,
+                            }))}
                           </span>
                         </div>
                       </>

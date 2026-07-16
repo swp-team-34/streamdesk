@@ -46,6 +46,7 @@ import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { DiscussionThread } from "@/components/discussion-thread";
 import { useToast } from "@/hooks/use-toast";
+import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { apiRequest } from "@/lib/queryClient";
 import { canEditEquipment } from "@/lib/equipment-permissions";
@@ -846,6 +847,7 @@ export default function TasksV2Page() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { workspace } = useWorkspace();
+  const deadlineNow = useDeadlineNow();
   const currentUser = useMemo(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -1182,10 +1184,14 @@ export default function TasksV2Page() {
   }, [boardMembers, selectedBoard?.companyId, selectedCompanyItem, users]);
   const personalBoards = useMemo(() => boards.filter((board) => !board.companyId), [boards]);
   const sharedBoards = useMemo(() => boards.filter((board) => Boolean(board.companyId)), [boards]);
-  const overdueCardsCount = useMemo(
-    () => cards.filter((card) => getDueDateStatus(card.dueDate) === "overdue").length,
-    [cards],
-  );
+  const overdueCardsCount = useMemo(() => {
+    const listById = new Map(lists.map((list) => [list.id, list]));
+    return cards.filter((card) => {
+      const listType = listById.get(card.listId)?.type;
+      const isComplete = listType === "closed" || listType === "archive" || listType === "trash";
+      return getDueDateStatus(card.dueDate, { isComplete, now: deadlineNow }) === "overdue";
+    }).length;
+  }, [cards, deadlineNow, lists]);
   const boardCompletionStats = useMemo(() => {
     const listById = new Map(lists.map((list) => [list.id, list]));
     const overview = getCompletionSummary(cards, listById);
@@ -1333,7 +1339,7 @@ export default function TasksV2Page() {
   const filteredCards = useMemo(() => {
     const search = cardFilters.search.trim().toLowerCase();
     const listById = new Map(lists.map((list) => [list.id, list]));
-    const now = new Date();
+    const now = deadlineNow;
 
     return cards.filter((card) => {
       const list = listById.get(card.listId);
@@ -1401,7 +1407,7 @@ export default function TasksV2Page() {
       }
 
       if (cardFilters.dueStatus !== "all") {
-        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
+        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList, now });
         if (dueStatus !== cardFilters.dueStatus) return false;
       }
 
@@ -1420,7 +1426,7 @@ export default function TasksV2Page() {
 
       return true;
     });
-  }, [activeCustomFields, cardFilters, cards, labelById, labelGroupById, lists, userById]);
+  }, [activeCustomFields, cardFilters, cards, deadlineNow, labelById, labelGroupById, lists, userById]);
 
   const sortedFilteredCards = useMemo(() => {
     const listById = new Map(lists.map((list) => [list.id, list]));
@@ -1429,9 +1435,10 @@ export default function TasksV2Page() {
         sortBy: cardSortBy,
         sortDirection: cardSortBy === "deadline" ? "asc" : cardSortDirection,
         listsById: listById,
+        now: deadlineNow,
       }),
     );
-  }, [cardSortBy, cardSortDirection, filteredCards, lists]);
+  }, [cardSortBy, cardSortDirection, deadlineNow, filteredCards, lists]);
 
   const filteredCardsByListId = useMemo(() => {
     const groupedCards = new Map<string, KanbanCardView[]>();
@@ -1484,7 +1491,7 @@ export default function TasksV2Page() {
       if (listGrouping === "due") {
         const list = listById.get(card.listId);
         const isCompleteLikeList = list?.type === "closed" || list?.type === "archive" || list?.type === "trash";
-        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList });
+        const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList, now: deadlineNow });
         addCard(dueStatus, getDueDateStatusLabel(dueStatus), card);
         continue;
       }
@@ -1521,6 +1528,7 @@ export default function TasksV2Page() {
           sortBy: cardSortBy,
           sortDirection: cardSortBy === "deadline" ? "asc" : cardSortDirection,
           listsById: listById,
+          now: deadlineNow,
         });
         if (sortOrder !== 0 || !listGrouping.startsWith("field:")) return sortOrder;
         const fieldId = listGrouping.slice("field:".length);
@@ -1531,7 +1539,7 @@ export default function TasksV2Page() {
         return left.localeCompare(right, "ru", { numeric: true, sensitivity: "base" });
       }),
     }));
-  }, [activeCustomFields, cardSortBy, cardSortDirection, listGrouping, lists, sortedFilteredCards, userById]);
+  }, [activeCustomFields, cardSortBy, cardSortDirection, deadlineNow, listGrouping, lists, sortedFilteredCards, userById]);
 
   const getListNameById = (listId: unknown) => {
     const normalized = String(listId || "").trim();

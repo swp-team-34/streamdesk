@@ -34,4 +34,20 @@ describe("compareTaskManagerCards", () => {
 
     expect(sorted.map((item) => item.id)).toEqual(["overdue", "future-near", "future-late", "no-deadline"]);
   });
+
+  it("does not place a completed card in the overdue bucket", () => {
+    const sorted = [
+      card({ id: "completed-old", listId: "done", dueDate: "2026-07-01T12:00:00.000Z" }),
+      card({ id: "active-overdue", dueDate: "2026-07-05T12:00:00.000Z" }),
+    ].sort((left, right) =>
+      compareTaskManagerCards(left, right, {
+        sortBy: "deadline",
+        sortDirection: "asc",
+        listsById: lists,
+        now: new Date("2026-07-09T12:00:00.000Z"),
+      }),
+    );
+
+    expect(sorted.map((item) => item.id)).toEqual(["active-overdue", "completed-old"]);
+  });
 });

@@ -1,4 +1,9 @@
-export type DueDateStatus = "none" | "upcoming" | "soon" | "overdue" | "complete";
+import {
+  getTaskDeadlineStatus,
+  type TaskDeadlineStatus,
+} from "@shared/task-deadlines";
+
+export type DueDateStatus = TaskDeadlineStatus;
 
 const DUE_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "medium",
@@ -89,22 +94,8 @@ export const formatDueDateLabel = (value?: string | Date | null) => {
 
 export const getDueDateStatus = (
   value?: string | Date | null,
-  options?: { isComplete?: boolean },
-): DueDateStatus => {
-  if (options?.isComplete) return "complete";
-  if (!value) return "none";
-
-  const dueDate = new Date(value);
-  if (Number.isNaN(dueDate.getTime())) return "none";
-
-  const now = new Date();
-  const diffMs = dueDate.getTime() - now.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-
-  if (diffMs < 0) return "overdue";
-  if (diffHours <= 24) return "soon";
-  return "upcoming";
-};
+  options?: { isComplete?: boolean; now?: Date; timeZone?: string },
+): DueDateStatus => getTaskDeadlineStatus(value, options);
 
 export const getDueDateStatusLabel = (status: DueDateStatus) => {
   switch (status) {
