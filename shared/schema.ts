@@ -104,6 +104,8 @@ export const equipment = pgTable("equipment", {
   status: text("status").notNull().default("available"),
   operabilityStatus: text("operability_status").default("working"),
   location: text("location"),
+  locationId: varchar("location_id").references(() => customLocations.id),
+  manualLocation: text("manual_location"),
   storageLocation: text("storage_location"),
   responsiblePerson: text("responsible_person"),
   responsibleContact: text("responsible_contact"),
@@ -198,6 +200,10 @@ export const equipmentCheckoutRequests = pgTable("equipment_checkout_requests", 
   equipmentId: varchar("equipment_id").references(() => equipment.id).notNull(),
   requestedBy: varchar("requested_by").references(() => users.id).notNull(),
   kanbanCardId: varchar("kanban_card_id").references(() => kanbanCards.id),
+  kanbanCardIds: jsonb("kanban_card_ids").default([]),
+  projectId: varchar("project_id").references(() => projects.id),
+  locationId: varchar("location_id").references(() => customLocations.id),
+  manualLocation: text("manual_location"),
   taskId: varchar("task_id").references(() => tasks.id),
   quantity: integer("quantity").notNull().default(1),
   requestType: text("request_type").notNull().default("checkout"),
@@ -511,6 +517,20 @@ export const kanbanCardLocations = pgTable("kanban_card_locations", {
   cardLocationUnique: uniqueIndex("kanban_card_locations_card_location_unique")
     .on(table.cardId, table.locationId),
 }));
+
+export const equipmentContextLinks = pgTable("equipment_context_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  equipmentId: varchar("equipment_id").references(() => equipment.id).notNull(),
+  projectId: varchar("project_id").references(() => projects.id),
+  kanbanCardId: varchar("kanban_card_id").references(() => kanbanCards.id),
+  source: text("source").notNull().default("manual"),
+  checkoutRequestId: varchar("checkout_request_id").references(() => equipmentCheckoutRequests.id),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id),
+  active: boolean("active").notNull().default(true),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export const locationIssues = pgTable("location_issues", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -888,6 +908,12 @@ export const insertKanbanCardLocationSchema = createInsertSchema(kanbanCardLocat
   createdAt: true,
 });
 
+export const insertEquipmentContextLinkSchema = createInsertSchema(equipmentContextLinks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertLocationIssueSchema = createInsertSchema(locationIssues).omit({
   id: true,
   createdAt: true,
@@ -1061,6 +1087,9 @@ export type ProjectLocation = typeof projectLocations.$inferSelect;
 export type InsertProjectLocation = z.infer<typeof insertProjectLocationSchema>;
 export type KanbanCardLocation = typeof kanbanCardLocations.$inferSelect;
 export type InsertKanbanCardLocation = z.infer<typeof insertKanbanCardLocationSchema>;
+
+export type EquipmentContextLink = typeof equipmentContextLinks.$inferSelect;
+export type InsertEquipmentContextLink = z.infer<typeof insertEquipmentContextLinkSchema>;
 
 export type LocationIssue = typeof locationIssues.$inferSelect;
 export type InsertLocationIssue = z.infer<typeof insertLocationIssueSchema>;

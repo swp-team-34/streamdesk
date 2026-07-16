@@ -550,6 +550,15 @@ export default function Projects() {
     ? companiesResponse.companies.map((entry: any) => entry?.company).filter((company: any) => company?.id)
     : [];
   const primaryCompanyId = String(companies[0]?.id || "");
+  useRealtimeSubscriptions(
+    companies.map((company: any) => String(company.id || "").trim()).filter(Boolean).map((companyId: string) => `company:${companyId}`),
+    (message) => {
+      if (message.type === "discussion_event" || message.type === "realtime_reconnected") {
+        queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      }
+    },
+  );
 
   const { data: locations = [] } = useQuery<Array<{
     id: string;
@@ -1149,7 +1158,7 @@ export default function Projects() {
                         <div className="mt-2">
                           <Badge variant="secondary" className="inline-flex items-center gap-1">
                             <HardDrive className="h-3.5 w-3.5" />
-                            {equipmentCountByProject[project.id]} на проекте
+                            Связано оборудования: {equipmentCountByProject[project.id]}
                           </Badge>
                         </div>
                       )}

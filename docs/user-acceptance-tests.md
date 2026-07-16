@@ -126,6 +126,35 @@ All steps execute without errors. The equipment store displays the correct loadi
 ### Execution result
 The user easily and intuitively executed the whole process with no complainings or errors found.
 
+## UAT-004A: Verify Equipment Destination and Kanban V2 Work Context
+
+- **Scenario ID:** UAT-004A
+- **Title:** Verify equipment destination and optional project/Kanban V2 context
+- **Status:** Ready for execution
+- **Related feature:** Warehouse, Locations, Projects, Kanban V2
+
+### Objective
+Verify that checkout and authorized editing keep physical destination separate from work context, reject cross-company or archived selections for new records, and never create new Legacy Task Manager links.
+
+### Preconditions
+The user belongs to a company with at least two active Locations, one archived Location, one project, and two Kanban V2 cards linked to that project. A working equipment item belongs to the same company.
+
+### Test steps
+
+- Open a working Warehouse item and start a checkout request.
+- Select an active company Location, then optionally select the project and both Kanban V2 cards. Submit the request.
+- Verify the manager view shows the destination, project, and both cards. Approve the request and verify the equipment becomes in use at the selected Location.
+- Return the item, create another request with a manual destination, and verify the manual text is shown instead of a Location.
+- Attempt to select both a Location and manual destination through the API. Verify the request is rejected.
+- Attempt to use the archived Location or a Location/project/card from another company. Verify each new relation is rejected while an existing archived destination remains readable in equipment details.
+- Edit only the destination and work context of an item. Verify status, holder, reservation state, and operability do not change.
+- Select multiple cards from the same project and verify the project equipment summary contains the item only once.
+- Verify no Legacy Task Manager selector appears and a direct API attempt to create a new `taskId` relation is rejected.
+- Open the Warehouse in a second authenticated session and verify the affected Warehouse/project summaries refresh without a page reload.
+
+### Expected result
+The Warehouse persists one physical destination alternative and optional project/multiple-card Kanban V2 context with company authorization. Manual and checkout-created links remain distinguishable, project summaries are deduplicated, archived history stays readable, and context-only edits do not change inventory workflow state.
+
 ## UAT-005 — Verify Task Manager features: Workload, Deadline Ordering, Calendar Color-Coding, and Drag-and-Drop
 
 - **Scenario ID:** UAT-005
