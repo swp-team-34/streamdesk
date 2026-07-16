@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -363,6 +364,11 @@ export default function EquipmentPage() {
   const [kitSafetyReason, setKitSafetyReason] = useState("");
   const [kitOverridePhrase, setKitOverridePhrase] = useState("");
   const pendingKitActionRef = useRef<((payloads: Record<string, KitExtractionPayload>) => void) | null>(null);
+  const initialEquipmentIdRef = useRef<string | null>(
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("equipmentId"),
+  );
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -383,6 +389,15 @@ export default function EquipmentPage() {
       if (!current) return null;
       return equipment.find((item) => item.id === current.id) || current;
     });
+  }, [equipment]);
+
+  useEffect(() => {
+    const equipmentId = initialEquipmentIdRef.current;
+    if (!equipmentId) return;
+    const linkedEquipment = equipment.find((item) => String(item.id) === equipmentId);
+    if (!linkedEquipment) return;
+    setDetailsEquipment(linkedEquipment);
+    initialEquipmentIdRef.current = null;
   }, [equipment]);
 
   const { data: companyData } = useQuery<any>({
@@ -1300,10 +1315,14 @@ export default function EquipmentPage() {
       const response = await apiRequest("DELETE", `/api/equipment/${equipmentId}`, { kitExtraction });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_result, input) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-checkout-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-equipment-links"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setDetailsEquipment((current) => current?.id === input.equipmentId ? null : current);
       toast({ title: "Удалено", description: "Позиция убрана со склада." });
     },
     onError: (e: any) => {
@@ -4182,14 +4201,20 @@ export default function EquipmentPage() {
                               )}
                             </div>
                             {link.project?.name && (
-                              <div className="mt-1.5 break-words font-medium text-slate-900 dark:text-white">
+                              <Link
+                                href={`/projects?projectId=${encodeURIComponent(String(link.project.id))}`}
+                                className="mt-1.5 block break-words font-medium text-slate-900 hover:underline dark:text-white"
+                              >
                                 Проект: {link.project.name}
-                              </div>
+                              </Link>
                             )}
                             {link.kanbanCard?.title && (
-                              <div className="mt-1 break-words text-slate-600 dark:text-slate-300">
+                              <Link
+                                href={`/tasks?boardId=${encodeURIComponent(String(link.kanbanCard.boardId))}&cardId=${encodeURIComponent(String(link.kanbanCard.id))}`}
+                                className="mt-1 block break-words text-slate-600 hover:underline dark:text-slate-300"
+                              >
                                 Kanban V2: {link.kanbanCard.title}
-                              </div>
+                              </Link>
                             )}
                           </div>
                         ))}

@@ -1607,6 +1607,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return createdLists;
   };
 
+  const projectKanbanBoardOperations = new Map<string, Promise<{
+    board: any;
+    created: boolean;
+    project: any;
+  }>>();
+
   const parseOptionalKanbanDate = (value: unknown): Date | null => {
     if (value == null) return null;
     const normalized = String(value).trim();
@@ -5009,6 +5015,346 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
+  const getKanbanCardEquipmentAccess = async (
+    user: any,
+    boardId: string,
+    cardId: string,
+  ) => {
+    const access = await getKanbanBoardAccess(user, boardId);
+    if (!access) return null;
+    const card = await storage.getKanbanCardById(cardId).catch(() => undefined);
+    if (!card || String(card.boardId) !== String(access.board.id)) return null;
+    return { ...access, card };
+  };
+
+  const getEquipmentRequestCardIds = (request: any) =>
+    Array.from(new Set([
+      ...(Array.isArray(request?.kanbanCardIds) ? request.kanbanCardIds : []),
+      request?.kanbanCardId,
+    ].map((id) => String(id || "").trim()).filter(Boolean)));
+
+  const getEquipmentLinkWorkflowStatus = (
+    source: string,
+    request: any,
+    link: any,
+    item: any,
+  ) => {
+    if (source === "manual") return "linked";
+    const requestStatus = String(request?.status || "").trim();
+    if (requestStatus === "pending") return "requested";
+    if (requestStatus === "rejected") return "rejected";
+    if (requestStatus === "cancelled") return "cancelled";
+    if (requestStatus === "approved") {
+      const expectedReturnAt = request?.expectedReturnAt ? new Date(request.expectedReturnAt) : null;
+      const projectId = String(link?.projectId || request?.projectId || "").trim();
+      const projectBundle = projectId
+        ? projectEquipmentBundles.find((bundle) =>
+            String(bundle.projectId) === projectId &&
+            bundle.equipmentIds.map(String).includes(String(item?.id || "")),
+          )
+        : undefined;
+      const bundleReturnAt = projectBundle?.returnDate
+        ? new Date(`${projectBundle.returnDate}T23:59:59.999`)
+        : null;
+      const checkoutStillActive = link ? Boolean(link.active) : item?.status === "in-use";
+      if (
+        checkoutStillActive &&
+        (
+          (
+            expectedReturnAt &&
+            !Number.isNaN(expectedReturnAt.getTime()) &&
+            expectedReturnAt.getTime() < Date.now()
+          ) ||
+          (
+            bundleReturnAt &&
+            !Number.isNaN(bundleReturnAt.getTime()) &&
+            bundleReturnAt.getTime() < Date.now()
+          )
+        )
+      ) {
+        return "overdue";
+      }
+      if (link && link.active === false) return "returned";
+      if (item?.status === "in-use") return "issued";
+      return "approved";
+    }
+    return requestStatus || "requested";
+  };
+
+  const buildKanbanBoardEquipmentLinks = async (user: any, board: any) => {
+    const cards = await storage.getKanbanCardsByBoardId(board.id).catch(() => []);
+    const cardIds = new Set((cards as any[]).map((card) => String(card.id)));
+    const [allLinks, allRequests] = await Promise.all([
+      storage.getEquipmentContextLinks().catch(() => []),
+      storage.getEquipmentCheckoutRequests().catch(() => []),
+    ]);
+    const links = (allLinks as any[]).filter((link) =>
+      link.kanbanCardId && cardIds.has(String(link.kanbanCardId)),
+    );
+    const requests = (allRequests as any[]).filter((request) =>
+      getEquipmentRequestCardIds(request).some((cardId) => cardIds.has(cardId)),
+    );
+    const requestById = new Map(requests.map((request) => [String(request.id), request]));
+    const equipmentIds = Array.from(new Set([
+      ...links.map((link) => String(link.equipmentId || "")).filter(Boolean),
+      ...requests.map((request) => String(request.equipmentId || "")).filter(Boolean),
+    ]));
+    const equipmentRows = (await Promise.all(equipmentIds.map((equipmentId) =>
+      storage.getEquipmentById(equipmentId).catch(() => undefined),
+    ))).filter(Boolean) as any[];
+    const equipmentById = new Map(equipmentRows.map((item) => [String(item.id), item]));
+    const rowsByCard = new Map<string, Map<string, any>>();
+
+    const addRow = (cardId: string, key: string, row: any) => {
+      const cardRows = rowsByCard.get(cardId) ?? new Map<string, any>();
+      const existing = cardRows.get(key);
+      if (
+        !existing ||
+        new Date(row.linkedAt || 0).getTime() >= new Date(existing.linkedAt || 0).getTime()
+      ) {
+        cardRows.set(key, row);
+      }
+      rowsByCard.set(cardId, cardRows);
+    };
+
+    for (const link of links) {
+      const cardId = String(link.kanbanCardId);
+      const item = equipmentById.get(String(link.equipmentId));
+      if (
+        !item ||
+        item.status === "archived" ||
+        !board.companyId ||
+        equipmentCompanyId(item) !== String(board.companyId)
+      ) {
+        continue;
+      }
+      if (link.source === "manual" && !link.active) continue;
+      const request = link.checkoutRequestId
+        ? requestById.get(String(link.checkoutRequestId))
+        : undefined;
+      const key = link.source === "checkout"
+        ? `checkout:${String(link.checkoutRequestId || link.id)}:${item.id}`
+        : `manual:${item.id}`;
+      addRow(cardId, key, {
+        id: key,
+        linkId: link.id,
+        cardId,
+        projectId: link.projectId || null,
+        source: link.source,
+        active: Boolean(link.active),
+        workflowStatus: getEquipmentLinkWorkflowStatus(link.source, request, link, item),
+        linkedAt: link.createdAt || null,
+        equipment: {
+          id: item.id,
+          name: item.name,
+          model: item.model || null,
+          status: item.status,
+          operabilityStatus: item.operabilityStatus || null,
+          inventoryNumber: item.inventoryNumber || null,
+        },
+        request: request ? {
+          id: request.id,
+          status: request.status,
+          requestType: request.requestType,
+          requestedBy: request.requestedBy,
+          quantity: request.quantity,
+          location: request.location || null,
+          note: request.note || null,
+          createdAt: request.createdAt || null,
+          reviewedAt: request.reviewedAt || null,
+        } : null,
+      });
+    }
+
+    for (const request of requests) {
+      const item = equipmentById.get(String(request.equipmentId));
+      if (
+        !item ||
+        item.status === "archived" ||
+        !board.companyId ||
+        equipmentCompanyId(item) !== String(board.companyId)
+      ) {
+        continue;
+      }
+      for (const cardId of getEquipmentRequestCardIds(request)) {
+        if (!cardIds.has(cardId)) continue;
+        const key = `checkout:${request.id}:${item.id}`;
+        const existing = rowsByCard.get(cardId)?.get(key);
+        if (existing) continue;
+        addRow(cardId, key, {
+          id: key,
+          linkId: null,
+          cardId,
+          projectId: request.projectId || null,
+          source: "checkout",
+          active: ["pending", "approved"].includes(String(request.status || "")),
+          workflowStatus: getEquipmentLinkWorkflowStatus("checkout", request, null, item),
+          linkedAt: request.createdAt || null,
+          equipment: {
+            id: item.id,
+            name: item.name,
+            model: item.model || null,
+            status: item.status,
+            operabilityStatus: item.operabilityStatus || null,
+            inventoryNumber: item.inventoryNumber || null,
+          },
+          request: {
+            id: request.id,
+            status: request.status,
+            requestType: request.requestType,
+            requestedBy: request.requestedBy,
+            quantity: request.quantity,
+            location: request.location || null,
+            note: request.note || null,
+            createdAt: request.createdAt || null,
+            reviewedAt: request.reviewedAt || null,
+          },
+        });
+      }
+    }
+
+    const response: Record<string, any[]> = {};
+    for (const card of cards as any[]) {
+      response[String(card.id)] = Array.from(rowsByCard.get(String(card.id))?.values() || [])
+        .sort((left, right) =>
+          new Date(right.linkedAt || 0).getTime() - new Date(left.linkedAt || 0).getTime(),
+        );
+    }
+    return response;
+  };
+
+  app.get("/api/kanban/boards/:boardId/equipment-links", async (req, res) => {
+    try {
+      const access = await getKanbanBoardAccess(req.user, req.params.boardId);
+      if (!access) return res.status(404).json({ message: "Доска не найдена" });
+      res.json({ cards: await buildKanbanBoardEquipmentLinks(req.user, access.board) });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Не удалось загрузить оборудование доски" });
+    }
+  });
+
+  app.post("/api/kanban/boards/:boardId/cards/:cardId/equipment-links", async (req, res) => {
+    try {
+      const access = await getKanbanCardEquipmentAccess(
+        req.user,
+        req.params.boardId,
+        req.params.cardId,
+      );
+      if (!access) return res.status(404).json({ message: "Карточка не найдена" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Нет прав на изменение карточки" });
+      }
+      if (!access.board.companyId) {
+        return res.status(403).json({ message: "Warehouse недоступен в личном пространстве" });
+      }
+      const equipmentId = String(req.body?.equipmentId || "").trim();
+      if (!equipmentId) return res.status(400).json({ message: "Выберите оборудование" });
+      const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      await ensureEquipmentCompanyAccess(req.user, item);
+      if (!(await canManageEquipmentKit(req.user, item))) {
+        return res.status(403).json({ message: "Нет прав на изменение связей оборудования" });
+      }
+
+      const effectiveProjectId = String(
+        access.card.projectId || access.board.projectId || "",
+      ).trim();
+      const currentLinks = (await storage.getEquipmentContextLinks(item.id).catch(() => []))
+        .filter((link: any) => link.active && link.source === "manual");
+      const existingCardIds = Array.from(new Set(
+        currentLinks.map((link: any) => String(link.kanbanCardId || "").trim()).filter(Boolean),
+      ));
+      const existingProjectIds = Array.from(new Set(
+        currentLinks.map((link: any) => String(link.projectId || "").trim()).filter(Boolean),
+      ));
+      if (
+        existingProjectIds.some((projectId) => projectId !== effectiveProjectId) ||
+        (existingProjectIds.length > 0 && !effectiveProjectId)
+      ) {
+        return res.status(409).json({
+          message: "Оборудование уже связано с другим проектом. Измените рабочий контекст в Warehouse.",
+          code: "EQUIPMENT_PROJECT_CARD_CONFLICT",
+        });
+      }
+      if (!existingCardIds.includes(String(access.card.id))) {
+        await storage.replaceEquipmentContextLinks({
+          equipmentId: item.id,
+          source: "manual",
+          projectId: effectiveProjectId || null,
+          kanbanCardIds: [...existingCardIds, String(access.card.id)],
+          createdByUserId: req.user?.id || null,
+        });
+        publishEquipmentContextChanged(item);
+      }
+
+      const cards = await buildKanbanBoardEquipmentLinks(req.user, access.board);
+      res.json({ items: cards[String(access.card.id)] || [] });
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось прикрепить оборудование",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.delete("/api/kanban/boards/:boardId/cards/:cardId/equipment-links/:equipmentId", async (req, res) => {
+    try {
+      const access = await getKanbanCardEquipmentAccess(
+        req.user,
+        req.params.boardId,
+        req.params.cardId,
+      );
+      if (!access) return res.status(404).json({ message: "Карточка не найдена" });
+      if (!canEditKanbanBoard(access)) {
+        return res.status(403).json({ message: "Нет прав на изменение карточки" });
+      }
+      const item = await storage.getEquipmentById(req.params.equipmentId).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      await ensureEquipmentCompanyAccess(req.user, item);
+      if (!(await canManageEquipmentKit(req.user, item))) {
+        return res.status(403).json({ message: "Нет прав на изменение связей оборудования" });
+      }
+
+      const currentLinks = (await storage.getEquipmentContextLinks(item.id).catch(() => []))
+        .filter((link: any) => link.active && link.source === "manual");
+      const linkedToCard = currentLinks.some((link: any) =>
+        String(link.kanbanCardId || "") === String(access.card.id),
+      );
+      if (linkedToCard) {
+        const remainingCardIds = Array.from(new Set(
+          currentLinks
+            .map((link: any) => String(link.kanbanCardId || "").trim())
+            .filter((cardId: string) => Boolean(cardId) && cardId !== String(access.card.id)),
+        ));
+        const projectId = remainingCardIds.length > 0
+          ? String(access.card.projectId || access.board.projectId || "").trim() || null
+          : null;
+        await storage.replaceEquipmentContextLinks({
+          equipmentId: item.id,
+          source: "manual",
+          projectId,
+          kanbanCardIds: remainingCardIds,
+          createdByUserId: req.user?.id || null,
+        });
+        publishEquipmentContextChanged(item);
+      }
+
+      const cards = await buildKanbanBoardEquipmentLinks(req.user, access.board);
+      res.json({ items: cards[String(access.card.id)] || [] });
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось открепить оборудование",
+        code: error?.code,
+      });
+    }
+  });
+
   // Equipment
   app.get("/api/equipment", async (req, res) => {
     const workspace = await requireActiveWorkspace(req, res);
@@ -6162,6 +6508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         },
       });
+      publishEquipmentContextChanged(item, "status");
       res.json(result);
     } catch (error: any) {
       if (sendEquipmentKitActionError(res, error)) return;
@@ -10265,7 +10612,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
 
-  /** Статистика по задачам проекта (для доски YouGile или по projectId). statusNames — id колонки → название для отображения. */
+  /** Единая статистика проекта. Источник задач — только выделенная доска Kanban V2. */
   app.get("/api/projects/:id/task-stats", async (req, res) => {
     try {
       const currentUser = req.user as any;
@@ -10275,84 +10622,328 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!(await canAccessProject(currentUser, project))) {
         return res.status(403).json({ message: "Нет доступа к проекту" });
       }
-      const proj = project as any;
-      let tasks: any[] = [];
-      const statusNames: Record<string, string> = {};
-      const doneStatusIds = new Set<string>();
-      if (proj.yougileBoardId) {
-        tasks.push(...await storage.getTasksByYougileBoardId(proj.yougileBoardId));
-        try {
-          const cols = await storage.getYougileColumns(proj.yougileBoardId);
-          cols.forEach((c: any) => { statusNames[c.id] = c.title || c.id; });
-          const sorted = [...cols].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
-          const lastCol = sorted[sorted.length - 1];
-          if (lastCol) doneStatusIds.add(String(lastCol.id));
-        } catch (_) {}
-      } else {
-        const all = await storage.getTasks();
-        tasks.push(...all.filter((t: any) => t.projectId === project.id));
-        try {
-          const cols = await storage.getProjectColumns(project.id);
-          cols.forEach((c: any) => { statusNames[c.id] = c.name || c.id; });
-          const sorted = [...cols].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
-          const lastCol = sorted[sorted.length - 1];
-          if (lastCol) doneStatusIds.add(String(lastCol.id));
-        } catch (_) {}
-      }
-
+      const now = new Date();
+      const dueSoonBoundary = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const allBoards = await storage.getKanbanBoards().catch(() => []);
-      const projectBoards = (allBoards as any[]).filter((board) => String(board.projectId || "") === String(project.id));
+      const projectBoards = (allBoards as any[]).filter((board) =>
+        String(board.projectId || "") === String(project.id),
+      );
+      const statusNames: Record<string, string> = {};
+      const listById = new Map<string, any>();
+      const cards: any[] = [];
       for (const board of projectBoards) {
-        const [lists, cards] = await Promise.all([
+        const [lists, boardCards] = await Promise.all([
           storage.getKanbanListsByBoardId(board.id).catch(() => []),
           storage.getKanbanCardsByBoardId(board.id).catch(() => []),
         ]);
         (lists as any[]).forEach((list) => {
           statusNames[list.id] = list.name || list.id;
-          if (["closed", "archive"].includes(String(list.type || ""))) {
-            doneStatusIds.add(String(list.id));
-          }
+          listById.set(String(list.id), list);
         });
-        tasks.push(...(cards as any[]).map((card) => ({
+        cards.push(...(boardCards as any[]).map((card) => ({
           ...card,
           projectId: card.projectId || board.projectId,
-          status: card.listId,
-          assigneeId: card.assigneeUserId,
+          boardId: board.id,
         })));
       }
 
-      const total = tasks.length;
-      const done = tasks.filter((t: any) => {
-        const status = String(t.status || "");
-        return doneStatusIds.size > 0 ? doneStatusIds.has(status) : status === "done";
-      }).length;
-      const byStatus: Record<string, number> = {};
-      const byUser: Record<string, number> = {};
-      const byRepository: Record<string, number> = {};
-      const byCategory: Record<string, number> = {};
-      tasks.forEach((t: any) => {
-        const s = t.status || "todo";
-        byStatus[s] = (byStatus[s] || 0) + 1;
-        if (t.assigneeId) byUser[t.assigneeId] = (byUser[t.assigneeId] || 0) + 1;
-        const repo = (t.repository || "").toString().trim();
-        if (repo) byRepository[repo] = (byRepository[repo] || 0) + 1;
-        const cat = (t.category || "").toString().trim();
-        if (cat) byCategory[cat] = (byCategory[cat] || 0) + 1;
-      });
-      const userIds = Object.keys(byUser);
-      const userNames: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const users = await storage.getUsers();
-        users.forEach((u: any) => { if (u.id && userIds.includes(u.id)) userNames[u.id] = u.name || u.username || u.id; });
-      }
-      const categoryLabels: Record<string, string> = {
-        production: "Производство",
-        equipment: "Оборудование",
-        stream: "Стрим",
-        admin: "Администрирование",
-        other: "Другое",
+      const visibleCards = cards.filter((card) =>
+        String(listById.get(String(card.listId))?.type || "") !== "trash",
+      );
+      const isCompletedCard = (card: any) =>
+        ["closed", "archive"].includes(String(listById.get(String(card.listId))?.type || ""));
+      const isInProgressCard = (card: any) => {
+        const listName = String(listById.get(String(card.listId))?.name || "").toLowerCase();
+        return ["в работе", "in progress", "doing", "progress"].some((marker) => listName.includes(marker));
       };
-      res.json({ total, done, byStatus, statusNames, byUser, byRepository, byCategory, userNames, categoryLabels });
+      const cardDueDate = (card: any) => {
+        if (!card.dueDate) return null;
+        const date = new Date(card.dueDate);
+        return Number.isNaN(date.getTime()) ? null : date;
+      };
+      const isOverdueCard = (card: any) => {
+        const dueDate = cardDueDate(card);
+        return Boolean(dueDate && !isCompletedCard(card) && dueDate.getTime() < now.getTime());
+      };
+      const activeCards = visibleCards.filter((card) => !isCompletedCard(card));
+      const completedCards = visibleCards.filter(isCompletedCard);
+      const inProgressCards = activeCards.filter(isInProgressCard);
+      const overdueCards = activeCards.filter(isOverdueCard);
+      const unassignedCards = activeCards.filter((card) => !card.assigneeUserId);
+
+      const deadlines = {
+        overdue: 0,
+        dueSoon: 0,
+        future: 0,
+        noDeadline: 0,
+      };
+      for (const card of activeCards) {
+        const dueDate = cardDueDate(card);
+        if (!dueDate) deadlines.noDeadline += 1;
+        else if (dueDate.getTime() < now.getTime()) deadlines.overdue += 1;
+        else if (dueDate.getTime() <= dueSoonBoundary.getTime()) deadlines.dueSoon += 1;
+        else deadlines.future += 1;
+      }
+
+      const byStatus: Record<string, number> = {};
+      visibleCards.forEach((card) => {
+        const status = String(card.listId || "unknown");
+        byStatus[status] = (byStatus[status] || 0) + 1;
+      });
+
+      const workspace = await getActiveWorkspaceForUser(currentUser);
+      const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      const boardMembers = (await Promise.all(projectBoards.map((board) =>
+        storage.getKanbanBoardMembers(board.id).catch(() => []),
+      ))).flat() as any[];
+      const projectMemberIds = Array.from(new Set([
+        project.ownerId,
+        project.assignedTo,
+        ...(Array.isArray(project.participants) ? project.participants : []),
+        ...boardMembers.map((member) => member.userId),
+        ...visibleCards.map((card) => card.assigneeUserId),
+      ].map((id) => String(id || "").trim()).filter((id) => id && visibleUserIds.has(id))));
+      const allUsers = await storage.getUsers().catch(() => []);
+      const userNames: Record<string, string> = {};
+      for (const user of allUsers as any[]) {
+        if (projectMemberIds.includes(String(user.id))) {
+          userNames[String(user.id)] = user.name || user.username || user.id;
+        }
+      }
+      const assignees = projectMemberIds
+        .map((userId) => {
+          const assignedCards = visibleCards.filter((card) => String(card.assigneeUserId || "") === userId);
+          return {
+            userId,
+            name: userNames[userId] || userId,
+            total: assignedCards.length,
+            active: assignedCards.filter((card) => !isCompletedCard(card)).length,
+            completed: assignedCards.filter(isCompletedCard).length,
+            overdue: assignedCards.filter(isOverdueCard).length,
+          };
+        })
+        .sort((left, right) => right.active - left.active || left.name.localeCompare(right.name, "ru"));
+      const byUser = Object.fromEntries(assignees.map((assignee) => [assignee.userId, assignee.total]));
+
+      const [directLocationIds, cardLocationIds, allLocations, allLocationIssues] = await Promise.all([
+        getProjectDirectLocationIds(project.id),
+        getProjectCardLocationIds(project.id),
+        storage.getCustomLocations().catch(() => []),
+        storage.getLocationIssues().catch(() => []),
+      ]);
+      const projectIssues = (allLocationIssues as any[]).filter((issue) =>
+        String(issue.projectId || "") === String(project.id),
+      );
+      const locationIds = new Set(normalizeLocationIds([
+        ...directLocationIds,
+        ...cardLocationIds,
+        ...projectIssues.map((issue) => issue.locationId),
+      ]));
+      const projectLocations = (allLocations as any[]).filter((location) =>
+        locationIds.has(String(location.id)) &&
+        project.companyId &&
+        String(location.companyId || "") === String(project.companyId),
+      );
+      const allowedLocationIds = new Set(projectLocations.map((location) => String(location.id)));
+      const unresolvedLocationIssues = (allLocationIssues as any[]).filter((issue) =>
+        allowedLocationIds.has(String(issue.locationId)) &&
+        normalizeLocationTopicType(issue.type) === "issue" &&
+        normalizeLocationTopicStatus(issue.status) === "active",
+      );
+      const issueSeverity: Record<string, number> = {
+        low: 0,
+        medium: 0,
+        high: 0,
+        critical: 0,
+      };
+      for (const issue of unresolvedLocationIssues) {
+        const severity = String(issue.severity || "medium").toLowerCase();
+        issueSeverity[severity] = (issueSeverity[severity] || 0) + 1;
+      }
+      const locationItems = projectLocations
+        .map((location) => {
+          const issues = unresolvedLocationIssues.filter((issue) =>
+            String(issue.locationId) === String(location.id),
+          );
+          return {
+            id: location.id,
+            name: location.name,
+            archived: Boolean(location.archivedAt),
+            source: directLocationIds.includes(String(location.id)) &&
+              cardLocationIds.includes(String(location.id))
+              ? "direct_and_cards"
+              : directLocationIds.includes(String(location.id)) ? "direct" : "cards",
+            unresolvedIssues: issues.length,
+            bySeverity: issues.reduce<Record<string, number>>((result, issue) => {
+              const severity = String(issue.severity || "medium").toLowerCase();
+              result[severity] = (result[severity] || 0) + 1;
+              return result;
+            }, {}),
+          };
+        })
+        .sort((left, right) =>
+          Number(left.archived) - Number(right.archived) || left.name.localeCompare(right.name, "ru"),
+        );
+
+      const projectCardIds = new Set(visibleCards.map((card) => String(card.id)));
+      const [allEquipmentLinks, allEquipmentRequests] = await Promise.all([
+        storage.getEquipmentContextLinks().catch(() => []),
+        storage.getEquipmentCheckoutRequests().catch(() => []),
+      ]);
+      const equipmentLinks = (allEquipmentLinks as any[]).filter((link) =>
+        String(link.projectId || "") === String(project.id) ||
+        projectCardIds.has(String(link.kanbanCardId || "")),
+      );
+      const equipmentRequests = (allEquipmentRequests as any[]).filter((request) =>
+        String(request.projectId || "") === String(project.id) ||
+        getEquipmentRequestCardIds(request).some((cardId) => projectCardIds.has(cardId)),
+      );
+      const equipmentBundles = projectEquipmentBundles.filter((bundle) =>
+        String(bundle.projectId) === String(project.id),
+      );
+      const equipmentIds = Array.from(new Set([
+        ...equipmentLinks.map((link) => String(link.equipmentId || "")),
+        ...equipmentRequests.map((request) => String(request.equipmentId || "")),
+        ...equipmentBundles.flatMap((bundle) => bundle.equipmentIds.map(String)),
+      ].filter(Boolean)));
+      const equipmentRows = (await Promise.all(equipmentIds.map((equipmentId) =>
+        storage.getEquipmentById(equipmentId).catch(() => undefined),
+      ))).filter((item) =>
+        item &&
+        item.status !== "archived" &&
+        project.companyId &&
+        equipmentCompanyId(item) === String(project.companyId),
+      ) as any[];
+      const equipmentMetrics = {
+        linked: new Set<string>(),
+        requested: new Set<string>(),
+        approved: new Set<string>(),
+        issued: new Set<string>(),
+        returned: new Set<string>(),
+        overdue: new Set<string>(),
+        brokenOrRepair: new Set<string>(),
+      };
+      const equipmentItems = equipmentRows.map((item) => {
+        const itemId = String(item.id);
+        const itemLinks = equipmentLinks.filter((link) => String(link.equipmentId) === itemId);
+        const itemRequests = equipmentRequests
+          .filter((request) => String(request.equipmentId) === itemId)
+          .sort((left, right) =>
+            new Date(right.updatedAt || right.createdAt || 0).getTime() -
+            new Date(left.updatedAt || left.createdAt || 0).getTime(),
+          );
+        const latestRequest = itemRequests[0];
+        const requestLinks = latestRequest
+          ? itemLinks.filter((link) => String(link.checkoutRequestId || "") === String(latestRequest.id))
+          : [];
+        const bundle = equipmentBundles.find((entry) => entry.equipmentIds.map(String).includes(itemId));
+        const linked = itemLinks.some((link) => link.active) || Boolean(bundle);
+        if (linked) equipmentMetrics.linked.add(itemId);
+
+        let workflowStatus: "requested" | "approved" | "issued" | "returned" | "overdue" | null = null;
+        if (latestRequest?.status === "pending") {
+          workflowStatus = "requested";
+        } else if (latestRequest?.status === "approved") {
+          if (requestLinks.length > 0 && requestLinks.every((link) => !link.active)) {
+            workflowStatus = "returned";
+          } else if (item.status === "in-use" && (requestLinks.some((link) => link.active) || linked)) {
+            workflowStatus = "issued";
+          } else {
+            workflowStatus = "approved";
+          }
+        } else if (bundle && item.status === "in-use") {
+          workflowStatus = "issued";
+        }
+
+        const bundleReturnAt = bundle?.returnDate
+          ? new Date(`${bundle.returnDate}T23:59:59.999`)
+          : null;
+        const requestReturnAt = latestRequest?.expectedReturnAt
+          ? new Date(latestRequest.expectedReturnAt)
+          : null;
+        const overdue =
+          workflowStatus !== "returned" &&
+          (
+            (bundleReturnAt && !Number.isNaN(bundleReturnAt.getTime()) && bundleReturnAt.getTime() < now.getTime()) ||
+            (requestReturnAt && !Number.isNaN(requestReturnAt.getTime()) && requestReturnAt.getTime() < now.getTime())
+          );
+        if (overdue) workflowStatus = "overdue";
+        if (workflowStatus) equipmentMetrics[workflowStatus].add(itemId);
+
+        const operability = String(item.operabilityStatus || "").toLowerCase();
+        const brokenOrRepair =
+          ["broken", "on_repair", "maintenance"].includes(operability) ||
+          ["broken", "maintenance"].includes(String(item.status || "").toLowerCase());
+        if (brokenOrRepair) equipmentMetrics.brokenOrRepair.add(itemId);
+
+        return {
+          id: itemId,
+          name: item.name,
+          model: item.model || null,
+          linked,
+          workflowStatus,
+          brokenOrRepair,
+          cardIds: Array.from(new Set(itemLinks.map((link) => String(link.kanbanCardId || "")).filter(Boolean))),
+        };
+      }).sort((left, right) => left.name.localeCompare(right.name, "ru"));
+
+      const taskItems = visibleCards.map((card) => ({
+        id: card.id,
+        boardId: card.boardId,
+        title: card.title,
+        listId: card.listId,
+        listName: statusNames[String(card.listId)] || String(card.listId),
+        completed: isCompletedCard(card),
+        inProgress: isInProgressCard(card),
+        overdue: isOverdueCard(card),
+        unassigned: !card.assigneeUserId,
+        assigneeUserId: card.assigneeUserId || null,
+        dueDate: card.dueDate || null,
+      }));
+      const total = visibleCards.length;
+      const done = completedCards.length;
+      res.json({
+        source: {
+          type: "kanban-v2",
+          boardIds: projectBoards.map((board) => String(board.id)),
+        },
+        total,
+        done,
+        byStatus,
+        statusNames,
+        byUser,
+        userNames,
+        tasks: {
+          total,
+          active: activeCards.length,
+          inProgress: inProgressCards.length,
+          completed: completedCards.length,
+          overdue: overdueCards.length,
+          unassigned: unassignedCards.length,
+          deadlines,
+          items: taskItems,
+        },
+        assignees,
+        locations: {
+          total: locationItems.length,
+          active: locationItems.filter((location) => !location.archived).length,
+          archived: locationItems.filter((location) => location.archived).length,
+          unresolvedIssues: unresolvedLocationIssues.length,
+          bySeverity: issueSeverity,
+          items: locationItems,
+        },
+        equipment: {
+          total: equipmentItems.length,
+          linked: equipmentMetrics.linked.size,
+          requested: equipmentMetrics.requested.size,
+          approved: equipmentMetrics.approved.size,
+          issued: equipmentMetrics.issued.size,
+          returned: equipmentMetrics.returned.size,
+          overdue: equipmentMetrics.overdue.size,
+          brokenOrRepair: equipmentMetrics.brokenOrRepair.size,
+          items: equipmentItems,
+        },
+      });
     } catch (e: any) {
       res.status(500).json({ message: e?.message || "Ошибка" });
     }
@@ -10369,28 +10960,55 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         return res.status(403).json({ message: "Недостаточно прав для открытия доски проекта" });
       }
 
-      const existingBoards = await storage.getKanbanBoards().catch(() => []);
-      let board = (existingBoards as any[]).find((item) => String(item.projectId || "") === String(project.id));
-      const created = !board;
+      const joinedExistingOperation = projectKanbanBoardOperations.has(project.id);
+      let operation = projectKanbanBoardOperations.get(project.id);
+      if (!operation) {
+        operation = (async () => {
+          const existingBoards = await storage.getKanbanBoards().catch(() => []);
+          let board = (existingBoards as any[]).find((item) =>
+            String(item.projectId || "") === String(project.id),
+          );
+          const created = !board;
 
-      if (!board) {
-        const companyId = String((project as any).companyId || "").trim() || null;
-        board = await storage.createKanbanBoard({
-          companyId,
-          projectId: project.id,
-          name: `${project.name || "Проект"} · Kanban`,
-          description: project.description || null,
-          visibility: companyId ? "members" : "personal",
-          createdByUserId: currentUser.id,
+          if (!board) {
+            const companyId = String((project as any).companyId || "").trim() || null;
+            board = await storage.createKanbanBoard({
+              companyId,
+              projectId: project.id,
+              name: `${project.name || "Проект"} · Kanban`,
+              description: project.description || null,
+              visibility: companyId ? "members" : "personal",
+              createdByUserId: currentUser.id,
+            });
+          }
+
+          await syncProjectKanbanBoardMembers(board, project, currentUser);
+          await ensureDefaultProjectKanbanLists(board.id);
+
+          const updatedProject = (project as any).showInTaskManager === true
+            ? project
+            : await storage.updateProject(
+                project.id,
+                { showInTaskManager: true } as any,
+              ).catch(() => undefined) || project;
+
+          return {
+            board,
+            created,
+            project: updatedProject,
+          };
+        })();
+        projectKanbanBoardOperations.set(project.id, operation);
+        void operation.finally(() => {
+          if (projectKanbanBoardOperations.get(project.id) === operation) {
+            projectKanbanBoardOperations.delete(project.id);
+          }
         });
       }
 
+      const result = await operation;
+      const board = result.board;
       await syncProjectKanbanBoardMembers(board, project, currentUser);
-      await ensureDefaultProjectKanbanLists(board.id);
-
-      if ((project as any).showInTaskManager !== true) {
-        await storage.updateProject(project.id, { showInTaskManager: true } as any).catch(() => undefined);
-      }
 
       const membership = await storage.getKanbanBoardMember(board.id, currentUser.id).catch(() => undefined);
       const canManage = !board.companyId
@@ -10399,7 +11017,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
       res.json({
         board: buildKanbanBoardResponse(board, { canManage, membership }),
-        created,
+        project: await buildProjectResponse(result.project),
+        created: joinedExistingOperation ? false : result.created,
       });
     } catch (e: any) {
       console.error("[Projects] Failed to open Kanban board:", e);

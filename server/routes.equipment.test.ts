@@ -705,6 +705,165 @@ describe("equipment request actions", () => {
       expect.objectContaining({ source: "checkout", active: false }),
     ]));
   });
+
+  it("manually links and unlinks equipment from a Kanban V2 card without changing Warehouse state", async () => {
+    const app = await createAppWithRoutes();
+    const attachHandler = routeHandler(
+      app,
+      "POST",
+      "/api/kanban/boards/:boardId/cards/:cardId/equipment-links",
+    );
+    const detachHandler = routeHandler(
+      app,
+      "DELETE",
+      "/api/kanban/boards/:boardId/cards/:cardId/equipment-links/:equipmentId",
+    );
+    const boardLinksHandler = routeHandler(
+      app,
+      "GET",
+      "/api/kanban/boards/:boardId/equipment-links",
+    );
+    const { company, project, board, cards, item } = await createEquipmentContextFixture();
+    const user = {
+      id: "admin-stub-default-id",
+      role: "admin",
+      activeWorkspaceType: "company",
+      activeCompanyId: company.id,
+    };
+    const before = await storage.getEquipmentById(item.id);
+    const firstAttachResponse = createJsonResponse();
+
+    await attachHandler!({
+      user,
+      params: { boardId: board.id, cardId: cards[0].id },
+      body: { equipmentId: item.id },
+    }, firstAttachResponse);
+
+    expect(firstAttachResponse.statusCode).toBe(200);
+    expect((firstAttachResponse.body as any).items).toHaveLength(1);
+    expect((firstAttachResponse.body as any).items[0]).toMatchObject({
+      source: "manual",
+      workflowStatus: "linked",
+      projectId: project.id,
+      equipment: { id: item.id, name: item.name },
+    });
+
+    const repeatedAttachResponse = createJsonResponse();
+    await attachHandler!({
+      user,
+      params: { boardId: board.id, cardId: cards[0].id },
+      body: { equipmentId: item.id },
+    }, repeatedAttachResponse);
+    expect(repeatedAttachResponse.statusCode).toBe(200);
+    expect((await storage.getEquipmentContextLinks(item.id)).filter((link) =>
+      link.active && link.source === "manual" && link.kanbanCardId === cards[0].id,
+    )).toHaveLength(1);
+
+    const boardResponse = createJsonResponse();
+    await boardLinksHandler!({
+      user,
+      params: { boardId: board.id },
+    }, boardResponse);
+    expect((boardResponse.body as any).cards[cards[0].id]).toHaveLength(1);
+
+    const detachResponse = createJsonResponse();
+    await detachHandler!({
+      user,
+      params: {
+        boardId: board.id,
+        cardId: cards[0].id,
+        equipmentId: item.id,
+      },
+      body: {},
+    }, detachResponse);
+    expect(detachResponse.statusCode).toBe(200);
+    expect(detachResponse.body).toMatchObject({ items: [] });
+
+    const after = await storage.getEquipmentById(item.id);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.operabilityStatus).toBe(before?.operabilityStatus);
+    expect(after?.assignedTo ?? null).toBe(before?.assignedTo ?? null);
+    expect(after?.location ?? null).toBe(before?.location ?? null);
+  });
+
+  it("shows requested, issued and returned checkout workflow states on the linked card", async () => {
+    const app = await createAppWithRoutes();
+    const createHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests");
+    const approveHandler = routeHandler(app, "POST", "/api/equipment-checkout-requests/:id/approve");
+    const updateHandler = routeHandler(app, "PUT", "/api/equipment/:id");
+    const boardLinksHandler = routeHandler(
+      app,
+      "GET",
+      "/api/kanban/boards/:boardId/equipment-links",
+    );
+    const { company, project, location, board, cards, item } = await createEquipmentContextFixture();
+    const user = {
+      id: "admin-stub-default-id",
+      role: "admin",
+      activeWorkspaceType: "company",
+      activeCompanyId: company.id,
+    };
+    const createResponse = createJsonResponse();
+    await createHandler!({
+      user,
+      body: {
+        equipmentId: item.id,
+        companyId: company.id,
+        quantity: 1,
+        physicalDestination: { locationId: location.id },
+        workContext: { projectId: project.id, kanbanCardIds: [cards[0].id] },
+      },
+    }, createResponse);
+
+    const requestedResponse = createJsonResponse();
+    await boardLinksHandler!({
+      user,
+      params: { boardId: board.id },
+    }, requestedResponse);
+    expect((requestedResponse.body as any).cards[cards[0].id]).toHaveLength(1);
+    expect((requestedResponse.body as any).cards[cards[0].id][0]).toMatchObject({
+      source: "checkout",
+      workflowStatus: "requested",
+      request: { id: (createResponse.body as any).id, status: "pending" },
+    });
+
+    const approveResponse = createJsonResponse();
+    await approveHandler!({
+      user,
+      params: { id: (createResponse.body as any).id },
+      body: {},
+    }, approveResponse);
+    expect(approveResponse.statusCode).toBe(200);
+
+    const issuedResponse = createJsonResponse();
+    await boardLinksHandler!({
+      user,
+      params: { boardId: board.id },
+    }, issuedResponse);
+    expect((issuedResponse.body as any).cards[cards[0].id]).toHaveLength(1);
+    expect((issuedResponse.body as any).cards[cards[0].id][0]).toMatchObject({
+      workflowStatus: "issued",
+    });
+
+    const returnResponse = createJsonResponse();
+    await updateHandler!({
+      user,
+      params: { id: item.id },
+      body: { status: "available", assignedTo: null },
+    }, returnResponse);
+    expect(returnResponse.statusCode).toBe(200);
+
+    const returnedResponse = createJsonResponse();
+    await boardLinksHandler!({
+      user,
+      params: { boardId: board.id },
+    }, returnedResponse);
+    expect((returnedResponse.body as any).cards[cards[0].id]).toHaveLength(1);
+    expect((returnedResponse.body as any).cards[cards[0].id][0]).toMatchObject({
+      workflowStatus: "returned",
+      active: false,
+    });
+  });
 });
 
 describe("warehouse kit safety", () => {

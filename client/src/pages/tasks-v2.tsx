@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropResult } from "@hello-pangea/dnd";
+import { Link } from "wouter";
 import {
   AlertTriangle,
   ArrowDown,
@@ -47,6 +48,7 @@ import { DiscussionThread } from "@/components/discussion-thread";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { apiRequest } from "@/lib/queryClient";
+import { canEditEquipment } from "@/lib/equipment-permissions";
 import { registerWorkspaceFlushHandler } from "@/lib/workspace-switch";
 import { useWorkspace } from "@/contexts/workspace-context";
 import {
@@ -69,6 +71,10 @@ import {
   type TaskManagerSortBy,
   type TaskManagerSortDirection,
 } from "@/lib/task-manager-sort";
+import {
+  getKanbanBoardSelectionStorageKey,
+  resolveKanbanBoardSelection,
+} from "@/lib/kanban-board-selection";
 
 type BoardVisibility = "personal" | "company" | "members";
 type KanbanListType = "active" | "closed" | "archive" | "trash";
@@ -290,21 +296,51 @@ interface EquipmentSummaryView {
   id: string;
   name: string;
   model?: string | null;
+  status?: string | null;
 }
 
-interface EquipmentCheckoutRequestView {
+type EquipmentWorkflowStatus =
+  | "linked"
+  | "requested"
+  | "approved"
+  | "issued"
+  | "returned"
+  | "rejected"
+  | "overdue"
+  | "cancelled";
+
+interface KanbanEquipmentLinkView {
   id: string;
-  equipmentId: string;
-  requestedBy: string;
-  kanbanCardId?: string | null;
-  taskId?: string | null;
-  quantity?: number | null;
-  status: string;
-  requestType?: string | null;
-  location?: string | null;
-  note?: string | null;
-  createdAt?: string | Date | null;
-  updatedAt?: string | Date | null;
+  linkId?: string | null;
+  cardId: string;
+  projectId?: string | null;
+  source: "manual" | "checkout";
+  active: boolean;
+  workflowStatus: EquipmentWorkflowStatus;
+  linkedAt?: string | Date | null;
+  equipment: {
+    id: string;
+    name: string;
+    model?: string | null;
+    status?: string | null;
+    operabilityStatus?: string | null;
+    inventoryNumber?: string | null;
+  };
+  request?: {
+    id: string;
+    status: string;
+    requestType?: string | null;
+    requestedBy: string;
+    quantity?: number | null;
+    location?: string | null;
+    note?: string | null;
+    createdAt?: string | Date | null;
+    reviewedAt?: string | Date | null;
+  } | null;
+}
+
+interface KanbanBoardEquipmentLinksResponse {
+  cards: Record<string, KanbanEquipmentLinkView[]>;
 }
 
 const EMPTY_BOARD_FORM = {
@@ -654,19 +690,26 @@ const getSubtaskProgress = (subtasks?: KanbanSubtask[] | null) => {
   return { total: normalized.length, completed };
 };
 
-const getEquipmentRequestStatusLabel = (status: string | null | undefined) => {
+const getEquipmentWorkflowStatusLabel = (status: EquipmentWorkflowStatus | string | null | undefined) => {
   switch (status) {
-    case "pending": return "Ожидает";
-    case "approved": return "Подтвержден";
-    case "rejected": return "Отклонен";
-    case "cancelled": return "Отменен";
-    default: return status || "Запрос";
+    case "linked": return "Прикреплено";
+    case "requested": return "Запрошено";
+    case "approved": return "Подтверждено";
+    case "issued": return "Выдано";
+    case "returned": return "Возвращено";
+    case "rejected": return "Отклонено";
+    case "overdue": return "Просрочено";
+    case "cancelled": return "Отменено";
+    default: return status || "Связано";
   }
 };
 
-const getEquipmentRequestStatusVariant = (status: string | null | undefined): "default" | "destructive" | "outline" => {
-  if (status === "approved") return "default";
-  if (status === "rejected" || status === "cancelled") return "destructive";
+const getEquipmentWorkflowStatusVariant = (
+  status: EquipmentWorkflowStatus | string | null | undefined,
+): "default" | "destructive" | "outline" | "secondary" => {
+  if (status === "approved" || status === "issued") return "default";
+  if (status === "rejected" || status === "cancelled" || status === "overdue") return "destructive";
+  if (status === "returned") return "secondary";
   return "outline";
 };
 
@@ -811,6 +854,14 @@ export default function TasksV2Page() {
       return null;
     }
   }, []);
+  const boardSelectionStorageKey = useMemo(
+    () => getKanbanBoardSelectionStorageKey({
+      userId: currentUser?.id,
+      workspaceType: workspace?.type,
+      companyId: workspace?.companyId,
+    }),
+    [currentUser?.id, workspace?.companyId, workspace?.type],
+  );
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [editingListId, setEditingListId] = useState<string | null>(null);
@@ -856,6 +907,7 @@ export default function TasksV2Page() {
   const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
   const [detailSaveError, setDetailSaveError] = useState("");
   const [detailHistoryExpanded, setDetailHistoryExpanded] = useState(false);
+  const [equipmentLinkSelection, setEquipmentLinkSelection] = useState("");
   const [settingsLabelDraft, setSettingsLabelDraft] = useState("");
   const [editingSettingsLabelId, setEditingSettingsLabelId] = useState<string | null>(null);
   const [editingSettingsLabelName, setEditingSettingsLabelName] = useState("");
@@ -920,6 +972,15 @@ export default function TasksV2Page() {
     queryClient.invalidateQueries({ queryKey: ["/api/projects", resolvedProjectId, "task-stats"] });
     queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
   };
+  const invalidateEquipmentContext = (boardId?: string | null, projectId?: string | null) => {
+    if (boardId) {
+      queryClient.invalidateQueries({ queryKey: ["kanban-equipment-links", boardId] });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    invalidateProjectTaskStatsForBoard(boardId, projectId);
+  };
 
   const { data: lists = [], isLoading: listsLoading } = useQuery<KanbanListView[]>({
     queryKey: ["kanban-lists", selectedBoardId],
@@ -953,6 +1014,7 @@ export default function TasksV2Page() {
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+    queryClient.invalidateQueries({ queryKey: ["kanban-equipment-links", selectedBoardId] });
     if (detailCardId) {
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, detailCardId] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
@@ -998,11 +1060,16 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
-  const { data: equipmentCheckoutRequests = [], isLoading: equipmentRequestsLoading } = useQuery<EquipmentCheckoutRequestView[]>({
-    queryKey: ["/api/equipment-checkout-requests"],
-    enabled: !!selectedBoardId,
+  const {
+    data: boardEquipmentLinks = { cards: {} },
+    isLoading: equipmentLinksLoading,
+  } = useQuery<KanbanBoardEquipmentLinksResponse>({
+    queryKey: ["kanban-equipment-links", selectedBoardId],
+    enabled: !!selectedBoardId && Boolean(selectedBoard?.companyId),
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/equipment-checkout-requests");
+      const res = await apiRequest("GET", `/api/kanban/boards/${selectedBoardId}/equipment-links`);
       return await res.json();
     },
   });
@@ -1055,21 +1122,10 @@ export default function TasksV2Page() {
     () => new Map(boardLabels.map((label) => [label.id, label])),
     [boardLabels],
   );
-  const equipmentById = useMemo(
-    () => new Map(equipment.map((item) => [item.id, item])),
-    [equipment],
+  const equipmentLinksByCardId = useMemo(
+    () => new Map(Object.entries(boardEquipmentLinks.cards || {})),
+    [boardEquipmentLinks.cards],
   );
-  const equipmentRequestsByCardId = useMemo(() => {
-    const grouped = new Map<string, EquipmentCheckoutRequestView[]>();
-    for (const request of equipmentCheckoutRequests) {
-      const cardId = String(request.kanbanCardId || "").trim();
-      if (!cardId) continue;
-      const existing = grouped.get(cardId) ?? [];
-      existing.push(request);
-      grouped.set(cardId, existing);
-    }
-    return grouped;
-  }, [equipmentCheckoutRequests]);
   const activeCustomFields = useMemo(
     () => normalizeCustomFieldDefinitions(boardCustomFields.length > 0 ? boardCustomFields : selectedBoard?.customFields),
     [boardCustomFields, selectedBoard?.customFields],
@@ -1651,20 +1707,33 @@ export default function TasksV2Page() {
   }, [availableBoardMembers, editingMemberId, memberForm.userId]);
 
   useEffect(() => {
-    if (initialBoardIdRef.current && boards.some((board) => board.id === initialBoardIdRef.current)) {
-      setSelectedBoardId(initialBoardIdRef.current);
-      initialBoardIdRef.current = null;
-      return;
-    }
+    if (boardsLoading) return;
     if (boards.length === 0) {
       setSelectedBoardId(null);
       return;
     }
-
-    if (!selectedBoardId || !boards.some((board) => board.id === selectedBoardId)) {
-      setSelectedBoardId(boards[0].id);
+    const requestedBoardId = initialBoardIdRef.current;
+    const storedBoardId = boardSelectionStorageKey && typeof window !== "undefined"
+      ? window.localStorage.getItem(boardSelectionStorageKey)
+      : null;
+    const nextBoardId = resolveKanbanBoardSelection({
+      boardIds: boards.map((board) => board.id),
+      requestedBoardId,
+      currentBoardId: selectedBoardId,
+      storedBoardId,
+    });
+    if (requestedBoardId) {
+      initialBoardIdRef.current = null;
     }
-  }, [boards, selectedBoardId]);
+    if (nextBoardId !== selectedBoardId) {
+      setSelectedBoardId(nextBoardId);
+    }
+  }, [boardSelectionStorageKey, boards, boardsLoading, selectedBoardId]);
+
+  useEffect(() => {
+    if (!boardSelectionStorageKey || !selectedBoardId || typeof window === "undefined") return;
+    window.localStorage.setItem(boardSelectionStorageKey, selectedBoardId);
+  }, [boardSelectionStorageKey, selectedBoardId]);
 
   useEffect(() => {
     if (!initialCardIdRef.current || !selectedBoardId) return;
@@ -1683,6 +1752,7 @@ export default function TasksV2Page() {
     setDetailSaveStatus("idle");
     setDetailSaveError("");
     setDetailHistoryExpanded(false);
+    setEquipmentLinkSelection("");
     detailLastSavedSignatureRef.current = "";
     if (detailAutosaveTimerRef.current) {
       clearTimeout(detailAutosaveTimerRef.current);
@@ -2035,6 +2105,76 @@ export default function TasksV2Page() {
     },
   });
 
+  const attachEquipmentMutation = useMutation({
+    mutationFn: async ({ cardId, equipmentId }: { cardId: string; equipmentId: string }) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      const response = await apiRequest(
+        "POST",
+        `/api/kanban/boards/${selectedBoardId}/cards/${cardId}/equipment-links`,
+        { equipmentId },
+      );
+      return await response.json() as { items: KanbanEquipmentLinkView[] };
+    },
+    onSuccess: (response, input) => {
+      queryClient.setQueryData<KanbanBoardEquipmentLinksResponse>(
+        ["kanban-equipment-links", selectedBoardId],
+        (current) => ({
+          cards: {
+            ...(current?.cards || {}),
+            [input.cardId]: response.items || [],
+          },
+        }),
+      );
+      invalidateEquipmentContext(selectedBoardId, selectedBoard?.projectId);
+      setEquipmentLinkSelection("");
+      toast({
+        title: "Оборудование прикреплено",
+        description: "Связь добавлена без изменения складского статуса.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось прикрепить оборудование",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const detachEquipmentMutation = useMutation({
+    mutationFn: async ({ cardId, equipmentId }: { cardId: string; equipmentId: string }) => {
+      if (!selectedBoardId) throw new Error("Сначала выберите доску");
+      const response = await apiRequest(
+        "DELETE",
+        `/api/kanban/boards/${selectedBoardId}/cards/${cardId}/equipment-links/${equipmentId}`,
+      );
+      return await response.json() as { items: KanbanEquipmentLinkView[] };
+    },
+    onSuccess: (response, input) => {
+      queryClient.setQueryData<KanbanBoardEquipmentLinksResponse>(
+        ["kanban-equipment-links", selectedBoardId],
+        (current) => ({
+          cards: {
+            ...(current?.cards || {}),
+            [input.cardId]: response.items || [],
+          },
+        }),
+      );
+      invalidateEquipmentContext(selectedBoardId, selectedBoard?.projectId);
+      toast({
+        title: "Связь удалена",
+        description: "Оборудование осталось в текущем складском состоянии.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Не удалось открепить оборудование",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const saveCardDetailMutation = useMutation({
     mutationFn: async (input?: SaveCardDetailInput) => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
@@ -2115,6 +2255,7 @@ export default function TasksV2Page() {
         setDetailCardId(null);
         setDetailCardForm(EMPTY_CARD_FORM);
         setDetailSaveStatus("idle");
+        setEquipmentLinkSelection("");
       }
     },
     onError: (error: Error) => {
@@ -2613,6 +2754,7 @@ export default function TasksV2Page() {
 
   const handleOpenCardDetail = (cardId: string) => {
     setDetailHistoryExpanded(false);
+    setEquipmentLinkSelection("");
     setDetailCardId(cardId);
   };
 
@@ -2645,6 +2787,7 @@ export default function TasksV2Page() {
     setDetailSaveStatus("idle");
     setDetailSaveError("");
     setDetailHistoryExpanded(false);
+    setEquipmentLinkSelection("");
   };
 
   const handleEditLabel = (label: KanbanLabelView) => {
@@ -3049,7 +3192,7 @@ export default function TasksV2Page() {
     const cardLabels = normalizeLabelIds(card.labelIds)
       .map((labelId) => labelById.get(labelId))
       .filter((label): label is KanbanLabelView => Boolean(label));
-    const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
+    const equipmentLinkCount = equipmentLinksByCardId.get(card.id)?.length ?? 0;
 
     return (
       <div
@@ -3089,9 +3232,9 @@ export default function TasksV2Page() {
             </button>
           )}
           {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
-          {equipmentRequestCount > 0 && (
+          {equipmentLinkCount > 0 && (
             <Badge variant="outline" className="mt-1.5 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
-              Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
+              Оборудование: {formatPluralRu(equipmentLinkCount, "позиция", "позиции", "позиций")}
             </Badge>
           )}
           {(card.commentCount ?? 0) > 0 && (
@@ -3213,6 +3356,13 @@ export default function TasksV2Page() {
   const isCardPending = isCardEditPending || moveCardMutation.isPending;
   const canEditSelectedBoard = Boolean(selectedBoard?.canEdit);
   const canCommentSelectedBoard = Boolean(selectedBoard?.canComment);
+  const canManageSelectedCardEquipment =
+    Boolean(selectedBoard?.companyId) &&
+    canEditSelectedBoard &&
+    (
+      canEditEquipment(currentUser) ||
+      ["owner", "admin"].includes(String(selectedCompanyItem?.membership?.role || ""))
+    );
   const isBoardStructureLoading = listsLoading || cardsLoading;
   const hasLists = lists.length > 0;
 
@@ -3875,7 +4025,7 @@ export default function TasksV2Page() {
                                       const cardLabels = normalizeLabelIds(card.labelIds)
                                         .map((labelId) => labelById.get(labelId))
                                         .filter((label): label is KanbanLabelView => Boolean(label));
-                                      const equipmentRequestCount = equipmentRequestsByCardId.get(card.id)?.length ?? 0;
+                                      const equipmentLinkCount = equipmentLinksByCardId.get(card.id)?.length ?? 0;
 
                                       return (
                                         <Draggable
@@ -4002,9 +4152,9 @@ export default function TasksV2Page() {
                                                           Подзадачи: {subtaskProgress.completed}/{subtaskProgress.total}
                                                         </span>
                                                       )}
-                                                      {equipmentRequestCount > 0 && (
+                                                      {equipmentLinkCount > 0 && (
                                                         <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
-                                                          Оборудование: {equipmentRequestCount}
+                                                          Оборудование: {equipmentLinkCount}
                                                         </span>
                                                       )}
                                                       {(card.commentCount ?? 0) > 0 && (
@@ -4623,7 +4773,13 @@ export default function TasksV2Page() {
                   selectedDetailList?.type === "trash";
                 const dueDateStatus = getDueDateStatus(selectedDetailCard.dueDate, { isComplete: isCompleteLikeList });
                 const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
-                const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
+                const detailEquipmentLinks = equipmentLinksByCardId.get(selectedDetailCard.id) ?? [];
+                const linkedEquipmentIds = new Set(
+                  detailEquipmentLinks.map((link) => String(link.equipment.id)),
+                );
+                const availableEquipmentToLink = equipment.filter((item) =>
+                  item.status !== "archived" && !linkedEquipmentIds.has(String(item.id)),
+                );
                 const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
                 const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
                 const activeLocationIssues = selectedDetailCard.locationWarnings ?? [];
@@ -5062,53 +5218,138 @@ export default function TasksV2Page() {
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold">Запросы оборудования</h3>
-                      <p className="text-xs text-muted-foreground">Связанные заявки на выдачу или перенос техники.</p>
+                      <h3 className="text-sm font-semibold">Оборудование</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Ручные связи и состояние заявок, выдачи и возврата.
+                      </p>
                     </div>
-                    {equipmentRequestsLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
+                    {equipmentLinksLoading && <span className="text-xs text-muted-foreground">Загружаем...</span>}
                   </div>
 
-                  {detailEquipmentRequests.length === 0 ? (
+                  {canManageSelectedCardEquipment && (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <select
+                        value={equipmentLinkSelection}
+                        onChange={(event) => setEquipmentLinkSelection(event.target.value)}
+                        className={`${KANBAN_PANEL_SELECT_CLASS} flex-1`}
+                        disabled={
+                          attachEquipmentMutation.isPending ||
+                          detachEquipmentMutation.isPending ||
+                          availableEquipmentToLink.length === 0
+                        }
+                      >
+                        <option value="">
+                          {availableEquipmentToLink.length > 0
+                            ? "Выберите оборудование"
+                            : "Всё доступное оборудование уже связано"}
+                        </option>
+                        {availableEquipmentToLink.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {[item.name, item.model].filter(Boolean).join(" · ")}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        className="rounded-xl"
+                        disabled={!equipmentLinkSelection || attachEquipmentMutation.isPending}
+                        onClick={() => attachEquipmentMutation.mutate({
+                          cardId: selectedDetailCard.id,
+                          equipmentId: equipmentLinkSelection,
+                        })}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        Прикрепить
+                      </Button>
+                    </div>
+                  )}
+
+                  {!selectedBoard?.companyId && (
+                    <div className="mt-3 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      Warehouse доступен только в пространстве компании.
+                    </div>
+                  )}
+
+                  {detailEquipmentLinks.length === 0 ? (
                     <div className="mt-3 rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
-                      К этой карточке пока не привязаны запросы оборудования.
+                      К этой карточке пока не прикреплено оборудование.
                     </div>
                   ) : (
                     <div className="mt-3 grid gap-3">
-                      {detailEquipmentRequests.map((request) => {
-                        const equipmentItem = equipmentById.get(request.equipmentId);
-                        const requester = userById.get(request.requestedBy);
-                        const quantity = Math.max(1, Number(request.quantity || 1));
+                      {detailEquipmentLinks.map((link) => {
+                        const requester = link.request?.requestedBy
+                          ? userById.get(link.request.requestedBy)
+                          : null;
+                        const quantity = Math.max(1, Number(link.request?.quantity || 1));
 
                         return (
                           <div
-                            key={request.id}
+                            key={link.id}
                             className="rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 font-medium">
                                   <Package className="h-4 w-4 text-muted-foreground" />
-                                  <span className="break-words">
-                                    {equipmentItem?.name || request.equipmentId}
-                                  </span>
+                                  <Link
+                                    href={`/equipment?equipmentId=${encodeURIComponent(link.equipment.id)}`}
+                                    className="break-words text-foreground hover:underline"
+                                  >
+                                    {link.equipment.name || link.equipment.id}
+                                  </Link>
                                 </div>
-                                {equipmentItem?.model && (
-                                  <div className="mt-1 text-xs text-muted-foreground">{equipmentItem.model}</div>
+                                {link.equipment.model && (
+                                  <div className="mt-1 text-xs text-muted-foreground">{link.equipment.model}</div>
                                 )}
                               </div>
-                              <Badge variant={getEquipmentRequestStatusVariant(request.status)} className="rounded-full">
-                                {getEquipmentRequestStatusLabel(request.status)}
-                              </Badge>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Badge variant="outline" className="rounded-full">
+                                  {link.source === "manual" ? "Ручная связь" : "Заявка / выдача"}
+                                </Badge>
+                                <Badge
+                                  variant={getEquipmentWorkflowStatusVariant(link.workflowStatus)}
+                                  className="rounded-full"
+                                >
+                                  {getEquipmentWorkflowStatusLabel(link.workflowStatus)}
+                                </Badge>
+                                {link.source === "manual" && link.active && canManageSelectedCardEquipment && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                    disabled={detachEquipmentMutation.isPending}
+                                    title="Открепить оборудование"
+                                    onClick={() => detachEquipmentMutation.mutate({
+                                      cardId: selectedDetailCard.id,
+                                      equipmentId: link.equipment.id,
+                                    })}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                              <span>Запросил: {requester?.name || requester?.username || request.requestedBy}</span>
-                              <span>Количество: {quantity}</span>
-                              {request.location && <span>Локация: {request.location}</span>}
-                              {request.createdAt && <span>Создан: {formatDueDateLabel(request.createdAt) || "Неизвестно"}</span>}
-                            </div>
-                            {request.note && (
+                            {link.request && (
+                              <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                <span>
+                                  Запросил: {requester?.name || requester?.username || link.request.requestedBy}
+                                </span>
+                                <span>Количество: {quantity}</span>
+                                {link.request.location && <span>Локация: {link.request.location}</span>}
+                                {link.request.createdAt && (
+                                  <span>Создан: {formatDueDateLabel(link.request.createdAt) || "Неизвестно"}</span>
+                                )}
+                              </div>
+                            )}
+                            {!link.request && link.linkedAt && (
+                              <div className="mt-3 text-xs text-muted-foreground">
+                                Прикреплено: {formatDueDateLabel(link.linkedAt) || "Неизвестно"}
+                              </div>
+                            )}
+                            {link.request?.note && (
                               <div className="mt-3 rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-                                {request.note}
+                                {link.request.note}
                               </div>
                             )}
                           </div>
