@@ -47,6 +47,8 @@ import { DiscussionThread } from "@/components/discussion-thread";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { apiRequest } from "@/lib/queryClient";
+import { registerWorkspaceFlushHandler } from "@/lib/workspace-switch";
+import { useWorkspace } from "@/contexts/workspace-context";
 import {
   type DueDateStatus,
   formatDueDateLabel,
@@ -800,6 +802,7 @@ const reorderKanbanLists = (lists: KanbanListView[], listIds: string[]) => {
 export default function TasksV2Page() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { workspace } = useWorkspace();
   const currentUser = useMemo(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -1604,6 +1607,29 @@ export default function TasksV2Page() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(BOARD_LIST_GROUPING_STORAGE_KEY, listGrouping);
   }, [listGrouping]);
+
+  useEffect(() => {
+    if (editingBoardId || !workspace?.type) return;
+    if (workspace.type === "personal") {
+      if (boardForm.visibility !== "personal" || boardForm.companyId) {
+        setBoardForm((prev) => ({ ...prev, visibility: "personal", companyId: "" }));
+      }
+      return;
+    }
+    if (boardForm.visibility === "personal" || boardForm.companyId !== workspace.companyId) {
+      setBoardForm((prev) => ({
+        ...prev,
+        visibility: prev.visibility === "members" ? "members" : "company",
+        companyId: workspace.companyId || "",
+      }));
+    }
+  }, [
+    boardForm.companyId,
+    boardForm.visibility,
+    editingBoardId,
+    workspace?.companyId,
+    workspace?.type,
+  ]);
 
   useEffect(() => {
     if (
@@ -3234,6 +3260,36 @@ export default function TasksV2Page() {
     selectedDetailCard,
   ]);
 
+  useEffect(() => registerWorkspaceFlushHandler(async () => {
+    if (detailAutosaveTimerRef.current) {
+      clearTimeout(detailAutosaveTimerRef.current);
+      detailAutosaveTimerRef.current = null;
+    }
+    if (!detailCardId || !canEditSelectedBoard) return true;
+    if (saveCardDetailMutation.isPending) return false;
+    const currentSignature = serializeCardForm(detailCardForm);
+    if (currentSignature === detailLastSavedSignatureRef.current) return true;
+    if (!detailCardForm.title.trim() || !detailCardForm.listId) return false;
+    try {
+      await saveCardDetailMutation.mutateAsync({
+        form: {
+          ...detailCardForm,
+          labelIds: [...detailCardForm.labelIds],
+        },
+        silent: true,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }), [
+    canEditSelectedBoard,
+    detailCardForm,
+    detailCardId,
+    saveCardDetailMutation.isPending,
+    saveCardDetailMutation.mutateAsync,
+  ]);
+
   return (
     <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-3 p-3 pt-4 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-5 sm:pt-5">
       <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
@@ -4434,7 +4490,7 @@ export default function TasksV2Page() {
           <DialogHeader>
             <DialogTitle>{editingBoardId ? "Изменить доску" : "Создать доску"}</DialogTitle>
             <DialogDescription>
-              Личные доски создаются сразу. Для командной или приглашенной доски выберите компанию.
+              Новая доска будет создана в текущем рабочем пространстве.
             </DialogDescription>
           </DialogHeader>
 
@@ -4444,7 +4500,12 @@ export default function TasksV2Page() {
                 const meta = BOARD_VISIBILITY_META[value];
                 const Icon = meta.icon;
                 const selected = boardForm.visibility === value;
-                const disabled = (value === "company" || value === "members") && companies.length === 0;
+                const disabled = workspace?.type === "personal"
+                  ? value !== "personal"
+                  : value === "personal" || (
+                    (value === "company" || value === "members") &&
+                    companies.length === 0
+                  );
                 return (
                   <button
                     key={value}

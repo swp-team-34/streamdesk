@@ -28,7 +28,8 @@ The diagram shows three internal layers (Client, Server, Data) and the external 
 
 **Key architectural boundaries:**
 - **Authentication boundary:** Handled via `express-session` and a custom middleware that populates `req.user` from `req.session.userId`.
-- **Realtime boundary:** The server exposes a session-authenticated `/ws` WebSocket endpoint. Discussion clients subscribe only to server-authorized company, project, Kanban V2 card, Location, or equipment scopes. Persisted REST/storage state remains authoritative; identifier-only events trigger React Query invalidation and reconnect refetches. Existing systems, streams, tasks, calendar events, and integration-stat refreshes share the same bounded client transport.
+- **Active-workspace boundary:** Every authenticated product request resolves one validated company or personal workspace from the session and persisted user preference. Company records must match the selected company; personal records use a null company and entity-level ownership or membership. Ordinary screens never aggregate multiple companies, including for platform administrators. Records with missing or ambiguous company ownership are quarantined from company screens; Calendar rows are backfilled only when the organizer has exactly one active company.
+- **Realtime boundary:** The server exposes a session-authenticated `/ws` WebSocket endpoint. Discussion clients subscribe only to server-authorized active-company, project, Kanban V2 card, Location, or equipment scopes. Persisted REST/storage state remains authoritative; identifier-only events trigger React Query invalidation and reconnect refetches. Periodic systems, streams, tasks, and calendar refreshes are invalidation-only and do not broadcast record payloads globally.
 - **Equipment module:** The Equipment module is stable, but its current primary state-changing workflow is **checkout requests and approve/reject handling**. The older `equipment_reservations` route still exists as legacy, but it is not the main warehouse workflow.
 - **Equipment destination and work-context model:** Physical destination is stored separately as either a company Location reference or manual text. Optional project/Kanban V2 context uses additive `equipment_context_links` rows with explicit `manual` or `checkout` sources, supports multiple cards without duplicate project summaries, and does not itself issue, return, reserve, or change equipment operability. Historical text and Legacy Task Manager fields remain readable, but new selectors and records use Kanban V2 only.
 - **Editor autosave model:** Existing Warehouse equipment, equipment notes, and projects use a shared debounced client hook. Valid snapshots are serialized to suppress duplicate writes, queued changes are flushed before an editor closes, local progress is published to the header synchronization indicator, and successful REST mutations invalidate related React Query data. Server-published identifier-only company/project/equipment events keep other authorized sessions current; creation forms remain explicit.
@@ -103,10 +104,11 @@ The following ADRs document the most important architectural decisions made for 
 - [ADR-002: Declarative Protected Route Wrapper](./adr/ADR-002-declarative-protected-route-wrapper.md)
 - [ADR-003: Unified Monorepo Test and Coverage Configuration](./adr/ADR-003-unified-monorepo-coverage.md)
 - [ADR-004: Authenticated Scoped Realtime Transport](./adr/ADR-004-authenticated-scoped-realtime.md)
+- [ADR-005: Validated Active Workspace Tenant Boundary](./adr/ADR-005-active-workspace-tenant-boundary.md)
 
 ### How the decisions fit together
 
-These four decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
+These five decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
 
 1. **Functional Correctness & Security (QR-001, QR-002):**
    - **ADR-001** ensures that complex business rules for equipment access are evaluated consistently on the client side, while server-side route-local checks enforce authorization at the API boundary. 
@@ -120,3 +122,7 @@ These four decisions form the foundation of our team's approach to **security, f
 3. **Realtime Security & Consistency (QR-002, QR-003):**
    - **ADR-004** authenticates WebSocket upgrades through the same session model as REST, rechecks scope access for every subscription, and keeps all mutations in authorized HTTP routes.
    - Identifier-only events, bounded lifecycle resources, duplicate suppression, and reconnect refetches prevent realtime delivery from becoming a second or weaker source of application state.
+
+4. **Tenant Isolation (QR-002, QR-003):**
+   - **ADR-005** establishes the selected company or personal workspace as a server-validated boundary for REST, realtime, creation defaults, Dashboard aggregation, caches, and navigation.
+   - Automated multi-company regression tests verify list filtering, direct-record denial, personal data separation, workspace persistence, and WebSocket subscription isolation.

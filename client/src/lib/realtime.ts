@@ -40,6 +40,11 @@ export class BoundedRealtimeEventIds {
   get size() {
     return this.ids.size;
   }
+
+  clear() {
+    this.ids.clear();
+    this.order.length = 0;
+  }
 }
 
 export function shouldRefetchDiscussion(message: RealtimeMessage, channel: string): boolean {
@@ -99,6 +104,24 @@ class BrowserRealtimeTransport {
       }
       this.closeIfIdle();
     };
+  }
+
+  reset() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    const socket = this.socket;
+    this.socket = null;
+    this.connecting = false;
+    this.connected = false;
+    this.reconnectAttempt = 0;
+    this.eventIds.clear();
+    this.statusListeners.forEach((listener) => listener(false));
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      socket.close(1000, "Workspace changed");
+    }
+    this.scheduleReconnect();
   }
 
   private hasConsumers() {
@@ -171,7 +194,8 @@ class BrowserRealtimeTransport {
       };
 
       socket.onclose = (event) => {
-        if (this.socket === socket) this.socket = null;
+        if (this.socket !== socket) return;
+        this.socket = null;
         this.connecting = false;
         this.connected = false;
         this.statusListeners.forEach((listener) => listener(false));

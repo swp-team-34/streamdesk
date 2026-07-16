@@ -133,6 +133,7 @@ export interface IStorage {
   
   // Events
   getEvents(): Promise<Event[]>;
+  getEventById(id: string): Promise<Event | undefined>;
   getEventsByUser(userId: string): Promise<Event[]>;
   getEventsByDateRange(start: Date, end: Date): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
@@ -382,12 +383,14 @@ export interface IStorage {
 
   // Show participant profiles
   getShowParticipantProfiles(eventId: string): Promise<ShowParticipantProfile[]>;
+  getShowParticipantProfileById(id: string): Promise<ShowParticipantProfile | undefined>;
   createShowParticipantProfile(profile: InsertShowParticipantProfile): Promise<ShowParticipantProfile>;
   updateShowParticipantProfile(id: string, data: Partial<ShowParticipantProfile>): Promise<ShowParticipantProfile | undefined>;
   deleteShowParticipantProfile(id: string): Promise<boolean>;
 
   // Show markers
   getShowMarkers(eventId: string): Promise<ShowMarker[]>;
+  getShowMarkerById(id: string): Promise<ShowMarker | undefined>;
   createShowMarker(marker: InsertShowMarker): Promise<ShowMarker>;
   updateShowMarker(id: string, data: Partial<ShowMarker>): Promise<ShowMarker | undefined>;
   deleteShowMarker(id: string): Promise<boolean>;
@@ -551,6 +554,11 @@ export class PostgreSQLStorage implements IStorage {
   // Events
   async getEvents(): Promise<Event[]> {
     return await db!.select().from(events).orderBy(events.startTime);
+  }
+
+  async getEventById(id: string): Promise<Event | undefined> {
+    const result = await db!.select().from(events).where(eq(events.id, id)).limit(1);
+    return result[0];
   }
 
   async getEventsByUser(userId: string): Promise<Event[]> {
@@ -1994,6 +2002,13 @@ export class PostgreSQLStorage implements IStorage {
       .orderBy(sql`${showParticipantProfiles.order} ASC NULLS LAST, ${showParticipantProfiles.createdAt} ASC`);
   }
 
+  async getShowParticipantProfileById(id: string): Promise<ShowParticipantProfile | undefined> {
+    const [profile] = await db!.select().from(showParticipantProfiles)
+      .where(eq(showParticipantProfiles.id, id))
+      .limit(1);
+    return profile;
+  }
+
   async createShowParticipantProfile(profile: InsertShowParticipantProfile): Promise<ShowParticipantProfile> {
     const [created] = await db!.insert(showParticipantProfiles).values(profile).returning();
     return created;
@@ -2017,6 +2032,13 @@ export class PostgreSQLStorage implements IStorage {
     return await db!.select().from(showMarkers)
       .where(eq(showMarkers.eventId, eventId))
       .orderBy(sql`${showMarkers.timecode} ASC, ${showMarkers.createdAt} ASC`);
+  }
+
+  async getShowMarkerById(id: string): Promise<ShowMarker | undefined> {
+    const [marker] = await db!.select().from(showMarkers)
+      .where(eq(showMarkers.id, id))
+      .limit(1);
+    return marker;
   }
 
   async createShowMarker(marker: InsertShowMarker): Promise<ShowMarker> {
@@ -2162,6 +2184,8 @@ class StubStorage implements IStorage {
   private systems = new Map<string, System>();
   private analytics = new Map<string, AnalyticsEvent>();
   private vmixSchedulerEventsMap = new Map<string, VmixSchedulerEvent>();
+  private showParticipantProfilesMap = new Map<string, ShowParticipantProfile>();
+  private showMarkersMap = new Map<string, ShowMarker>();
   private otisSettings: OtisStreamSettings | null = null;
 
   constructor() {
@@ -2183,6 +2207,8 @@ class StubStorage implements IStorage {
       avatar: null,
       onboardingCompleted: false,
       workspaceMode: "pending",
+      activeWorkspaceType: null,
+      activeCompanyId: null,
       lastLogin: null,
       createdAt: new Date(),
     } as User);
@@ -2292,6 +2318,7 @@ class StubStorage implements IStorage {
   async deleteEventParticipant(): Promise<boolean> { return true; }
 
   async getEvents(): Promise<Event[]> { return Array.from(this.events.values()); }
+  async getEventById(id: string): Promise<Event | undefined> { return this.events.get(id); }
   async getEventsByUser(): Promise<Event[]> { return Array.from(this.events.values()); }
   async getEventsByDateRange(): Promise<Event[]> { return Array.from(this.events.values()); }
   async createEvent(data: InsertEvent): Promise<Event> {
@@ -3211,19 +3238,67 @@ class StubStorage implements IStorage {
     return this.otisSettings;
   }
 
-  async getShowParticipantProfiles(): Promise<ShowParticipantProfile[]> { return []; }
+  async getShowParticipantProfiles(eventId: string): Promise<ShowParticipantProfile[]> {
+    return Array.from(this.showParticipantProfilesMap.values())
+      .filter((profile) => profile.eventId === eventId)
+      .sort((left, right) =>
+        Number(left.order || 0) - Number(right.order || 0) ||
+        new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime(),
+      );
+  }
+  async getShowParticipantProfileById(id: string): Promise<ShowParticipantProfile | undefined> {
+    return this.showParticipantProfilesMap.get(id);
+  }
   async createShowParticipantProfile(data: InsertShowParticipantProfile): Promise<ShowParticipantProfile> {
-    return { ...data, id: this.uid(), createdAt: this.now() } as ShowParticipantProfile;
+    const profile = {
+      ...data,
+      id: this.uid(),
+      createdAt: this.now(),
+      updatedAt: this.now(),
+    } as ShowParticipantProfile;
+    this.showParticipantProfilesMap.set(profile.id, profile);
+    return profile;
   }
-  async updateShowParticipantProfile(): Promise<ShowParticipantProfile | undefined> { return undefined; }
-  async deleteShowParticipantProfile(): Promise<boolean> { return true; }
+  async updateShowParticipantProfile(
+    id: string,
+    data: Partial<ShowParticipantProfile>,
+  ): Promise<ShowParticipantProfile | undefined> {
+    const profile = this.showParticipantProfilesMap.get(id);
+    if (!profile) return undefined;
+    const updated = { ...profile, ...data, updatedAt: this.now() } as ShowParticipantProfile;
+    this.showParticipantProfilesMap.set(id, updated);
+    return updated;
+  }
+  async deleteShowParticipantProfile(id: string): Promise<boolean> {
+    return this.showParticipantProfilesMap.delete(id);
+  }
 
-  async getShowMarkers(): Promise<ShowMarker[]> { return []; }
-  async createShowMarker(data: InsertShowMarker): Promise<ShowMarker> {
-    return { ...data, id: this.uid(), createdAt: this.now() } as ShowMarker;
+  async getShowMarkers(eventId: string): Promise<ShowMarker[]> {
+    return Array.from(this.showMarkersMap.values())
+      .filter((marker) => marker.eventId === eventId)
+      .sort((left, right) =>
+        String(left.timecode).localeCompare(String(right.timecode)) ||
+        new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime(),
+      );
   }
-  async updateShowMarker(): Promise<ShowMarker | undefined> { return undefined; }
-  async deleteShowMarker(): Promise<boolean> { return true; }
+  async getShowMarkerById(id: string): Promise<ShowMarker | undefined> {
+    return this.showMarkersMap.get(id);
+  }
+  async createShowMarker(data: InsertShowMarker): Promise<ShowMarker> {
+    const marker = { ...data, id: this.uid(), createdAt: this.now() } as ShowMarker;
+    this.showMarkersMap.set(marker.id, marker);
+    return marker;
+  }
+  async updateShowMarker(id: string, data: Partial<ShowMarker>): Promise<ShowMarker | undefined> {
+    const marker = this.showMarkersMap.get(id);
+    if (!marker) return undefined;
+    const updated = { ...marker, ...data } as ShowMarker;
+    this.showMarkersMap.set(id, updated);
+    return updated;
+  }
+  async deleteShowMarker(id: string): Promise<boolean> {
+    return this.showMarkersMap.delete(id);
+  }
 
   private yougileProjectsMap = new Map<string, YougileProject>();
   private yougileBoardsMap = new Map<string, YougileBoard>();
@@ -3434,6 +3509,26 @@ export async function initDatabase(): Promise<void> {
       storage = new PostgreSQLStorage();
       isStubStorage = false;
       console.log("✅ Подключение к PostgreSQL успешно.");
+      try {
+        await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_workspace_type text`;
+        await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_company_id varchar`;
+        await client`ALTER TABLE events ADD COLUMN IF NOT EXISTS company_id varchar`;
+        await client`CREATE INDEX IF NOT EXISTS events_company_start_idx
+          ON events (company_id, start_time)`;
+        await client`UPDATE events AS event
+          SET company_id = membership.company_id
+          FROM (
+            SELECT user_id, MIN(company_id) AS company_id
+            FROM company_members
+            WHERE status = 'active'
+            GROUP BY user_id
+            HAVING COUNT(*) = 1
+          ) AS membership
+          WHERE event.company_id IS NULL
+            AND event.organizer_id = membership.user_id`;
+      } catch (schemaErr) {
+        console.warn("[DB] Не удалось обновить active workspace schema:", schemaErr);
+      }
       try {
         await client`ALTER TABLE kanban_boards ALTER COLUMN company_id DROP NOT NULL`;
       } catch (schemaErr) {

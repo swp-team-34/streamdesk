@@ -7,6 +7,7 @@ export const KANBAN_BOARD_VISIBILITIES = ["personal", "company", "members"] as c
 export const KANBAN_BOARD_MEMBER_ROLES = ["editor", "viewer"] as const;
 export const KANBAN_LIST_TYPES = ["active", "closed", "archive", "trash"] as const;
 export const KANBAN_CARD_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+export const WORKSPACE_TYPES = ["company", "personal"] as const;
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -24,6 +25,8 @@ export const users = pgTable("users", {
   active: boolean("active").default(true),
   onboardingCompleted: boolean("onboarding_completed").default(false),
   workspaceMode: text("workspace_mode").default("pending"),
+  activeWorkspaceType: text("active_workspace_type"),
+  activeCompanyId: varchar("active_company_id"),
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -70,6 +73,7 @@ export const companyInvites = pgTable("company_invites", {
 
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id),
   title: text("title").notNull(),
   description: text("description"),
   startTime: timestamp("start_time").notNull(),

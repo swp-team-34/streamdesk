@@ -18,6 +18,7 @@ import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { queryClient } from "@/lib/queryClient";
 import { MANUAL_SYNC_COOLDOWN_MS, runManualSync } from "@/lib/manual-sync";
 import { GLOBAL_SYNC_EVENT, type GlobalSyncDetail } from "@/lib/global-sync-state";
+import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 
 interface HeaderProps {
   onMobileMenuClick: () => void;
@@ -61,7 +62,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
   const autosaveSyncSourcesRef = useRef(new Map<string, GlobalSyncDetail>());
   const [location] = useLocation();
   const { canInstall, install } = usePWAInstall();
-  const isPlatformAdmin = Array.isArray(user?.permissions) && user.permissions.includes("platform:admin");
+  const isPlatformAdminArea = location === "/platform-admin";
 
   const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications", user?.id],
@@ -156,6 +157,8 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
       </div>
 
       <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 overflow-hidden">
+        <WorkspaceSwitcher />
+
         <div className="text-xs text-muted-foreground hidden 2xl:block text-right shrink-0">
           <div className="font-medium text-foreground">{currentTime.toLocaleTimeString("ru-RU")}</div>
           <div className="text-[10px]">
@@ -226,7 +229,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
           </Tooltip>
         )}
 
-        {user && !isPlatformAdmin && (
+        {user && !isPlatformAdminArea && (
           <Link href="/notifications" className="shrink-0">
             <Button
               variant="ghost"
@@ -280,13 +283,13 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
                   Установить приложение (PWA)
                 </DropdownMenuItem>
               )}
-              {!isPlatformAdmin && <Link href="/settings">
+              {!isPlatformAdminArea && <Link href="/settings">
                 <DropdownMenuItem className="cursor-pointer">
                   <Settings className="w-4 h-4 mr-2" />
                   Настройки
                 </DropdownMenuItem>
               </Link>}
-              {!isPlatformAdmin && <DropdownMenuSeparator />}
+              {!isPlatformAdminArea && <DropdownMenuSeparator />}
               {onLogout && (
                 <DropdownMenuItem
                   className="cursor-pointer text-destructive focus:text-destructive"

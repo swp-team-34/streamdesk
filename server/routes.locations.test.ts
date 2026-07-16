@@ -75,7 +75,7 @@ async function createLocation(companyId: string, overrides: Record<string, unkno
 }
 
 describe("location workspaces", () => {
-  it("isolates location lists by company while administrators can see all companies", async () => {
+  it("isolates location lists by selected company, including platform administrators", async () => {
     const app = await createAppWithRoutes();
     const handler = routeHandler(app, "GET", "/api/locations");
     const first = await createCompanyUser();
@@ -93,11 +93,25 @@ describe("location workspaces", () => {
 
     const adminResponse = createJsonResponse();
     await handler!({
-      user: { id: "admin-stub-default-id", role: "admin", name: "Administrator" },
+      user: {
+        id: "admin-stub-default-id",
+        role: "admin",
+        name: "Administrator",
+        permissions: ["platform:admin"],
+        activeWorkspaceType: "company",
+        activeCompanyId: first.company.id,
+      },
+      workspace: {
+        type: "company",
+        companyId: first.company.id,
+        requiresSelection: false,
+        source: "session",
+      },
       query: { archive: "all" },
     }, adminResponse);
     const adminIds = (adminResponse.body as any[]).map((location) => location.id);
-    expect(adminIds).toEqual(expect.arrayContaining([firstLocation.id, secondLocation.id]));
+    expect(adminIds).toContain(firstLocation.id);
+    expect(adminIds).not.toContain(secondLocation.id);
   });
 
   it("allows a company owner to edit maintained metadata and records the last updater", async () => {

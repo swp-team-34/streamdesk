@@ -10,6 +10,7 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added a shared active-workspace selector with remembered company choices and a separate personal workspace for Kanban V2, Calendar, and Projects.
 - Added company-scoped equipment destinations and work context: Warehouse checkout/edit flows can use an active Location or manual place, an optional project, and multiple project-consistent Kanban V2 cards without creating new Legacy Task Manager links.
 - Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
 - Added attributable threaded comments and replies for projects and Kanban V2 cards, including realtime counts, latest-activity indicators, reconnect states, and preserved historical authorship.
@@ -18,10 +19,14 @@ changes are collected under `Unreleased`.
 
 ### Changed
 
+- Changed workspace switching to flush registered autosaves, close feature state through a workspace remount, clear React Query data, and reconnect realtime subscriptions before loading the target workspace.
+- Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.
 - Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
 
 ### Fixed
 
+- Fixed cross-company reads and mutations in Calendar, Kanban V2, tasks, Locations, projects, Warehouse, Dashboard, users, notifications, systems, streams, reservations, and realtime subscriptions by enforcing one validated active workspace on the server.
+- Fixed first-membership fallbacks during record creation; new events, tasks, projects, boards, equipment, Locations, systems, and streams now inherit the selected workspace.
 - Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.
 - Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
 - Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.

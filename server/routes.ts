@@ -385,6 +385,7 @@ async function withDbTimeout<T>(
 export async function registerRoutes(app: Express): Promise<Server> {
   type RealtimeClientContext = {
     user: any;
+    workspace: WorkspaceContext;
     subscriptions: Set<string>;
     isAlive: boolean;
   };
@@ -465,10 +466,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     position: null,
     department: null,
     role: "admin",
-    permissions: ["admin:panel", "users:manage", "roles:manage", "tasks:view", "tasks:create", "tasks:edit", "tasks:delete", "tasks:assign", "equipment:view", "equipment:create", "equipment:edit", "equipment:delete", "equipment:reserve", "events:view", "events:create", "events:edit", "events:delete", "streams:view", "streams:manage", "systems:view", "systems:manage", "settings:manage"],
+    permissions: ["platform:admin", "admin:panel", "users:manage", "roles:manage", "tasks:view", "tasks:create", "tasks:edit", "tasks:delete", "tasks:assign", "equipment:view", "equipment:create", "equipment:edit", "equipment:delete", "equipment:reserve", "events:view", "events:create", "events:edit", "events:delete", "streams:view", "streams:manage", "systems:view", "systems:manage", "settings:manage"],
     telegramId: null,
     avatar: null,
     active: true,
+    onboardingCompleted: true,
+    workspaceMode: "platform_admin",
+    activeWorkspaceType: null,
+    activeCompanyId: null,
     lastLogin: null,
     createdAt: new Date(),
   });
@@ -480,15 +485,188 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return await storage.getUser(userId).catch(() => null);
   };
 
+  type WorkspaceContext = {
+    type: "company" | "personal" | null;
+    companyId: string | null;
+    requiresSelection: boolean;
+    source: "session" | "persisted" | "automatic" | "none";
+  };
+
+  const isPlatformAdminUser = (user: any) => {
+    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    return Boolean(user?.id && permissions.includes("platform:admin"));
+  };
+
+  const getSelectableCompanyIds = async (user: any) => {
+    if (!user?.id) return [];
+    if (isPlatformAdminUser(user)) {
+      const allCompanies = await storage.getCompanies().catch(() => []);
+      return (allCompanies as any[])
+        .filter((company) => String(company.status || "active") === "active")
+        .map((company) => String(company.id));
+    }
+    const memberships = await storage.getUserCompanyMemberships(user.id).catch(() => []);
+    return (memberships as any[])
+      .filter((membership) => membership.status === "active")
+      .map((membership) => String(membership.companyId));
+  };
+
+  const resolveWorkspaceContext = async (
+    user: any,
+    sessionState?: { activeWorkspaceType?: unknown; activeCompanyId?: unknown },
+  ): Promise<WorkspaceContext> => {
+    if (!user?.id) {
+      return { type: null, companyId: null, requiresSelection: false, source: "none" };
+    }
+
+    const selectableCompanyIds = await getSelectableCompanyIds(user);
+    const selectableCompanyIdSet = new Set(selectableCompanyIds);
+    const candidates = [
+      {
+        type: String(sessionState?.activeWorkspaceType || ""),
+        companyId: String(sessionState?.activeCompanyId || ""),
+        source: "session" as const,
+      },
+      {
+        type: String(user.activeWorkspaceType || ""),
+        companyId: String(user.activeCompanyId || ""),
+        source: "persisted" as const,
+      },
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate.type === "personal") {
+        return { type: "personal", companyId: null, requiresSelection: false, source: candidate.source };
+      }
+      if (candidate.type === "company" && selectableCompanyIdSet.has(candidate.companyId)) {
+        return {
+          type: "company",
+          companyId: candidate.companyId,
+          requiresSelection: false,
+          source: candidate.source,
+        };
+      }
+    }
+
+    if (selectableCompanyIds.length === 1) {
+      return {
+        type: "company",
+        companyId: selectableCompanyIds[0],
+        requiresSelection: false,
+        source: "automatic",
+      };
+    }
+    if (selectableCompanyIds.length === 0) {
+      return { type: "personal", companyId: null, requiresSelection: false, source: "automatic" };
+    }
+    return { type: null, companyId: null, requiresSelection: true, source: "none" };
+  };
+
   // Для /api заполняем req.user из сессии (не доверяем заголовок x-user для авторизации)
   app.use("/api", async (req, res, next) => {
-    req.user = await resolveSessionUser(req.session?.userId);
+    const sessionUser = await resolveSessionUser(req.session?.userId);
+    req.workspace = await resolveWorkspaceContext(sessionUser, req.session);
+    req.user = sessionUser
+      ? {
+          ...sessionUser,
+          activeWorkspaceType: req.workspace.type,
+          activeCompanyId: req.workspace.companyId,
+        }
+      : null;
     next();
   });
 
   // режим заглушки: фронт может показать баннер «данные не сохраняются»
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, stubMode: isStubStorage });
+  });
+
+  const workspaceSelectionSchema = z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("company"),
+      companyId: z.string().trim().min(1),
+    }),
+    z.object({
+      type: z.literal("personal"),
+      companyId: z.null().optional(),
+    }),
+  ]);
+
+  const buildWorkspaceResponse = async (req: express.Request) => {
+    const user = req.user as any;
+    const workspace = await resolveWorkspaceContext(user, req.session);
+    const selectableCompanyIds = await getSelectableCompanyIds(user);
+    const memberships = user?.id
+      ? await storage.getUserCompanyMemberships(user.id).catch(() => [])
+      : [];
+    const membershipByCompanyId = new Map(
+      (memberships as any[]).map((membership) => [String(membership.companyId), membership]),
+    );
+    const companies = await Promise.all(selectableCompanyIds.map(async (companyId) => {
+      const company = await storage.getCompanyById(companyId).catch(() => undefined);
+      if (!company) return null;
+      const membership = membershipByCompanyId.get(companyId) as any;
+      return {
+        id: company.id,
+        name: company.name,
+        status: company.status,
+        role: membership?.role || (isPlatformAdminUser(user) ? "platform_admin" : null),
+      };
+    }));
+    return {
+      workspace,
+      companies: companies.filter(Boolean),
+      personal: {
+        id: "personal",
+        name: "Личное пространство",
+        modules: ["kanban", "calendar", "projects"],
+      },
+      isPlatformAdmin: isPlatformAdminUser(user),
+    };
+  };
+
+  app.get("/api/workspace-context", async (req, res) => {
+    if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+    const response = await buildWorkspaceResponse(req);
+    if (response.workspace.source === "automatic" && response.workspace.type) {
+      req.session.activeWorkspaceType = response.workspace.type;
+      req.session.activeCompanyId = response.workspace.companyId;
+    }
+    res.json(response);
+  });
+
+  app.post("/api/workspace-context", async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const selection = workspaceSelectionSchema.parse(req.body || {});
+      if (selection.type === "company") {
+        const selectableCompanyIds = await getSelectableCompanyIds(user);
+        if (!selectableCompanyIds.includes(selection.companyId)) {
+          return res.status(403).json({ message: "Нет доступа к выбранной компании" });
+        }
+        req.session.activeWorkspaceType = "company";
+        req.session.activeCompanyId = selection.companyId;
+      } else {
+        req.session.activeWorkspaceType = "personal";
+        req.session.activeCompanyId = null;
+      }
+
+      if (String(user.id) !== "admin-fallback") {
+        const updated = await storage.updateUser(user.id, {
+          activeWorkspaceType: selection.type,
+          activeCompanyId: selection.type === "company" ? selection.companyId : null,
+        } as any).catch(() => undefined);
+        if (updated) req.user = updated;
+      }
+      req.workspace = await resolveWorkspaceContext(req.user, req.session);
+      res.json(await buildWorkspaceResponse(req));
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Некорректное рабочее пространство" });
+      }
+      res.status(500).json({ message: "Не удалось переключить рабочее пространство" });
+    }
   });
 
   const inviteOrigin = (req: any) => {
@@ -499,28 +677,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const canManageCompany = async (user: any, companyId: string) => {
     if (!user?.id || !companyId) return false;
-    if (user.role === "admin") return true;
+    if (isPlatformAdminUser(user)) return true;
     const membership = await storage.getCompanyMembershipByUser(companyId, user.id).catch(() => undefined);
     return Boolean(membership && membership.status === "active" && ["owner", "admin"].includes(membership.role));
   };
 
   const hasWorkspaceAccess = async (user: any) => {
     if (!user?.id) return false;
-    if (user.role === "admin") return true;
-    const memberships = await storage.getUserCompanyMemberships(user.id).catch(() => []);
-    return (memberships as any[]).some((membership) => membership.status === "active");
+    const workspace = await resolveWorkspaceContext(user);
+    return Boolean(workspace.type && !workspace.requiresSelection);
   };
 
   const getUserCompanyIds = async (user: any) => {
-    if (!user?.id) return [];
-    if (user.role === "admin") {
-      const companies = await storage.getCompanies().catch(() => []);
-      return (companies as any[]).map((company) => String(company.id));
+    return getSelectableCompanyIds(user);
+  };
+
+  const getActiveWorkspaceForUser = async (user: any) => {
+    if (!user?.id) {
+      return { type: null, companyId: null, requiresSelection: false, source: "none" } as WorkspaceContext;
     }
-    const memberships = await storage.getUserCompanyMemberships(user.id).catch(() => []);
-    return (memberships as any[])
-      .filter((membership) => membership.status === "active")
-      .map((membership) => String(membership.companyId));
+    return resolveWorkspaceContext(user);
+  };
+
+  const requireActiveWorkspace = async (req: express.Request, res: express.Response) => {
+    if (!req.user?.id) {
+      res.status(401).json({ message: "Требуется авторизация" });
+      return null;
+    }
+    const workspace = req.workspace || await getActiveWorkspaceForUser(req.user);
+    if (!workspace || workspace.requiresSelection || !workspace.type) {
+      res.status(409).json({
+        message: "Выберите компанию или личное пространство",
+        code: "WORKSPACE_SELECTION_REQUIRED",
+      });
+      return null;
+    }
+    return workspace;
+  };
+
+  const requireActiveCompanyWorkspace = async (req: express.Request, res: express.Response) => {
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return null;
+    if (workspace.type !== "company" || !workspace.companyId) {
+      res.status(403).json({
+        message: "Действие доступно только в рабочем пространстве компании",
+        code: "COMPANY_WORKSPACE_REQUIRED",
+      });
+      return null;
+    }
+    return workspace;
+  };
+
+  const getWorkspaceVisibleUserIds = async (user: any, workspace: WorkspaceContext) => {
+    const visibleIds = new Set<string>();
+    if (!user?.id || !workspace.type) return visibleIds;
+    visibleIds.add(String(user.id));
+
+    if (workspace.type === "company" && workspace.companyId) {
+      const members = await storage.getCompanyMembers(workspace.companyId).catch(() => []);
+      for (const member of members as any[]) {
+        if (member.status === "active" && member.userId) visibleIds.add(String(member.userId));
+      }
+      return visibleIds;
+    }
+
+    const [boardMemberships, allBoards, allProjects, allEvents] = await Promise.all([
+      storage.getKanbanBoardMembershipsByUser(user.id).catch(() => []),
+      storage.getKanbanBoards().catch(() => []),
+      storage.getProjects().catch(() => []),
+      storage.getEvents().catch(() => []),
+    ]);
+    const memberBoardIds = new Set((boardMemberships as any[]).map((member) => String(member.boardId)));
+    const personalBoards = (allBoards as any[]).filter((board) =>
+      !board.companyId &&
+      (String(board.createdByUserId || "") === String(user.id) || memberBoardIds.has(String(board.id))),
+    );
+    for (const board of personalBoards) {
+      const members = await storage.getKanbanBoardMembers(board.id).catch(() => []);
+      for (const member of members as any[]) {
+        if (member.userId) visibleIds.add(String(member.userId));
+      }
+      if (board.createdByUserId) visibleIds.add(String(board.createdByUserId));
+    }
+
+    for (const project of allProjects as any[]) {
+      if (project.companyId) continue;
+      const participants: string[] = Array.isArray(project.participants)
+        ? project.participants.map(String)
+        : [];
+      const canSee = String(project.ownerId || "") === String(user.id) ||
+        String(project.assignedTo || "") === String(user.id) ||
+        participants.includes(String(user.id));
+      if (!canSee) continue;
+      if (project.ownerId) visibleIds.add(String(project.ownerId));
+      if (project.assignedTo) visibleIds.add(String(project.assignedTo));
+      participants.forEach((participantId) => visibleIds.add(participantId));
+    }
+
+    for (const event of allEvents as any[]) {
+      if (event.companyId) continue;
+      const participants = await storage.getEventParticipants(event.id).catch(() => []);
+      const canSee = String(event.organizerId || "") === String(user.id) ||
+        (participants as any[]).some((participant) => String(participant.userId) === String(user.id));
+      if (!canSee) continue;
+      if (event.organizerId) visibleIds.add(String(event.organizerId));
+      for (const participant of participants as any[]) {
+        if (participant.userId) visibleIds.add(String(participant.userId));
+      }
+    }
+    return visibleIds;
   };
 
   const projectEquipmentBundles: Array<{
@@ -787,16 +1052,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const ensureEquipmentCompanyAccess = async (user: any, item: any, bundle?: any) => {
-    if (user?.role === "admin") return;
-    const companyIds = await getUserCompanyIds(user);
+    const workspace = await getActiveWorkspaceForUser(user);
+    if (workspace.type !== "company" || !workspace.companyId) {
+      throw createEquipmentKitActionError(
+        403,
+        "COMPANY_WORKSPACE_REQUIRED",
+        "Склад доступен только в рабочем пространстве компании.",
+      );
+    }
     const itemCompanyId = String(equipmentSpecs(item).companyId || "").trim();
     const bundleCompanyId = String(equipmentSpecs(bundle).companyId || "").trim();
     const requiredCompanyIds = [itemCompanyId, bundleCompanyId].filter(Boolean);
-    if (requiredCompanyIds.some((companyId) => !companyIds.includes(companyId))) {
+    if (
+      !itemCompanyId ||
+      requiredCompanyIds.some((companyId) => companyId !== String(workspace.companyId))
+    ) {
       throw createEquipmentKitActionError(
         403,
         "KIT_COMPANY_ACCESS_DENIED",
-        "Нет доступа к комплекту этой компании.",
+        "Оборудование принадлежит другой компании или не имеет однозначной компании.",
       );
     }
   };
@@ -1128,38 +1402,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const getVisibleKanbanBoardsForUser = async (currentUser: any) => {
     const memberships = await storage.getKanbanBoardMembershipsByUser(currentUser.id).catch(() => []);
     const membershipMap = new Map((memberships as any[]).map((member) => [String(member.boardId), member]));
-
-    if (currentUser.role === "admin") {
-      const boards = await storage.getKanbanBoards().catch(() => []);
-      return {
-        boards: (boards as any[]).map((board) =>
-          buildKanbanBoardResponse(board, {
-            canManage: true,
-            membership: membershipMap.get(String(board.id)),
-          }),
-        ),
-        membershipMap,
-      };
+    const workspace = await getActiveWorkspaceForUser(currentUser);
+    if (!workspace.type || workspace.requiresSelection) {
+      return { boards: [], membershipMap };
     }
 
-    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-    const [companyBoards, personalBoards] = await Promise.all([
-      companyIds.length ? storage.getKanbanBoardsByCompanyIds(companyIds).catch(() => []) : Promise.resolve([]),
-      storage.getPersonalKanbanBoardsByUserId(currentUser.id).catch(() => []),
-    ]);
-    const boards = [...(personalBoards as any[]), ...(companyBoards as any[])];
-    const manageableCompanyIds = new Set<string>();
-
-    for (const companyId of companyIds) {
-      if (await canManageCompany(currentUser, companyId).catch(() => false)) {
-        manageableCompanyIds.add(String(companyId));
+    const allBoards = await storage.getKanbanBoards().catch(() => []);
+    const canManageActiveCompany = workspace.type === "company" && workspace.companyId
+      ? await canManageCompany(currentUser, workspace.companyId).catch(() => false)
+      : false;
+    const visibleBoards = (allBoards as any[]).filter((board) => {
+      if (workspace.type === "personal") {
+        if (board.companyId) return false;
+        return String(board.createdByUserId || "") === String(currentUser.id) ||
+          membershipMap.has(String(board.id));
       }
-    }
-
-    const visibleBoards = (boards as any[]).filter((board) => {
-      if (!board.companyId) return String(board.createdByUserId) === String(currentUser.id);
-      if (manageableCompanyIds.has(String(board.companyId))) return true;
-      if (board.visibility !== "members") return true;
+      if (String(board.companyId || "") !== String(workspace.companyId || "")) return false;
+      if (canManageActiveCompany || board.visibility !== "members") return true;
       return membershipMap.has(String(board.id));
     });
 
@@ -1168,7 +1427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         buildKanbanBoardResponse(board, {
           canManage: !board.companyId
             ? String(board.createdByUserId) === String(currentUser.id)
-            : manageableCompanyIds.has(String(board.companyId)),
+            : canManageActiveCompany,
           membership: membershipMap.get(String(board.id)),
         }),
       ),
@@ -1179,6 +1438,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const getKanbanBoardAccess = async (user: any, boardId: string) => {
     const board = await storage.getKanbanBoardById(boardId).catch(() => undefined);
     if (!board) return null;
+    const workspace = await getActiveWorkspaceForUser(user);
+    if (!workspace.type || workspace.requiresSelection) return null;
+    if (
+      (workspace.type === "personal" && board.companyId) ||
+      (workspace.type === "company" && String(board.companyId || "") !== String(workspace.companyId || ""))
+    ) {
+      return null;
+    }
 
     const membership = user?.id
       ? await storage.getKanbanBoardMember(board.id, user.id).catch(() => undefined)
@@ -1186,23 +1453,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const isPersonalBoard = !board.companyId;
     const isCreator = String(board.createdByUserId) === String(user?.id || "");
     const canManage = isPersonalBoard
-      ? user?.role === "admin" || isCreator
-      : user?.role === "admin" || await canManageCompany(user, String(board.companyId));
+      ? isCreator
+      : await canManageCompany(user, String(board.companyId));
 
     if (canManage) {
       return { board, canManage: true, membership };
     }
 
     if (isPersonalBoard) {
-      return null;
+      return membership ? { board, canManage: false, membership } : null;
     }
-
-    const companyMembership = user?.id
-      ? await storage.getCompanyMembershipByUser(String(board.companyId), user.id).catch(() => undefined)
-      : undefined;
-
-    const hasCompanyAccess = Boolean(companyMembership && companyMembership.status === "active");
-    const canView = hasCompanyAccess && (board.visibility !== "members" || Boolean(membership));
+    const canView = board.visibility !== "members" || Boolean(membership);
 
     if (!canView) return null;
 
@@ -1277,16 +1538,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const canOpenProjectKanbanBoard = async (currentUser: any, project: any) => {
     if (!currentUser?.id) return false;
-    if (currentUser.role === "admin") return true;
-
+    const workspace = await getActiveWorkspaceForUser(currentUser);
     const companyId = String(project?.companyId || "").trim();
-    if (companyId && await canManageCompany(currentUser, companyId).catch(() => false)) return true;
-    if (companyId) {
-      const membership = await storage.getCompanyMembershipByUser(companyId, currentUser.id).catch(() => undefined);
-      if (!membership || membership.status !== "active") return false;
+    if (workspace.type === "company") {
+      return Boolean(companyId && companyId === String(workspace.companyId || ""));
     }
-
-    return getProjectKanbanTeamUserIds(project).includes(String(currentUser.id));
+    return workspace.type === "personal" &&
+      !companyId &&
+      getProjectKanbanTeamUserIds(project).includes(String(currentUser.id));
   };
 
   const syncProjectKanbanBoardMembers = async (board: any, project: any, currentUser: any) => {
@@ -1707,9 +1966,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
 
       const parsed = kanbanBoardCreateSchema.parse(req.body || {});
-      const normalizedCompanyId = parsed.companyId?.trim() || null;
+      const normalizedCompanyId = workspace.type === "company" ? workspace.companyId : null;
       const normalizedVisibility = normalizedCompanyId ? parsed.visibility : "personal";
 
       if (normalizedCompanyId && !(await canManageCompany(currentUser, normalizedCompanyId))) {
@@ -1717,13 +1978,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (parsed.projectId) {
-        if (!normalizedCompanyId) {
-          return res.status(400).json({ message: "Личная доска не может быть связана с проектом компании" });
-        }
         const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
         if (!project) return res.status(404).json({ message: "Проект не найден" });
-        if (String(project.companyId || "") !== String(normalizedCompanyId)) {
-          return res.status(400).json({ message: "Проект должен принадлежать той же компании" });
+        if (!(await canOpenProjectKanbanBoard(currentUser, project))) {
+          return res.status(403).json({ message: "Нет доступа к проекту в выбранном пространстве" });
+        }
+        if (String(project.companyId || "") !== String(normalizedCompanyId || "")) {
+          return res.status(400).json({ message: "Проект должен принадлежать выбранному пространству" });
         }
       }
 
@@ -1765,13 +2026,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parsed = kanbanBoardUpdateSchema.parse(req.body || {});
 
       if (parsed.projectId) {
-        if (!access.board.companyId) {
-          return res.status(400).json({ message: "Личную доску нельзя привязать к проекту компании" });
-        }
         const project = await storage.getProjectById(parsed.projectId).catch(() => undefined);
         if (!project) return res.status(404).json({ message: "Проект не найден" });
-        if (String(project.companyId || "") !== String(access.board.companyId)) {
-          return res.status(400).json({ message: "Проект должен принадлежать той же компании" });
+        if (!(await canOpenProjectKanbanBoard(currentUser, project))) {
+          return res.status(403).json({ message: "Нет доступа к проекту в выбранном пространстве" });
+        }
+        if (String(project.companyId || "") !== String(access.board.companyId || "")) {
+          return res.status(400).json({ message: "Проект должен принадлежать выбранному пространству" });
         }
       }
 
@@ -3048,8 +3309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const requirePlatformAdmin = (req: any, res: any) => {
     const user = req.user as any;
-    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
-    if (!user?.id || (user.role !== "admin" && !permissions.includes("platform:admin"))) {
+    if (!isPlatformAdminUser(user)) {
       res.status(403).json({ message: "Доступно только владельцу платформы" });
       return null;
     }
@@ -3060,10 +3320,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      if (workspace.type !== "company" || !workspace.companyId) {
+        return res.json({ companies: [], pendingApprovals: [] });
+      }
       const origin = inviteOrigin(req);
       const memberships = await storage.getUserCompanyMemberships(currentUser.id).catch(() => []);
-      const companies = await Promise.all((memberships as any[]).map(async (membership: any) => {
-        const company = await storage.getCompanyById(membership.companyId).catch(() => undefined);
+      const membership = (memberships as any[]).find((item) =>
+        item.status === "active" && String(item.companyId) === String(workspace.companyId),
+      ) || {
+        id: `platform:${workspace.companyId}`,
+        companyId: workspace.companyId,
+        userId: currentUser.id,
+        role: "platform_admin",
+        status: "active",
+      };
+      const companies = await Promise.all([membership].map(async (activeMembership: any) => {
+        const company = await storage.getCompanyById(activeMembership.companyId).catch(() => undefined);
         if (!company) return null;
         const [members, canManage] = await Promise.all([
           storage.getCompanyMembers(company.id).catch(() => []),
@@ -3081,7 +3355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : [];
         return {
           company,
-          membership,
+          membership: activeMembership,
           members,
           pendingApprovals,
           activeInvite: activeInvite ? { ...activeInvite, url: `${origin}/login?invite=${activeInvite.token}` } : null,
@@ -3104,8 +3378,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const companyId = String(req.body?.companyId || "").trim();
-      if (!companyId) return res.status(400).json({ message: "companyId обязателен" });
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      const companyId = String(workspace.companyId);
       if (!(await canManageCompany(currentUser, companyId))) {
         return res.status(403).json({ message: "Недостаточно прав для приглашений" });
       }
@@ -3177,7 +3452,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/onboarding/personal", async (req, res) => {
     const user = req.user as any;
     if (!user?.id) return res.status(401).json({ message: "Требуется авторизация" });
-    const updated = await storage.updateUser(user.id, { active: true, onboardingCompleted: true, workspaceMode: "personal" } as any);
+    const updated = await storage.updateUser(user.id, {
+      active: true,
+      onboardingCompleted: true,
+      workspaceMode: "personal",
+      activeWorkspaceType: "personal",
+      activeCompanyId: null,
+    } as any);
+    req.session.activeWorkspaceType = "personal";
+    req.session.activeCompanyId = null;
     res.json({ user: { ...updated, password: undefined } });
   });
 
@@ -3201,7 +3484,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "active",
         joinedAt: new Date(),
       } as any);
-      const updated = await storage.updateUser(user.id, { active: true, onboardingCompleted: true, workspaceMode: "company_owner" } as any);
+      const updated = await storage.updateUser(user.id, {
+        active: true,
+        onboardingCompleted: true,
+        workspaceMode: "company_owner",
+        activeWorkspaceType: "company",
+        activeCompanyId: company.id,
+      } as any);
+      req.session.activeWorkspaceType = "company";
+      req.session.activeCompanyId = company.id;
       res.json({ company, user: { ...updated, password: undefined } });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось создать компанию" });
@@ -3223,7 +3514,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const activeMember = existing.status === "active"
           ? existing
           : await storage.updateCompanyMember(existing.id, { status: "active", approvedBy: invite.createdBy, joinedAt: new Date() } as any);
-        const updatedUser = await storage.updateUser(user.id, { active: true, onboardingCompleted: true, workspaceMode: "company_member" } as any);
+        const updatedUser = await storage.updateUser(user.id, {
+          active: true,
+          onboardingCompleted: true,
+          workspaceMode: "company_member",
+          activeWorkspaceType: "company",
+          activeCompanyId: invite.companyId,
+        } as any);
+        req.session.activeWorkspaceType = "company";
+        req.session.activeCompanyId = invite.companyId;
         return res.json({ membership: activeMember || existing, user: { ...updatedUser, password: undefined }, message: "Вы в компании" });
       }
       const membership = await storage.createCompanyMember({
@@ -3236,7 +3535,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         joinedAt: new Date(),
       } as any);
       await storage.updateCompanyInvite(invite.id, { usedBy: user.id, usedAt: new Date() } as any).catch(() => undefined);
-      const updatedUser = await storage.updateUser(user.id, { active: true, onboardingCompleted: true, workspaceMode: "company_member" } as any);
+      const updatedUser = await storage.updateUser(user.id, {
+        active: true,
+        onboardingCompleted: true,
+        workspaceMode: "company_member",
+        activeWorkspaceType: "company",
+        activeCompanyId: invite.companyId,
+      } as any);
+      req.session.activeWorkspaceType = "company";
+      req.session.activeCompanyId = invite.companyId;
       res.json({ membership, user: { ...updatedUser, password: undefined }, message: "Вы добавлены в компанию" });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось отправить заявку" });
@@ -3246,7 +3553,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/company-members/:memberId/approve", async (req, res) => {
     try {
       const user = req.user as any;
-      const companyId = String(req.body?.companyId || "").trim();
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      const companyId = String(workspace.companyId);
       if (!(await canManageCompany(user, companyId))) return res.status(403).json({ message: "Нет прав на подтверждение" });
       const member = await storage.updateCompanyMember(req.params.memberId, {
         status: "active",
@@ -3265,6 +3574,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as any;
       const companyId = String(req.params.companyId || "").trim();
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      if (companyId !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "Компания не найдена" });
+      }
       const userId = String(req.body?.userId || "").trim();
       const role = String(req.body?.role || "member").trim() || "member";
       if (!userId) return res.status(400).json({ message: "Укажите пользователя" });
@@ -3337,9 +3651,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               "systems:view",
               "systems:manage",
               "settings:manage",
+              "platform:admin",
             ],
             onboardingCompleted: true,
             workspaceMode: "platform_admin",
+            activeWorkspaceType: null,
+            activeCompanyId: null,
   },
 });
 
@@ -3388,6 +3705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 email: "admin@streamstudio.local",
                 role: "admin",
                 permissions: [
+                  "platform:admin",
                   "admin:panel",
                   "users:manage",
                   "roles:manage",
@@ -3520,6 +3838,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = user.id;
+      if (user.activeWorkspaceType === "company" || user.activeWorkspaceType === "personal") {
+        req.session.activeWorkspaceType = user.activeWorkspaceType;
+        req.session.activeCompanyId = user.activeWorkspaceType === "company"
+          ? String(user.activeCompanyId || "") || null
+          : null;
+      } else {
+        delete req.session.activeWorkspaceType;
+        delete req.session.activeCompanyId;
+      }
       console.log(`[Auth] Successful login for user: ${username} (${user.role})`);
 
       res.json({
@@ -3533,6 +3860,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           active: user.active,
           onboardingCompleted: user.onboardingCompleted,
           workspaceMode: user.workspaceMode,
+          activeWorkspaceType: user.activeWorkspaceType,
+          activeCompanyId: user.activeCompanyId,
         },
       });
     } catch (error: any) {
@@ -3607,6 +3936,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         active: true,
         onboardingCompleted: Boolean(invite),
         workspaceMode: invite ? "company_member" : "pending",
+        activeWorkspaceType: invite ? "company" : null,
+        activeCompanyId: invite?.companyId || null,
       } as any);
 
       if (invite) {
@@ -3623,6 +3954,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = newUser.id;
+      if (invite?.companyId) {
+        req.session.activeWorkspaceType = "company";
+        req.session.activeCompanyId = invite.companyId;
+      }
 
       // Уведомление всем администраторам о новой заявке
       try {
@@ -3647,7 +3982,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: invite
           ? "Аккаунт создан, вы добавлены в компанию."
           : "Аккаунт создан. Выберите личный режим, создайте компанию или вступите по приглашению.",
-        user: { id: newUser.id, username: newUser.username, name: newUser.name, role: newUser.role, permissions: newUser.permissions, active: newUser.active, onboardingCompleted: newUser.onboardingCompleted, workspaceMode: newUser.workspaceMode },
+        user: {
+          id: newUser.id,
+          username: newUser.username,
+          name: newUser.name,
+          role: newUser.role,
+          permissions: newUser.permissions,
+          active: newUser.active,
+          onboardingCompleted: newUser.onboardingCompleted,
+          workspaceMode: newUser.workspaceMode,
+          activeWorkspaceType: newUser.activeWorkspaceType,
+          activeCompanyId: newUser.activeCompanyId,
+        },
       });
     } catch (error: any) {
       console.error("Auth register error:", error);
@@ -3672,11 +4018,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Dashboard stats
   app.get("/api/dashboard/stats", async (req, res) => {
-    if (!(await hasWorkspaceAccess(req.user))) {
-      return res.json({ onlineSystems: "0/0", activeStreams: 0, availableEquipment: "0/0", todayEvents: 0 });
-    }
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
     const currentUser = req.user as any;
-    const [systems, equipment, streams, events, visibleBoardsResult] = await Promise.all([
+    const [allSystems, allEquipment, allStreams, allEvents, visibleBoardsResult] = await Promise.all([
       withDbTimeout(() => storage.getSystems(), 3000, []),
       withDbTimeout(() => storage.getEquipment(), 3000, []),
       withDbTimeout(() => storage.getActiveStreams(), 3000, []),
@@ -3686,6 +4031,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ), 3000, []),
       withDbTimeout(() => getVisibleKanbanBoardsForUser(currentUser), 3000, { boards: [], membershipMap: new Map() }),
     ]);
+    const systems = workspace.type === "company"
+      ? (allSystems as any[]).filter((system) => {
+          const specifications = system?.specifications && typeof system.specifications === "object"
+            ? system.specifications
+            : {};
+          return String((specifications as any).companyId || "") === String(workspace.companyId || "");
+        })
+      : [];
+    const equipment = workspace.type === "company"
+      ? (allEquipment as any[]).filter((item) =>
+          equipmentCompanyId(item) === String(workspace.companyId || ""),
+        )
+      : [];
+    const streams = workspace.type === "company"
+      ? (allStreams as any[]).filter((stream) => {
+          const metadata = stream?.metadata && typeof stream.metadata === "object" ? stream.metadata : {};
+          return String((metadata as any).companyId || "") === String(workspace.companyId || "");
+        })
+      : [];
+    const eventAccess = await Promise.all((allEvents as any[]).map(async (event) => {
+      if (workspace.type === "company") {
+        return String(event.companyId || "") === String(workspace.companyId || "") ? event : null;
+      }
+      if (event.companyId) return null;
+      if (String(event.organizerId || "") === String(currentUser.id)) return event;
+      const participants = await storage.getEventParticipants(event.id).catch(() => []);
+      return (participants as any[]).some((participant) =>
+        String(participant.userId || "") === String(currentUser.id),
+      ) ? event : null;
+    }));
+    const events = eventAccess.filter(Boolean);
 
     const onlineSystems = systems.filter((s: any) => s.status === "online").length;
     const availableEquipment = equipment.filter((e: any) => e.status === "available").length;
@@ -3725,8 +4101,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Manager Dashboard Stats
   app.get("/api/manager/stats", async (req, res) => {
     try {
-      const tasks = await withDbTimeout(() => storage.getTasks(), 5000, []);
-      const users = await withDbTimeout(() => storage.getUsers(), 3000, []);
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+      const allTasks = await withDbTimeout(() => storage.getTasks(), 5000, []);
+      const taskAccess = await Promise.all((allTasks as any[]).map(async (task) =>
+        (await canAccessTask(currentUser, task, workspace)) ? task : null,
+      ));
+      const tasks = taskAccess.filter(Boolean) as any[];
+      const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      const users = (await withDbTimeout(() => storage.getUsers(), 3000, []))
+        .filter((user) => visibleUserIds.has(String(user.id)));
       const taskHistory = await Promise.all(
         tasks.map(task => storage.getTaskHistory(task.id).catch(() => []))
       ).then(results => results.flat());
@@ -3924,11 +4309,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Events
+  const canAccessEventInWorkspace = async (
+    user: any,
+    event: any,
+    workspace: WorkspaceContext,
+  ) => {
+    if (!user?.id || !event || !workspace.type || workspace.requiresSelection) return false;
+    if (workspace.type === "company") {
+      return Boolean(workspace.companyId && String(event.companyId || "") === workspace.companyId);
+    }
+    if (event.companyId) return false;
+    if (String(event.organizerId || "") === String(user.id)) return true;
+    const participants = await storage.getEventParticipants(event.id).catch(() => []);
+    return (participants as any[]).some((participant) => String(participant.userId) === String(user.id));
+  };
+
   app.get("/api/events", async (req, res) => {
-    if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
+    const currentUser = req.user as any;
     const { userId, start, end } = req.query;
 
-    const events = await withDbTimeout(async () => {
+    const candidateEvents = await withDbTimeout(async () => {
       if (userId) {
         return await storage.getEventsByUser(userId as string);
       } else if (start && end) {
@@ -3937,6 +4339,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return await storage.getEvents();
       }
     }, 3000, []); // 3 секунды для быстрого ответа
+    const events = [];
+    for (const event of candidateEvents as any[]) {
+      if (await canAccessEventInWorkspace(currentUser, event, workspace)) events.push(event);
+    }
 
     // Обогащаем события участниками с именами
     try {
@@ -3958,9 +4364,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events", async (req, res) => {
     try {
       console.log("[Events] Creating event...");
-      const body = req.body || {};
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+      const body = { ...(req.body || {}) };
+      const participantIds: string[] = Array.isArray(body.participants)
+        ? Array.from(new Set(
+          body.participants
+            .map((id: unknown) => String(id || "").trim())
+            .filter((id: string) => Boolean(id)),
+        ))
+        : [];
+      const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      if (participantIds.some((userId: string) => !visibleUserIds.has(userId))) {
+        return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
+      }
+      delete body.participants;
       const normalized = {
         ...body,
+        companyId: workspace.type === "company" ? workspace.companyId : null,
+        organizerId: currentUser.id,
         startTime: body.startTime instanceof Date ? body.startTime : new Date(body.startTime),
         endTime: body.endTime instanceof Date ? body.endTime : new Date(body.endTime),
       };
@@ -3978,8 +4401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Участники: записать в event_participants и уведомить
-      const participantIds = req.body?.participants;
-      if (Array.isArray(participantIds) && participantIds.length > 0) {
+      if (participantIds.length > 0) {
         const title = "Приглашение на событие";
         const message = `Вас пригласили на событие: ${event.title}. Примите или отклоните в календаре.`;
         for (const uid of participantIds) {
@@ -4022,18 +4444,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/events/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+      const existingEvent = await storage.getEventById(id);
+      if (!existingEvent) return res.status(404).json({ message: "Event not found" });
+      if (!(await canAccessEventInWorkspace(currentUser, existingEvent, workspace))) {
+        return res.status(403).json({ message: "Нет доступа к событию" });
+      }
+      const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+      if (
+        String(existingEvent.organizerId) !== String(currentUser.id) &&
+        !permissions.includes("events:edit")
+      ) {
+        return res.status(403).json({ message: "Изменять событие может только организатор" });
+      }
       const body = req.body || {};
       const normalized = { ...body };
       if (body.startTime != null) normalized.startTime = body.startTime instanceof Date ? body.startTime : new Date(body.startTime);
       if (body.endTime != null) normalized.endTime = body.endTime instanceof Date ? body.endTime : new Date(body.endTime);
       delete normalized.participants;
+      delete normalized.companyId;
+      delete normalized.organizerId;
+      const participantIds: string[] | null = Array.isArray(req.body?.participants)
+        ? Array.from(new Set(
+          req.body.participants
+            .map((userId: unknown) => String(userId || "").trim())
+            .filter((userId: string) => Boolean(userId)),
+        ))
+        : null;
+      if (participantIds) {
+        const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+        if (participantIds.some((userId: string) => !visibleUserIds.has(userId))) {
+          return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
+        }
+      }
       const event = await storage.updateEvent(id, normalized);
       if (!event) {
         return res.status(404).json({ message: "Event not found" });
       }
       // Обновить список участников: удалить старых, добавить новых
-      const participantIds = req.body?.participants;
-      if (Array.isArray(participantIds)) {
+      if (participantIds) {
         const existing = await storage.getEventParticipants(id);
         for (const p of existing) {
           await storage.deleteEventParticipant(id, p.userId);
@@ -4065,6 +4516,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/events/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+      const existing = await storage.getEventById(id);
+      if (!existing) return res.status(404).json({ message: "Event not found" });
+      if (!(await canAccessEventInWorkspace(currentUser, existing, workspace))) {
+        return res.status(403).json({ message: "Нет доступа к событию" });
+      }
+      const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+      if (String(existing.organizerId) !== String(currentUser.id) && !permissions.includes("events:delete")) {
+        return res.status(403).json({ message: "Удалять событие может только организатор" });
+      }
       const deleted = await storage.deleteEvent(id);
       if (!deleted) {
         return res.status(404).json({ message: "Event not found" });
@@ -4078,6 +4541,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/events/:eventId/participants", async (req, res) => {
     try {
       const { eventId } = req.params;
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const event = await storage.getEventById(eventId);
+      if (!event) return res.status(404).json({ message: "Event not found" });
+      if (!(await canAccessEventInWorkspace(req.user, event, workspace))) {
+        return res.status(403).json({ message: "Нет доступа к событию" });
+      }
       const participants = await storage.getEventParticipants(eventId);
       const users = await storage.getUsers();
       const withNames = participants.map((p: any) => ({
@@ -4092,7 +4562,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/events/:eventId/participants/:participantId", async (req, res) => {
     try {
-      const { participantId } = req.params;
+      const { eventId, participantId } = req.params;
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const event = await storage.getEventById(eventId);
+      if (!event) return res.status(404).json({ message: "Event not found" });
+      if (!(await canAccessEventInWorkspace(req.user, event, workspace))) {
+        return res.status(403).json({ message: "Нет доступа к событию" });
+      }
+      const participants = await storage.getEventParticipants(eventId);
+      const participant = (participants as any[]).find((item) => String(item.id) === String(participantId));
+      if (!participant) return res.status(404).json({ message: "Participant not found" });
+      if (
+        String(participant.userId) !== String(req.user?.id || "") &&
+        String(event.organizerId) !== String(req.user?.id || "")
+      ) {
+        return res.status(403).json({ message: "Нет прав на изменение ответа участника" });
+      }
       const { status } = req.body || {};
       if (status !== "accepted" && status !== "declined") {
         return res.status(400).json({ message: "status must be 'accepted' or 'declined'" });
@@ -4292,8 +4778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!location) {
       throw equipmentContextError(400, "EQUIPMENT_LOCATION_NOT_FOUND", "Выбранная площадка не найдена");
     }
-    const userCompanyIds = await getUserCompanyIds(input.user).catch(() => []);
-    if (input.user?.role !== "admin" && !userCompanyIds.map(String).includes(String(location.companyId || ""))) {
+    if (!(await canAccessLocation(input.user, location))) {
       throw equipmentContextError(403, "EQUIPMENT_LOCATION_FORBIDDEN", "Нет доступа к выбранной площадке");
     }
     if (!input.companyId || String(location.companyId || "") !== input.companyId) {
@@ -4348,8 +4833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw equipmentContextError(400, "EQUIPMENT_PROJECT_NOT_FOUND", "Выбранный проект не найден");
     }
     if (project) {
-      const userCompanyIds = await getUserCompanyIds(input.user).catch(() => []);
-      if (input.user?.role !== "admin" && !userCompanyIds.map(String).includes(String(project.companyId || ""))) {
+      if (!(await canAccessProject(input.user, project))) {
         throw equipmentContextError(403, "EQUIPMENT_PROJECT_FORBIDDEN", "Нет доступа к выбранному проекту");
       }
       if (!input.companyId || String(project.companyId || "") !== input.companyId) {
@@ -4527,7 +5011,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Equipment
   app.get("/api/equipment", async (req, res) => {
-    if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
+    if (workspace.type !== "company" || !workspace.companyId) return res.json([]);
     const { status } = req.query;
 
     const equipment = await withDbTimeout(async () => {
@@ -4539,14 +5025,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 3000, []); // 3 секунды для быстрого ответа
 
     const list = Array.isArray(equipment) ? equipment : [];
-    const currentUser = req.user as any;
-    const companyIds = currentUser?.role === "admin" ? [] : await getUserCompanyIds(currentUser);
-    const scopedList = currentUser?.role === "admin"
-      ? list
-      : list.filter((item: any) => {
-          const companyId = String(equipmentSpecs(item).companyId || "").trim();
-          return !companyId || companyIds.includes(companyId);
-        });
+    const scopedList = list.filter((item: any) =>
+      String(equipmentSpecs(item).companyId || "").trim() === String(workspace.companyId),
+    );
     const visibleList = status ? scopedList : scopedList.filter((item: any) => item.status !== "archived");
     res.json(await Promise.all(visibleList.map(serializeEquipmentContext)));
   });
@@ -4732,9 +5213,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/equipment", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) {
-        return res.status(403).json({ message: "Сначала создайте компанию или вступите по приглашению" });
-      }
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       console.log("[Equipment] Creating equipment...");
       const body = req.body || {};
       // Приводим пустые строки к undefined для опциональных полей, чтобы схема не падала.
@@ -4743,15 +5223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Укажите название оборудования" });
       }
       const currentUser = req.user as any;
-      const companyIds = await getUserCompanyIds(currentUser);
       const incomingSpecs = body.specifications && typeof body.specifications === "object" ? body.specifications as Record<string, unknown> : {};
-      const targetCompanyId = String((incomingSpecs as any).companyId || companyIds[0] || "").trim();
-      if (!targetCompanyId) {
-        return res.status(400).json({ message: "Выберите компанию для оборудования" });
-      }
-      if (currentUser?.role !== "admin" && !companyIds.includes(targetCompanyId)) {
-        return res.status(403).json({ message: "Нет доступа к выбранной компании" });
-      }
+      const targetCompanyId = String(workspace.companyId);
       const physicalDestination = await validatePhysicalDestination({
         body,
         user: currentUser,
@@ -5032,25 +5505,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/equipment-checkout-requests", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
-
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      if (workspace.type !== "company" || !workspace.companyId) return res.json([]);
       const currentUser = req.user as any;
-      const userCompanyIds = await getUserCompanyIds(currentUser);
-      const manageableCompanyIds = (
-        await Promise.all(userCompanyIds.map(async (companyId) =>
-          (await canManageCompany(currentUser, companyId).catch(() => false)) ? companyId : "",
-        ))
-      ).filter(Boolean);
+      const canManageActiveCompany = await canManageCompany(currentUser, workspace.companyId).catch(() => false);
       const requests = await storage.getEquipmentCheckoutRequests().catch(() => []);
-
-      if (currentUser?.role === "admin") {
-        return res.json(await Promise.all((requests as any[]).map(serializeEquipmentCheckoutRequest)));
-      }
-
       const visibleRequests = (requests as any[]).filter((request) => {
         const companyId = String(request.companyId || "").trim();
-        return request.requestedBy === currentUser?.id ||
-          (companyId && manageableCompanyIds.includes(companyId));
+        if (companyId !== String(workspace.companyId)) return false;
+        return request.requestedBy === currentUser?.id || canManageActiveCompany;
       });
       res.json(await Promise.all(visibleRequests.map(serializeEquipmentCheckoutRequest)));
     } catch (error: any) {
@@ -5090,10 +5554,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       if (duplicate) return res.json({ request: duplicate, duplicate: true });
 
-      const itemCompanyId = String(equipmentSpecs(item).companyId || "").trim();
-      const bundleCompanyId = String(equipmentSpecs(kit.bundle).companyId || "").trim();
-      const userCompanyIds = await getUserCompanyIds(currentUser);
-      const companyId = itemCompanyId || bundleCompanyId || userCompanyIds[0] || undefined;
+      const workspace = await getActiveWorkspaceForUser(currentUser);
+      const companyId = workspace.type === "company" ? workspace.companyId : undefined;
       const request = await storage.createEquipmentCheckoutRequest(insertEquipmentCheckoutRequestSchema.parse({
         companyId,
         equipmentId: item.id,
@@ -5376,9 +5838,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/equipment-checkout-requests", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) {
-        return res.status(403).json({ message: "Нет доступа к складу" });
-      }
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
 
       const currentUser = req.user as any;
       const body = req.body || {};
@@ -5402,14 +5863,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const userCompanyIds = await getUserCompanyIds(currentUser);
-      const requestedCompanyId = String(body.companyId || "").trim();
       const itemCompanyId = equipmentCompanyId(item);
-      const companyId = requestedCompanyId || itemCompanyId || userCompanyIds[0] || "";
-      if (requestedCompanyId && !userCompanyIds.includes(requestedCompanyId)) {
-        return res.status(403).json({ message: "Нет доступа к этой компании" });
-      }
-      if (itemCompanyId && companyId !== itemCompanyId) {
+      const companyId = String(workspace.companyId);
+      if (itemCompanyId !== companyId) {
         return res.status(403).json({ message: "Оборудование принадлежит другой компании" });
       }
       if (body.taskId && String(body.taskId).trim()) {
@@ -5488,9 +5944,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/equipment-checkout-requests/:id/approve", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) {
-        return res.status(403).json({ message: "Нет доступа к складу" });
-      }
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
 
       const currentUser = req.user as any;
       const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
@@ -5498,12 +5953,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
 
       const companyId = String(request.companyId || "").trim();
-      const canApprove = currentUser?.role === "admin" ||
-        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (companyId !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "Запрос не найден" });
+      }
+      const canApprove = await canManageCompany(currentUser, companyId).catch(() => false) ||
+        currentUser?.role === "manager";
       if (!canApprove) return res.status(403).json({ message: "Нет прав на подтверждение запроса" });
 
       const item = await storage.getEquipmentById(request.equipmentId).catch(() => undefined);
       if (!item || item.status === "archived") return res.status(404).json({ message: "Оборудование не найдено" });
+      await ensureEquipmentCompanyAccess(currentUser, item);
 
       if (request.requestType === "kit-extraction") {
         const kit = await getEquipmentKitContext(item);
@@ -5593,9 +6052,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/equipment-checkout-requests/:id/reject", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) {
-        return res.status(403).json({ message: "Нет доступа к складу" });
-      }
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
 
       const currentUser = req.user as any;
       const request = await storage.getEquipmentCheckoutRequestById(req.params.id).catch(() => undefined);
@@ -5603,8 +6061,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (request.status !== "pending") return res.status(400).json({ message: "Запрос уже обработан" });
 
       const companyId = String(request.companyId || "").trim();
-      const canReject = currentUser?.role === "admin" ||
-        (companyId ? await canManageCompany(currentUser, companyId).catch(() => false) : ["admin", "manager"].includes(currentUser?.role));
+      if (companyId !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "Запрос не найден" });
+      }
+      const canReject = await canManageCompany(currentUser, companyId).catch(() => false) ||
+        currentUser?.role === "manager";
       if (!canReject) return res.status(403).json({ message: "Нет прав на отклонение запроса" });
 
       const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
@@ -5630,20 +6091,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/equipment/:id", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) return res.status(403).json({ message: "Нет доступа к складу" });
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
       const { id } = req.params;
       const item = await storage.getEquipmentById(id).catch(() => undefined);
       if (!item) return res.status(404).json({ message: "Оборудование не найдено" });
+      await ensureEquipmentCompanyAccess(req.user, item);
       const specs = item.specifications && typeof item.specifications === "object" ? item.specifications as any : {};
       const permissions = Array.isArray((req.user as any)?.permissions) ? (req.user as any).permissions : [];
-      const userCompanyIds = await getUserCompanyIds(req.user);
       const canDelete =
         (req.user as any)?.role === "admin" ||
         (req.user as any)?.role === "manager" ||
         permissions.includes("equipment:delete") ||
         (specs.createdByUserId && specs.createdByUserId === (req.user as any)?.id) ||
-        (specs.companyId && await canManageCompany(req.user, String(specs.companyId))) ||
-        (!specs.companyId && userCompanyIds.length > 0);
+        (specs.companyId && await canManageCompany(req.user, String(specs.companyId)));
       if (!canDelete) return res.status(403).json({ message: "Нет прав на удаление оборудования" });
       const result = await runEquipmentActionWithKitSafety({
         componentId: id,
@@ -5713,12 +6173,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Systems
   app.get("/api/systems", async (req, res) => {
     try {
-      if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      if (workspace.type !== "company" || !workspace.companyId) return res.json([]);
       const systems = await withDbTimeout(() => storage.getSystems(), 5000, []);
-      const companyIds = await getUserCompanyIds(req.user);
       const list = (Array.isArray(systems) ? systems : []).filter((system: any) => {
         const spec = system?.specifications && typeof system.specifications === "object" ? system.specifications as any : {};
-        return !spec.companyId || companyIds.length === 0 || companyIds.includes(String(spec.companyId));
+        return String(spec.companyId || "") === String(workspace.companyId);
       }).map((system: any) => {
         const spec = system?.specifications && typeof system.specifications === "object" ? system.specifications as any : {};
         const agent = spec.agent && typeof spec.agent === "object" ? spec.agent : {};
@@ -5766,6 +6227,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/systems", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      const requestedSpecifications = req.body?.specifications && typeof req.body.specifications === "object"
+        ? req.body.specifications
+        : {};
       const parsed = insertSystemSchema.safeParse(req.body);
       const systemData = parsed.success ? parsed.data : {
         name: req.body?.name ?? "",
@@ -5774,6 +6240,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress: req.body?.ipAddress ?? undefined,
         status: req.body?.status ?? "offline",
         specifications: req.body?.specifications ?? undefined,
+      };
+      systemData.specifications = {
+        ...(systemData.specifications && typeof systemData.specifications === "object"
+          ? systemData.specifications
+          : requestedSpecifications),
+        companyId: workspace.companyId,
       };
       const system = await storage.createSystem(systemData);
       res.status(201).json(system);
@@ -5784,8 +6256,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/systems/:id", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const { id } = req.params;
-      const system = await storage.updateSystem(id, req.body);
+      const existing = await storage.getSystemById(id);
+      if (!existing) return res.status(404).json({ message: "System not found" });
+      const existingSpecifications = existing.specifications && typeof existing.specifications === "object"
+        ? existing.specifications as any
+        : {};
+      if (String(existingSpecifications.companyId || "") !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "System not found" });
+      }
+      const requestedSpecifications = req.body?.specifications && typeof req.body.specifications === "object"
+        ? req.body.specifications
+        : existingSpecifications;
+      const system = await storage.updateSystem(id, {
+        ...req.body,
+        specifications: {
+          ...requestedSpecifications,
+          companyId: workspace.companyId,
+        },
+      });
       if (!system) {
         return res.status(404).json({ message: "System not found" });
       }
@@ -5811,6 +6302,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUser = req.user as any;
       const { companyId } = req.params;
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      if (String(workspace.companyId) !== String(companyId)) {
+        return res.status(404).json({ message: "Компания не найдена" });
+      }
       if (!(await canManageCompany(currentUser, companyId))) {
         return res.status(403).json({ message: "Нет прав на скачивание агента" });
       }
@@ -6033,11 +6529,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.get("/api/agents/metrics", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const system = await storage.getSystemById(String(req.query.systemId || "")).catch(() => undefined);
       if (!system) return res.json({ points: [] });
-      const allowedIds = await getUserCompanyIds(req.user);
       const spec = system.specifications && typeof system.specifications === "object" ? system.specifications as any : {};
-      if (allowedIds.length && spec.companyId && !allowedIds.includes(String(spec.companyId))) return res.json({ points: [] });
+      if (String(spec.companyId || "") !== String(workspace.companyId)) return res.json({ points: [] });
       const limit = Math.max(1, Math.min(1000, Number(req.query.limit || 240)));
       const hours = Math.max(0.1, Math.min(24 * 30, Number(req.query.hours || 24)));
       const since = Date.now() - hours * 60 * 60 * 1000;
@@ -6080,7 +6577,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   // Streams
   app.get("/api/streams", async (req, res) => {
-    if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
+    if (workspace.type !== "company" || !workspace.companyId) return res.json([]);
     const { active, userId } = req.query;
 
     const streams = await withDbTimeout(async () => {
@@ -6093,12 +6592,24 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
     }, 3000, []); // 3 секунды для быстрого ответа
 
-    res.json(streams);
+    res.json((streams as any[]).filter((stream) => {
+      const metadata = stream?.metadata && typeof stream.metadata === "object" ? stream.metadata : {};
+      return String(metadata.companyId || "") === String(workspace.companyId);
+    }));
   });
 
   app.post("/api/streams", async (req, res) => {
     try {
-      const streamData = insertStreamSchema.parse(req.body);
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
+      const streamData = insertStreamSchema.parse({
+        ...req.body,
+        userId: (req.user as any).id,
+        metadata: {
+          ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}),
+          companyId: workspace.companyId,
+        },
+      });
       const stream = await storage.createStream(streamData);
       res.json(stream);
     } catch (error) {
@@ -6108,8 +6619,22 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.put("/api/streams/:id", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const { id } = req.params;
-      const stream = await storage.updateStream(id, req.body);
+      const existingStreams = await storage.getStreams();
+      const existing = (existingStreams as any[]).find((stream) => String(stream.id) === String(id));
+      const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+      if (!existing || String(metadata.companyId || "") !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "Stream not found" });
+      }
+      const stream = await storage.updateStream(id, {
+        ...req.body,
+        metadata: {
+          ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : metadata),
+          companyId: workspace.companyId,
+        },
+      });
       if (!stream) {
         return res.status(404).json({ message: "Stream not found" });
       }
@@ -6973,6 +7498,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   // Notifications
   app.get("/api/notifications/:userId", async (req, res) => {
     const { userId } = req.params;
+    if (!req.user?.id || String(userId) !== String(req.user.id)) {
+      return res.status(404).json({ message: "Notifications not found" });
+    }
     // Используем withDbTimeout для быстрой обработки ошибок БД
     const notifications = await withDbTimeout(
       () => storage.getNotificationsByUser(userId),
@@ -6984,7 +7512,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.post("/api/notifications", async (req, res) => {
     try {
-      const notificationData = insertNotificationSchema.parse(req.body);
+      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const notificationData = insertNotificationSchema.parse({
+        ...req.body,
+        userId: req.user.id,
+      });
       const notification = await storage.createNotification(notificationData);
       res.json(notification);
     } catch (error) {
@@ -6995,6 +7527,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.patch("/api/notifications/:id/read", async (req, res) => {
     try {
       const { id } = req.params;
+      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
+      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
       const success = await storage.markNotificationRead(id);
       if (!success) {
         return res.status(404).json({ message: "Notification not found" });
@@ -7008,6 +7545,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.put("/api/notifications/:id/read", async (req, res) => {
     try {
       const { id } = req.params;
+      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
+      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
       const success = await storage.markNotificationRead(id);
       if (!success) {
         return res.status(404).json({ message: "Notification not found" });
@@ -7020,10 +7562,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.put("/api/notifications/mark-all-read", async (req, res) => {
     try {
-      const userId = req.body?.userId;
-      if (!userId) {
-        return res.status(400).json({ message: "userId required" });
-      }
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: "Требуется авторизация" });
       const count = await storage.markAllNotificationsRead(userId);
       res.json({ success: true, count });
     } catch (error) {
@@ -7034,6 +7574,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.delete("/api/notifications/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
+      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
       const success = await storage.deleteNotification(id);
       if (!success) {
         return res.status(404).json({ message: "Notification not found" });
@@ -7044,8 +7589,35 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
 
+  const requireEquipmentPhotoWorkspace = async (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (!(await requireActiveCompanyWorkspace(req, res))) return;
+    next();
+  };
+
+  const requireEquipmentPhotoTarget = async (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    try {
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
+      const item = await storage.getEquipmentById(req.params.id);
+      if (!item) return res.status(404).json({ message: "Equipment not found" });
+      await ensureEquipmentCompanyAccess(req.user, item);
+      (req as any).equipmentPhotoTarget = item;
+      next();
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(403).json({ message: "Нет доступа к оборудованию" });
+    }
+  };
+
   // Equipment Photo Upload
-  app.post("/api/equipment/photos/upload", upload.single('photo'), async (req, res) => {
+  app.post("/api/equipment/photos/upload", requireEquipmentPhotoWorkspace, upload.single('photo'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No photo file provided" });
@@ -7057,7 +7629,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
 
-  app.post("/api/equipment/:id/photos", upload.single('photo'), async (req, res) => {
+  app.post("/api/equipment/:id/photos", requireEquipmentPhotoTarget, upload.single('photo'), async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -7651,6 +8223,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   // Equipment Reservations
   app.get("/api/equipment-reservations", async (req, res) => {
     try {
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
       const { equipmentId } = req.query;
       let reservations;
 
@@ -7660,7 +8233,20 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         reservations = await storage.getEquipmentReservations();
       }
 
-      res.json(reservations);
+      const visibleReservations = [];
+      for (const reservation of reservations as any[]) {
+        const item = reservation.equipmentId
+          ? await storage.getEquipmentById(String(reservation.equipmentId)).catch(() => undefined)
+          : undefined;
+        if (!item) continue;
+        try {
+          await ensureEquipmentCompanyAccess(req.user, item);
+          visibleReservations.push(reservation);
+        } catch {
+          // Records without the selected company are quarantined from this workspace.
+        }
+      }
+      res.json(visibleReservations);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch equipment reservations" });
     }
@@ -7668,7 +8254,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.post("/api/equipment-reservations", async (req, res) => {
     try {
-      const reservationData = insertEquipmentReservationSchema.parse(req.body);
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
+      const equipmentId = String(req.body?.equipmentId || "").trim();
+      const item = equipmentId
+        ? await storage.getEquipmentById(equipmentId).catch(() => undefined)
+        : undefined;
+      if (!item) return res.status(404).json({ message: "Equipment not found" });
+      await ensureEquipmentCompanyAccess(req.user, item);
+      const reservationData = insertEquipmentReservationSchema.parse({
+        ...req.body,
+        equipmentId,
+        userId: (req.user as any).id,
+      });
 
       // Check for conflicts
       const conflicts = await storage.checkEquipmentConflicts(
@@ -7694,7 +8291,15 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   // System Management
   app.post("/api/systems", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const systemData = req.body;
+      systemData.specifications = {
+        ...(systemData.specifications && typeof systemData.specifications === "object"
+          ? systemData.specifications
+          : {}),
+        companyId: workspace.companyId,
+      };
       const system = await storage.createSystem(systemData);
       res.json(system);
     } catch (error) {
@@ -7704,7 +8309,16 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.delete("/api/systems/:id", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const { id } = req.params;
+      const existing = await storage.getSystemById(id);
+      const specifications = existing?.specifications && typeof existing.specifications === "object"
+        ? existing.specifications as any
+        : {};
+      if (!existing || String(specifications.companyId || "") !== String(workspace.companyId)) {
+        return res.status(404).json({ message: "System not found" });
+      }
       const deleted = await storage.deleteSystem(id);
       if (!deleted) {
         return res.status(404).json({ message: "System not found" });
@@ -7717,10 +8331,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.post("/api/systems/:id/ping", async (req, res) => {
     try {
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const { id } = req.params;
       const system = await storage.getSystemById(id);
 
       if (!system || !system.ipAddress) {
+        return res.status(404).json({ message: "System not found or no IP address" });
+      }
+      const specifications = system.specifications && typeof system.specifications === "object"
+        ? system.specifications as any
+        : {};
+      if (String(specifications.companyId || "") !== String(workspace.companyId)) {
         return res.status(404).json({ message: "System not found or no IP address" });
       }
 
@@ -7839,9 +8461,39 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   // ============= TASKS API =============
+  const canAccessTask = async (
+    currentUser: any,
+    task: any,
+    providedWorkspace?: WorkspaceContext,
+  ) => {
+    if (!currentUser?.id || !task) return false;
+    const workspace = providedWorkspace || await getActiveWorkspaceForUser(currentUser);
+    if (!workspace.type || workspace.requiresSelection) return false;
+    if (workspace.type === "company") {
+      return Boolean(
+        task.companyId &&
+        String(task.companyId) === String(workspace.companyId || ""),
+      );
+    }
+    if (task.companyId) return false;
+    const userId = String(currentUser.id);
+    if (
+      String(task.creatorId || "") === userId ||
+      String(task.assigneeId || "") === userId
+    ) {
+      return true;
+    }
+    if (!task.projectId) return false;
+    const project = await storage.getProjectById(String(task.projectId)).catch(() => undefined);
+    return Boolean(project && await canAccessProject(currentUser, project));
+  };
+
   app.get("/api/tasks", async (req, res) => {
     try {
-      const currentUser = req.user || null;
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
       const userPermissions = (currentUser?.permissions || []) as string[];
 
       const { assigneeId, creatorId, status, yougileBoardId } = req.query;
@@ -7865,34 +8517,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         return list.filter((t: any) => !t.yougileBoardId);
       }, 3000, []); // 3 секунды для быстрого ответа
 
-      // Фильтруем задачи по правам доступа (для доски YouGile не фильтруем по автору — показываем все задачи доски)
-      if (currentUser && tasks && !yougileBoardId) {
-        if (currentUser.role !== 'admin' && !userPermissions.includes('tasks:view_all')) {
-          const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-          const companyIdSet = new Set((companyIds || []).map((id: any) => String(id)));
-          const allProjects = await storage.getProjects().catch(() => []);
-          const accessibleProjectIds = new Set(
-            (allProjects as any[])
-              .filter((project) => {
-                const participants = Array.isArray(project?.participants) ? project.participants.map(String) : [];
-                return (
-                  (project.companyId && companyIdSet.has(String(project.companyId))) ||
-                  String(project.ownerId || "") === String(currentUser.id) ||
-                  String(project.assignedTo || "") === String(currentUser.id) ||
-                  participants.includes(String(currentUser.id))
-                );
-              })
-              .map((project) => String(project.id))
-          );
-          tasks = tasks.filter((task: any) =>
-            task.creatorId === currentUser.id ||
-            task.assigneeId === currentUser.id ||
-            (task.companyId && companyIdSet.has(String(task.companyId))) ||
-            (task.projectId && accessibleProjectIds.has(String(task.projectId))) ||
-            userPermissions.includes('tasks:view')
-          );
+      const canViewAllInCompany = workspace.type === "company" &&
+        userPermissions.includes("tasks:view_all");
+      const accessResults = await Promise.all((tasks || []).map(async (task: any) => {
+        if (
+          canViewAllInCompany &&
+          String(task.companyId || "") === String(workspace.companyId || "")
+        ) {
+          return task;
         }
-      }
+        return (await canAccessTask(currentUser, task, workspace)) ? task : null;
+      }));
+      tasks = accessResults.filter(Boolean);
 
       res.json(tasks || []);
     } catch (error: any) {
@@ -7909,6 +8545,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      if (!(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
       res.json(task);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch task" });
@@ -7919,14 +8558,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       console.log("[Tasks] Creating task...");
       const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
       const body = { ...(req.body || {}) };
-      if (!body.creatorId && currentUser?.id) body.creatorId = currentUser.id;
-      if (!body.creatorId) {
-        return res.status(400).json({
-          message: "Для создания задачи необходимо войти в систему",
-          error: "creatorId is required",
-        });
-      }
+      body.creatorId = currentUser.id;
+      body.companyId = workspace.type === "company" ? workspace.companyId : null;
       for (const key of ["dueDate", "startDate", "completedAt"] as const) {
         if (body[key] === "" || body[key] === undefined) {
           delete body[key];
@@ -7937,13 +8574,20 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           body[key] = Number.isNaN(date.getTime()) ? null : date;
         }
       }
-      if (!body.companyId && body.projectId) {
+      if (body.projectId) {
         const project = await storage.getProjectById(String(body.projectId)).catch(() => undefined);
-        if ((project as any)?.companyId) body.companyId = (project as any).companyId;
+        if (!project || !(await canAccessProject(currentUser, project))) {
+          return res.status(403).json({ message: "Проект недоступен в выбранном пространстве" });
+        }
+        if (String(project.companyId || "") !== String(body.companyId || "")) {
+          return res.status(400).json({ message: "Проект принадлежит другому рабочему пространству" });
+        }
       }
-      if (!body.companyId && currentUser?.id) {
-        const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-        if (companyIds[0]) body.companyId = companyIds[0];
+      if (body.assigneeId) {
+        const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+        if (!visibleUserIds.has(String(body.assigneeId))) {
+          return res.status(403).json({ message: "Исполнитель недоступен в выбранном пространстве" });
+        }
       }
       const taskData = insertTaskSchema.parse(body);
 
@@ -8050,9 +8694,31 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!oldTask) {
         return res.status(404).json({ message: "Task not found" });
       }
+      const currentUser = req.user as any;
+      if (!(await canAccessTask(currentUser, oldTask))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
 
       // Extract userId from request body before updating
-      const { userId, ...updateData } = req.body;
+      const { userId: _ignoredUserId, ...updateData } = req.body;
+      delete updateData.companyId;
+      delete updateData.creatorId;
+      const workspace = await getActiveWorkspaceForUser(currentUser);
+      if (updateData.projectId) {
+        const project = await storage.getProjectById(String(updateData.projectId)).catch(() => undefined);
+        if (!project || !(await canAccessProject(currentUser, project))) {
+          return res.status(403).json({ message: "Проект недоступен в выбранном пространстве" });
+        }
+        if (String(project.companyId || "") !== String(oldTask.companyId || "")) {
+          return res.status(400).json({ message: "Проект принадлежит другому рабочему пространству" });
+        }
+      }
+      if (updateData.assigneeId) {
+        const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+        if (!visibleUserIds.has(String(updateData.assigneeId))) {
+          return res.status(403).json({ message: "Исполнитель недоступен в выбранном пространстве" });
+        }
+      }
       for (const key of ["dueDate", "startDate", "completedAt"] as const) {
         if (updateData[key] === "" || updateData[key] === undefined) {
           delete updateData[key];
@@ -8094,11 +8760,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
 
       // Create history entry
-      if (userId) {
+      if (currentUser?.id) {
         try {
           await storage.createTaskHistory({
             taskId: id,
-            userId: userId,
+            userId: currentUser.id,
             action: "updated",
             oldValue: oldTask,
             newValue: task
@@ -8114,8 +8780,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         try {
           const existingEvents = await storage.getEvents();
           const taskEvent = existingEvents.find(e =>
-            e.title === `Дедлайн: ${task.title}` ||
-            e.title === `Дедлайн: ${oldTask.title}`
+            String(e.companyId || "") === String(oldTask.companyId || "") &&
+            (
+              e.title === `Дедлайн: ${task.title}` ||
+              e.title === `Дедлайн: ${oldTask.title}`
+            )
           );
           if (taskEvent) {
             await storage.deleteEvent(taskEvent.id);
@@ -8163,6 +8832,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      if (!(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
       const yougileTaskId = (task as any).yougileTaskId;
       const deleted = await storage.deleteTask(id);
       if (!deleted) {
@@ -8186,6 +8858,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.get("/api/tasks/:taskId/comments", async (req, res) => {
     try {
       const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      if (!task || !(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
       const comments = await storage.getTaskComments(taskId);
       res.json(comments);
     } catch (error) {
@@ -8196,9 +8872,16 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.post("/api/tasks/:taskId/comments", async (req, res) => {
     try {
       const { taskId } = req.params;
-      const commentData = insertTaskCommentSchema.parse({ ...req.body, taskId });
-      const comment = await storage.createTaskComment(commentData);
       const task = await storage.getTaskById(taskId);
+      if (!task || !(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      const commentData = insertTaskCommentSchema.parse({
+        ...req.body,
+        taskId,
+        userId: (req.user as any).id,
+      });
+      const comment = await storage.createTaskComment(commentData);
       try {
         await storage.createTaskHistory({
           taskId,
@@ -8229,7 +8912,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.delete("/api/tasks/:taskId/comments/:commentId", async (req, res) => {
     try {
-      const { commentId } = req.params;
+      const { taskId, commentId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      if (!task || !(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
       const deleted = await storage.deleteTaskComment(commentId);
       if (!deleted) {
         return res.status(404).json({ message: "Comment not found" });
@@ -8244,6 +8931,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.get("/api/tasks/:taskId/history", async (req, res) => {
     try {
       const { taskId } = req.params;
+      const task = await storage.getTaskById(taskId);
+      if (!task || !(await canAccessTask(req.user, task))) {
+        return res.status(404).json({ message: "Task not found" });
+      }
       const history = await storage.getTaskHistory(taskId);
       res.json(history);
     } catch (error) {
@@ -8397,6 +9088,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   // ============= BARCODE SCANNER =============
   app.get("/api/equipment/barcode/:barcode", async (req, res) => {
     try {
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
       const barcode = decodeURIComponent(String(req.params.barcode || "")).trim();
       const normalizeBarcode = (value: unknown) => String(value ?? "").trim().toLowerCase();
       let equipmentItem = await storage.getEquipmentByBarcode(barcode).catch(() => undefined);
@@ -8416,6 +9108,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!equipmentItem) {
         return res.status(404).json({ message: "Equipment not found with this barcode" });
       }
+      await ensureEquipmentCompanyAccess(req.user, equipmentItem);
       res.json(equipmentItem);
     } catch (error) {
       res.status(500).json({ message: "Failed to find equipment" });
@@ -8710,19 +9403,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.get("/api/users", async (req, res) => {
     const currentUser = req.user as any;
     if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-    const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
     const allUsers = await withDbTimeout(() => storage.getUsers(), 3000, []);
-    if (currentUser.role === "admin" && permissions.includes("platform:admin")) {
-      return res.json(allUsers.map((u: any) => ({ ...u, password: undefined })));
-    }
-    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-    const visibleIds = new Set<string>([String(currentUser.id)]);
-    await Promise.all((companyIds as string[]).map(async (companyId) => {
-      const members = await storage.getCompanyMembers(companyId).catch(() => []);
-      for (const member of members as any[]) {
-        if (member.status === "active" && member.userId) visibleIds.add(String(member.userId));
-      }
-    }));
+    const visibleIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
     res.json((allUsers as any[])
       .filter((u: any) => visibleIds.has(String(u.id)))
       .map((u: any) => ({ ...u, password: undefined })));
@@ -8802,7 +9486,15 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.get("/api/users/:id", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
       const { id } = req.params;
+      const visibleIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      if (!visibleIds.has(String(id))) {
+        return res.status(404).json({ message: "User not found" });
+      }
       const user = await storage.getUser(id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -8815,6 +9507,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.post("/api/users", async (req, res) => {
     try {
+      if (!requirePlatformAdmin(req, res)) return;
       const body = { ...req.body };
       if (body.password) body.password = hashPassword(String(body.password));
       const userData = insertUserSchema.parse(body);
@@ -8828,8 +9521,26 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.put("/api/users/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { password, ...userData } = req.body;
-      const updateData: any = { ...userData };
+      if (!req.user?.id || String(req.user.id) !== String(id)) {
+        return res.status(403).json({ message: "Можно изменить только свой профиль" });
+      }
+      const {
+        password,
+        name,
+        email,
+        phone,
+        position,
+        department,
+        avatar,
+      } = req.body || {};
+      const updateData: any = {
+        ...(name !== undefined ? { name } : {}),
+        ...(email !== undefined ? { email } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+        ...(position !== undefined ? { position } : {}),
+        ...(department !== undefined ? { department } : {}),
+        ...(avatar !== undefined ? { avatar } : {}),
+      };
       if (password != null && String(password).length > 0) {
         updateData.password = hashPassword(String(password));
       }
@@ -8877,6 +9588,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   // Update user role and permissions
   app.put("/api/users/:id/permissions", async (req, res) => {
     try {
+      if (!requirePlatformAdmin(req, res)) return;
       const { id } = req.params;
       const { role, permissions } = req.body;
       const user = await storage.updateUser(id, { role, permissions });
@@ -8945,9 +9657,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.post("/api/projects/:projectId/equipment-bundle", async (req, res) => {
     const appliedExtractions: Array<{ component: any; bundle: any }> = [];
     try {
-      if (!(await hasWorkspaceAccess(req.user))) {
-        return res.status(403).json({ message: "Нет доступа к складу" });
-      }
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const { projectId } = req.params;
       const { equipmentIds, returnDate, assignedByUserId, assignedByName, kitExtractions } = req.body || {};
       if (!Array.isArray(equipmentIds) || equipmentIds.length === 0) {
@@ -8958,12 +9669,20 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       const project = await storage.getProjectById(projectId);
       if (!project && !isStubStorage) return res.status(404).json({ message: "Project not found" });
+      if (
+        !project ||
+        !(await canAccessProject(req.user, project)) ||
+        String(project.companyId || "") !== String(workspace.companyId)
+      ) {
+        return res.status(404).json({ message: "Project not found" });
+      }
 
       for (const equipmentId of equipmentIds.map((id: unknown) => String(id || "").trim())) {
         const component = await storage.getEquipmentById(equipmentId).catch(() => undefined);
         if (!component || component.status === "archived") {
           throw createEquipmentKitActionError(404, "EQUIPMENT_NOT_FOUND", "Оборудование не найдено.", { equipmentId });
         }
+        await ensureEquipmentCompanyAccess(req.user, component);
         const kit = await getEquipmentKitContext(component);
         if (kit) {
           appliedExtractions.push({
@@ -9007,19 +9726,26 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
   app.get("/api/projects/:projectId/equipment-bundles", async (req, res) => {
+    const project = await storage.getProjectById(req.params.projectId).catch(() => undefined);
+    if (!project || !(await canAccessProject(req.user, project))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
     const list = projectEquipmentBundles.filter((b) => b.projectId === req.params.projectId);
     res.json(list);
   });
 
   app.post("/api/equipment-return", async (req, res) => {
     try {
-      const { equipmentId, userId: requestUserId } = req.body || {};
-      const currentUserId = (req as any).user?.id ?? requestUserId;
+      if (!(await requireActiveCompanyWorkspace(req, res))) return;
+      const { equipmentId } = req.body || {};
+      const currentUserId = (req as any).user?.id;
       if (!equipmentId || typeof equipmentId !== "string") {
         return res.status(400).json({ message: "Укажите equipmentId" });
       }
       const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
-      if (item) await ensureEquipmentReturnAllowed(req.user, item);
+      if (!item) return res.status(404).json({ message: "Оборудование не найдено" });
+      await ensureEquipmentCompanyAccess(req.user, item);
+      await ensureEquipmentReturnAllowed(req.user, item);
       let found = false;
       let bundleAssignedBy: string | undefined;
       for (let i = projectEquipmentBundles.length - 1; i >= 0; i--) {
@@ -9050,9 +9776,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   // Сводка: какое оборудование на каких проектах (assignedByUserId — чтобы вернуть мог только тот, кто отправил)
   app.get("/api/equipment-on-projects", async (req, res) => {
-    if (!(await hasWorkspaceAccess(req.user))) return res.json([]);
+    if (!(await requireActiveCompanyWorkspace(req, res))) return;
     const currentUser = req.user as any;
-    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
     const allContextLinks = (await storage.getEquipmentContextLinks().catch(() => []))
       .filter((link: any) => link.active && link.projectId);
     const projectIds = [...new Set([
@@ -9063,16 +9788,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       storage.getProjectById(id).catch(() => undefined),
     ))).filter(Boolean) as any[];
     const projectById = new Map(projectList.map((project) => [String(project.id), project]));
-    const canSeeProject = (project: any) => {
-      if (currentUser?.role === "admin") return true;
-      const userId = String(currentUser?.id || "");
-      return String(project?.ownerId || "") === userId ||
-        String(project?.assignedTo || "") === userId ||
-        (Array.isArray(project?.participants) && project.participants.map(String).includes(userId)) ||
-        (project?.companyId && companyIds.map(String).includes(String(project.companyId)));
-    };
+    const projectAccess = await Promise.all(projectList.map(async (project) =>
+      (await canAccessProject(currentUser, project)) ? project : null,
+    ));
     const visibleProjectIds = new Set(
-      projectList.filter(canSeeProject).map((project) => String(project.id)),
+      projectAccess.filter(Boolean).map((project: any) => String(project.id)),
     );
     const visibleEquipmentIds = new Set<string>();
     const candidateEquipmentIds = Array.from(new Set([
@@ -9082,9 +9802,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     await Promise.all(candidateEquipmentIds.map(async (equipmentId) => {
       const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
       if (!item) return;
-      const companyId = equipmentCompanyId(item);
-      if (currentUser?.role === "admin" || !companyId || companyIds.map(String).includes(companyId)) {
+      try {
+        await ensureEquipmentCompanyAccess(currentUser, item);
         visibleEquipmentIds.add(equipmentId);
+      } catch {
+        // Equipment from other or ambiguous companies is hidden.
       }
     }));
     const contextLinks = allContextLinks.filter((link: any) =>
@@ -9265,13 +9987,16 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   const canAccessProject = async (currentUser: any, project: any) => {
     if (!currentUser?.id || !project) return false;
-    const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
-    if (currentUser.role === "admin" && permissions.includes("platform:admin")) return true;
+    const workspace = await getActiveWorkspaceForUser(currentUser);
+    if (!workspace.type || workspace.requiresSelection) return false;
+    const projectCompanyId = String(project.companyId || "");
+    if (workspace.type === "company") {
+      return Boolean(projectCompanyId && projectCompanyId === String(workspace.companyId || ""));
+    }
+    if (projectCompanyId) return false;
     const userId = String(currentUser.id);
     if (String(project.ownerId || "") === userId || String(project.assignedTo || "") === userId) return true;
-    if (Array.isArray(project.participants) && project.participants.map(String).includes(userId)) return true;
-    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-    return Boolean(project.companyId && companyIds.map(String).includes(String(project.companyId)));
+    return Array.isArray(project.participants) && project.participants.map(String).includes(userId);
   };
 
   const publishProjectChanged = (
@@ -9298,7 +10023,6 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   const canManageProjectDiscussion = async (currentUser: any, project: any) => {
     if (!currentUser?.id || !project) return false;
-    if (currentUser.role === "admin") return true;
     const userId = String(currentUser.id);
     if (
       String(project.ownerId || "") === userId ||
@@ -9419,22 +10143,20 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.get("/api/projects", async (req, res) => {
     const currentUser = req.user as any;
     if (!currentUser?.id) return res.json([]);
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return;
     const projects = await withDbTimeout(
       () => storage.getProjects(),
       3000, // 3 секунды для быстрого ответа
       [] // Пустой массив по умолчанию
     );
-    const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
-    if (currentUser.role === "admin" && permissions.includes("platform:admin")) {
-      return res.json(await Promise.all((projects as any[]).map(buildProjectResponse)));
-    }
-    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-    const companyIdSet = new Set((companyIds || []).map((id: any) => String(id)));
     const userId = String(currentUser.id);
     const visibleProjects = (projects as any[]).filter((project) => {
       const participants = Array.isArray(project?.participants) ? project.participants.map(String) : [];
-      return (
-        (project.companyId && companyIdSet.has(String(project.companyId))) ||
+      if (workspace.type === "company") {
+        return String(project.companyId || "") === String(workspace.companyId || "");
+      }
+      return !project.companyId && (
         String(project.ownerId || "") === userId ||
         String(project.assignedTo || "") === userId ||
         participants.includes(userId)
@@ -9447,20 +10169,28 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
       const { deadline, locationIds, ...rest } = req.body;
-      if (!rest.ownerId && currentUser?.id) rest.ownerId = currentUser.id;
-      if (!rest.companyId && currentUser?.id) {
-        const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
-        if (companyIds[0]) rest.companyId = companyIds[0];
+      rest.ownerId = currentUser.id;
+      rest.companyId = workspace.type === "company" ? workspace.companyId : null;
+      rest.visibility = workspace.type === "company" ? (rest.visibility || "company") : "personal";
+      const participants: string[] = Array.isArray(rest.participants)
+        ? Array.from(new Set(
+          rest.participants
+            .map((id: unknown) => String(id || "").trim())
+            .filter((id: string) => Boolean(id)),
+        ))
+        : [];
+      const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      if (participants.some((userId: string) => !visibleUserIds.has(userId))) {
+        return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
       }
+      rest.participants = participants;
       const projectData = {
         ...rest,
         deadline: deadline && deadline !== "" ? new Date(deadline) : null,
       };
-      const allowedCompanyIds = await getUserCompanyIds(currentUser).catch(() => []);
-      if (projectData.companyId && !allowedCompanyIds.map(String).includes(String(projectData.companyId))) {
-        return res.status(403).json({ message: "Нет доступа к выбранной компании" });
-      }
       const locationResolution = await resolveProjectLocationIds(projectData, locationIds ?? []);
       if (!locationResolution.ok) {
         return res.status(locationResolution.status).json({ message: locationResolution.message });
@@ -9491,11 +10221,22 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         return res.status(403).json({ message: "Нет доступа к проекту" });
       }
       const { locationIds, ...projectData } = req.body || {};
-      if (projectData.companyId && String(projectData.companyId) !== String(existing.companyId || "")) {
-        const allowedCompanyIds = await getUserCompanyIds(currentUser).catch(() => []);
-        if (!allowedCompanyIds.map(String).includes(String(projectData.companyId))) {
-          return res.status(403).json({ message: "Нет доступа к выбранной компании" });
+      delete projectData.companyId;
+      delete projectData.ownerId;
+      if (projectData.participants !== undefined) {
+        const workspace = await getActiveWorkspaceForUser(currentUser);
+        const participants: string[] = Array.isArray(projectData.participants)
+          ? Array.from(new Set(
+            projectData.participants
+              .map((id: unknown) => String(id || "").trim())
+              .filter((id: string) => Boolean(id)),
+          ))
+          : [];
+        const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+        if (participants.some((userId: string) => !visibleUserIds.has(userId))) {
+          return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
         }
+        projectData.participants = participants;
       }
       const previousLocationIds = await getProjectDirectLocationIds(existing.id);
       let nextLocationIds: string[] | undefined;
@@ -9527,8 +10268,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   /** Статистика по задачам проекта (для доски YouGile или по projectId). statusNames — id колонки → название для отображения. */
   app.get("/api/projects/:id/task-stats", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const project = await storage.getProjectById(req.params.id);
       if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к проекту" });
+      }
       const proj = project as any;
       let tasks: any[] = [];
       const statusNames: Record<string, string> = {};
@@ -9648,8 +10394,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
       const membership = await storage.getKanbanBoardMember(board.id, currentUser.id).catch(() => undefined);
       const canManage = !board.companyId
-        ? currentUser.role === "admin" || String(board.createdByUserId) === String(currentUser.id)
-        : currentUser.role === "admin" || await canManageCompany(currentUser, String(board.companyId)).catch(() => false);
+        ? String(board.createdByUserId) === String(currentUser.id)
+        : await canManageCompany(currentUser, String(board.companyId)).catch(() => false);
 
       res.json({
         board: buildKanbanBoardResponse(board, { canManage, membership }),
@@ -9664,8 +10410,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   /** Привязать видеопроект к доске YouGile (доска появится в таск-менеджере, колонки создаются в YouGile) */
   app.post("/api/projects/:id/link-yougile-board", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const project = await storage.getProjectById(req.params.id);
       if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к проекту" });
+      }
       const existing = (project as any).yougileBoardId;
       if (existing) {
         return res.json({ yougileBoardId: existing, message: "Доска уже привязана" });
@@ -9695,6 +10446,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.delete("/api/projects/:id", async (req, res) => {
     try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const project = await storage.getProjectById(req.params.id);
+      if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к проекту" });
+      }
       await storage.deleteProject(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -9704,6 +10462,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   // Project Columns
   app.get("/api/projects/:projectId/columns", async (req, res) => {
+    const currentUser = req.user as any;
+    if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+    const project = await storage.getProjectById(req.params.projectId).catch(() => undefined);
+    if (!project || !(await canAccessProject(currentUser, project))) {
+      return res.status(404).json({ message: "Проект не найден или недоступен" });
+    }
     const columns = await withDbTimeout(
       () => storage.getProjectColumns(req.params.projectId),
       3000,
@@ -9723,6 +10487,9 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const project = await storage.getProjectById(projectId);
       if (!project) {
         return res.status(404).json({ message: "Доска не найдена" });
+      }
+      if (!(await canAccessProject(req.user, project))) {
+        return res.status(403).json({ message: "Нет доступа к проекту" });
       }
 
       // Получаем текущие столбцы для определения следующего order
@@ -9751,6 +10518,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.put("/api/projects/:projectId/columns/:id", async (req, res) => {
     try {
+      const project = await storage.getProjectById(req.params.projectId);
+      if (!project || !(await canAccessProject(req.user, project))) {
+        return res.status(404).json({ message: "Проект не найден или недоступен" });
+      }
       const updateData: any = {};
       if (req.body?.name !== undefined) {
         const name = String(req.body.name || "").trim();
@@ -9771,6 +10542,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.delete("/api/projects/:projectId/columns/:id", async (req, res) => {
     try {
+      const project = await storage.getProjectById(req.params.projectId);
+      if (!project || !(await canAccessProject(req.user, project))) {
+        return res.status(404).json({ message: "Проект не найден или недоступен" });
+      }
       await storage.deleteProjectColumn(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -9781,6 +10556,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   app.post("/api/projects/:projectId/columns/reorder", async (req, res) => {
     try {
       const { projectId } = req.params;
+      const project = await storage.getProjectById(projectId);
+      if (!project || !(await canAccessProject(req.user, project))) {
+        return res.status(404).json({ message: "Проект не найден или недоступен" });
+      }
       const { columnIds } = req.body;
 
       if (!Array.isArray(columnIds)) {
@@ -9809,21 +10588,21 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   const customLocationUpdateSchema = customLocationPayloadSchema.partial().omit({ companyId: true });
 
   const canManageLocationCompany = async (user: any, companyId: string) => {
-    if (!user?.id) return false;
-    if (user.role === "admin") return true;
-    if (!companyId) return false;
+    if (!user?.id || !companyId) return false;
+    const workspace = await getActiveWorkspaceForUser(user);
+    if (workspace.type !== "company" || String(workspace.companyId || "") !== String(companyId)) {
+      return false;
+    }
     if (await canManageCompany(user, companyId).catch(() => false)) return true;
-    const companyIds: string[] = await getUserCompanyIds(user).catch(() => [] as string[]);
-    return user.role === "manager" && companyIds.includes(companyId);
+    return user.role === "manager";
   };
 
   const canAccessLocation = async (user: any, location: any) => {
     if (!user?.id || !location) return false;
-    if (user.role === "admin") return true;
     const companyId = String(location.companyId || "").trim();
     if (!companyId) return false;
-    const companyIds: string[] = await getUserCompanyIds(user).catch(() => [] as string[]);
-    return companyIds.includes(companyId);
+    const workspace = await getActiveWorkspaceForUser(user);
+    return workspace.type === "company" && String(workspace.companyId || "") === companyId;
   };
 
   const getLocationLinkedWork = async (location: any) => {
@@ -9914,14 +10693,15 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const companyIds = await getUserCompanyIds(currentUser);
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      if (workspace.type !== "company" || !workspace.companyId) return res.json([]);
       const archive = ["active", "archived", "all"].includes(String(req.query.archive))
         ? String(req.query.archive)
         : "active";
       const locations = (await storage.getCustomLocations())
         .filter((location: any) =>
-          currentUser.role === "admin" ||
-          (location.companyId && companyIds.includes(String(location.companyId))),
+          String(location.companyId || "") === String(workspace.companyId),
         )
         .filter((location: any) =>
           archive === "all" ||
@@ -9954,10 +10734,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const workspace = await requireActiveCompanyWorkspace(req, res);
+      if (!workspace) return;
       const parsed = customLocationPayloadSchema.parse(req.body || {});
-      const companyIds = await getUserCompanyIds(currentUser);
-      const companyId = String(parsed.companyId || companyIds[0] || "").trim();
-      if (!companyId) return res.status(400).json({ message: "Выберите компанию для площадки" });
+      const companyId = String(workspace.companyId);
       if (!(await canManageLocationCompany(currentUser, companyId))) {
         return res.status(403).json({ message: "Нет прав на создание площадки этой компании" });
       }
@@ -11070,14 +11850,17 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   }
 
-  const authorizeRealtimeChannel = async (user: any, channel: string) => {
+  const authorizeRealtimeChannel = async (
+    user: any,
+    workspace: WorkspaceContext,
+    channel: string,
+  ) => {
     const parsed = parseRealtimeChannel(channel);
-    if (!parsed || !user?.id) return false;
+    if (!parsed || !user?.id || !workspace.type || workspace.requiresSelection) return false;
 
     if (parsed.scope === "company") {
-      if (user.role === "admin") return true;
-      const companyIds = await getUserCompanyIds(user).catch(() => []);
-      return companyIds.map(String).includes(parsed.recordId);
+      return workspace.type === "company" &&
+        String(workspace.companyId || "") === parsed.recordId;
     }
     if (parsed.scope === "project") {
       const project = await storage.getProjectById(parsed.recordId).catch(() => undefined);
@@ -11094,12 +11877,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
     if (parsed.scope === "equipment") {
       const item = await storage.getEquipmentById(parsed.recordId).catch(() => undefined);
-      if (!item || !(await hasWorkspaceAccess(user))) return false;
-      if (user.role === "admin") return true;
-      const companyId = equipmentCompanyId(item);
-      if (!companyId) return true;
-      const companyIds = await getUserCompanyIds(user).catch(() => []);
-      return companyIds.map(String).includes(companyId);
+      if (!item || workspace.type !== "company") return false;
+      return equipmentCompanyId(item) === String(workspace.companyId || "");
     }
     return false;
   };
@@ -11132,7 +11911,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!user?.id || user.active === false) {
         return rejectWebSocketUpgrade(socket, 401, "Unauthorized");
       }
-      (request as any).realtimeUser = user;
+      const workspace = await resolveWorkspaceContext(user, (request as any).session);
+      (request as any).realtimeWorkspace = workspace;
+      (request as any).realtimeUser = {
+        ...user,
+        activeWorkspaceType: workspace.type,
+        activeCompanyId: workspace.companyId,
+      };
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit("connection", ws, request);
       });
@@ -11141,6 +11926,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   wss.on("connection", (ws: WebSocket, request: any) => {
     const user = request.realtimeUser;
+    const workspace = request.realtimeWorkspace as WorkspaceContext;
     if (!user?.id) {
       ws.close(1008, "Unauthorized");
       return;
@@ -11148,6 +11934,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
     const context: RealtimeClientContext = {
       user,
+      workspace,
       subscriptions: new Set(),
       isAlive: true,
     };
@@ -11171,7 +11958,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           for (const channel of channels) {
             const alreadySubscribed = context.subscriptions.has(channel);
             const withinLimit = alreadySubscribed || context.subscriptions.size < 100;
-            const authorized = withinLimit && await authorizeRealtimeChannel(context.user, channel);
+            const authorized = withinLimit &&
+              await authorizeRealtimeChannel(context.user, context.workspace, channel);
             if (authorized) context.subscriptions.add(channel);
             results.push({ channel, authorized });
           }
@@ -11205,38 +11993,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     if (!openSockets.length) return;
 
     try {
-      const [systems, streams] = await Promise.all([
-        withDbTimeout(() => storage.getSystems(), 5000, []),
-        withDbTimeout(() => storage.getActiveStreams(), 5000, []),
-      ]);
       const messages = [
-        { type: "systems_update", data: systems },
-        { type: "streams_update", data: streams },
+        { type: "systems_update" },
+        { type: "streams_update" },
         { type: "tasks_update" },
         { type: "events_update" },
-        {
-          type: "youtube_stats",
-          data: {
-            viewers: Math.floor(Math.random() * 2000) + 500,
-            bitrate: Math.floor(Math.random() * 1000) + 5000,
-            fps: 60,
-          },
-        },
-        {
-          type: "vk_stats",
-          data: {
-            viewers: Math.floor(Math.random() * 1500) + 300,
-            bitrate: Math.floor(Math.random() * 800) + 5000,
-            fps: 60,
-          },
-        },
       ].map((message) => JSON.stringify(message));
       openSockets.forEach((ws) => messages.forEach((message) => ws.send(message)));
     } catch (error) {
       console.warn("[WebSocket] Global refresh failed:", error);
       const fallbackMessages = [
-        JSON.stringify({ type: "systems_update", data: [] }),
-        JSON.stringify({ type: "streams_update", data: [] }),
+        JSON.stringify({ type: "systems_update" }),
+        JSON.stringify({ type: "streams_update" }),
       ];
       openSockets.forEach((ws) => fallbackMessages.forEach((message) => ws.send(message)));
     }
@@ -12058,8 +12826,47 @@ ${priceHints}
     }
   });
 
+  const getAccessibleEvent = async (
+    req: express.Request,
+    res: express.Response,
+    eventId: string,
+  ) => {
+    const workspace = await requireActiveWorkspace(req, res);
+    if (!workspace) return null;
+    const event = await storage.getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return null;
+    }
+    if (!(await canAccessEventInWorkspace(req.user, event, workspace))) {
+      res.status(403).json({ message: "Нет доступа к событию" });
+      return null;
+    }
+    return event;
+  };
+
+  const canEditEvent = (user: any, event: any) => {
+    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    return Boolean(
+      user?.id &&
+      (
+        String(event?.organizerId || "") === String(user.id) ||
+        permissions.includes("events:edit")
+      )
+    );
+  };
+
+  const requireProductionPhotoWorkspace = async (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (!(await requireActiveWorkspace(req, res))) return;
+    next();
+  };
+
   // Продакшн: личные дела участников шоу
-  app.post("/api/production/upload-photo", productionPhotoUpload.single("photo"), async (req, res) => {
+  app.post("/api/production/upload-photo", requireProductionPhotoWorkspace, productionPhotoUpload.single("photo"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "Файл не выбран" });
@@ -12074,6 +12881,7 @@ ${priceHints}
   app.get("/api/events/:eventId/participant-profiles", async (req, res) => {
     try {
       const { eventId } = req.params;
+      if (!(await getAccessibleEvent(req, res, eventId))) return;
       const profiles = await storage.getShowParticipantProfiles(eventId);
       res.json(profiles);
     } catch (error: any) {
@@ -12085,6 +12893,11 @@ ${priceHints}
   app.post("/api/events/:eventId/participant-profiles", async (req, res) => {
     try {
       const { eventId } = req.params;
+      const event = await getAccessibleEvent(req, res, eventId);
+      if (!event) return;
+      if (!canEditEvent(req.user, event)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения участников события" });
+      }
       const { name, role, photo, bio, contacts, extra, order } = req.body;
       if (!name) {
         return res.status(400).json({ message: "Name is required" });
@@ -12109,6 +12922,13 @@ ${priceHints}
   app.put("/api/participant-profiles/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const existing = await storage.getShowParticipantProfileById(id);
+      if (!existing) return res.status(404).json({ message: "Profile not found" });
+      const event = await getAccessibleEvent(req, res, existing.eventId);
+      if (!event) return;
+      if (!canEditEvent(req.user, event)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения участников события" });
+      }
       const { name, role, photo, bio, contacts, extra, order } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -12130,6 +12950,13 @@ ${priceHints}
   app.delete("/api/participant-profiles/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const existing = await storage.getShowParticipantProfileById(id);
+      if (!existing) return res.status(404).json({ message: "Profile not found" });
+      const event = await getAccessibleEvent(req, res, existing.eventId);
+      if (!event) return;
+      if (!canEditEvent(req.user, event)) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения участников события" });
+      }
       const deleted = await storage.deleteShowParticipantProfile(id);
       if (!deleted) return res.status(404).json({ message: "Profile not found" });
       res.json({ success: true });
@@ -12143,6 +12970,7 @@ ${priceHints}
   app.get("/api/events/:eventId/markers", async (req, res) => {
     try {
       const { eventId } = req.params;
+      if (!(await getAccessibleEvent(req, res, eventId))) return;
       const markers = await storage.getShowMarkers(eventId);
       res.json(markers);
     } catch (error: any) {
@@ -12154,6 +12982,7 @@ ${priceHints}
   app.post("/api/events/:eventId/markers", async (req, res) => {
     try {
       const { eventId } = req.params;
+      if (!(await getAccessibleEvent(req, res, eventId))) return;
       const { timecode, type, value, note } = req.body;
       const userId = (req as any).user?.id;
       if (!timecode || !type) {
@@ -12177,6 +13006,16 @@ ${priceHints}
   app.put("/api/markers/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const existing = await storage.getShowMarkerById(id);
+      if (!existing) return res.status(404).json({ message: "Marker not found" });
+      const event = await getAccessibleEvent(req, res, existing.eventId);
+      if (!event) return;
+      if (
+        String(existing.editorId || "") !== String(req.user?.id || "") &&
+        !canEditEvent(req.user, event)
+      ) {
+        return res.status(403).json({ message: "Недостаточно прав для изменения маркера" });
+      }
       const { timecode, type, value, note } = req.body;
       const updateData: any = {};
       if (timecode !== undefined) updateData.timecode = timecode;
@@ -12195,6 +13034,16 @@ ${priceHints}
   app.delete("/api/markers/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const existing = await storage.getShowMarkerById(id);
+      if (!existing) return res.status(404).json({ message: "Marker not found" });
+      const event = await getAccessibleEvent(req, res, existing.eventId);
+      if (!event) return;
+      if (
+        String(existing.editorId || "") !== String(req.user?.id || "") &&
+        !canEditEvent(req.user, event)
+      ) {
+        return res.status(403).json({ message: "Недостаточно прав для удаления маркера" });
+      }
       const deleted = await storage.deleteShowMarker(id);
       if (!deleted) return res.status(404).json({ message: "Marker not found" });
       res.json({ success: true });
