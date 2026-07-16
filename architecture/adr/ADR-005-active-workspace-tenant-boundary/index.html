@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/testing/">
+        <link rel="canonical" href="https://swp-team-34.github.io/streamdesk/architecture/adr/ADR-005-active-workspace-tenant-boundary/">
       
       
-        <link rel="prev" href="../architecture/adr/ADR-003-unified-monorepo-coverage/">
-      
-      
-        <link rel="next" href="../quality-requirements/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Testing Overview - StreamDesk Documentation</title>
+        <title>ADR-005: Validated Active Workspace Tenant Boundary - StreamDesk Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#testing" class="md-skip">
+        <a href="#adr-005-validated-active-workspace-tenant-boundary" class="md-skip">
           Skip to content
         </a>
       
@@ -92,7 +88,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="StreamDesk Documentation" class="md-header__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+    <a href="../../.." title="StreamDesk Documentation" class="md-header__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -112,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Testing Overview
+              ADR-005: Validated Active Workspace Tenant Boundary
             
           </span>
         </div>
@@ -211,7 +207,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../../.." class="md-tabs__link">
         
   
   
@@ -232,7 +228,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../roadmap/" class="md-tabs__link">
+        <a href="../../../roadmap/" class="md-tabs__link">
           
   
   
@@ -252,7 +248,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../architecture/" class="md-tabs__link">
+        <a href="../../" class="md-tabs__link">
           
   
   
@@ -268,13 +264,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../../testing/" class="md-tabs__link">
           
   
   
@@ -294,7 +288,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../platform-rebuild-notes/" class="md-tabs__link">
+        <a href="../../../platform-rebuild-notes/" class="md-tabs__link">
           
   
   
@@ -328,7 +322,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="StreamDesk Documentation" class="md-nav__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
+    <a href="../../.." title="StreamDesk Documentation" class="md-nav__button md-logo" aria-label="StreamDesk Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -358,7 +352,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   
@@ -439,7 +433,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../../roadmap/" class="md-nav__link">
         
   
   
@@ -467,7 +461,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-stories/" class="md-nav__link">
+      <a href="../../../user-stories/" class="md-nav__link">
         
   
   
@@ -495,7 +489,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../customer-handover/" class="md-nav__link">
+      <a href="../../../customer-handover/" class="md-nav__link">
         
   
   
@@ -523,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../deployment-instructions/" class="md-nav__link">
+      <a href="../../../deployment-instructions/" class="md-nav__link">
         
   
   
@@ -551,7 +545,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../development-process/" class="md-nav__link">
+      <a href="../../../development-process/" class="md-nav__link">
         
   
   
@@ -579,7 +573,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../repository-workflow/" class="md-nav__link">
+      <a href="../../../repository-workflow/" class="md-nav__link">
         
   
   
@@ -607,7 +601,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../definition-of-done/" class="md-nav__link">
+      <a href="../../../definition-of-done/" class="md-nav__link">
         
   
   
@@ -696,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   
@@ -724,7 +718,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/static-view/" class="md-nav__link">
+      <a href="../../static-view/" class="md-nav__link">
         
   
   
@@ -752,7 +746,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/dynamic-view/" class="md-nav__link">
+      <a href="../../dynamic-view/" class="md-nav__link">
         
   
   
@@ -780,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/deployment-view/" class="md-nav__link">
+      <a href="../../deployment-view/" class="md-nav__link">
         
   
   
@@ -862,7 +856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/adr/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -890,7 +884,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/adr/ADR-001-centralized-equipment-permissions/" class="md-nav__link">
+      <a href="../ADR-001-centralized-equipment-permissions/" class="md-nav__link">
         
   
   
@@ -918,7 +912,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/adr/ADR-002-declarative-protected-route-wrapper/" class="md-nav__link">
+      <a href="../ADR-002-declarative-protected-route-wrapper/" class="md-nav__link">
         
   
   
@@ -946,7 +940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/adr/ADR-003-unified-monorepo-coverage/" class="md-nav__link">
+      <a href="../ADR-003-unified-monorepo-coverage/" class="md-nav__link">
         
   
   
@@ -986,31 +980,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1028,7 +1019,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1043,37 +1034,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Testing Overview
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../../testing/" class="md-nav__link">
         
   
   
@@ -1089,103 +1053,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#critical-modules-and-coverage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Critical Modules and Coverage
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#automated-test-status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automated Test Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quality-requirement-test-mapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quality Requirement Test Mapping
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-qa-checks" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Additional QA Checks
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#link-checking" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Link Checking
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ci-and-qa-check-status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CI and QA Check Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations-and-follow-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations and Follow-up
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1198,7 +1065,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quality-requirements/" class="md-nav__link">
+      <a href="../../../quality-requirements/" class="md-nav__link">
         
   
   
@@ -1226,7 +1093,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quality-requirement-tests/" class="md-nav__link">
+      <a href="../../../quality-requirement-tests/" class="md-nav__link">
         
   
   
@@ -1254,7 +1121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-acceptance-tests/" class="md-nav__link">
+      <a href="../../../user-acceptance-tests/" class="md-nav__link">
         
   
   
@@ -1343,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../platform-rebuild-notes/" class="md-nav__link">
+      <a href="../../../platform-rebuild-notes/" class="md-nav__link">
         
   
   
@@ -1398,10 +1265,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#critical-modules-and-coverage" class="md-nav__link">
+  <a href="#status" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Critical Modules and Coverage
+        Status
       
     </span>
   </a>
@@ -1409,10 +1276,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automated-test-status" class="md-nav__link">
+  <a href="#context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automated Test Status
+        Context
       
     </span>
   </a>
@@ -1420,54 +1287,77 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quality-requirement-test-mapping" class="md-nav__link">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quality Requirement Test Mapping
+        Decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#additional-qa-checks" class="md-nav__link">
+  <a href="#consequences" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Additional QA Checks
+        Consequences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Consequences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#positive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#link-checking" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#negative" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Link Checking
+        Negative
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#ci-and-qa-check-status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CI and QA Check Status
-      
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#limitations-and-follow-up" class="md-nav__link">
+  <a href="#quality-requirements-addressed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Limitations and Follow-up
+        Quality Requirements Addressed
       
     </span>
   </a>
@@ -1494,148 +1384,50 @@
   
 
 
-<h1 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h1>
-<p>This document describes the current maintained testing and QA evidence for StreamDesk <code>v3.0.0-rc.1</code>.</p>
-<h2 id="critical-modules-and-coverage">Critical Modules and Coverage<a class="headerlink" href="#critical-modules-and-coverage" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Critical module</th>
-<th>Why critical</th>
-<th style="text-align: right;">Target line coverage</th>
-<th style="text-align: right;">Current line coverage</th>
-<th>Evidence</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>client/src/lib/equipment-permissions.ts</code></td>
-<td>Controls equipment create, edit, and reserve permission decisions for inventory workflows.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">100%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
-</tr>
-<tr>
-<td><code>client/src/components/protected-route.tsx</code></td>
-<td>Controls access to protected application areas for anonymous, unauthorized, and authorized users.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">73.33%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
-</tr>
-<tr>
-<td><code>client/src/lib/task-dates.ts</code></td>
-<td>Supports calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">55.71%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
-</tr>
-</tbody>
-</table>
-<p>Critical modules are selected by product risk: permission checks, access control, inventory operations, calendar/task scheduling, user data access, and flows that many users depend on.</p>
-<h2 id="automated-test-status">Automated Test Status<a class="headerlink" href="#automated-test-status" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Check</th>
-<th>Command or workflow</th>
-<th>Current purpose</th>
-<th>Evidence</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TypeScript check</td>
-<td><code>npm run check</code></td>
-<td>Verifies TypeScript type safety across the configured project.</td>
-<td>Passed locally on 2026-07-16; CI confirmation pending.</td>
-</tr>
-<tr>
-<td>Vitest test suite</td>
-<td><code>npm test</code></td>
-<td>Runs unit, component, route, and authenticated WebSocket integration tests across client and server code.</td>
-<td>24 test files and 114 tests passed locally on 2026-07-16; CI confirmation pending.</td>
-</tr>
-<tr>
-<td>Coverage</td>
-<td><code>npm run coverage</code></td>
-<td>Produces coverage output for configured client, server, and shared TypeScript sources.</td>
-<td>24 test files and 114 tests passed locally on 2026-07-16 with 2.87% line coverage; CI confirmation pending.</td>
-</tr>
-<tr>
-<td>Build</td>
-<td><code>npm run build</code></td>
-<td>Verifies the production client and server build.</td>
-<td>Passed locally on 2026-07-16; CI confirmation pending.</td>
-</tr>
-<tr>
-<td>Dependency audit</td>
-<td><code>npm audit --audit-level=critical</code></td>
-<td>Checks for critical dependency vulnerabilities as the additional QA gate.</td>
-<td>Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain.</td>
-</tr>
-<tr>
-<td>Link checking</td>
-<td><code>Link Check</code> workflow</td>
-<td>Runs Lychee against repository links using <code>lychee.toml</code>.</td>
-<td>GitHub Actions link-check workflow.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="quality-requirement-test-mapping">Quality Requirement Test Mapping<a class="headerlink" href="#quality-requirement-test-mapping" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>QRT</th>
-<th>QR</th>
-<th>Automated check</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="../quality-requirement-tests/#qrt-001-equipment-permission-unit-test">QRT-001</a></td>
-<td><a href="../quality-requirements/#qr-001-equipment-permission-correctness">QR-001</a></td>
-<td><code>npm test -- client/src/lib/equipment-permissions.test.ts</code></td>
-</tr>
-<tr>
-<td><a href="../quality-requirement-tests/#qrt-002-protected-route-component-test">QRT-002</a></td>
-<td><a href="../quality-requirements/#qr-002-protected-route-access-control">QR-002</a></td>
-<td><code>npm test -- client/src/components/protected-route.test.tsx</code></td>
-</tr>
-<tr>
-<td><a href="../quality-requirement-tests/#qrt-003-coverage-gate">QRT-003</a></td>
-<td><a href="../quality-requirements/#qr-003-automated-regression-coverage">QR-003</a></td>
-<td><code>npm run coverage</code></td>
-</tr>
-<tr>
-<td><a href="../quality-requirement-tests/#qrt-004-calendar-date-helper-tests">QRT-004</a></td>
-<td><a href="../quality-requirements/#qr-004-calendar-date-manipulation-correctness">QR-004</a></td>
-<td><code>npm test -- client/src/lib/task-dates.test.ts</code></td>
-</tr>
-</tbody>
-</table>
-<p>Full quality requirement test details are maintained in <code>docs/quality-requirement-tests.md</code>.</p>
-<h2 id="additional-qa-checks">Additional QA Checks<a class="headerlink" href="#additional-qa-checks" title="Permanent link">&para;</a></h2>
-<p>The additional QA check beyond Lychee is:</p>
-<div class="highlight"><pre><span></span><code>npm<span class="w"> </span>audit<span class="w"> </span>--audit-level<span class="o">=</span>critical
-</code></pre></div>
-<p>Lychee is a link-checking CI gate. It does not count as the additional QA check and does not count as a QRT unless it is directly linked to a measurable quality requirement.</p>
-<h2 id="link-checking">Link Checking<a class="headerlink" href="#link-checking" title="Permanent link">&para;</a></h2>
-<p>Lychee runs through <code>.github/workflows/lychee.yml</code> on pull requests, pushes to <code>main</code>, and manual workflow dispatch.</p>
-<p>The <code>lychee.toml</code> file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission. This document does not claim manual verification of excluded links unless that evidence is recorded in the PR or linked workflow evidence.</p>
-<h2 id="ci-and-qa-check-status">CI and QA Check Status<a class="headerlink" href="#ci-and-qa-check-status" title="Permanent link">&para;</a></h2>
+<h1 id="adr-005-validated-active-workspace-tenant-boundary">ADR-005: Validated Active Workspace Tenant Boundary<a class="headerlink" href="#adr-005-validated-active-workspace-tenant-boundary" title="Permanent link">&para;</a></h1>
+<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
+<p>Accepted</p>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>StreamDesk users can belong to multiple companies and can also keep personal Kanban V2 boards, Calendar events, and projects. Previously, ordinary API routes could aggregate all active memberships, platform or company administrators could receive global data, and some creation paths silently selected the first membership. This allowed records to be exposed or assigned across company boundaries.</p>
+<p>A visual company selector is insufficient because direct REST requests, Dashboard aggregates, autosave, realtime subscriptions, and stale client caches must enforce the same boundary.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p>Every authenticated request resolves one active workspace from the session and the user's persisted preference:</p>
 <ul>
-<li>Last checked: 2026-07-11, against <code>main</code> at <code>6b1265f</code>.</li>
-<li>Latest successful <code>Quality</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929261">run from 2026-07-11</a>.</li>
-<li>Latest successful <code>Link Check</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929242">run from 2026-07-11</a>.</li>
-<li>Successful <code>Quality</code> test evidence: 12 test files and 48 tests passed.</li>
-<li>The <code>Quality</code> coverage step completed successfully and generated the following report: 2.03% statements, 1.32% branches, 1.65% functions, and 2.04% lines across all included files. The critical-module line coverage was 100% for <code>equipment-permissions.ts</code>, 73.33% for <code>protected-route.tsx</code>, and 55.71% for <code>task-dates.ts</code>.</li>
+<li>a user with one active company enters it automatically;</li>
+<li>a user with multiple active companies must choose a company or personal workspace;</li>
+<li>the last still-authorized choice is restored;</li>
+<li>platform administrators explicitly choose a company for ordinary product screens;</li>
+<li>cross-company access remains limited to dedicated <code>/api/platform/*</code> routes and the platform-admin interface.</li>
 </ul>
-<h2 id="limitations-and-follow-up">Limitations and Follow-up<a class="headerlink" href="#limitations-and-follow-up" title="Permanent link">&para;</a></h2>
+<p>The server treats the resolved workspace as an authorization boundary. Company records must match the selected company. Personal records have no company and remain limited by owner, assignee, participant, or board membership rules. Client-supplied company identifiers never select the tenant for a mutation.</p>
+<p>Workspace switching flushes registered autosaves, resets feature state by remounting the workspace shell, clears React Query data, and reconnects the WebSocket transport. Company-only navigation is hidden in personal workspace.</p>
+<p>Existing Calendar rows receive a company only when their organizer has exactly one active company. Records with missing or ambiguous company ownership remain excluded from company screens until they can be assigned safely.</p>
+<h3 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Full browser end-to-end workflows are not covered.</li>
-<li>No coverage threshold is configured in <code>vitest.config.ts</code>; the successful <code>Quality</code> run reports 2.04% line coverage across all included files.</li>
-<li>The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.</li>
-<li>Most server route tests invoke handlers with in-process Express and storage. The realtime suite additionally opens a temporary HTTP/WebSocket server to verify session rejection, company isolation, authorized subscriptions, and identifier-only event delivery; full browser and production-database integration remain manual checks.</li>
+<li><strong>Aggregate every company membership.</strong> Rejected because ordinary screens would combine tenants and make authorization dependent on client filtering.</li>
+<li><strong>Trust a company ID sent with each request.</strong> Rejected because callers could select another company directly.</li>
+<li><strong>Use only a client-side selector.</strong> Rejected because REST, realtime, background refreshes, and stale caches would remain cross-company paths.</li>
+<li><strong>Give platform administrators a global bypass in ordinary screens.</strong> Rejected because global administration and normal company work have different privacy boundaries.</li>
+</ul>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<h3 id="positive">Positive<a class="headerlink" href="#positive" title="Permanent link">&para;</a></h3>
+<ul>
+<li>REST reads, writes, Dashboard aggregates, and realtime subscriptions share one tenant boundary.</li>
+<li>New records inherit the selected workspace and no longer use first-membership fallbacks.</li>
+<li>Personal Kanban V2, Calendar, and Projects remain separate from corporate work.</li>
+<li>Platform administration remains possible without weakening ordinary product screens.</li>
+<li>Workspace switching removes stale cached records and subscriptions.</li>
+</ul>
+<h3 id="negative">Negative<a class="headerlink" href="#negative" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Existing ambiguous records are hidden until safely assigned.</li>
+<li>Route-local legacy modules still require gradual migration to dedicated domain services.</li>
+<li>Switching workspaces causes additional refetches because caches are cleared rather than shared across tenants.</li>
+</ul>
+<h2 id="quality-requirements-addressed">Quality Requirements Addressed<a class="headerlink" href="#quality-requirements-addressed" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>QR-002 (Protected Access Control):</strong> Server-side membership, active-company, direct-record, and realtime checks prevent cross-tenant access.</li>
+<li><strong>QR-003 (Automated Regression Coverage):</strong> Tests cover multiple companies, personal records, persisted selection, direct access denial, cache/realtime reset, and authenticated WebSocket isolation.</li>
 </ul>
 
 
@@ -1692,10 +1484,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
