@@ -988,6 +988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
     locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
+    locationIds: z.array(z.string().trim().min(1)).max(20).optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -1006,6 +1007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     startDate: z.string().trim().nullable().optional(),
     dueDate: z.string().trim().nullable().optional(),
     locationId: z.string().trim().min(1, "locationId не должен быть пустым").nullable().optional(),
+    locationIds: z.array(z.string().trim().min(1)).max(20).optional(),
     assigneeUserId: z.string().trim().min(1, "assigneeUserId не должен быть пустым").nullable().optional(),
     labelIds: z.array(z.string().trim().min(1)).max(30).optional(),
     customFieldValues: z.record(z.unknown()).optional(),
@@ -1380,19 +1382,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { ok: true as const, labelIds: uniqueLabelIds };
   };
 
+  const normalizeLocationIds = (locationIds: unknown): string[] => {
+    if (!Array.isArray(locationIds)) return [];
+    return Array.from(new Set(locationIds.map((value) => String(value || "").trim()).filter(Boolean)));
+  };
+
+  const getKanbanCardLocationIds = async (card: any): Promise<string[]> => {
+    const links = await storage.getKanbanCardLocationLinks(String(card.id)).catch(() => []);
+    const linkedIds = normalizeLocationIds((links as any[]).map((link) => link.locationId));
+    if (linkedIds.length) return linkedIds;
+    return card.locationId ? [String(card.locationId)] : [];
+  };
+
+  const resolveKanbanLocationIds = async (
+    board: any,
+    requestedLocationIds: unknown,
+    existingLocationIds: string[] = [],
+  ) => {
+    const locationIds = normalizeLocationIds(requestedLocationIds);
+    if (locationIds.length > 20) {
+      return { ok: false as const, status: 400, message: "К карточке можно привязать не более 20 площадок" };
+    }
+
+    const existingSet = new Set(existingLocationIds.map(String));
+    const locations = await Promise.all(locationIds.map((locationId) =>
+      storage.getCustomLocationById(locationId).catch(() => undefined),
+    ));
+    for (let index = 0; index < locations.length; index += 1) {
+      const location = locations[index] as any;
+      const locationId = locationIds[index];
+      if (!location) {
+        return { ok: false as const, status: 400, message: "Выберите существующие площадки" };
+      }
+      if (location.archivedAt && !existingSet.has(locationId)) {
+        return { ok: false as const, status: 409, message: "Архивную площадку нельзя добавить к новой связи" };
+      }
+      if (board.companyId && String(location.companyId || "") !== String(board.companyId)) {
+        return { ok: false as const, status: 403, message: "Площадка принадлежит другой компании" };
+      }
+      if (!board.companyId) {
+        return { ok: false as const, status: 400, message: "Личную доску нельзя связывать с площадкой компании" };
+      }
+    }
+
+    return { ok: true as const, locationIds, locations };
+  };
+
   const buildKanbanCardResponses = async (cards: any[]) => {
-    const labelEntries = await Promise.all(
+    const [labelEntries, locationEntries, allLocations, allIssues, allBoards] = await Promise.all([
+      Promise.all(
       cards.map(async (card) => {
         const links = await storage.getKanbanCardLabels(card.id).catch(() => []);
         return [String(card.id), (links as any[]).map((link) => String(link.labelId))] as const;
       }),
-    );
+      ),
+      Promise.all(cards.map(async (card) => [
+        String(card.id),
+        await getKanbanCardLocationIds(card),
+      ] as const)),
+      storage.getCustomLocations().catch(() => []),
+      storage.getLocationIssues().catch(() => []),
+      storage.getKanbanBoards().catch(() => []),
+    ]);
 
     const labelIdsByCardId = new Map(labelEntries);
-    return cards.map((card) => ({
+    const locationIdsByCardId = new Map(locationEntries);
+    const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
+    const boardById = new Map((allBoards as any[]).map((board) => [String(board.id), board]));
+    return cards.map((card) => {
+      const board = boardById.get(String(card.boardId)) as any;
+      const locationIds = (locationIdsByCardId.get(String(card.id)) ?? [])
+        .filter((locationId) => {
+          const location = locationById.get(locationId) as any;
+          return Boolean(
+            location &&
+            board?.companyId &&
+            String(location.companyId || "") === String(board.companyId),
+          );
+        });
+      return {
       ...card,
       labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
-    }));
+      locationIds,
+      locations: locationIds
+        .map((locationId) => locationById.get(locationId))
+        .filter(Boolean)
+        .map((location: any) => ({
+          id: location.id,
+          name: location.name,
+          archivedAt: location.archivedAt ?? null,
+        })),
+      locationWarnings: (allIssues as any[])
+        .filter((issue) =>
+          locationIds.includes(String(issue.locationId)) &&
+          ["high", "critical"].includes(String(issue.severity)) &&
+          !["resolved", "cancelled"].includes(String(issue.status)),
+        )
+        .map((issue) => ({
+          id: issue.id,
+          locationId: issue.locationId,
+          locationName: locationById.get(String(issue.locationId))?.name || "Площадка",
+          title: issue.title,
+          severity: issue.severity,
+        })),
+      };
+    });
   };
 
   const buildKanbanCardResponse = async (card: any) => {
@@ -2529,14 +2623,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!labelResolution.ok) {
         return res.status(400).json({ message: labelResolution.message });
       }
-      if (parsed.locationId) {
-        const location = await storage.getCustomLocationById(parsed.locationId);
-        if (!location || location.archivedAt) {
-          return res.status(400).json({ message: "Выберите существующую площадку" });
-        }
-        if (access.board.companyId && String(location.companyId || "") !== String(access.board.companyId)) {
-          return res.status(403).json({ message: "Площадка принадлежит другой компании" });
-        }
+      const requestedLocationIds = parsed.locationIds !== undefined
+        ? parsed.locationIds
+        : parsed.locationId ? [parsed.locationId] : [];
+      const locationResolution = await resolveKanbanLocationIds(access.board, requestedLocationIds);
+      if (!locationResolution.ok) {
+        return res.status(locationResolution.status).json({ message: locationResolution.message });
       }
 
       const card = await storage.createKanbanCard({
@@ -2548,13 +2640,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: parsed.priority,
         startDate: parseOptionalKanbanDate(parsed.startDate),
         dueDate: parseOptionalKanbanDate(parsed.dueDate),
-        locationId: parsed.locationId || null,
+        locationId: locationResolution.locationIds[0] || null,
         subtasks: normalizeKanbanSubtasks(parsed.subtasks),
         customFieldValues: parsed.customFieldValues ?? {},
         creatorUserId: currentUser.id,
         assigneeUserId: assigneeResolution.userId,
         position: nextPosition,
       });
+      await storage.setKanbanCardLocations(card.id, locationResolution.locationIds);
       await storage.setKanbanCardLabels(card.id, labelResolution.labelIds);
 
       await createKanbanCardHistoryEntry(currentUser.id, card.id, "created", null, card);
@@ -2595,23 +2688,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const parsed = kanbanCardUpdateSchema.parse(req.body || {});
       const updateData: Record<string, unknown> = {};
+      const previousLocationIds = await getKanbanCardLocationIds(card);
+      let nextLocationIds: string[] | undefined;
 
       if (parsed.title !== undefined) updateData.title = parsed.title;
       if (parsed.description !== undefined) updateData.description = parsed.description?.trim() || null;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
       if (parsed.startDate !== undefined) updateData.startDate = parseOptionalKanbanDate(parsed.startDate);
       if (parsed.dueDate !== undefined) updateData.dueDate = parseOptionalKanbanDate(parsed.dueDate);
-      if (parsed.locationId !== undefined) {
-        if (parsed.locationId) {
-          const location = await storage.getCustomLocationById(parsed.locationId);
-          if (!location || location.archivedAt) {
-            return res.status(400).json({ message: "Выберите существующую площадку" });
-          }
-          if (access.board.companyId && String(location.companyId || "") !== String(access.board.companyId)) {
-            return res.status(403).json({ message: "Площадка принадлежит другой компании" });
-          }
+      if (parsed.locationIds !== undefined || parsed.locationId !== undefined) {
+        const requestedLocationIds = parsed.locationIds !== undefined
+          ? parsed.locationIds
+          : parsed.locationId ? [parsed.locationId] : [];
+        const locationResolution = await resolveKanbanLocationIds(
+          access.board,
+          requestedLocationIds,
+          previousLocationIds,
+        );
+        if (!locationResolution.ok) {
+          return res.status(locationResolution.status).json({ message: locationResolution.message });
         }
-        updateData.locationId = parsed.locationId || null;
+        nextLocationIds = locationResolution.locationIds;
+        updateData.locationId = nextLocationIds[0] || null;
       }
       if (parsed.subtasks !== undefined) updateData.subtasks = normalizeKanbanSubtasks(parsed.subtasks);
       if (parsed.customFieldValues !== undefined) updateData.customFieldValues = parsed.customFieldValues ?? {};
@@ -2650,6 +2748,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updated = await storage.updateKanbanCard(card.id, updateData as any);
       if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+      if (nextLocationIds !== undefined) {
+        await storage.setKanbanCardLocations(card.id, nextLocationIds);
+        if (
+          previousLocationIds.length !== nextLocationIds.length ||
+          previousLocationIds.some((locationId, index) => locationId !== nextLocationIds?.[index])
+        ) {
+          await createKanbanCardHistoryEntry(currentUser.id, updated.id, "locations_updated", {
+            locationIds: previousLocationIds,
+          }, {
+            locationIds: nextLocationIds,
+          });
+        }
+      }
       if (parsed.labelIds !== undefined) {
         await storage.setKanbanCardLabels(card.id, nextLabelIds);
         if (
@@ -8365,6 +8476,102 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   // Projects
+  const getProjectDirectLocationIds = async (projectId: string) => {
+    const links = await storage.getProjectLocationLinks(projectId).catch(() => []);
+    return normalizeLocationIds((links as any[]).map((link) => link.locationId));
+  };
+
+  const getProjectCardLocationIds = async (projectId: string) => {
+    const boards = await storage.getKanbanBoards().catch(() => []);
+    const cards = (await Promise.all((boards as any[]).map(async (board) => {
+      const boardCards = await storage.getKanbanCardsByBoardId(board.id).catch(() => []);
+      return (boardCards as any[]).filter((card) =>
+        String(card.projectId || board.projectId || "") === String(projectId),
+      );
+    }))).flat();
+    const cardLocationIds = await Promise.all((cards as any[]).map(getKanbanCardLocationIds));
+    return normalizeLocationIds(cardLocationIds.flat());
+  };
+
+  const buildProjectResponse = async (project: any) => {
+    const [directLocationIds, cardLocationIds, allLocations] = await Promise.all([
+      getProjectDirectLocationIds(project.id),
+      getProjectCardLocationIds(project.id),
+      storage.getCustomLocations().catch(() => []),
+    ]);
+    const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
+    const locationIds = normalizeLocationIds([...directLocationIds, ...cardLocationIds])
+      .filter((locationId) => {
+        const location = locationById.get(locationId) as any;
+        return Boolean(
+          location &&
+          project.companyId &&
+          String(location.companyId || "") === String(project.companyId),
+        );
+      });
+    const directSet = new Set(directLocationIds);
+    const cardSet = new Set(cardLocationIds);
+    return {
+      ...project,
+      directLocationIds,
+      locationIds,
+      locations: locationIds
+        .map((locationId) => locationById.get(locationId))
+        .filter(Boolean)
+        .map((location: any) => ({
+          id: location.id,
+          name: location.name,
+          archivedAt: location.archivedAt ?? null,
+          source: directSet.has(String(location.id)) && cardSet.has(String(location.id))
+            ? "direct_and_cards"
+            : directSet.has(String(location.id)) ? "direct" : "cards",
+        })),
+    };
+  };
+
+  const resolveProjectLocationIds = async (
+    project: any,
+    requestedLocationIds: unknown,
+    existingLocationIds: string[] = [],
+  ) => {
+    const locationIds = normalizeLocationIds(requestedLocationIds);
+    if (locationIds.length > 20) {
+      return { ok: false as const, status: 400, message: "К проекту можно привязать не более 20 площадок" };
+    }
+    if (locationIds.length && !project.companyId) {
+      return { ok: false as const, status: 400, message: "Сначала привяжите проект к компании" };
+    }
+    const existingSet = new Set(existingLocationIds.map(String));
+    const locations = await Promise.all(locationIds.map((locationId) =>
+      storage.getCustomLocationById(locationId).catch(() => undefined),
+    ));
+    for (let index = 0; index < locations.length; index += 1) {
+      const location = locations[index] as any;
+      const locationId = locationIds[index];
+      if (!location) {
+        return { ok: false as const, status: 400, message: "Выберите существующие площадки" };
+      }
+      if (location.archivedAt && !existingSet.has(locationId)) {
+        return { ok: false as const, status: 409, message: "Архивную площадку нельзя добавить к новой связи" };
+      }
+      if (String(location.companyId || "") !== String(project.companyId || "")) {
+        return { ok: false as const, status: 403, message: "Площадка принадлежит другой компании" };
+      }
+    }
+    return { ok: true as const, locationIds };
+  };
+
+  const canAccessProject = async (currentUser: any, project: any) => {
+    if (!currentUser?.id || !project) return false;
+    const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+    if (currentUser.role === "admin" && permissions.includes("platform:admin")) return true;
+    const userId = String(currentUser.id);
+    if (String(project.ownerId || "") === userId || String(project.assignedTo || "") === userId) return true;
+    if (Array.isArray(project.participants) && project.participants.map(String).includes(userId)) return true;
+    const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
+    return Boolean(project.companyId && companyIds.map(String).includes(String(project.companyId)));
+  };
+
   app.get("/api/projects", async (req, res) => {
     const currentUser = req.user as any;
     if (!currentUser?.id) return res.json([]);
@@ -8375,12 +8582,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     );
     const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
     if (currentUser.role === "admin" && permissions.includes("platform:admin")) {
-      return res.json(projects);
+      return res.json(await Promise.all((projects as any[]).map(buildProjectResponse)));
     }
     const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
     const companyIdSet = new Set((companyIds || []).map((id: any) => String(id)));
     const userId = String(currentUser.id);
-    res.json((projects as any[]).filter((project) => {
+    const visibleProjects = (projects as any[]).filter((project) => {
       const participants = Array.isArray(project?.participants) ? project.participants.map(String) : [];
       return (
         (project.companyId && companyIdSet.has(String(project.companyId))) ||
@@ -8388,13 +8595,15 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         String(project.assignedTo || "") === userId ||
         participants.includes(userId)
       );
-    }));
+    });
+    res.json(await Promise.all(visibleProjects.map(buildProjectResponse)));
   });
 
   app.post("/api/projects", async (req, res) => {
     try {
       const currentUser = req.user as any;
-      const { deadline, ...rest } = req.body;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const { deadline, locationIds, ...rest } = req.body;
       if (!rest.ownerId && currentUser?.id) rest.ownerId = currentUser.id;
       if (!rest.companyId && currentUser?.id) {
         const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
@@ -8404,8 +8613,17 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         ...rest,
         deadline: deadline && deadline !== "" ? new Date(deadline) : null,
       };
+      const allowedCompanyIds = await getUserCompanyIds(currentUser).catch(() => []);
+      if (projectData.companyId && !allowedCompanyIds.map(String).includes(String(projectData.companyId))) {
+        return res.status(403).json({ message: "Нет доступа к выбранной компании" });
+      }
+      const locationResolution = await resolveProjectLocationIds(projectData, locationIds ?? []);
+      if (!locationResolution.ok) {
+        return res.status(locationResolution.status).json({ message: locationResolution.message });
+      }
       const project = await storage.createProject(projectData);
-      res.status(201).json(project);
+      await storage.setProjectLocations(project.id, locationResolution.locationIds);
+      res.status(201).json(await buildProjectResponse(project));
     } catch (error: any) {
       console.error("Error creating project:", error);
       const msg = (error.message || "").toLowerCase();
@@ -8420,11 +8638,41 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   app.put("/api/projects/:id", async (req, res) => {
     try {
-      const project = await storage.updateProject(req.params.id, req.body);
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const existing = await storage.getProjectById(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Project not found" });
+      if (!(await canAccessProject(currentUser, existing))) {
+        return res.status(403).json({ message: "Нет доступа к проекту" });
+      }
+      const { locationIds, ...projectData } = req.body || {};
+      if (projectData.companyId && String(projectData.companyId) !== String(existing.companyId || "")) {
+        const allowedCompanyIds = await getUserCompanyIds(currentUser).catch(() => []);
+        if (!allowedCompanyIds.map(String).includes(String(projectData.companyId))) {
+          return res.status(403).json({ message: "Нет доступа к выбранной компании" });
+        }
+      }
+      const previousLocationIds = await getProjectDirectLocationIds(existing.id);
+      let nextLocationIds: string[] | undefined;
+      if (locationIds !== undefined) {
+        const locationResolution = await resolveProjectLocationIds(
+          { ...existing, ...projectData },
+          locationIds,
+          previousLocationIds,
+        );
+        if (!locationResolution.ok) {
+          return res.status(locationResolution.status).json({ message: locationResolution.message });
+        }
+        nextLocationIds = locationResolution.locationIds;
+      }
+      const project = await storage.updateProject(req.params.id, projectData);
       if (!project) {
         return res.status(404).json({ message: "Project not found" });
       }
-      res.json(project);
+      if (nextLocationIds !== undefined) {
+        await storage.setProjectLocations(project.id, nextLocationIds);
+      }
+      res.json(await buildProjectResponse(project));
     } catch (error) {
       res.status(500).json({ message: "Failed to update project" });
     }
@@ -8732,27 +8980,74 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     return companyIds.includes(companyId);
   };
 
-  const getLocationActiveLinkSummary = async (location: any) => {
-    const unresolvedIssues = (await storage.getLocationIssues(location.id).catch(() => []))
+  const getLocationLinkedWork = async (location: any) => {
+    const boards = (await storage.getKanbanBoards().catch(() => []))
+      .filter((board: any) => !location.companyId || String(board.companyId || "") === String(location.companyId));
+    const boardRows = await Promise.all((boards as any[]).map(async (board) => {
+      const [lists, cards] = await Promise.all([
+        storage.getKanbanListsByBoardId(board.id).catch(() => []),
+        storage.getKanbanCardsByBoardId(board.id).catch(() => []),
+      ]);
+      const listById = new Map((lists as any[]).map((list) => [String(list.id), list]));
+      const linkedCards = [];
+      for (const card of cards as any[]) {
+        const locationIds = await getKanbanCardLocationIds(card);
+        if (!locationIds.includes(String(location.id))) continue;
+        const list = listById.get(String(card.listId)) as any;
+        linkedCards.push({
+          id: card.id,
+          title: card.title,
+          boardId: board.id,
+          boardName: board.name,
+          projectId: card.projectId || board.projectId || null,
+          listId: card.listId,
+          listName: list?.name || "Список",
+          listType: list?.type || "active",
+          status: ["closed", "archive", "trash"].includes(String(list?.type || "")) ? "completed" : "active",
+        });
+      }
+      return linkedCards;
+    }));
+    const cards = boardRows.flat();
+
+    const directProjectLinks = await storage.getProjectLocationLinksByLocationId(location.id).catch(() => []);
+    const directProjectIds = new Set((directProjectLinks as any[]).map((link) => String(link.projectId)));
+    const cardProjectIds = new Set(cards.map((card) => String(card.projectId || "")).filter(Boolean));
+    const projects = (await storage.getProjects().catch(() => []))
+      .filter((project: any) =>
+        (!location.companyId || String(project.companyId || "") === String(location.companyId)) &&
+        (directProjectIds.has(String(project.id)) || cardProjectIds.has(String(project.id))),
+      )
+      .map((project: any) => ({
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        completed: ["completed", "archived"].includes(String(project.status || "")),
+        source: directProjectIds.has(String(project.id)) && cardProjectIds.has(String(project.id))
+          ? "direct_and_cards"
+          : directProjectIds.has(String(project.id)) ? "direct" : "cards",
+      }));
+
+    return { cards, projects };
+  };
+
+  const getLocationActiveLinkSummary = async (
+    location: any,
+    linkedWork?: Awaited<ReturnType<typeof getLocationLinkedWork>>,
+  ) => {
+    const [issues, resolvedLinkedWork] = await Promise.all([
+      storage.getLocationIssues(location.id).catch(() => []),
+      linkedWork ? Promise.resolve(linkedWork) : getLocationLinkedWork(location),
+    ]);
+    const unresolvedIssues = (issues as any[])
       .filter((issue: any) => !["resolved", "cancelled"].includes(String(issue.status))).length;
-    const boards = await storage.getKanbanBoards().catch(() => []);
-    let activeKanbanCards = 0;
-    for (const board of boards as any[]) {
-      if (location.companyId && String(board.companyId || "") !== String(location.companyId)) continue;
-      const lists = await storage.getKanbanListsByBoardId(board.id).catch(() => []);
-      const activeListIds = new Set((lists as any[])
-        .filter((list) => !["closed", "archive", "trash"].includes(String(list.type || "")))
-        .map((list) => String(list.id)));
-      const cards = await storage.getKanbanCardsByBoardId(board.id).catch(() => []);
-      activeKanbanCards += (cards as any[]).filter((card) =>
-        String(card.locationId || "") === String(location.id) &&
-        activeListIds.has(String(card.listId || "")),
-      ).length;
-    }
+    const activeKanbanCards = resolvedLinkedWork.cards.filter((card) => card.status === "active").length;
+    const activeProjects = resolvedLinkedWork.projects.filter((project) => !project.completed).length;
     return {
       activeKanbanCards,
+      activeProjects,
       unresolvedDiscussions: unresolvedIssues,
-      total: activeKanbanCards + unresolvedIssues,
+      total: activeKanbanCards + activeProjects + unresolvedIssues,
     };
   };
 
@@ -8797,9 +9092,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const location = await storage.getCustomLocationById(req.params.id);
       if (!location) return res.status(404).json({ message: "Площадка не найдена" });
       if (!(await canAccessLocation(req.user, location))) return res.status(403).json({ message: "Нет доступа к площадке" });
+      const linkedWork = await getLocationLinkedWork(location);
+      const activeLinks = await getLocationActiveLinkSummary(location, linkedWork);
       res.json({
         ...(await serializeCustomLocation(location)),
-        activeLinks: await getLocationActiveLinkSummary(location),
+        activeLinks,
+        linkedWork,
       });
     } catch {
       res.status(500).json({ message: "Не удалось загрузить площадку" });

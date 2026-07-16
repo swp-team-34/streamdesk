@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -477,6 +477,26 @@ export const customLocations = pgTable("custom_locations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const projectLocations = pgTable("project_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id).notNull(),
+  locationId: varchar("location_id").references(() => customLocations.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  projectLocationUnique: uniqueIndex("project_locations_project_location_unique")
+    .on(table.projectId, table.locationId),
+}));
+
+export const kanbanCardLocations = pgTable("kanban_card_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
+  locationId: varchar("location_id").references(() => customLocations.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  cardLocationUnique: uniqueIndex("kanban_card_locations_card_location_unique")
+    .on(table.cardId, table.locationId),
+}));
+
 export const locationIssues = pgTable("location_issues", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   locationId: varchar("location_id").references(() => customLocations.id).notNull(),
@@ -837,6 +857,16 @@ export const insertCustomLocationSchema = createInsertSchema(customLocations).om
   updatedByUserId: true,
 });
 
+export const insertProjectLocationSchema = createInsertSchema(projectLocations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertKanbanCardLocationSchema = createInsertSchema(kanbanCardLocations).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertLocationIssueSchema = createInsertSchema(locationIssues).omit({
   id: true,
   createdAt: true,
@@ -1002,6 +1032,11 @@ export type InsertKanbanCardAttachment = z.infer<typeof insertKanbanCardAttachme
 
 export type CustomLocation = typeof customLocations.$inferSelect;
 export type InsertCustomLocation = z.infer<typeof insertCustomLocationSchema>;
+
+export type ProjectLocation = typeof projectLocations.$inferSelect;
+export type InsertProjectLocation = z.infer<typeof insertProjectLocationSchema>;
+export type KanbanCardLocation = typeof kanbanCardLocations.$inferSelect;
+export type InsertKanbanCardLocation = z.infer<typeof insertKanbanCardLocationSchema>;
 
 export type LocationIssue = typeof locationIssues.$inferSelect;
 export type InsertLocationIssue = z.infer<typeof insertLocationIssueSchema>;

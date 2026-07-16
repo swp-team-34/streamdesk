@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
   kanbanLabels, kanbanCardLabels,
   kanbanCardHistory,
   kanbanCardComments,
@@ -47,6 +47,7 @@ import {
   type KanbanCardComment, type InsertKanbanCardComment,
   type KanbanCardAttachment, type InsertKanbanCardAttachment,
   type CustomLocation, type InsertCustomLocation,
+  type ProjectLocation, type KanbanCardLocation,
   type LocationIssue, type InsertLocationIssue,
   type LocationIssueComment, type InsertLocationIssueComment,
   type ChatSession, type InsertChatSession,
@@ -249,6 +250,9 @@ export interface IStorage {
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, project: Partial<Project>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
+  getProjectLocationLinks(projectId: string): Promise<ProjectLocation[]>;
+  getProjectLocationLinksByLocationId(locationId: string): Promise<ProjectLocation[]>;
+  setProjectLocations(projectId: string, locationIds: string[]): Promise<ProjectLocation[]>;
   
   // Project Columns
   getProjectColumns(projectId: string): Promise<ProjectColumn[]>;
@@ -284,6 +288,9 @@ export interface IStorage {
   updateKanbanCard(id: string, card: Partial<KanbanCard>): Promise<KanbanCard | undefined>;
   moveKanbanCard(id: string, targetListId: string, targetPosition: number): Promise<KanbanCard | undefined>;
   deleteKanbanCard(id: string): Promise<boolean>;
+  getKanbanCardLocationLinks(cardId: string): Promise<KanbanCardLocation[]>;
+  getKanbanCardLocationLinksByLocationId(locationId: string): Promise<KanbanCardLocation[]>;
+  setKanbanCardLocations(cardId: string, locationIds: string[]): Promise<KanbanCardLocation[]>;
   getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]>;
   getKanbanLabelById(id: string): Promise<KanbanLabel | undefined>;
   createKanbanLabel(label: InsertKanbanLabel): Promise<KanbanLabel>;
@@ -1052,9 +1059,37 @@ export class PostgreSQLStorage implements IStorage {
     await db!.update(tasks)
       .set({ projectId: null, projectColumnId: null } as any)
       .where(eq(tasks.projectId, id));
+    await db!.delete(projectLocations).where(eq(projectLocations.projectId, id));
     await db!.delete(projectColumns).where(eq(projectColumns.projectId, id));
     const result = await db!.delete(projects).where(eq(projects.id, id)).returning({ id: projects.id });
     return result.length > 0;
+  }
+
+  async getProjectLocationLinks(projectId: string): Promise<ProjectLocation[]> {
+    return await db!.select().from(projectLocations)
+      .where(eq(projectLocations.projectId, projectId))
+      .orderBy(projectLocations.createdAt);
+  }
+
+  async getProjectLocationLinksByLocationId(locationId: string): Promise<ProjectLocation[]> {
+    return await db!.select().from(projectLocations)
+      .where(eq(projectLocations.locationId, locationId))
+      .orderBy(projectLocations.createdAt);
+  }
+
+  async setProjectLocations(projectId: string, locationIds: string[]): Promise<ProjectLocation[]> {
+    const normalizedLocationIds = Array.from(new Set(locationIds.map(String).map((id) => id.trim()).filter(Boolean)));
+    return await db!.transaction(async (tx) => {
+      await tx.delete(projectLocations).where(eq(projectLocations.projectId, projectId));
+      if (!normalizedLocationIds.length) return [];
+      return await tx.insert(projectLocations).values(
+        normalizedLocationIds.map((locationId) => ({
+          id: crypto.randomUUID(),
+          projectId,
+          locationId,
+        })),
+      ).onConflictDoNothing().returning();
+    });
   }
 
   // Project Columns
@@ -1146,6 +1181,10 @@ export class PostgreSQLStorage implements IStorage {
       .from(kanbanCards)
       .where(eq(kanbanCards.boardId, id));
 
+    await db!.delete(kanbanCardLocations).where(inArray(
+      kanbanCardLocations.cardId,
+      boardCardIdsQuery,
+    ) as any);
     await db!.delete(kanbanCardAttachments).where(inArray(
       kanbanCardAttachments.cardId,
       boardCardIdsQuery,
@@ -1256,6 +1295,10 @@ export class PostgreSQLStorage implements IStorage {
       .from(kanbanCards)
       .where(eq(kanbanCards.listId, id));
 
+    await db!.delete(kanbanCardLocations).where(inArray(
+      kanbanCardLocations.cardId,
+      listCardIdsQuery,
+    ) as any);
     await db!.delete(kanbanCardAttachments).where(inArray(
       kanbanCardAttachments.cardId,
       listCardIdsQuery,
@@ -1389,6 +1432,7 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteKanbanCard(id: string): Promise<boolean> {
+    await db!.delete(kanbanCardLocations).where(eq(kanbanCardLocations.cardId, id));
     await db!.delete(kanbanCardAttachments).where(eq(kanbanCardAttachments.cardId, id));
     await db!.delete(kanbanCardComments).where(eq(kanbanCardComments.cardId, id));
     await db!.delete(kanbanCardHistory).where(eq(kanbanCardHistory.cardId, id));
@@ -1397,6 +1441,33 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(kanbanCards.id, id))
       .returning({ id: kanbanCards.id });
     return result.length > 0;
+  }
+
+  async getKanbanCardLocationLinks(cardId: string): Promise<KanbanCardLocation[]> {
+    return await db!.select().from(kanbanCardLocations)
+      .where(eq(kanbanCardLocations.cardId, cardId))
+      .orderBy(kanbanCardLocations.createdAt);
+  }
+
+  async getKanbanCardLocationLinksByLocationId(locationId: string): Promise<KanbanCardLocation[]> {
+    return await db!.select().from(kanbanCardLocations)
+      .where(eq(kanbanCardLocations.locationId, locationId))
+      .orderBy(kanbanCardLocations.createdAt);
+  }
+
+  async setKanbanCardLocations(cardId: string, locationIds: string[]): Promise<KanbanCardLocation[]> {
+    const normalizedLocationIds = Array.from(new Set(locationIds.map(String).map((id) => id.trim()).filter(Boolean)));
+    return await db!.transaction(async (tx) => {
+      await tx.delete(kanbanCardLocations).where(eq(kanbanCardLocations.cardId, cardId));
+      if (!normalizedLocationIds.length) return [];
+      return await tx.insert(kanbanCardLocations).values(
+        normalizedLocationIds.map((locationId) => ({
+          id: crypto.randomUUID(),
+          cardId,
+          locationId,
+        })),
+      ).onConflictDoNothing().returning();
+    });
   }
 
   async getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]> {
@@ -1958,6 +2029,8 @@ class StubStorage implements IStorage {
   private kanbanCardCommentsMap = new Map<string, KanbanCardComment>();
   private kanbanCardAttachmentsMap = new Map<string, KanbanCardAttachment>();
   private customLocationsMap = new Map<string, CustomLocation>();
+  private projectLocationsMap = new Map<string, ProjectLocation>();
+  private kanbanCardLocationsMap = new Map<string, KanbanCardLocation>();
   private locationIssuesMap = new Map<string, LocationIssue>();
   private locationIssueCommentsMap = new Map<string, LocationIssueComment>();
   private computers = new Map<string, Computer>();
@@ -2399,7 +2472,31 @@ class StubStorage implements IStorage {
     this.projects.set(id, updated);
     return updated;
   }
-  async deleteProject(id: string): Promise<boolean> { return this.projects.delete(id); }
+  async deleteProject(id: string): Promise<boolean> {
+    Array.from(this.projectLocationsMap.entries()).forEach(([linkId, link]) => {
+      if (link.projectId === id) this.projectLocationsMap.delete(linkId);
+    });
+    return this.projects.delete(id);
+  }
+  async getProjectLocationLinks(projectId: string): Promise<ProjectLocation[]> {
+    return Array.from(this.projectLocationsMap.values()).filter((link) => link.projectId === projectId);
+  }
+  async getProjectLocationLinksByLocationId(locationId: string): Promise<ProjectLocation[]> {
+    return Array.from(this.projectLocationsMap.values()).filter((link) => link.locationId === locationId);
+  }
+  async setProjectLocations(projectId: string, locationIds: string[]): Promise<ProjectLocation[]> {
+    Array.from(this.projectLocationsMap.entries()).forEach(([linkId, link]) => {
+      if (link.projectId === projectId) this.projectLocationsMap.delete(linkId);
+    });
+    const links = Array.from(new Set(locationIds.map(String).map((id) => id.trim()).filter(Boolean))).map((locationId) => ({
+      id: this.uid(),
+      projectId,
+      locationId,
+      createdAt: this.now(),
+    } as ProjectLocation));
+    links.forEach((link) => this.projectLocationsMap.set(link.id, link));
+    return links;
+  }
 
   async getProjectColumns(): Promise<ProjectColumn[]> { return []; }
   async createProjectColumn(data: InsertProjectColumn): Promise<ProjectColumn> {
@@ -2443,6 +2540,9 @@ class StubStorage implements IStorage {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.boardId === id) {
         this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardLocationsMap.entries()).forEach(([linkId, link]) => {
+          if (link.cardId === cardId) this.kanbanCardLocationsMap.delete(linkId);
+        });
         Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
           if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
         });
@@ -2536,6 +2636,9 @@ class StubStorage implements IStorage {
     Array.from(this.kanbanCardsMap.entries()).forEach(([cardId, card]) => {
       if (card.listId === id) {
         this.kanbanCardsMap.delete(cardId);
+        Array.from(this.kanbanCardLocationsMap.entries()).forEach(([linkId, link]) => {
+          if (link.cardId === cardId) this.kanbanCardLocationsMap.delete(linkId);
+        });
         Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
           if (attachment.cardId === cardId) this.kanbanCardAttachmentsMap.delete(attachmentId);
         });
@@ -2638,6 +2741,9 @@ class StubStorage implements IStorage {
     return movedCard;
   }
   async deleteKanbanCard(id: string): Promise<boolean> {
+    Array.from(this.kanbanCardLocationsMap.entries()).forEach(([linkId, link]) => {
+      if (link.cardId === id) this.kanbanCardLocationsMap.delete(linkId);
+    });
     Array.from(this.kanbanCardAttachmentsMap.entries()).forEach(([attachmentId, attachment]) => {
       if (attachment.cardId === id) this.kanbanCardAttachmentsMap.delete(attachmentId);
     });
@@ -2651,6 +2757,25 @@ class StubStorage implements IStorage {
       if (comment.cardId === id) this.kanbanCardCommentsMap.delete(commentId);
     });
     return this.kanbanCardsMap.delete(id);
+  }
+  async getKanbanCardLocationLinks(cardId: string): Promise<KanbanCardLocation[]> {
+    return Array.from(this.kanbanCardLocationsMap.values()).filter((link) => link.cardId === cardId);
+  }
+  async getKanbanCardLocationLinksByLocationId(locationId: string): Promise<KanbanCardLocation[]> {
+    return Array.from(this.kanbanCardLocationsMap.values()).filter((link) => link.locationId === locationId);
+  }
+  async setKanbanCardLocations(cardId: string, locationIds: string[]): Promise<KanbanCardLocation[]> {
+    Array.from(this.kanbanCardLocationsMap.entries()).forEach(([linkId, link]) => {
+      if (link.cardId === cardId) this.kanbanCardLocationsMap.delete(linkId);
+    });
+    const links = Array.from(new Set(locationIds.map(String).map((id) => id.trim()).filter(Boolean))).map((locationId) => ({
+      id: this.uid(),
+      cardId,
+      locationId,
+      createdAt: this.now(),
+    } as KanbanCardLocation));
+    links.forEach((link) => this.kanbanCardLocationsMap.set(link.id, link));
+    return links;
   }
   async getKanbanLabelsByBoardId(boardId: string): Promise<KanbanLabel[]> {
     return Array.from(this.kanbanLabelsMap.values())
@@ -3113,6 +3238,27 @@ export async function initDatabase(): Promise<void> {
             AND (SELECT COUNT(*) FROM companies WHERE status = 'active') = 1`;
         await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS location_id text`;
         await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS location_id text`;
+        await client`CREATE TABLE IF NOT EXISTS project_locations (
+          id varchar PRIMARY KEY,
+          project_id varchar NOT NULL,
+          location_id varchar NOT NULL,
+          created_at timestamp DEFAULT now()
+        )`;
+        await client`CREATE UNIQUE INDEX IF NOT EXISTS project_locations_project_location_unique
+          ON project_locations (project_id, location_id)`;
+        await client`CREATE TABLE IF NOT EXISTS kanban_card_locations (
+          id varchar PRIMARY KEY,
+          card_id varchar NOT NULL,
+          location_id varchar NOT NULL,
+          created_at timestamp DEFAULT now()
+        )`;
+        await client`CREATE UNIQUE INDEX IF NOT EXISTS kanban_card_locations_card_location_unique
+          ON kanban_card_locations (card_id, location_id)`;
+        await client`INSERT INTO kanban_card_locations (id, card_id, location_id)
+          SELECT gen_random_uuid()::text, id, location_id
+          FROM kanban_cards
+          WHERE location_id IS NOT NULL
+          ON CONFLICT (card_id, location_id) DO NOTHING`;
         await client`CREATE TABLE IF NOT EXISTS location_issues (
           id varchar PRIMARY KEY,
           location_id varchar NOT NULL,

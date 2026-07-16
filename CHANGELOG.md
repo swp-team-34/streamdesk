@@ -16,6 +16,7 @@ changes are collected under `Unreleased`.
 
 - Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.
 - Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
+- Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
 
 ## [v3.0.0-rc.1] - 2026-07-11
 
