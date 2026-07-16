@@ -5,7 +5,6 @@ import {
   Archive,
   ArchiveRestore,
   Building2,
-  Camera,
   Download,
   Edit3,
   FileText,
@@ -24,6 +23,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  LocationTopicsWorkspace,
+  type LocationTopic,
+} from "@/components/location-topics-workspace";
 import {
   Dialog,
   DialogContent,
@@ -100,17 +103,6 @@ type Location = {
   };
 };
 
-type LocationIssue = {
-  id: string;
-  locationId: string;
-  title: string;
-  description: string;
-  severity: "low" | "medium" | "high" | "critical";
-  status: string;
-  photos?: string[] | null;
-  comments?: Array<{ id: string; content: string; createdAt?: string }>;
-};
-
 type LocationForm = {
   companyId: string;
   name: string;
@@ -139,13 +131,6 @@ const EMPTY_LOCATION: LocationForm = {
   description: "",
   notes: "",
   status: "available",
-};
-const EMPTY_ISSUE = { locationId: "", title: "", description: "", severity: "medium" as const };
-const ISSUE_TONES: Record<string, string> = {
-  low: "text-sky-600",
-  medium: "text-amber-600",
-  high: "text-orange-600",
-  critical: "text-red-600",
 };
 
 function formatDateTime(value?: string | null) {
@@ -179,14 +164,17 @@ export default function LocationsPage() {
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
   const [detailsLocationId, setDetailsLocationId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("locationId");
+    const params = new URLSearchParams(window.location.search);
+    return params.get("topicId") ? null : params.get("locationId");
+  });
+  const [topicId, setTopicId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("topicId");
   });
   const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
   const [archivePreview, setArchivePreview] = useState<ArchivePreview | null>(null);
   const [issueDialog, setIssueDialog] = useState(false);
   const [locationForm, setLocationForm] = useState<LocationForm>(EMPTY_LOCATION);
-  const [issueForm, setIssueForm] = useState(EMPTY_ISSUE);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
 
   const companyQuery = useQuery<any>({
     queryKey: ["/api/companies/me"],
@@ -210,9 +198,9 @@ export default function LocationsPage() {
     queryKey: ["/api/locations", "all"],
     queryFn: async () => (await apiRequest("GET", "/api/locations?archive=all")).json(),
   });
-  const issuesQuery = useQuery<LocationIssue[]>({
+  const issuesQuery = useQuery<LocationTopic[]>({
     queryKey: ["/api/location-issues"],
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
   });
   const locations = locationsQuery.data ?? [];
   const issues = issuesQuery.data ?? [];
@@ -229,7 +217,7 @@ export default function LocationsPage() {
 
   const activeIssueCount = new Map<string, number>();
   for (const issue of issues) {
-    if (!["resolved", "cancelled"].includes(issue.status)) {
+    if (issue.type === "issue" && issue.status === "active") {
       activeIssueCount.set(issue.locationId, (activeIssueCount.get(issue.locationId) ?? 0) + 1);
     }
   }
@@ -405,39 +393,6 @@ export default function LocationsPage() {
     },
   });
 
-  const createIssue = useMutation({
-    mutationFn: async () => (await apiRequest("POST", "/api/location-issues", issueForm)).json(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
-      queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
-      setIssueDialog(false);
-      setIssueForm(EMPTY_ISSUE);
-      toast({ title: "Проблема площадки зарегистрирована" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Не удалось создать проблему", description: error?.message, variant: "destructive" });
-    },
-  });
-
-  const addComment = useMutation({
-    mutationFn: ({ issueId, content }: { issueId: string; content: string }) =>
-      apiRequest("POST", `/api/location-issues/${issueId}/comments`, { content }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] });
-      setCommentDrafts((current) => ({ ...current, [variables.issueId]: "" }));
-    },
-  });
-
-  const uploadPhoto = useMutation({
-    mutationFn: ({ issueId, file }: { issueId: string; file: File }) => {
-      const form = new FormData();
-      form.append("photo", file);
-      return apiRequest("POST", `/api/location-issues/${issueId}/photos`, form, true);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] }),
-  });
-
   const requestArchive = (location: Location) => {
     setDetailsLocationId(null);
     setArchiveTargetId(location.id);
@@ -457,7 +412,7 @@ export default function LocationsPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIssueDialog(true)} disabled={activeLocations.length === 0}>
             <MessageSquarePlus className="mr-2 h-4 w-4" />
-            Сообщить о проблеме
+            Новая тема
           </Button>
           {canManage && (
             <Button onClick={openCreateLocation}>
@@ -603,84 +558,25 @@ export default function LocationsPage() {
         </div>
       )}
 
-      <Card className="border-amber-500/30">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Проблемы площадок
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {issues.filter((issue) => !["resolved", "cancelled"].includes(issue.status)).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Активных проблем нет.</p>
-          ) : issues
-            .filter((issue) => !["resolved", "cancelled"].includes(issue.status))
-            .map((issue) => (
-              <div key={issue.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{issue.title}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {locations.find((location) => location.id === issue.locationId)?.name || "Площадка"} · {issue.description}
-                    </div>
-                    {Array.isArray(issue.photos) && issue.photos.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {issue.photos.map((photo) => (
-                          <img
-                            key={photo}
-                            src={apiUrl(photo)}
-                            alt="Фото проблемы"
-                            className="h-12 w-12 rounded object-cover"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <Badge variant="outline" className={ISSUE_TONES[issue.severity]}>{issue.severity}</Badge>
-                </div>
-                <div className="mt-2 space-y-1">
-                  {(issue.comments ?? []).map((comment) => (
-                    <p key={comment.id} className="rounded bg-muted/50 px-2 py-1 text-sm">{comment.content}</p>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    value={commentDrafts[issue.id] || ""}
-                    onChange={(event) => setCommentDrafts((current) => ({
-                      ...current,
-                      [issue.id]: event.target.value,
-                    }))}
-                    placeholder="Добавить комментарий"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => addComment.mutate({
-                      issueId: issue.id,
-                      content: commentDrafts[issue.id] || "",
-                    })}
-                    disabled={!commentDrafts[issue.id]?.trim()}
-                  >
-                    Добавить
-                  </Button>
-                  <Label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
-                    <Camera className="h-4 w-4" />
-                    Фото
-                    <input
-                      className="hidden"
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) uploadPhoto.mutate({ issueId: issue.id, file });
-                      }}
-                    />
-                  </Label>
-                </div>
-              </div>
-            ))}
-        </CardContent>
-      </Card>
+      <LocationTopicsWorkspace
+        locations={locations}
+        createOpen={issueDialog}
+        onCreateOpenChange={setIssueDialog}
+        topicId={topicId}
+        defaultLocationId={detailsLocationId}
+        onTopicChange={(nextTopicId, locationId) => {
+          setTopicId(nextTopicId);
+          setDetailsLocationId(null);
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams();
+            if (nextTopicId && locationId) {
+              params.set("locationId", locationId);
+              params.set("topicId", nextTopicId);
+            }
+            window.history.replaceState(null, "", params.size ? `/locations?${params}` : "/locations");
+          }
+        }}
+      />
 
       <Dialog open={Boolean(detailsLocation)} onOpenChange={(open) => !open && setDetailsLocationId(null)}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
@@ -1067,74 +963,6 @@ export default function LocationsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={issueDialog} onOpenChange={setIssueDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Сообщить о проблеме площадки</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Label>
-              Площадка
-              <Select
-                value={issueForm.locationId}
-                onValueChange={(value) => setIssueForm((current) => ({ ...current, locationId: value }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Выберите площадку" /></SelectTrigger>
-                <SelectContent>
-                  {activeLocations.map((location) => (
-                    <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Label>
-            <Label>
-              Заголовок
-              <Input
-                value={issueForm.title}
-                onChange={(event) => setIssueForm((current) => ({ ...current, title: event.target.value }))}
-              />
-            </Label>
-            <Label>
-              Описание
-              <Textarea
-                value={issueForm.description}
-                onChange={(event) => setIssueForm((current) => ({ ...current, description: event.target.value }))}
-              />
-            </Label>
-            <Label>
-              Серьёзность
-              <Select
-                value={issueForm.severity}
-                onValueChange={(value) => setIssueForm((current) => ({
-                  ...current,
-                  severity: value as typeof issueForm.severity,
-                }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Низкая</SelectItem>
-                  <SelectItem value="medium">Средняя</SelectItem>
-                  <SelectItem value="high">Высокая</SelectItem>
-                  <SelectItem value="critical">Критическая</SelectItem>
-                </SelectContent>
-              </Select>
-            </Label>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => createIssue.mutate()}
-              disabled={
-                !issueForm.locationId ||
-                !issueForm.title.trim() ||
-                !issueForm.description.trim() ||
-                createIssue.isPending
-              }
-            >
-              Отправить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

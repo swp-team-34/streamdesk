@@ -133,6 +133,14 @@ describe("project and Kanban V2 location links", () => {
         severity: "high",
       }),
     ]);
+    expect((response.body as any).locationTopics).toEqual([
+      expect.objectContaining({
+        locationId: secondLocation.id,
+        title: "Power failure",
+        type: "issue",
+        status: "active",
+      }),
+    ]);
     expect(await storage.getKanbanCardLocationLinks((response.body as any).id)).toHaveLength(2);
   });
 
@@ -228,6 +236,18 @@ describe("project and Kanban V2 location links", () => {
     } as any);
     await storage.setKanbanCardLocations(activeCard.id, [cardLocation.id]);
     await storage.setKanbanCardLocations(completedCard.id, [cardLocation.id]);
+    const topic = await storage.createLocationIssue({
+      locationId: cardLocation.id,
+      projectId: project.id,
+      type: "note",
+      title: "Venue access",
+      description: "Use the service entrance",
+      severity: null,
+      status: "active",
+      reportedByUserId: user.id,
+      authorName: user.name,
+      photos: [],
+    } as any);
 
     const projectResponse = createJsonResponse();
     await listProjects!({ user }, projectResponse);
@@ -238,6 +258,15 @@ describe("project and Kanban V2 location links", () => {
       expect.objectContaining({ id: directLocation.id, source: "direct" }),
       expect.objectContaining({ id: cardLocation.id, source: "cards" }),
     ]));
+    expect(responseProject.locationTopics).toEqual([
+      expect.objectContaining({
+        id: topic.id,
+        locationId: cardLocation.id,
+        title: "Venue access",
+        type: "note",
+        status: "active",
+      }),
+    ]);
 
     const locationResponse = createJsonResponse();
     await getLocation!({ user, params: { id: cardLocation.id } }, locationResponse);
@@ -255,7 +284,8 @@ describe("project and Kanban V2 location links", () => {
       activeLinks: {
         activeKanbanCards: 1,
         activeProjects: 1,
-        total: 2,
+        unresolvedDiscussions: 1,
+        total: 3,
       },
     });
   });
