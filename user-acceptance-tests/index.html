@@ -1550,15 +1550,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#uat-006-verify-recording-place-statuses-and-location-based-issue-reporting" class="md-nav__link">
+  <a href="#uat-006-verify-location-statuses-and-threaded-topics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting
+        UAT-006 — Verify Location Statuses and Threaded Topics
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting">
+    <nav class="md-nav" aria-label="UAT-006 — Verify Location Statuses and Threaded Topics">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2257,15 +2257,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#uat-006-verify-recording-place-statuses-and-location-based-issue-reporting" class="md-nav__link">
+  <a href="#uat-006-verify-location-statuses-and-threaded-topics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting
+        UAT-006 — Verify Location Statuses and Threaded Topics
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting">
+    <nav class="md-nav" aria-label="UAT-006 — Verify Location Statuses and Threaded Topics">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2637,36 +2637,38 @@
 <p>All steps execute without critical errors. The dashboard loads with skeleton states, displays correct workload counts, sorted task lists, and grouped breakdowns. Real-time updates reflect status changes without reloading, and network errors show a message while preserving cached data. The calendar color-codes 24-hour and overdue tasks distinctly using appropriate urgency colors. Drag-and-drop successfully moves task deadlines, persists changes after refresh, reverts on invalid drops, and works consistently across all four calendar views.</p>
 <h3 id="execution-result_4">Execution result<a class="headerlink" href="#execution-result_4" title="Permanent link">&para;</a></h3>
 <p>All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.</p>
-<h2 id="uat-006-verify-recording-place-statuses-and-location-based-issue-reporting">UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting<a class="headerlink" href="#uat-006-verify-recording-place-statuses-and-location-based-issue-reporting" title="Permanent link">&para;</a></h2>
+<h2 id="uat-006-verify-location-statuses-and-threaded-topics">UAT-006 — Verify Location Statuses and Threaded Topics<a class="headerlink" href="#uat-006-verify-location-statuses-and-threaded-topics" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Scenario ID:</strong> UAT-006</li>
-<li><strong>Title:</strong> Verify recording place status visibility, filtering, and issue reporting at production locations</li>
+<li><strong>Title:</strong> Verify Location status visibility, filtering, and threaded note/problem workflows</li>
 <li><strong>Status:</strong> Draft</li>
-<li><strong>Related feature:</strong> Recording Places, Issue Management</li>
+<li><strong>Related feature:</strong> Location workspaces, threaded topics, Kanban V2 and project links</li>
 </ul>
 <h3 id="objective_5">Objective<a class="headerlink" href="#objective_5" title="Permanent link">&para;</a></h3>
-<p>Verify that production workers can view and filter recording place statuses (available, occupied, unavailable, under maintenance) and report issues at a location, with real-time visibility for managers.</p>
+<p>Verify that production workers can view and filter Location statuses, create separate note/problem topics, discuss them with safe files, and see authorized realtime updates across Locations, Kanban V2, projects, and Dashboard.</p>
 <h3 id="preconditions_5">Preconditions<a class="headerlink" href="#preconditions_5" title="Permanent link">&para;</a></h3>
-<p>One or two users can take the roles of production worker and manaer for feature testing; the system contains recording places with various statuses; at least one location/task exists to link issues to.</p>
+<p>Two users can take the roles of production worker and company manager; the system contains active and archived Locations with different statuses; at least one Location is linked to a project and a Kanban V2 card.</p>
 <h3 id="test-steps_5">Test steps<a class="headerlink" href="#test-steps_5" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Open the Recording Places list or dashboard section.</li>
+<li>Open the Locations list or Dashboard section.</li>
 <li>Verify a skeleton loading state appears while data loads.</li>
-<li>After loading, verify each place displays its current status (available, occupied, unavailable, or under maintenance) clearly near the place name.</li>
+<li>After loading, verify each Location displays its current status clearly near the name.</li>
 <li>Apply the "available" status filter and confirm only available places are listed.</li>
 <li>Apply the "occupied" status filter and confirm only occupied places are listed.</li>
 <li>Apply the "unavailable" status filter and confirm only unavailable places are listed.</li>
-<li>Select an "occupied" or "unavailable" place and view its related equipment options. Verify the system indicates that equipment planning for this place may be limited or unavailable.</li>
-<li>Log in as an authorized Manager. Update a recording place status to a new value. Save and reload the page. Verify the status is persisted.</li>
-<li>Log back in as the Production Worker. Navigate to a task, stream, or location page.</li>
-<li>Create a new issue with a valid title, description, and location/work item. Submit it. Verify the system saves the issue and marks it as "reported".</li>
-<li>Attempt to submit another issue with a required field (e.g., title) left empty. Verify the system prevents submission and shows validation errors.</li>
-<li>Log in as the Manager. Open the dashboard or issue list. Verify the newly reported issue appears with its status, reporter, time, and related location/task.</li>
-<li>Log back in as the Production Worker. Update the description of your reported issue and save. Verify the change is persisted.</li>
-<li>As the Manager, refresh the dashboard and verify the issue updates are visible in real time without a manual page reload.</li>
+<li>Log in as an authorized Manager. Update a Location status to a new value. Save and reload the page. Verify the status is persisted.</li>
+<li>Log back in as the Production Worker. Create a <code>note</code> topic with title and description. Verify severity is not requested and the topic remains separate from maintained Location notes.</li>
+<li>Create an <code>issue</code> topic with title, description, severity, and optional links to the related project and Kanban V2 card. Verify the initial status is <code>active</code>.</li>
+<li>Attempt to submit another topic with a required field left empty or a link from another company. Verify the system rejects it.</li>
+<li>Add a text reply and supported photo/document attachment. Verify author, timestamp, filename, and size are shown. Attempt an unsupported or oversized file and verify it is rejected.</li>
+<li>Open the linked Kanban V2 card, project, and Dashboard widget. Verify each shows a compact active-topic summary and navigates back to the correct Location topic.</li>
+<li>As the Manager, resolve the topic, reopen it, then resolve and archive it. Verify each state is visually distinct and available through filters, while history remains readable.</li>
+<li>Verify a regular member cannot change lifecycle status and cannot read topics from another company.</li>
+<li>With both users online, create a reply and change status. Verify authorized views update without manual reload; disconnect and reconnect one client and verify HTTP refetch restores current state.</li>
+<li>Verify desktop and mobile layouts, empty states, archived Location behavior, and direct links using <code>locationId</code> plus <code>topicId</code>.</li>
 </ul>
 <h3 id="expected-result_5">Expected result<a class="headerlink" href="#expected-result_5" title="Permanent link">&para;</a></h3>
-<p>Recording places display correct statuses near their names, filters work accurately, and occupied/unavailable places show equipment planning limitations. Authorized status updates persist after reload. Issues require mandatory fields, save successfully when complete, and appear on the Manager dashboard with full details. Updates and cancellations persist and reflect in real time on authorized dashboards.</p>
+<p>Locations display and filter statuses correctly. Topics preserve author/time history, keep durable notes separate, validate links and files, enforce company access and manager lifecycle permissions, and distinguish active/resolved/archived states. Linked Kanban V2, project, and Dashboard summaries navigate back to the topic and update through realtime events with polling/reconnect fallback.</p>
 <h3 id="execution-result_5">Execution result<a class="headerlink" href="#execution-result_5" title="Permanent link">&para;</a></h3>
 <p>To be filled</p>
 <h2 id="uat-007-verify-project-specific-task-board-and-compactsortable-task-manager">UAT-007 — Verify Project-Specific Task Board and Compact/Sortable Task Manager<a class="headerlink" href="#uat-007-verify-project-specific-task-board-and-compactsortable-task-manager" title="Permanent link">&para;</a></h2>
