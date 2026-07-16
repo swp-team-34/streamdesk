@@ -14,6 +14,7 @@ import {
   GripVertical,
   Layers3,
   LayoutList,
+  MessageSquare,
   MoreHorizontal,
   Package,
   Paperclip,
@@ -42,7 +43,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { DiscussionThread } from "@/components/discussion-thread";
 import { useToast } from "@/hooks/use-toast";
+import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { apiRequest } from "@/lib/queryClient";
 import {
   type DueDateStatus,
@@ -205,6 +208,8 @@ interface KanbanCardView {
   customFieldValues?: Record<string, unknown>;
   creatorUserId: string;
   assigneeUserId?: string | null;
+  commentCount?: number;
+  latestCommentAt?: string | Date | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -234,15 +239,6 @@ interface KanbanCardHistoryView {
   oldValue?: unknown;
   newValue?: unknown;
   createdAt?: string | Date | null;
-}
-
-interface KanbanCardCommentView {
-  id: string;
-  cardId: string;
-  userId: string;
-  content: string;
-  createdAt?: string | Date | null;
-  updatedAt?: string | Date | null;
 }
 
 interface BoardCompletionSummary {
@@ -820,7 +816,6 @@ export default function TasksV2Page() {
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
   const [boardStatsOpen, setBoardStatsOpen] = useState(false);
   const [detailCardForm, setDetailCardForm] = useState(EMPTY_CARD_FORM);
-  const [detailCommentDraft, setDetailCommentDraft] = useState("");
   const [detailSubtaskDraft, setDetailSubtaskDraft] = useState("");
   const [boardViewMode, setBoardViewMode] = useState<BoardViewMode>(() => {
     if (typeof window === "undefined") return "kanban";
@@ -930,6 +925,23 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
+  const cardDiscussionChannels = useMemo(
+    () => cards.map((card) => `kanban-card:${card.id}:comments`),
+    [cards],
+  );
+  useRealtimeSubscriptions(cardDiscussionChannels, (message) => {
+    if (
+      (message.type !== "discussion_event" && message.type !== "realtime_reconnected") ||
+      !selectedBoardId
+    ) {
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+    if (detailCardId) {
+      queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, detailCardId] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
+    }
+  });
   const { data: boardLabels = [], isLoading: boardLabelsLoading } = useQuery<KanbanLabelView[]>({
     queryKey: ["kanban-labels", selectedBoardId],
     enabled: !!selectedBoardId,
@@ -997,17 +1009,6 @@ export default function TasksV2Page() {
       const res = await apiRequest(
         "GET",
         `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/history`,
-      );
-      return await res.json();
-    },
-  });
-  const { data: detailCardComments = [], isLoading: detailCardCommentsLoading } = useQuery<KanbanCardCommentView[]>({
-    queryKey: ["kanban-card-comments", selectedBoardId, detailCardId],
-    enabled: !!selectedBoardId && !!detailCardId,
-    queryFn: async () => {
-      const res = await apiRequest(
-        "GET",
-        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments`,
       );
       return await res.json();
     },
@@ -1648,7 +1649,6 @@ export default function TasksV2Page() {
       clearTimeout(detailAutosaveTimerRef.current);
       detailAutosaveTimerRef.current = null;
     }
-    setDetailCommentDraft("");
   }, [selectedBoardId]);
 
   useEffect(() => {
@@ -2172,35 +2172,6 @@ export default function TasksV2Page() {
     },
   });
 
-  const createCardCommentMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedBoardId) throw new Error("Сначала выберите доску");
-      if (!detailCardId) throw new Error("Сначала выберите карточку");
-      const res = await apiRequest(
-        "POST",
-        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments`,
-        { content: detailCommentDraft.trim() },
-      );
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
-      queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, detailCardId] });
-      setDetailCommentDraft("");
-      toast({
-        title: "Комментарий добавлен",
-        description: "Обсуждение карточки обновлено.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Не удалось добавить комментарий",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const uploadCardAttachmentMutation = useMutation({
     mutationFn: async (file: File) => {
       if (!selectedBoardId) throw new Error("Сначала выберите доску");
@@ -2532,32 +2503,6 @@ export default function TasksV2Page() {
     },
   });
 
-  const deleteCardCommentMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      if (!selectedBoardId) throw new Error("Сначала выберите доску");
-      if (!detailCardId) throw new Error("Сначала выберите карточку");
-      await apiRequest(
-        "DELETE",
-        `/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments/${commentId}`,
-      );
-      return commentId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["kanban-card-comments", selectedBoardId, detailCardId] });
-      toast({
-        title: "Комментарий удален",
-        description: "Лента комментариев обновлена.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Не удалось удалить комментарий",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleCreateBoard = () => {
     setEditingBoardId(null);
     setBoardForm({
@@ -2657,7 +2602,6 @@ export default function TasksV2Page() {
 
     setDetailCardId(null);
     setDetailCardForm(EMPTY_CARD_FORM);
-    setDetailCommentDraft("");
     setDetailSubtaskDraft("");
     setDetailSaveStatus("idle");
     setDetailSaveError("");
@@ -3111,6 +3055,13 @@ export default function TasksV2Page() {
               Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
             </Badge>
           )}
+          {(card.commentCount ?? 0) > 0 && (
+            <Badge variant="outline" className="mt-1.5 w-fit gap-1 rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+              <MessageSquare className="h-3 w-3" />
+              {card.commentCount}
+              {card.latestCommentAt && <span>· {formatDueDateLabel(card.latestCommentAt)}</span>}
+            </Badge>
+          )}
           {list?.type === "active" && (card.locationWarnings?.length ?? 0) > 0 && (
             <Badge variant="destructive" className="mt-1.5 w-fit gap-1 rounded-full text-xs">
               <AlertTriangle className="h-3 w-3" />
@@ -3207,10 +3158,8 @@ export default function TasksV2Page() {
     saveCardMutation.isPending ||
     saveCardDetailMutation.isPending ||
     saveCardSubtasksMutation.isPending ||
-    createCardCommentMutation.isPending ||
     uploadCardAttachmentMutation.isPending ||
     deleteCardAttachmentMutation.isPending ||
-    deleteCardCommentMutation.isPending ||
     deleteCardMutation.isPending;
   const isCardPending = isCardEditPending || moveCardMutation.isPending;
   const canEditSelectedBoard = Boolean(selectedBoard?.canEdit);
@@ -3967,6 +3916,13 @@ export default function TasksV2Page() {
                                                       {equipmentRequestCount > 0 && (
                                                         <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
                                                           Оборудование: {equipmentRequestCount}
+                                                        </span>
+                                                      )}
+                                                      {(card.commentCount ?? 0) > 0 && (
+                                                        <span className={`${KANBAN_BOARD_GHOST_BADGE_CLASS} inline-flex items-center gap-1`}>
+                                                          <MessageSquare className="h-3 w-3" />
+                                                          Комментарии: {card.commentCount}
+                                                          {card.latestCommentAt && ` · ${formatDueDateLabel(card.latestCommentAt)}`}
                                                         </span>
                                                       )}
                                                       {card.locations?.map((location) => (
@@ -5325,79 +5281,29 @@ export default function TasksV2Page() {
 
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
                   <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold">Комментарии</h3>
-                    {detailCardCommentsLoading && (
-                      <span className="text-xs text-muted-foreground">Загружаем комментарии...</span>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    {detailCardComments.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground ">
-                        У этой карточки пока нет комментариев.
-                      </div>
-                    ) : (
-                      detailCardComments.map((comment) => (
-                        <div key={comment.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4 space-y-3 ">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-sm font-medium">
-                              {userById.get(comment.userId)?.name || comment.userId}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full border border-border/35 bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-                                {formatDueDateLabel(comment.createdAt) || "Неизвестное время"}
-                              </span>
-                              {canEditSelectedBoard && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  onClick={() => {
-                                    if (!confirmDelete("Удалить комментарий?")) return;
-                                    deleteCardCommentMutation.mutate(comment.id);
-                                  }}
-                                  disabled={deleteCardCommentMutation.isPending}
-                                >
-                                  Удалить
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <p className="rounded-xl border border-border/35 bg-background/70 px-3 py-3 text-sm leading-6 whitespace-pre-wrap break-words ">
-                            {comment.content}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {canCommentSelectedBoard && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="kanban-detail-comment">
-                        Новый комментарий
-                      </label>
-                      <Textarea
-                        id="kanban-detail-comment"
-                        value={detailCommentDraft}
-                        onChange={(event) => setDetailCommentDraft(event.target.value)}
-                        placeholder="Добавьте короткий комментарий по карточке"
-                        rows={3}
-                        disabled={createCardCommentMutation.isPending}
-                        className={KANBAN_PANEL_TEXTAREA_CLASS}
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          className="rounded-xl"
-                          onClick={() => createCardCommentMutation.mutate()}
-                          disabled={!detailCommentDraft.trim() || createCardCommentMutation.isPending}
-                        >
-                          Добавить комментарий
-                        </Button>
-                      </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">Комментарии и ответы</h3>
+                      {(selectedDetailCard?.commentCount ?? 0) > 0 && (
+                        <Badge variant="outline" className="rounded-full">
+                          {selectedDetailCard?.commentCount}
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                </div>
+                    {selectedBoardId && detailCardId && (
+                      <DiscussionThread
+                        apiPath={`/api/kanban/boards/${selectedBoardId}/cards/${detailCardId}/comments`}
+                        channel={`kanban-card:${detailCardId}:comments`}
+                        queryKey={["kanban-card-comments", selectedBoardId, detailCardId]}
+                        canComment={canCommentSelectedBoard}
+                        emptyLabel="У этой карточки пока нет комментариев."
+                        onActivity={() => {
+                          queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+                          queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, detailCardId] });
+                          queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, detailCardId] });
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
 
 	              </div>

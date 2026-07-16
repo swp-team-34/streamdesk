@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DiscussionThread } from "@/components/discussion-thread";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -75,6 +77,13 @@ interface ProjectColumn {
   name: string;
   order: number;
   color?: string | null;
+}
+
+function formatDiscussionActivity(value: unknown) {
+  if (!value) return "";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "";
+  return format(date, "d MMM, HH:mm", { locale: ru });
 }
 
 // Колонки для менеджера задач (сохраняются в localStorage, используются на странице «Задачи»)
@@ -505,6 +514,18 @@ export default function Projects() {
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["/api/projects"],
   });
+  const projectDiscussionChannels = useMemo(
+    () => (projects as any[])
+      .map((project) => String(project?.id || "").trim())
+      .filter(Boolean)
+      .map((projectId) => `project:${projectId}:comments`),
+    [projects],
+  );
+  useRealtimeSubscriptions(projectDiscussionChannels, (message) => {
+    if (message.type === "discussion_event" || message.type === "realtime_reconnected") {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    }
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -675,6 +696,7 @@ export default function Projects() {
 
   const [projectForStats, setProjectForStats] = useState<any>(null);
   const [projectForAddColumn, setProjectForAddColumn] = useState<any>(null);
+  const [projectForDiscussion, setProjectForDiscussion] = useState<any>(null);
 
   const linkBoardMutation = useMutation({
     mutationFn: async (projectId: string) => {
@@ -1131,6 +1153,19 @@ export default function Projects() {
                           </Badge>
                         </div>
                       )}
+                      {(project.commentCount ?? 0) > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <Badge variant="outline" className="inline-flex items-center gap-1">
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            {project.commentCount} в обсуждении
+                          </Badge>
+                          {project.latestCommentAt && (
+                            <div className="text-xs text-muted-foreground">
+                              Последняя активность: {formatDiscussionActivity(project.latestCommentAt)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -1210,6 +1245,16 @@ export default function Projects() {
                         ? "Открытие..."
                         : "Таск"}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 min-w-[7rem]"
+                      title="Открыть обсуждение проекта"
+                      onClick={() => setProjectForDiscussion(project)}
+                    >
+                      <MessageSquare className="w-4 h-4 mr-1 shrink-0" />
+                      Обсуждение{(project.commentCount ?? 0) > 0 ? ` · ${project.commentCount}` : ""}
+                    </Button>
                     {project.yougileBoardId ? (
                       <>
                         <Button
@@ -1283,6 +1328,29 @@ export default function Projects() {
                 toast({ title: "Проект обновлён" });
               }}
               onCancel={() => setSelectedProject(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!projectForDiscussion} onOpenChange={(open) => !open && setProjectForDiscussion(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Обсуждение проекта
+              {projectForDiscussion && (
+                <span className="font-normal text-muted-foreground">— {projectForDiscussion.name}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {projectForDiscussion && (
+            <DiscussionThread
+              apiPath={`/api/projects/${projectForDiscussion.id}/comments`}
+              channel={`project:${projectForDiscussion.id}:comments`}
+              queryKey={["project-comments", projectForDiscussion.id]}
+              emptyLabel="У проекта пока нет комментариев."
+              onActivity={() => queryClient.invalidateQueries({ queryKey: ["/api/projects"] })}
             />
           )}
         </DialogContent>

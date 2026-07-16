@@ -28,7 +28,7 @@ The diagram shows three internal layers (Client, Server, Data) and the external 
 
 **Key architectural boundaries:**
 - **Authentication boundary:** Handled via `express-session` and a custom middleware that populates `req.user` from `req.session.userId`.
-- **Realtime boundary:** The server exposes a `/ws` WebSocket endpoint used for realtime updates and React Query invalidation for systems, streams, tasks, calendar events, and integration stats.
+- **Realtime boundary:** The server exposes a session-authenticated `/ws` WebSocket endpoint. Discussion clients subscribe only to server-authorized company, project, Kanban V2 card, Location, or equipment scopes. Persisted REST/storage state remains authoritative; identifier-only events trigger React Query invalidation and reconnect refetches. Existing systems, streams, tasks, calendar events, and integration-stat refreshes share the same bounded client transport.
 - **Equipment module:** The Equipment module is stable, but its current primary state-changing workflow is **checkout requests and approve/reject handling**. The older `equipment_reservations` route still exists as legacy, but it is not the main warehouse workflow.
 - **Location context model:** Company-scoped Location workspaces are linked to Kanban V2 cards and projects through dedicated many-to-many tables. Existing single-location card data remains readable through an additive runtime migration, while archived Locations stay visible on historical links but cannot be selected for new links.
 
@@ -100,10 +100,11 @@ The following ADRs document the most important architectural decisions made for 
 - [ADR-001: Centralized Equipment Permission Evaluator](./adr/ADR-001-centralized-equipment-permissions.md)
 - [ADR-002: Declarative Protected Route Wrapper](./adr/ADR-002-declarative-protected-route-wrapper.md)
 - [ADR-003: Unified Monorepo Test and Coverage Configuration](./adr/ADR-003-unified-monorepo-coverage.md)
+- [ADR-004: Authenticated Scoped Realtime Transport](./adr/ADR-004-authenticated-scoped-realtime.md)
 
 ### How the decisions fit together
 
-These three decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
+These four decisions form the foundation of our team's approach to **security, functional correctness, and maintainability**:
 
 1. **Functional Correctness & Security (QR-001, QR-002):**
    - **ADR-001** ensures that complex business rules for equipment access are evaluated consistently on the client side, while server-side route-local checks enforce authorization at the API boundary. 
@@ -113,3 +114,7 @@ These three decisions form the foundation of our team's approach to **security, 
 2. **Maintainability & Testability (QR-003):**
    - **ADR-003** ensures that the entire monorepo (client, server, and shared logic) is covered by a unified automated testing and coverage pipeline. 
    - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.
+
+3. **Realtime Security & Consistency (QR-002, QR-003):**
+   - **ADR-004** authenticates WebSocket upgrades through the same session model as REST, rechecks scope access for every subscription, and keeps all mutations in authorized HTTP routes.
+   - Identifier-only events, bounded lifecycle resources, duplicate suppression, and reconnect refetches prevent realtime delivery from becoming a second or weaker source of application state.

@@ -355,6 +355,18 @@ export const projectColumns = pgTable("project_columns", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const projectComments = pgTable("project_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id).notNull(),
+  userId: varchar("user_id").notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  deletedAt: timestamp("deleted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const kanbanBoards = pgTable("kanban_boards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyId: varchar("company_id").references(() => companies.id),
@@ -443,7 +455,10 @@ export const kanbanCardComments = pgTable("kanban_card_comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   cardId: varchar("card_id").references(() => kanbanCards.id).notNull(),
   userId: varchar("user_id").references(() => users.id).notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  authorName: text("author_name"),
   content: text("content").notNull(),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -841,6 +856,12 @@ export const insertKanbanCardCommentSchema = createInsertSchema(kanbanCardCommen
   updatedAt: true,
 });
 
+export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertKanbanCardAttachmentSchema = createInsertSchema(kanbanCardAttachments).omit({
   id: true,
   createdAt: true,
@@ -1002,6 +1023,9 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 export type ProjectColumn = typeof projectColumns.$inferSelect;
 export type InsertProjectColumn = typeof projectColumns.$inferInsert;
+
+export type ProjectComment = typeof projectComments.$inferSelect;
+export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 
 export type KanbanBoard = typeof kanbanBoards.$inferSelect;
 export type InsertKanbanBoard = z.infer<typeof insertKanbanBoardSchema>;

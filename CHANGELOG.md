@@ -11,6 +11,8 @@ changes are collected under `Unreleased`.
 ### Added
 
 - Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
+- Added attributable threaded comments and replies for projects and Kanban V2 cards, including realtime counts, latest-activity indicators, reconnect states, and preserved historical authorship.
+- Added an authenticated, permission-scoped WebSocket transport with bounded subscriptions, reconnect/refetch recovery, duplicate-event protection, and HTTP/storage as the source of truth.
 
 ### Fixed
 
