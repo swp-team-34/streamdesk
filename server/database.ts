@@ -5,7 +5,7 @@ import {
   users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
-  computers, projects, projectColumns, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
+  computers, projects, projectColumns, projectComments, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
   kanbanLabels, kanbanCardLabels,
   kanbanCardHistory,
   kanbanCardComments,
@@ -37,6 +37,7 @@ import {
   type Computer, type InsertComputer,
   type Project, type InsertProject,
   type ProjectColumn, type InsertProjectColumn,
+  type ProjectComment, type InsertProjectComment,
   type KanbanBoard, type InsertKanbanBoard,
   type KanbanBoardMember, type InsertKanbanBoardMember,
   type KanbanList, type InsertKanbanList,
@@ -253,6 +254,9 @@ export interface IStorage {
   getProjectLocationLinks(projectId: string): Promise<ProjectLocation[]>;
   getProjectLocationLinksByLocationId(locationId: string): Promise<ProjectLocation[]>;
   setProjectLocations(projectId: string, locationIds: string[]): Promise<ProjectLocation[]>;
+  getProjectComments(projectId: string): Promise<ProjectComment[]>;
+  createProjectComment(comment: InsertProjectComment): Promise<ProjectComment>;
+  updateProjectComment(id: string, comment: Partial<ProjectComment>): Promise<ProjectComment | undefined>;
   
   // Project Columns
   getProjectColumns(projectId: string): Promise<ProjectColumn[]>;
@@ -302,7 +306,7 @@ export interface IStorage {
   createKanbanCardHistory(history: InsertKanbanCardHistory): Promise<KanbanCardHistory>;
   getKanbanCardComments(cardId: string): Promise<KanbanCardComment[]>;
   createKanbanCardComment(comment: InsertKanbanCardComment): Promise<KanbanCardComment>;
-  deleteKanbanCardComment(id: string): Promise<boolean>;
+  updateKanbanCardComment(id: string, comment: Partial<KanbanCardComment>): Promise<KanbanCardComment | undefined>;
   getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]>;
   createKanbanCardAttachment(attachment: InsertKanbanCardAttachment): Promise<KanbanCardAttachment>;
   deleteKanbanCardAttachment(id: string): Promise<boolean>;
@@ -1059,6 +1063,7 @@ export class PostgreSQLStorage implements IStorage {
     await db!.update(tasks)
       .set({ projectId: null, projectColumnId: null } as any)
       .where(eq(tasks.projectId, id));
+    await db!.delete(projectComments).where(eq(projectComments.projectId, id));
     await db!.delete(projectLocations).where(eq(projectLocations.projectId, id));
     await db!.delete(projectColumns).where(eq(projectColumns.projectId, id));
     const result = await db!.delete(projects).where(eq(projects.id, id)).returning({ id: projects.id });
@@ -1090,6 +1095,26 @@ export class PostgreSQLStorage implements IStorage {
         })),
       ).onConflictDoNothing().returning();
     });
+  }
+
+  async getProjectComments(projectId: string): Promise<ProjectComment[]> {
+    return await db!.select().from(projectComments)
+      .where(eq(projectComments.projectId, projectId))
+      .orderBy(sql`${projectComments.createdAt} ASC`);
+  }
+
+  async createProjectComment(insertComment: InsertProjectComment): Promise<ProjectComment> {
+    const id = crypto.randomUUID();
+    const result = await db!.insert(projectComments).values({ ...insertComment, id }).returning();
+    return result[0];
+  }
+
+  async updateProjectComment(id: string, commentData: Partial<ProjectComment>): Promise<ProjectComment | undefined> {
+    const result = await db!.update(projectComments)
+      .set({ ...commentData, updatedAt: new Date() })
+      .where(eq(projectComments.id, id))
+      .returning();
+    return result[0];
   }
 
   // Project Columns
@@ -1550,11 +1575,12 @@ export class PostgreSQLStorage implements IStorage {
     return result[0];
   }
 
-  async deleteKanbanCardComment(id: string): Promise<boolean> {
-    const result = await db!.delete(kanbanCardComments)
+  async updateKanbanCardComment(id: string, commentData: Partial<KanbanCardComment>): Promise<KanbanCardComment | undefined> {
+    const result = await db!.update(kanbanCardComments)
+      .set({ ...commentData, updatedAt: new Date() })
       .where(eq(kanbanCardComments.id, id))
-      .returning({ id: kanbanCardComments.id });
-    return result.length > 0;
+      .returning();
+    return result[0];
   }
 
   async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
@@ -2019,6 +2045,7 @@ class StubStorage implements IStorage {
   private connectionSchemaComponents = new Map<string, ConnectionSchemaComponent>();
   private equipment = new Map<string, Equipment>();
   private projects = new Map<string, Project>();
+  private projectCommentsMap = new Map<string, ProjectComment>();
   private kanbanBoardsMap = new Map<string, KanbanBoard>();
   private kanbanBoardMembersMap = new Map<string, KanbanBoardMember>();
   private kanbanListsMap = new Map<string, KanbanList>();
@@ -2476,6 +2503,9 @@ class StubStorage implements IStorage {
     Array.from(this.projectLocationsMap.entries()).forEach(([linkId, link]) => {
       if (link.projectId === id) this.projectLocationsMap.delete(linkId);
     });
+    Array.from(this.projectCommentsMap.entries()).forEach(([commentId, comment]) => {
+      if (comment.projectId === id) this.projectCommentsMap.delete(commentId);
+    });
     return this.projects.delete(id);
   }
   async getProjectLocationLinks(projectId: string): Promise<ProjectLocation[]> {
@@ -2496,6 +2526,24 @@ class StubStorage implements IStorage {
     } as ProjectLocation));
     links.forEach((link) => this.projectLocationsMap.set(link.id, link));
     return links;
+  }
+  async getProjectComments(projectId: string): Promise<ProjectComment[]> {
+    return Array.from(this.projectCommentsMap.values())
+      .filter((comment) => comment.projectId === projectId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async createProjectComment(data: InsertProjectComment): Promise<ProjectComment> {
+    const id = this.uid();
+    const comment = { ...data, id, createdAt: this.now(), updatedAt: this.now() } as ProjectComment;
+    this.projectCommentsMap.set(id, comment);
+    return comment;
+  }
+  async updateProjectComment(id: string, data: Partial<ProjectComment>): Promise<ProjectComment | undefined> {
+    const comment = this.projectCommentsMap.get(id);
+    if (!comment) return undefined;
+    const updated = { ...comment, ...data, updatedAt: this.now() } as ProjectComment;
+    this.projectCommentsMap.set(id, updated);
+    return updated;
   }
 
   async getProjectColumns(): Promise<ProjectColumn[]> { return []; }
@@ -2847,8 +2895,12 @@ class StubStorage implements IStorage {
     this.kanbanCardCommentsMap.set(id, comment);
     return comment;
   }
-  async deleteKanbanCardComment(id: string): Promise<boolean> {
-    return this.kanbanCardCommentsMap.delete(id);
+  async updateKanbanCardComment(id: string, data: Partial<KanbanCardComment>): Promise<KanbanCardComment | undefined> {
+    const comment = this.kanbanCardCommentsMap.get(id);
+    if (!comment) return undefined;
+    const updated = { ...comment, ...data, updatedAt: this.now() } as KanbanCardComment;
+    this.kanbanCardCommentsMap.set(id, updated);
+    return updated;
   }
   async getKanbanCardAttachments(cardId: string): Promise<KanbanCardAttachment[]> {
     return Array.from(this.kanbanCardAttachmentsMap.values())
@@ -3199,6 +3251,32 @@ export async function initDatabase(): Promise<void> {
         await client`ALTER TABLE kanban_cards ADD COLUMN IF NOT EXISTS custom_field_values jsonb DEFAULT '{}'::jsonb`;
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS group_id text`;
         await client`ALTER TABLE kanban_labels ADD COLUMN IF NOT EXISTS archived_at timestamp`;
+        await client`ALTER TABLE kanban_card_comments ADD COLUMN IF NOT EXISTS parent_comment_id varchar`;
+        await client`ALTER TABLE kanban_card_comments ADD COLUMN IF NOT EXISTS author_name text`;
+        await client`ALTER TABLE kanban_card_comments ADD COLUMN IF NOT EXISTS deleted_at timestamp`;
+        await client`UPDATE kanban_card_comments AS comments
+          SET author_name = COALESCE(comments.author_name, users.name, users.username, 'Удалённый пользователь')
+          FROM users
+          WHERE comments.user_id = users.id
+            AND comments.author_name IS NULL`;
+        await client`UPDATE kanban_card_comments
+          SET author_name = 'Удалённый пользователь'
+          WHERE author_name IS NULL`;
+        await client`CREATE TABLE IF NOT EXISTS project_comments (
+          id varchar PRIMARY KEY,
+          project_id varchar NOT NULL,
+          user_id varchar NOT NULL,
+          parent_comment_id varchar,
+          author_name text NOT NULL,
+          content text NOT NULL,
+          deleted_at timestamp,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        )`;
+        await client`CREATE INDEX IF NOT EXISTS project_comments_project_created_idx
+          ON project_comments (project_id, created_at)`;
+        await client`CREATE INDEX IF NOT EXISTS kanban_card_comments_card_created_idx
+          ON kanban_card_comments (card_id, created_at)`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить Kanban V2 schema:", schemaErr);
       }

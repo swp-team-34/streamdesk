@@ -1,5 +1,5 @@
 ﻿import express, { type Express } from "express";
-import { createServer as createHttpServer, type Server } from "http";
+import { createServer as createHttpServer, ServerResponse, type Server } from "http";
 import { createServer as createHttpsServer } from "https";
 import fsSync from "fs";
 import { WebSocketServer, WebSocket } from "ws";
@@ -21,7 +21,6 @@ import {
   insertTaskCommentSchema,
   insertTaskHistorySchema,
   insertRoleSchema,
-  insertKanbanCardCommentSchema,
   insertKanbanCardAttachmentSchema,
   insertKanbanLabelSchema,
   insertLocationIssueSchema,
@@ -40,6 +39,12 @@ import { telegramBot } from "./services/telegram-bot";
 import { hashPassword, verifyPassword, isPasswordHashed } from "./auth";
 import { getTerminalLogs } from "./terminal-log";
 import { getTerminalAllowedRoles, setTerminalAllowedRoles, canViewTerminal } from "./terminal-access";
+import {
+  createDiscussionRealtimeEvent,
+  normalizeRealtimeChannels,
+  parseRealtimeChannel,
+  type DiscussionRealtimeEvent,
+} from "./realtime";
 
 /** Парсит заголовок x-user: поддерживает JSON и Base64 (для кириллицы в имени). */
 function parseUserHeader(header: string | undefined): Record<string, unknown> {
@@ -366,6 +371,24 @@ async function withDbTimeout<T>(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  type RealtimeClientContext = {
+    user: any;
+    subscriptions: Set<string>;
+    isAlive: boolean;
+  };
+
+  const realtimeClients = new Map<WebSocket, RealtimeClientContext>();
+  const publishDiscussionEvent = (event: DiscussionRealtimeEvent) => {
+    for (const [socket, context] of realtimeClients) {
+      if (socket.readyState !== WebSocket.OPEN || !context.subscriptions.has(event.channel)) continue;
+      try {
+        socket.send(JSON.stringify(event));
+      } catch (error) {
+        console.warn("[WebSocket] Failed to publish discussion event:", error);
+      }
+    }
+  };
+
   // За прокси (nginx, cloud) — доверяем X-Forwarded-Proto для определения HTTPS
   app.set("trust proxy", 1);
 
@@ -407,51 +430,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
     console.warn("[Security] В production задайте SESSION_SECRET в .env");
   }
-  app.use(
-    session({
-      secret: sessionSecret || "fallback-not-secure",
-      resave: false,
-      saveUninitialized: false,
-      name: "streamdesk.sid",
-      cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production" ? "auto" : false,
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    secret: sessionSecret || "fallback-not-secure",
+    resave: false,
+    saveUninitialized: false,
+    name: "streamdesk.sid",
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production" ? "auto" : false,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    },
+  });
+  app.use(sessionMiddleware);
+
+  const fallbackAdminUser = () => ({
+    id: "admin-fallback",
+    username: process.env.ADMIN_USERNAME || "admin",
+    name: "Администратор",
+    email: null,
+    phone: null,
+    position: null,
+    department: null,
+    role: "admin",
+    permissions: ["admin:panel", "users:manage", "roles:manage", "tasks:view", "tasks:create", "tasks:edit", "tasks:delete", "tasks:assign", "equipment:view", "equipment:create", "equipment:edit", "equipment:delete", "equipment:reserve", "events:view", "events:create", "events:edit", "events:delete", "streams:view", "streams:manage", "systems:view", "systems:manage", "settings:manage"],
+    telegramId: null,
+    avatar: null,
+    active: true,
+    lastLogin: null,
+    createdAt: new Date(),
+  });
+
+  const resolveSessionUser = async (sessionUserId: unknown): Promise<any> => {
+    const userId = String(sessionUserId || "").trim();
+    if (!userId) return null;
+    if (userId === "admin-fallback") return fallbackAdminUser();
+    return await storage.getUser(userId).catch(() => null);
+  };
 
   // Для /api заполняем req.user из сессии (не доверяем заголовок x-user для авторизации)
   app.use("/api", async (req, res, next) => {
-    const sid = req.session?.userId;
-    if (sid === "admin-fallback") {
-      req.user = {
-        id: "admin-fallback",
-        username: process.env.ADMIN_USERNAME || "admin",
-        name: "Администратор",
-        email: null,
-        phone: null,
-        position: null,
-        department: null,
-        role: "admin",
-        permissions: ["admin:panel", "users:manage", "roles:manage", "tasks:view", "tasks:create", "tasks:edit", "tasks:delete", "tasks:assign", "equipment:view", "equipment:create", "equipment:edit", "equipment:delete", "equipment:reserve", "events:view", "events:create", "events:edit", "events:delete", "streams:view", "streams:manage", "systems:view", "systems:manage", "settings:manage"],
-        telegramId: null,
-        avatar: null,
-        active: true,
-        lastLogin: null,
-        createdAt: new Date(),
-      } as any;
-    } else if (sid) {
-      try {
-        const user = await storage.getUser(sid);
-        req.user = user ?? null;
-      } catch {
-        req.user = null;
-      }
-    } else {
-      req.user = null;
-    }
+    req.user = await resolveSessionUser(req.session?.userId);
     next();
   });
 
@@ -1184,6 +1203,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const canCommentKanbanBoard = (access: { canManage: boolean; membership?: any }) =>
     canEditKanbanBoard(access) || Boolean(access.membership?.canComment);
 
+  const discussionCommentPayloadSchema = z.object({
+    content: z.string().trim().min(1, "Комментарий не должен быть пустым").max(10_000),
+    parentCommentId: z.string().trim().min(1).max(160).nullable().optional(),
+  });
+
+  const serializeDiscussionComments = async (
+    comments: any[],
+    currentUser: any,
+    canManage: boolean,
+  ) => {
+    const users = await storage.getUsers().catch(() => []);
+    const userById = new Map((users as any[]).map((user) => [String(user.id), user]));
+    return comments.map((comment) => {
+      const storedAuthorName = String(comment.authorName || "").trim();
+      const currentAuthor = userById.get(String(comment.userId)) as any;
+      const authorName = storedAuthorName || currentAuthor?.name || currentAuthor?.username || "Удалённый пользователь";
+      const isDeleted = Boolean(comment.deletedAt);
+      return {
+        ...comment,
+        authorName,
+        content: isDeleted ? "" : comment.content,
+        isDeleted,
+        canDelete: !isDeleted && (
+          canManage ||
+          String(comment.userId || "") === String(currentUser?.id || "")
+        ),
+      };
+    });
+  };
+
+  const findDiscussionRoot = (comments: any[], parentCommentId: unknown) => {
+    const normalizedParentId = String(parentCommentId || "").trim();
+    if (!normalizedParentId) return { ok: true as const, parentCommentId: null };
+    const parent = comments.find((comment) => String(comment.id) === normalizedParentId);
+    if (!parent || parent.deletedAt) {
+      return { ok: false as const, message: "Исходный комментарий не найден" };
+    }
+    if (parent.parentCommentId) {
+      return { ok: false as const, message: "Ответ можно добавить только к корневому комментарию" };
+    }
+    return { ok: true as const, parentCommentId: String(parent.id) };
+  };
+
   const getProjectKanbanTeamUserIds = (project: any, currentUser?: any) => {
     const ids = new Set<string>();
     const add = (value: unknown) => {
@@ -1429,7 +1491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const buildKanbanCardResponses = async (cards: any[]) => {
-    const [labelEntries, locationEntries, allLocations, allIssues, allBoards] = await Promise.all([
+    const [labelEntries, locationEntries, commentEntries, allLocations, allIssues, allBoards] = await Promise.all([
       Promise.all(
       cards.map(async (card) => {
         const links = await storage.getKanbanCardLabels(card.id).catch(() => []);
@@ -1440,6 +1502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         String(card.id),
         await getKanbanCardLocationIds(card),
       ] as const)),
+      Promise.all(cards.map(async (card) => [
+        String(card.id),
+        await storage.getKanbanCardComments(card.id).catch(() => []),
+      ] as const)),
       storage.getCustomLocations().catch(() => []),
       storage.getLocationIssues().catch(() => []),
       storage.getKanbanBoards().catch(() => []),
@@ -1447,10 +1513,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const labelIdsByCardId = new Map(labelEntries);
     const locationIdsByCardId = new Map(locationEntries);
+    const commentsByCardId = new Map(commentEntries);
     const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
     const boardById = new Map((allBoards as any[]).map((board) => [String(board.id), board]));
     return cards.map((card) => {
       const board = boardById.get(String(card.boardId)) as any;
+      const activeComments = ((commentsByCardId.get(String(card.id)) ?? []) as any[])
+        .filter((comment) => !comment.deletedAt);
+      const latestCommentAt = activeComments.reduce<string | null>((latest, comment) => {
+        const value = new Date(comment.updatedAt || comment.createdAt || 0).getTime();
+        const latestValue = latest ? new Date(latest).getTime() : 0;
+        return value > latestValue ? new Date(value).toISOString() : latest;
+      }, null);
       const locationIds = (locationIdsByCardId.get(String(card.id)) ?? [])
         .filter((locationId) => {
           const location = locationById.get(locationId) as any;
@@ -1463,6 +1537,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return {
       ...card,
       labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
+      commentCount: activeComments.length,
+      latestCommentAt,
       locationIds,
       locations: locationIds
         .map((locationId) => locationById.get(locationId))
@@ -2267,7 +2343,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const comments = await storage.getKanbanCardComments(card.id).catch(() => []);
-      res.json(comments);
+      res.json(await serializeDiscussionComments(
+        comments as any[],
+        currentUser,
+        canEditKanbanBoard(access),
+      ));
     } catch (error) {
       console.error("[Kanban] Failed to fetch card comments:", error);
       res.status(500).json({ message: "Не удалось загрузить комментарии карточки" });
@@ -2399,23 +2479,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Карточка не найдена" });
       }
 
-      const commentData = insertKanbanCardCommentSchema.parse({
-        ...req.body,
-        cardId: card.id,
-        userId: currentUser.id,
-      });
-      const normalizedContent = String(commentData.content || "").trim();
-      if (!normalizedContent) {
-        return res.status(400).json({ message: "Комментарий не должен быть пустым" });
+      const payload = discussionCommentPayloadSchema.parse(req.body || {});
+      const existingComments = await storage.getKanbanCardComments(card.id).catch(() => []);
+      const parentResolution = findDiscussionRoot(existingComments as any[], payload.parentCommentId);
+      if (!parentResolution.ok) {
+        return res.status(400).json({ message: parentResolution.message });
       }
 
       const comment = await storage.createKanbanCardComment({
-        ...commentData,
-        content: normalizedContent,
+        cardId: card.id,
+        userId: currentUser.id,
+        parentCommentId: parentResolution.parentCommentId,
+        authorName: String(currentUser.name || currentUser.username || "Пользователь"),
+        content: payload.content,
       });
 
       await createKanbanCardHistoryEntry(currentUser.id, card.id, "commented", null, {
         commentId: comment.id,
+        parentCommentId: comment.parentCommentId || null,
         content: comment.content.slice(0, 200),
       });
 
@@ -2427,7 +2508,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Новый комментарий к карточке: ${card.title}`,
       );
 
-      res.status(201).json(comment);
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `kanban-card:${card.id}:comments`,
+        action: comment.parentCommentId ? "replied" : "created",
+        recordId: comment.id,
+        version: comment.updatedAt,
+      }));
+
+      const [responseComment] = await serializeDiscussionComments(
+        [comment],
+        currentUser,
+        canEditKanbanBoard(access),
+      );
+      res.status(201).json(responseComment);
     } catch (error: any) {
       if (error?.name === "ZodError") {
         return res.status(400).json({ message: "Проверьте данные комментария", errors: error.flatten?.() });
@@ -2444,10 +2537,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await getKanbanBoardAccess(currentUser, req.params.boardId);
       if (!access) return res.status(404).json({ message: "Доска не найдена или недоступна" });
-      if (!canEditKanbanBoard(access)) {
-        return res.status(403).json({ message: "Недостаточно прав для удаления комментариев" });
-      }
-
       const card = await storage.getKanbanCardById(req.params.cardId).catch(() => undefined);
       if (!card || String(card.boardId) !== String(access.board.id)) {
         return res.status(404).json({ message: "Карточка не найдена" });
@@ -2458,9 +2547,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!comment) {
         return res.status(404).json({ message: "Комментарий не найден" });
       }
+      if (
+        !canEditKanbanBoard(access) &&
+        String(comment.userId || "") !== String(currentUser.id)
+      ) {
+        return res.status(403).json({ message: "Можно удалить только собственный комментарий" });
+      }
+      if (comment.deletedAt) {
+        return res.json({ success: true });
+      }
 
-      const deleted = await storage.deleteKanbanCardComment(comment.id);
+      const deleted = await storage.updateKanbanCardComment(comment.id, {
+        deletedAt: new Date(),
+      } as any);
       if (!deleted) return res.status(404).json({ message: "Комментарий не найден" });
+
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `kanban-card:${card.id}:comments`,
+        action: "deleted",
+        recordId: deleted.id,
+        version: deleted.updatedAt,
+      }));
 
       res.json({ success: true });
     } catch (error) {
@@ -8494,10 +8601,11 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   };
 
   const buildProjectResponse = async (project: any) => {
-    const [directLocationIds, cardLocationIds, allLocations] = await Promise.all([
+    const [directLocationIds, cardLocationIds, allLocations, comments] = await Promise.all([
       getProjectDirectLocationIds(project.id),
       getProjectCardLocationIds(project.id),
       storage.getCustomLocations().catch(() => []),
+      storage.getProjectComments(project.id).catch(() => []),
     ]);
     const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
     const locationIds = normalizeLocationIds([...directLocationIds, ...cardLocationIds])
@@ -8511,8 +8619,16 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       });
     const directSet = new Set(directLocationIds);
     const cardSet = new Set(cardLocationIds);
+    const activeComments = (comments as any[]).filter((comment) => !comment.deletedAt);
+    const latestCommentAt = activeComments.reduce<string | null>((latest, comment) => {
+      const value = new Date(comment.updatedAt || comment.createdAt || 0).getTime();
+      const latestValue = latest ? new Date(latest).getTime() : 0;
+      return value > latestValue ? new Date(value).toISOString() : latest;
+    }, null);
     return {
       ...project,
+      commentCount: activeComments.length,
+      latestCommentAt,
       directLocationIds,
       locationIds,
       locations: locationIds
@@ -8571,6 +8687,126 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     const companyIds = await getUserCompanyIds(currentUser).catch(() => []);
     return Boolean(project.companyId && companyIds.map(String).includes(String(project.companyId)));
   };
+
+  const canManageProjectDiscussion = async (currentUser: any, project: any) => {
+    if (!currentUser?.id || !project) return false;
+    if (currentUser.role === "admin") return true;
+    const userId = String(currentUser.id);
+    if (
+      String(project.ownerId || "") === userId ||
+      String(project.assignedTo || "") === userId
+    ) {
+      return true;
+    }
+    return Boolean(
+      project.companyId &&
+      await canManageCompany(currentUser, String(project.companyId)).catch(() => false)
+    );
+  };
+
+  app.get("/api/projects/:projectId/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const project = await storage.getProjectById(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к обсуждению проекта" });
+      }
+      const comments = await storage.getProjectComments(project.id).catch(() => []);
+      res.json(await serializeDiscussionComments(
+        comments as any[],
+        currentUser,
+        await canManageProjectDiscussion(currentUser, project),
+      ));
+    } catch (error) {
+      console.error("[Projects] Failed to fetch comments:", error);
+      res.status(500).json({ message: "Не удалось загрузить комментарии проекта" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const project = await storage.getProjectById(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к обсуждению проекта" });
+      }
+
+      const payload = discussionCommentPayloadSchema.parse(req.body || {});
+      const existingComments = await storage.getProjectComments(project.id).catch(() => []);
+      const parentResolution = findDiscussionRoot(existingComments as any[], payload.parentCommentId);
+      if (!parentResolution.ok) {
+        return res.status(400).json({ message: parentResolution.message });
+      }
+
+      const comment = await storage.createProjectComment({
+        projectId: project.id,
+        userId: currentUser.id,
+        parentCommentId: parentResolution.parentCommentId,
+        authorName: String(currentUser.name || currentUser.username || "Пользователь"),
+        content: payload.content,
+        deletedAt: null,
+      });
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `project:${project.id}:comments`,
+        action: comment.parentCommentId ? "replied" : "created",
+        recordId: comment.id,
+        version: comment.updatedAt,
+      }));
+
+      const [responseComment] = await serializeDiscussionComments(
+        [comment],
+        currentUser,
+        await canManageProjectDiscussion(currentUser, project),
+      );
+      res.status(201).json(responseComment);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: error.issues?.[0]?.message || "Проверьте комментарий" });
+      }
+      console.error("[Projects] Failed to create comment:", error);
+      res.status(500).json({ message: "Не удалось добавить комментарий проекта" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/comments/:commentId", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const project = await storage.getProjectById(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Проект не найден" });
+      if (!(await canAccessProject(currentUser, project))) {
+        return res.status(403).json({ message: "Нет доступа к обсуждению проекта" });
+      }
+
+      const comments = await storage.getProjectComments(project.id).catch(() => []);
+      const comment = (comments as any[]).find((item) => String(item.id) === String(req.params.commentId));
+      if (!comment) return res.status(404).json({ message: "Комментарий не найден" });
+      const canManage = await canManageProjectDiscussion(currentUser, project);
+      if (!canManage && String(comment.userId || "") !== String(currentUser.id)) {
+        return res.status(403).json({ message: "Можно удалить только собственный комментарий" });
+      }
+      if (comment.deletedAt) return res.json({ success: true });
+
+      const deleted = await storage.updateProjectComment(comment.id, {
+        deletedAt: new Date(),
+      } as any);
+      if (!deleted) return res.status(404).json({ message: "Комментарий не найден" });
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `project:${project.id}:comments`,
+        action: "deleted",
+        recordId: deleted.id,
+        version: deleted.updatedAt,
+      }));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Projects] Failed to delete comment:", error);
+      res.status(500).json({ message: "Не удалось удалить комментарий проекта" });
+    }
+  });
 
   app.get("/api/projects", async (req, res) => {
     const currentUser = req.user as any;
@@ -9960,124 +10196,197 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   }
 
-  // WebSocket server for real-time updates
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const authorizeRealtimeChannel = async (user: any, channel: string) => {
+    const parsed = parseRealtimeChannel(channel);
+    if (!parsed || !user?.id) return false;
 
-  wss.on('connection', (ws: WebSocket) => {
-    console.log('[WebSocket] Client connected');
+    if (parsed.scope === "company") {
+      const companyIds = await getUserCompanyIds(user).catch(() => []);
+      return companyIds.map(String).includes(parsed.recordId);
+    }
+    if (parsed.scope === "project") {
+      const project = await storage.getProjectById(parsed.recordId).catch(() => undefined);
+      return Boolean(project && await canAccessProject(user, project));
+    }
+    if (parsed.scope === "kanban-card") {
+      const card = await storage.getKanbanCardById(parsed.recordId).catch(() => undefined);
+      if (!card) return false;
+      return Boolean(await getKanbanBoardAccess(user, String(card.boardId)).catch(() => null));
+    }
+    if (parsed.scope === "location") {
+      const location = await storage.getCustomLocationById(parsed.recordId).catch(() => undefined);
+      return Boolean(location && await canAccessLocation(user, location));
+    }
+    if (parsed.scope === "equipment") {
+      const item = await storage.getEquipmentById(parsed.recordId).catch(() => undefined);
+      return Boolean(item && await hasWorkspaceAccess(user));
+    }
+    return false;
+  };
 
-    // Send initial data
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+
+  const rejectWebSocketUpgrade = (socket: any, statusCode: number, statusText: string) => {
     try {
-      ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected' }));
-    } catch (error) {
-      console.error('[WebSocket] Error sending initial message:', error);
+      socket.write(
+        `HTTP/1.1 ${statusCode} ${statusText}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+      );
+    } finally {
+      socket.destroy();
+    }
+  };
+
+  server.on("upgrade", (request, socket, head) => {
+    let pathname = "";
+    try {
+      pathname = new URL(request.url || "/", "http://localhost").pathname;
+    } catch {
+      return rejectWebSocketUpgrade(socket, 400, "Bad Request");
+    }
+    if (pathname !== "/ws") return;
+
+    const response = new ServerResponse(request);
+    sessionMiddleware(request as any, response as any, async (error?: unknown) => {
+      if (error) return rejectWebSocketUpgrade(socket, 500, "Internal Server Error");
+      const user = await resolveSessionUser((request as any).session?.userId);
+      if (!user?.id || user.active === false) {
+        return rejectWebSocketUpgrade(socket, 401, "Unauthorized");
+      }
+      (request as any).realtimeUser = user;
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit("connection", ws, request);
+      });
+    });
+  });
+
+  wss.on("connection", (ws: WebSocket, request: any) => {
+    const user = request.realtimeUser;
+    if (!user?.id) {
+      ws.close(1008, "Unauthorized");
+      return;
     }
 
-    // Simulate real-time updates with error handling
-    const interval = setInterval(async () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        try {
-          // Send system status updates (with timeout protection)
-          const systems = await withDbTimeout(
-            () => storage.getSystems(),
-            5000, // 5 секунд таймаут для WebSocket обновлений
-            []
-          );
-          ws.send(JSON.stringify({
-            type: 'systems_update',
-            data: systems
-          }));
+    const context: RealtimeClientContext = {
+      user,
+      subscriptions: new Set(),
+      isAlive: true,
+    };
+    realtimeClients.set(ws, context);
+    ws.send(JSON.stringify({
+      type: "connected",
+      connectionId: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+    }));
 
-          // Send stream stats updates (with timeout protection)
-          const streams = await withDbTimeout(
-            () => storage.getActiveStreams(),
-            5000,
-            []
-          );
-          ws.send(JSON.stringify({
-            type: 'streams_update',
-            data: streams
-          }));
+    ws.on("pong", () => {
+      context.isAlive = true;
+    });
 
-          ws.send(JSON.stringify({
-            type: 'tasks_update',
-          }));
+    ws.on("message", async (raw) => {
+      try {
+        const message = JSON.parse(raw.toString());
+        if (message?.type === "subscribe") {
+          const channels = normalizeRealtimeChannels(message.channels);
+          const results = [];
+          for (const channel of channels) {
+            const alreadySubscribed = context.subscriptions.has(channel);
+            const withinLimit = alreadySubscribed || context.subscriptions.size < 100;
+            const authorized = withinLimit && await authorizeRealtimeChannel(context.user, channel);
+            if (authorized) context.subscriptions.add(channel);
+            results.push({ channel, authorized });
+          }
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "subscription_result", results }));
+          }
+          return;
+        }
+        if (message?.type === "unsubscribe") {
+          normalizeRealtimeChannels(message.channels).forEach((channel) => {
+            context.subscriptions.delete(channel);
+          });
+        }
+      } catch {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "protocol_error", message: "Некорректное realtime-сообщение" }));
+        }
+      }
+    });
 
-          ws.send(JSON.stringify({
-            type: 'events_update',
-          }));
+    const cleanup = () => {
+      context.subscriptions.clear();
+      realtimeClients.delete(ws);
+    };
+    ws.on("close", cleanup);
+    ws.on("error", cleanup);
+  });
 
-          // Send mock YouTube stats (не требует БД, всегда работает)
-          const youtubeStats = {
+  const globalRealtimeInterval = setInterval(async () => {
+    const openSockets = Array.from(realtimeClients.keys()).filter((ws) => ws.readyState === WebSocket.OPEN);
+    if (!openSockets.length) return;
+
+    try {
+      const [systems, streams] = await Promise.all([
+        withDbTimeout(() => storage.getSystems(), 5000, []),
+        withDbTimeout(() => storage.getActiveStreams(), 5000, []),
+      ]);
+      const messages = [
+        { type: "systems_update", data: systems },
+        { type: "streams_update", data: streams },
+        { type: "tasks_update" },
+        { type: "events_update" },
+        {
+          type: "youtube_stats",
+          data: {
             viewers: Math.floor(Math.random() * 2000) + 500,
             bitrate: Math.floor(Math.random() * 1000) + 5000,
-            fps: 60
-          };
-          ws.send(JSON.stringify({
-            type: 'youtube_stats',
-            data: youtubeStats
-          }));
-
-          // Send mock VK stats (не требует БД, всегда работает)
-          const vkStats = {
+            fps: 60,
+          },
+        },
+        {
+          type: "vk_stats",
+          data: {
             viewers: Math.floor(Math.random() * 1500) + 300,
             bitrate: Math.floor(Math.random() * 800) + 5000,
-            fps: 60
-          };
-          ws.send(JSON.stringify({
-            type: 'vk_stats',
-            data: vkStats
-          }));
+            fps: 60,
+          },
+        },
+      ].map((message) => JSON.stringify(message));
+      openSockets.forEach((ws) => messages.forEach((message) => ws.send(message)));
+    } catch (error) {
+      console.warn("[WebSocket] Global refresh failed:", error);
+      const fallbackMessages = [
+        JSON.stringify({ type: "systems_update", data: [] }),
+        JSON.stringify({ type: "streams_update", data: [] }),
+      ];
+      openSockets.forEach((ws) => fallbackMessages.forEach((message) => ws.send(message)));
+    }
+  }, 10_000);
+  globalRealtimeInterval.unref?.();
 
-        } catch (error) {
-          // Логируем ошибку, но не прерываем соединение
-          console.warn('[WebSocket] Error sending update (continuing):', error);
-          // Отправляем пустые данные вместо падения
-          try {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                type: 'systems_update',
-                data: []
-              }));
-              ws.send(JSON.stringify({
-                type: 'streams_update',
-                data: []
-              }));
-            }
-          } catch (sendError) {
-            console.error('[WebSocket] Error sending fallback data:', sendError);
-          }
-        }
+  const realtimePingInterval = setInterval(() => {
+    for (const [ws, context] of realtimeClients) {
+      if (!context.isAlive) {
+        realtimeClients.delete(ws);
+        ws.terminate();
+        continue;
       }
-    }, 10000); // Update every 10 seconds
-
-    ws.on('close', (code, reason) => {
-      console.log(`[WebSocket] Client disconnected (code: ${code}, reason: ${reason || 'none'})`);
-      clearInterval(interval);
-    });
-
-    ws.on('error', (error) => {
-      console.error('[WebSocket] Connection error:', error);
-      clearInterval(interval);
-    });
-
-    // Ping для поддержания соединения
-    const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        try {
-          ws.ping();
-        } catch (error) {
-          console.error('[WebSocket] Ping error:', error);
-          clearInterval(pingInterval);
-        }
-      } else {
-        clearInterval(pingInterval);
+      context.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        realtimeClients.delete(ws);
+        ws.terminate();
       }
-    }, 30000); // Ping каждые 30 секунд
+    }
+  }, 30_000);
+  realtimePingInterval.unref?.();
 
-    ws.on('close', () => {
-      clearInterval(pingInterval);
-    });
+  server.on("close", () => {
+    clearInterval(globalRealtimeInterval);
+    clearInterval(realtimePingInterval);
+    for (const ws of realtimeClients.keys()) ws.terminate();
+    realtimeClients.clear();
+    wss.close();
   });
 
   // Push notification subscription routes

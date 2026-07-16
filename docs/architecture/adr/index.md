@@ -18,4 +18,8 @@ ADRs document important architectural and technical decisions made during the pr
   
   Explains the unified strategy for collecting and reporting code coverage across the monorepo.
 
+- **ADR-004 – Authenticated Scoped Realtime Transport**
+
+  Defines session-authenticated WebSocket upgrades, authorized scope subscriptions, identifier-only events, and reconnect/refetch recovery.
+
 Use the navigation menu to open an individual ADR for complete details.

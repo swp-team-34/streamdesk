@@ -1,127 +1,97 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { queryClient } from "@/lib/queryClient";
+import {
+  realtimeTransport,
+  type RealtimeMessage,
+} from "@/lib/realtime";
+
+function applyGlobalRealtimeMessage(data: RealtimeMessage) {
+  switch (data.type) {
+    case "systems_update":
+      queryClient.setQueryData(["/api/systems"], data.data);
+      break;
+    case "streams_update":
+      queryClient.setQueryData(["/api/streams", "active=true"], data.data);
+      break;
+    case "tasks_update":
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
+      break;
+    case "events_update":
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      break;
+    case "youtube_stats":
+      queryClient.setQueryData(["/api/integrations/youtube/stats"], data.data);
+      break;
+    case "vk_stats":
+      queryClient.setQueryData(["/api/integrations/vk/stats"], data.data);
+      break;
+    case "realtime_reconnected":
+      queryClient.invalidateQueries({ queryKey: ["/api/systems"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/streams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
+      break;
+    default:
+      break;
+  }
+}
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
-  const isConnectingRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !localStorage.getItem("streamstudio_user")) {
-      return;
-    }
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-    const connect = () => {
-      if (isConnectingRef.current) return;
-      if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      if (reconnectAttemptsRef.current >= maxReconnectAttempts) return;
-
-      isConnectingRef.current = true;
-
-      try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          setIsConnected(true);
-          isConnectingRef.current = false;
-          reconnectAttemptsRef.current = 0;
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            switch (data.type) {
-              case "systems_update":
-                queryClient.setQueryData(["/api/systems"], data.data);
-                break;
-              case "streams_update":
-                queryClient.setQueryData(["/api/streams", "active=true"], data.data);
-                break;
-              case "tasks_update":
-                queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-                queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
-                break;
-              case "events_update":
-                queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-                break;
-              case "youtube_stats":
-                queryClient.setQueryData(["/api/integrations/youtube/stats"], data.data);
-                break;
-              case "vk_stats":
-                queryClient.setQueryData(["/api/integrations/vk/stats"], data.data);
-                break;
-              default:
-                break;
-            }
-          } catch {
-            /* ignore */
-          }
-        };
-
-        ws.onclose = () => {
-          setIsConnected(false);
-          isConnectingRef.current = false;
-          reconnectAttemptsRef.current++;
-          // Переподключение только через 15–30 сек и не более 5 попыток — не мигает
-          const delay = Math.min(15000 + reconnectAttemptsRef.current * 3000, 30000);
-          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-            reconnectTimeoutRef.current = setTimeout(() => {
-              if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) connect();
-            }, delay);
-          }
-        };
-
-        ws.onerror = () => {
-          setIsConnected(false);
-          isConnectingRef.current = false;
-        };
-      } catch {
-        setIsConnected(false);
-        isConnectingRef.current = false;
-        reconnectAttemptsRef.current++;
-        const delay = 20000;
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectTimeoutRef.current = setTimeout(() => connect(), delay);
-        }
-      }
-    };
-
-    connect();
-
+    const removeGlobalListener = realtimeTransport.addGlobalListener(applyGlobalRealtimeMessage);
+    const removeStatusListener = realtimeTransport.addStatusListener(setIsConnected);
     return () => {
-      // Очищаем таймаут переподключения
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      // Закрываем соединение
-      if (wsRef.current) {
-        try {
-          if (wsRef.current.readyState === WebSocket.OPEN || 
-              wsRef.current.readyState === WebSocket.CONNECTING) {
-            wsRef.current.close();
-          }
-        } catch {
-          // игнор при размонтировании
-        }
-        wsRef.current = null;
-      }
-      
-      isConnectingRef.current = false;
+      removeGlobalListener();
+      removeStatusListener();
     };
   }, []);
+
+  return { isConnected };
+}
+
+export function useRealtimeSubscription(
+  channel: string | null | undefined,
+  onMessage: (message: RealtimeMessage) => void,
+) {
+  const callbackRef = useRef(onMessage);
+  const [isConnected, setIsConnected] = useState(false);
+  callbackRef.current = onMessage;
+
+  useEffect(() => realtimeTransport.addStatusListener(setIsConnected), []);
+
+  useEffect(() => {
+    if (!channel) return;
+    return realtimeTransport.subscribe(channel, (message) => callbackRef.current(message));
+  }, [channel]);
+
+  return { isConnected };
+}
+
+export function useRealtimeSubscriptions(
+  channels: Array<string | null | undefined>,
+  onMessage: (message: RealtimeMessage) => void,
+) {
+  const callbackRef = useRef(onMessage);
+  const [isConnected, setIsConnected] = useState(false);
+  callbackRef.current = onMessage;
+  const normalizedChannels = Array.from(new Set(
+    channels.map((channel) => String(channel || "").trim()).filter(Boolean),
+  )).sort().slice(0, 100);
+  const channelKey = normalizedChannels.join("\u0000");
+
+  useEffect(() => realtimeTransport.addStatusListener(setIsConnected), []);
+
+  useEffect(() => {
+    const cleanups = normalizedChannels.map((channel) =>
+      realtimeTransport.subscribe(channel, (message) => callbackRef.current(message)),
+    );
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, [channelKey]);
 
   return { isConnected };
 }

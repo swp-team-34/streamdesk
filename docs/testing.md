@@ -17,10 +17,10 @@ Critical modules are selected by product risk: permission checks, access control
 | Check | Command or workflow | Current purpose | Evidence |
 | --- | --- | --- | --- |
 | TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | Passed locally on 2026-07-11 and in `Quality`. |
-| Vitest test suite | `npm test` | Runs 48 unit, component, and in-process route tests across 12 files. | Passed in `Quality` on 2026-07-11. |
-| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | Passed in `Quality` on 2026-07-11. |
+| Vitest test suite | `npm test` | Runs unit, component, route, and authenticated WebSocket integration tests across client and server code. | 18 test files and 90 tests passed locally on 2026-07-16; CI confirmation pending. |
+| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | 18 test files and 90 tests passed locally on 2026-07-16 with 2.16% line coverage; CI confirmation pending. |
 | Build | `npm run build` | Verifies the production client and server build. | Passed locally on 2026-07-11 and in `Quality`. |
-| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | `Quality` workflow. |
+| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain. |
 | Link checking | `Link Check` workflow | Runs Lychee against repository links using `lychee.toml`. | GitHub Actions link-check workflow. |
 
 ## Quality Requirement Test Mapping
@@ -63,4 +63,4 @@ The `lychee.toml` file contains narrow URL and path exclusions. Excluded links m
 - Full browser end-to-end workflows are not covered.
 - No coverage threshold is configured in `vitest.config.ts`; the successful `Quality` run reports 2.04% line coverage across all included files.
 - The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.
-- The two server test files invoke route handlers with in-process Express and storage; there is no separate HTTP-to-persistence integration suite.
+- Most server route tests invoke handlers with in-process Express and storage. The realtime suite additionally opens a temporary HTTP/WebSocket server to verify session rejection, company isolation, authorized subscriptions, and identifier-only event delivery; full browser and production-database integration remain manual checks.
