@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PhotoUpload } from "@/components/equipment/photo-upload";
 import { useState, useEffect, useRef } from "react";
 import { z } from "zod";
-import { QrCode, Download, Printer, RefreshCw, ScanBarcode, MapPin } from "lucide-react";
+import { QrCode, Download, Printer, RefreshCw, ScanBarcode, MapPin, AlertTriangle } from "lucide-react";
 import {
   downloadBarcodeLabelPng,
   openBarcodePrintWindow,
@@ -38,7 +38,27 @@ const INTERNAL_SPECIFICATION_KEYS = new Set([
   "noteAudit",
   "notesHistory",
   "equipmentComments",
+  "isSuperPosition",
+  "bundleType",
+  "bundleComponentIds",
+  "bundleComponents",
+  "assembledAt",
+  "assembledByUserId",
+  "assembledByName",
+  "parentBundleId",
+  "parentBundleName",
+  "parentBundleCreatedAt",
+  "bundleExtractionHistory",
+  "kitExtractionHistory",
+  "hardware",
+  "metrics",
+  "metricsHistory",
   "workspace",
+  "localIps",
+  "syncedAt",
+  "systemId",
+  "source",
+  "deviceType",
 ]);
 
 const ESTIMATE_SPECIFICATION_KEYS = new Set([
@@ -91,6 +111,8 @@ function getEquipmentOperabilityStatus(equipment: any) {
 interface EquipmentFormProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenParentBundle?: (equipment: any) => void;
+  parentBundleExists?: boolean;
   equipment?: any;
   mode?: "full" | "take_return";
   companyManager?: boolean;
@@ -170,7 +192,15 @@ function getInventoryPrefix(type: unknown) {
   return "eqp";
 }
 
-export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", companyManager = false }: EquipmentFormProps) {
+export function EquipmentForm({
+  isOpen,
+  onClose,
+  onOpenParentBundle,
+  parentBundleExists,
+  equipment,
+  mode = "full",
+  companyManager = false,
+}: EquipmentFormProps) {
   const [photos, setPhotos] = useState<string[]>(equipment?.photos || []);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [barcodeValue, setBarcodeValue] = useState("");
@@ -296,10 +326,14 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
   const buildEquipmentPayload = (data: z.infer<typeof equipmentFormSchema>) => {
     const inventoryNumber = String(data.inventoryNumber ?? "").trim() || buildGeneratedInventoryNumber(data);
     const nextBarcode = canManageBarcode ? (barcodeValue.trim() || inventoryNumber) : equipment?.barcode;
+    const preservedInternalSpecifications = Object.fromEntries(
+      Object.entries(asRecord(equipment?.specifications)).filter(([key]) => isInternalSpecificationKey(key)),
+    );
     return {
       ...data,
       inventoryNumber,
       specifications: {
+        ...preservedInternalSpecifications,
         ...parseSpecifications(specificationsText),
         ...(estimatePrice.trim() ? { estimatePrice: estimatePrice.trim(), estimateCurrency: "RUB" } : {}),
       },
@@ -454,6 +488,12 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
   };
 
   const isTakeReturnMode = mode === "take_return" && userCanReserve;
+  const equipmentSpecifications = asRecord(equipment?.specifications);
+  const parentBundleId = String(equipmentSpecifications.parentBundleId || "").trim();
+  const parentBundleName = String(equipmentSpecifications.parentBundleName || "Комплект").trim();
+  const returnViaParentBundle = equipment?.status === "in-use" &&
+    Boolean(parentBundleId) &&
+    parentBundleExists !== false;
 
   if (isTakeReturnMode && equipment) {
     return (
@@ -461,7 +501,9 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
         <DialogContent className="max-w-md bg-white dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-slate-900 dark:text-white">
-              {equipment.status === 'in-use' ? 'Вернуть оборудование' : 'Взять оборудование'}
+              {returnViaParentBundle
+                ? "Возврат через сборку"
+                : equipment.status === 'in-use' ? 'Вернуть оборудование' : 'Взять оборудование'}
             </DialogTitle>
           </DialogHeader>
           
@@ -476,29 +518,45 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
               </Badge>
             </div>
 
+            {returnViaParentBundle && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <div className="font-medium">Компонент входит в сборку «{parentBundleName}»</div>
+                    <p className="mt-1 text-xs">
+                      Верните всю сборку либо сначала извлеките компонент из её состава.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Form {...form}>
               <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-slate-700 dark:text-slate-300">
-                        <MapPin className="w-4 h-4 inline mr-1" />
-                        Локация
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Студия А, Монтажная 2..."
-                          className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                          {...field}
-                          value={field.value || ""} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!returnViaParentBundle && (
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-4 h-4 inline mr-1" />
+                          Локация
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Студия А, Монтажная 2..."
+                            className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <div className="flex gap-3">
                   <Button
@@ -509,7 +567,16 @@ export function EquipmentForm({ isOpen, onClose, equipment, mode = "full", compa
                   >
                     Отмена
                   </Button>
-                  {equipment.status === 'in-use' ? (
+                  {returnViaParentBundle ? (
+                    <Button
+                      type="button"
+                      className="flex-1"
+                      onClick={() => onOpenParentBundle?.(equipment)}
+                      disabled={!onOpenParentBundle}
+                    >
+                      Открыть сборку
+                    </Button>
+                  ) : equipment.status === 'in-use' ? (
                     <Button
                       type="button"
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"

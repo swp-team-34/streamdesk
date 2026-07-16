@@ -10,6 +10,11 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
+
+### Fixed
+
+- Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.
 - Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
 
 ## [v3.0.0-rc.1] - 2026-07-11

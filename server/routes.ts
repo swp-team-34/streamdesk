@@ -492,6 +492,453 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .map((membership) => String(membership.companyId));
   };
 
+  const projectEquipmentBundles: Array<{
+    projectId: string;
+    equipmentIds: string[];
+    sentAt: string;
+    returnDate: string;
+    assignedByUserId?: string;
+    assignedByName: string;
+  }> = [];
+
+  type KitExtractionConfirmation = {
+    confirmed?: boolean;
+    override?: boolean;
+    bundleName?: string;
+    reason?: string;
+    context?: string;
+  };
+
+  type EquipmentKitActionError = Error & {
+    statusCode?: number;
+    code?: string;
+    details?: Record<string, unknown>;
+  };
+
+  const equipmentKitActionLocks = new Set<string>();
+
+  const equipmentSpecs = (item: any): Record<string, any> =>
+    item?.specifications && typeof item.specifications === "object" && !Array.isArray(item.specifications)
+      ? { ...item.specifications }
+      : {};
+
+  const createEquipmentKitActionError = (
+    statusCode: number,
+    code: string,
+    message: string,
+    details: Record<string, unknown> = {},
+  ): EquipmentKitActionError => Object.assign(new Error(message), { statusCode, code, details });
+
+  const sendEquipmentKitActionError = (res: any, error: unknown) => {
+    const kitError = error as EquipmentKitActionError;
+    if (!kitError?.code) return false;
+    res.status(kitError.statusCode || 400).json({
+      message: kitError.message,
+      code: kitError.code,
+      ...kitError.details,
+    });
+    return true;
+  };
+
+  const getEquipmentKitContext = async (item: any, visited = new Set<string>()): Promise<any> => {
+    const specs = equipmentSpecs(item);
+    const parentBundleId = String(specs.parentBundleId || "").trim();
+    if (!parentBundleId) return null;
+    const itemId = String(item.id || "").trim();
+    if (visited.has(itemId)) {
+      throw createEquipmentKitActionError(
+        409,
+        "KIT_NESTING_CYCLE",
+        "Обнаружена циклическая вложенность комплектов. Исправьте состав перед продолжением.",
+        { componentId: item.id, parentBundleId },
+      );
+    }
+    visited.add(itemId);
+
+    const bundle = await storage.getEquipmentById(parentBundleId).catch(() => undefined);
+    if (!bundle) {
+      const at = new Date().toISOString();
+      const nextSpecs = { ...specs };
+      const parentBundleName = String(nextSpecs.parentBundleName || "Удалённый комплект").trim();
+      delete nextSpecs.parentBundleId;
+      delete nextSpecs.parentBundleName;
+      delete nextSpecs.parentBundleCreatedAt;
+      nextSpecs.kitExtractionHistory = [
+        ...(Array.isArray(nextSpecs.kitExtractionHistory) ? nextSpecs.kitExtractionHistory : []),
+        {
+          id: crypto.randomUUID(),
+          componentId: item.id,
+          componentName: item.name,
+          parentBundleId,
+          parentBundleName,
+          actorUserId: null,
+          actorName: null,
+          at,
+          reason: "Родительский комплект был удалён",
+          context: "orphaned-kit-membership-recovery",
+          managerOverride: false,
+          projectId: null,
+        },
+      ].slice(-100);
+
+      const occupiedByMissingBundle = item.status === "in-use" &&
+        !String(item.assignedTo || "").trim() &&
+        String(item.location || "").trim().toLowerCase().startsWith("в составе");
+      const recovered = await storage.updateEquipment(item.id, {
+        status: occupiedByMissingBundle ? "available" : item.status,
+        assignedTo: occupiedByMissingBundle ? null : item.assignedTo,
+        location: occupiedByMissingBundle ? item.storageLocation || "Склад" : item.location,
+        specifications: nextSpecs,
+      } as any);
+      if (!recovered) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_ORPHAN_RECOVERY_FAILED",
+          "Не удалось восстановить позицию после удаления родительского комплекта.",
+          { componentId: item.id, parentBundleId },
+        );
+      }
+      return null;
+    }
+
+    const projectLink = projectEquipmentBundles.find((entry) =>
+      entry.equipmentIds.includes(bundle.id) || entry.equipmentIds.includes(item.id),
+    );
+    const bundleParentId = String(equipmentSpecs(bundle).parentBundleId || "").trim();
+    const parentKitContext = bundleParentId ? await getEquipmentKitContext(bundle, visited) : null;
+    const isInUse = Boolean(projectLink) || (bundleParentId
+      ? Boolean(parentKitContext?.isInUse)
+      : bundle.status === "in-use");
+    return { specs, parentBundleId, bundle, projectLink, isInUse };
+  };
+
+  const restoreEquipmentSnapshots = async (snapshots: any[]) => {
+    for (const snapshot of [...snapshots].reverse()) {
+      await storage.updateEquipment(snapshot.id, {
+        status: snapshot.status,
+        assignedTo: snapshot.assignedTo,
+        location: snapshot.location,
+        specifications: snapshot.specifications,
+      } as any);
+    }
+  };
+
+  const disassembleEquipmentBundle = async (bundle: any, user: any, context: string) => {
+    const bundleSpecs = equipmentSpecs(bundle);
+    const listedIds = [
+      ...(Array.isArray(bundleSpecs.bundleComponentIds) ? bundleSpecs.bundleComponentIds : []),
+      ...(Array.isArray(bundleSpecs.bundleComponents)
+        ? bundleSpecs.bundleComponents.map((entry: any) => entry?.id)
+        : []),
+    ].map((id) => String(id || "").trim()).filter(Boolean);
+    const allEquipment = await storage.getEquipment().catch(() => []);
+    const linkedIds = (allEquipment as any[])
+      .filter((candidate) => String(equipmentSpecs(candidate).parentBundleId || "").trim() === String(bundle.id))
+      .map((candidate) => String(candidate.id));
+    const componentIds = [...new Set([...listedIds, ...linkedIds])];
+    const snapshots: any[] = [];
+    const releasedComponentIds: string[] = [];
+
+    try {
+      for (const componentId of componentIds) {
+        const component = await storage.getEquipmentById(componentId).catch(() => undefined);
+        if (!component) continue;
+        const componentSpecs = equipmentSpecs(component);
+        if (String(componentSpecs.parentBundleId || "").trim() !== String(bundle.id)) continue;
+
+        snapshots.push({ ...component, specifications: componentSpecs });
+        const nextSpecs = { ...componentSpecs };
+        delete nextSpecs.parentBundleId;
+        delete nextSpecs.parentBundleName;
+        delete nextSpecs.parentBundleCreatedAt;
+        nextSpecs.kitExtractionHistory = [
+          ...(Array.isArray(nextSpecs.kitExtractionHistory) ? nextSpecs.kitExtractionHistory : []),
+          {
+            id: crypto.randomUUID(),
+            componentId: component.id,
+            componentName: component.name,
+            parentBundleId: bundle.id,
+            parentBundleName: bundle.name,
+            actorUserId: user?.id || null,
+            actorName: user?.name || user?.username || null,
+            at: new Date().toISOString(),
+            reason: "Комплект удалён и расформирован",
+            context,
+            managerOverride: false,
+            projectId: null,
+          },
+        ].slice(-100);
+
+        const occupiedByBundle = component.status === "in-use" &&
+          !String(component.assignedTo || "").trim() &&
+          String(component.location || "").trim().toLowerCase().startsWith("в составе");
+        const updated = await storage.updateEquipment(component.id, {
+          status: occupiedByBundle ? "available" : component.status,
+          assignedTo: occupiedByBundle ? null : component.assignedTo,
+          location: occupiedByBundle
+            ? component.storageLocation || bundle.storageLocation || bundle.location || "Склад"
+            : component.location,
+          specifications: nextSpecs,
+        } as any);
+        if (!updated) throw new Error(`Не удалось расформировать компонент «${component.name}»`);
+        releasedComponentIds.push(component.id);
+      }
+      return { snapshots, releasedComponentIds };
+    } catch (error) {
+      await restoreEquipmentSnapshots(snapshots);
+      throw error;
+    }
+  };
+
+  const ensureEquipmentReturnAllowed = async (user: any, item: any) => {
+    const kit = await getEquipmentKitContext(item);
+    if (!kit) return;
+
+    await ensureEquipmentCompanyAccess(user, item, kit.bundle);
+    const bundleName = String(kit.bundle.name || kit.specs.parentBundleName || "Комплект").trim();
+    throw createEquipmentKitActionError(
+      409,
+      "KIT_RETURN_VIA_PARENT_REQUIRED",
+      `Компонент входит в комплект «${bundleName}». Верните весь комплект или сначала извлеките компонент.`,
+      {
+        componentId: item.id,
+        componentName: item.name,
+        parentBundleId: kit.bundle.id,
+        parentBundleName: bundleName,
+        kitInUse: kit.isInUse,
+        projectId: kit.projectLink?.projectId || null,
+      },
+    );
+  };
+
+  const canOverrideActiveKit = async (user: any, bundle: any) => {
+    if (user?.role === "admin" || user?.role === "manager") return true;
+    const companyId = String(equipmentSpecs(bundle).companyId || "").trim();
+    return companyId ? canManageCompany(user, companyId) : false;
+  };
+
+  const canManageEquipmentKit = async (user: any, bundle: any) => {
+    if (["admin", "manager", "tech_director"].includes(String(user?.role || ""))) return true;
+    if (user?.workspaceMode === "company_owner") return true;
+    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    if (permissions.includes("equipment:edit")) return true;
+    const companyId = String(equipmentSpecs(bundle).companyId || "").trim();
+    return companyId ? canManageCompany(user, companyId) : false;
+  };
+
+  const isEquipmentKit = (item: any) => {
+    const specs = equipmentSpecs(item);
+    return specs.isSuperPosition === true || specs.bundleType === "super_position";
+  };
+
+  const getEquipmentKitComponentIds = (item: any) => {
+    const specs = equipmentSpecs(item);
+    return [...new Set([
+      ...(Array.isArray(specs.bundleComponentIds) ? specs.bundleComponentIds : []),
+      ...(Array.isArray(specs.bundleComponents)
+        ? specs.bundleComponents.map((entry: any) => entry?.id)
+        : []),
+    ].map((id) => String(id || "").trim()).filter(Boolean))];
+  };
+
+  const equipmentKitContains = async (rootEquipmentId: string, targetEquipmentId: string, visited = new Set<string>()): Promise<boolean> => {
+    if (rootEquipmentId === targetEquipmentId) return true;
+    if (visited.has(rootEquipmentId)) return false;
+    visited.add(rootEquipmentId);
+    const root = await storage.getEquipmentById(rootEquipmentId).catch(() => undefined);
+    if (!root || !isEquipmentKit(root)) return false;
+    const componentIds = getEquipmentKitComponentIds(root);
+    if (componentIds.includes(targetEquipmentId)) return true;
+    for (const componentId of componentIds) {
+      if (await equipmentKitContains(componentId, targetEquipmentId, visited)) return true;
+    }
+    return false;
+  };
+
+  const ensureEquipmentCompanyAccess = async (user: any, item: any, bundle?: any) => {
+    if (user?.role === "admin") return;
+    const companyIds = await getUserCompanyIds(user);
+    const itemCompanyId = String(equipmentSpecs(item).companyId || "").trim();
+    const bundleCompanyId = String(equipmentSpecs(bundle).companyId || "").trim();
+    const requiredCompanyIds = [itemCompanyId, bundleCompanyId].filter(Boolean);
+    if (requiredCompanyIds.some((companyId) => !companyIds.includes(companyId))) {
+      throw createEquipmentKitActionError(
+        403,
+        "KIT_COMPANY_ACCESS_DENIED",
+        "Нет доступа к комплекту этой компании.",
+      );
+    }
+  };
+
+  const restoreEquipmentKitSnapshots = async (componentSnapshot: any, bundleSnapshot: any) => {
+    await storage.updateEquipment(bundleSnapshot.id, {
+      status: bundleSnapshot.status,
+      assignedTo: bundleSnapshot.assignedTo,
+      location: bundleSnapshot.location,
+      specifications: bundleSnapshot.specifications,
+    } as any);
+    await storage.updateEquipment(componentSnapshot.id, {
+      status: componentSnapshot.status,
+      assignedTo: componentSnapshot.assignedTo,
+      location: componentSnapshot.location,
+      specifications: componentSnapshot.specifications,
+    } as any);
+  };
+
+  const runEquipmentActionWithKitSafety = async <T>({
+    componentId,
+    user,
+    confirmation,
+    actionContext,
+    action,
+  }: {
+    componentId: string;
+    user: any;
+    confirmation?: KitExtractionConfirmation;
+    actionContext: string;
+    action: (freshItem: any) => Promise<T>;
+  }): Promise<T> => {
+    if (equipmentKitActionLocks.has(componentId)) {
+      throw createEquipmentKitActionError(
+        409,
+        "KIT_COMPONENT_BUSY",
+        "Этот компонент уже обрабатывается. Обновите склад и повторите действие.",
+        { componentId },
+      );
+    }
+
+    equipmentKitActionLocks.add(componentId);
+    let componentSnapshot: any;
+    let bundleSnapshot: any;
+    let extractionApplied = false;
+
+    try {
+      const item = await storage.getEquipmentById(componentId).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        throw createEquipmentKitActionError(404, "EQUIPMENT_NOT_FOUND", "Оборудование не найдено.");
+      }
+
+      const kit = await getEquipmentKitContext(item);
+      if (!kit) {
+        const freshItem = await storage.getEquipmentById(componentId).catch(() => undefined);
+        return await action(freshItem || item);
+      }
+      await ensureEquipmentCompanyAccess(user, item, kit.bundle);
+
+      const bundleName = String(kit.bundle.name || kit.specs.parentBundleName || "Комплект").trim();
+      const commonDetails = {
+        componentId: item.id,
+        componentName: item.name,
+        parentBundleId: kit.bundle.id,
+        parentBundleName: bundleName,
+        kitInUse: kit.isInUse,
+        projectId: kit.projectLink?.projectId || null,
+        canEscalate: kit.isInUse,
+      };
+
+      if (kit.isInUse && !(await canOverrideActiveKit(user, kit.bundle))) {
+        throw createEquipmentKitActionError(
+          403,
+          "KIT_COMPONENT_REQUIRES_MANAGER",
+          `Компонент входит в активный комплект «${bundleName}». Отправьте запрос менеджеру на извлечение.`,
+          commonDetails,
+        );
+      }
+
+      if (!confirmation?.confirmed) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_EXTRACTION_CONFIRMATION_REQUIRED",
+          `Сначала подтвердите извлечение компонента из комплекта «${bundleName}».`,
+          commonDetails,
+        );
+      }
+
+      if (String(confirmation.bundleName || "").trim() !== bundleName) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_EXTRACTION_CONFIRMATION_STALE",
+          "Состав или название комплекта изменились. Обновите склад и подтвердите действие заново.",
+          commonDetails,
+        );
+      }
+
+      if (kit.isInUse && confirmation.override !== true) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_OVERRIDE_CONFIRMATION_REQUIRED",
+          `Для активного комплекта «${bundleName}» требуется усиленное подтверждение менеджера.`,
+          commonDetails,
+        );
+      }
+
+      componentSnapshot = { ...item, specifications: equipmentSpecs(item) };
+      bundleSnapshot = { ...kit.bundle, specifications: equipmentSpecs(kit.bundle) };
+
+      const at = new Date().toISOString();
+      const audit = {
+        id: crypto.randomUUID(),
+        action: "removed",
+        componentId: item.id,
+        componentName: item.name,
+        parentBundleId: kit.bundle.id,
+        parentBundleName: bundleName,
+        actorUserId: user?.id || null,
+        actorName: user?.name || user?.username || null,
+        at,
+        reason: String(confirmation.reason || "").trim() || actionContext,
+        context: String(confirmation.context || "").trim() || actionContext,
+        managerOverride: kit.isInUse,
+        projectId: kit.projectLink?.projectId || null,
+      };
+
+      const nextBundleSpecs = equipmentSpecs(kit.bundle);
+      nextBundleSpecs.bundleComponentIds = (Array.isArray(nextBundleSpecs.bundleComponentIds)
+        ? nextBundleSpecs.bundleComponentIds
+        : []).filter((id: unknown) => String(id) !== String(item.id));
+      nextBundleSpecs.bundleComponents = (Array.isArray(nextBundleSpecs.bundleComponents)
+        ? nextBundleSpecs.bundleComponents
+        : []).filter((entry: any) => String(entry?.id || "") !== String(item.id));
+      nextBundleSpecs.bundleExtractionHistory = [
+        ...(Array.isArray(nextBundleSpecs.bundleExtractionHistory) ? nextBundleSpecs.bundleExtractionHistory : []),
+        audit,
+      ].slice(-100);
+
+      const nextComponentSpecs = equipmentSpecs(item);
+      delete nextComponentSpecs.parentBundleId;
+      delete nextComponentSpecs.parentBundleName;
+      delete nextComponentSpecs.parentBundleCreatedAt;
+      nextComponentSpecs.kitExtractionHistory = [
+        ...(Array.isArray(nextComponentSpecs.kitExtractionHistory) ? nextComponentSpecs.kitExtractionHistory : []),
+        audit,
+      ].slice(-100);
+
+      const updatedBundle = await storage.updateEquipment(kit.bundle.id, { specifications: nextBundleSpecs } as any);
+      if (!updatedBundle) throw new Error("Не удалось обновить состав комплекта");
+      extractionApplied = true;
+      const updatedComponent = await storage.updateEquipment(item.id, {
+        status: "available",
+        assignedTo: null,
+        location: kit.bundle.storageLocation || kit.bundle.location || "Склад",
+        specifications: nextComponentSpecs,
+      } as any);
+      if (!updatedComponent) throw new Error("Не удалось обновить компонент комплекта");
+
+      return await action(updatedComponent);
+    } catch (error) {
+      if (extractionApplied && componentSnapshot && bundleSnapshot) {
+        try {
+          await restoreEquipmentKitSnapshots(componentSnapshot, bundleSnapshot);
+        } catch (rollbackError) {
+          console.error("[Equipment kits] Failed to roll back extraction:", rollbackError);
+        }
+      }
+      throw error;
+    } finally {
+      equipmentKitActionLocks.delete(componentId);
+    }
+  };
+
   const kanbanBoardCreateSchema = z.object({
     companyId: z.string().trim().min(1).nullable().optional(),
     projectId: z.string().trim().min(1).nullable().optional(),
@@ -3517,7 +3964,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 3000, []); // 3 секунды для быстрого ответа
 
     const list = Array.isArray(equipment) ? equipment : [];
-    res.json(status ? list : list.filter((item: any) => item.status !== "archived"));
+    const currentUser = req.user as any;
+    const companyIds = currentUser?.role === "admin" ? [] : await getUserCompanyIds(currentUser);
+    const scopedList = currentUser?.role === "admin"
+      ? list
+      : list.filter((item: any) => {
+          const companyId = String(equipmentSpecs(item).companyId || "").trim();
+          return !companyId || companyIds.includes(companyId);
+        });
+    res.json(status ? scopedList : scopedList.filter((item: any) => item.status !== "archived"));
   });
 
   app.get("/api/equipment/:id", async (req, res) => {
@@ -3536,11 +3991,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item || item.status === "archived") {
         return res.status(404).json({ message: "Оборудование не найдено" });
       }
+      await ensureEquipmentCompanyAccess(req.user, item);
 
       const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
         (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
       res.json({ ...item, operabilityStatus });
     } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
       const message = error?.message || "Не удалось загрузить оборудование";
       console.error("[Equipment] Details error:", message);
       res.status(500).json({ message });
@@ -3773,12 +4230,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/equipment/:id", async (req, res) => {
     try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
       const { id } = req.params;
       const body = req.body || {};
-      const existing = await storage.getEquipmentById(id).catch(() => undefined);
+      let existing = await storage.getEquipmentById(id).catch(() => undefined);
       if (!existing) {
         return res.status(404).json({ message: "Equipment not found" });
       }
+      const originalParentBundleId = String(equipmentSpecs(existing).parentBundleId || "").trim();
+      await getEquipmentKitContext(existing);
+      const refreshedExisting = await storage.getEquipmentById(id).catch(() => undefined);
+      if (refreshedExisting) existing = refreshedExisting;
+      const orphanedMembershipRecovered = Boolean(originalParentBundleId) &&
+        !String(equipmentSpecs(existing).parentBundleId || "").trim();
 
       // Only admins can update/promote barcodes (Cr-codes)
       if (body.barcode) {
@@ -3821,6 +4287,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData[field] = body[field];
         }
       }
+      if (orphanedMembershipRecovered && Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
+        const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
+        delete submittedSpecs.parentBundleId;
+        delete submittedSpecs.parentBundleName;
+        delete submittedSpecs.parentBundleCreatedAt;
+        updateData.specifications = {
+          ...equipmentSpecs(existing),
+          ...submittedSpecs,
+          kitExtractionHistory: equipmentSpecs(existing).kitExtractionHistory,
+        };
+      }
+
+      const existingSpecs = equipmentSpecs(existing);
+      const existingParentBundleId = String(existingSpecs.parentBundleId || "").trim();
+      if (existingParentBundleId && Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
+        const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
+        if (String(submittedSpecs.parentBundleId || "").trim() !== existingParentBundleId) {
+          return res.status(409).json({
+            message: "Нельзя изменить принадлежность к комплекту через обычное редактирование.",
+            code: "KIT_MEMBERSHIP_UPDATE_FORBIDDEN",
+            parentBundleId: existingParentBundleId,
+          });
+        }
+      }
 
       if (Object.prototype.hasOwnProperty.call(body, "lastUsed")) {
         if (body.lastUsed === null || body.lastUsed === "") {
@@ -3839,12 +4329,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Проверьте данные оборудования", errors: parsed.error.flatten() });
       }
 
-      const equipment = await storage.updateEquipment(id, parsed.data as any);
+      const changesHolder = Object.prototype.hasOwnProperty.call(parsed.data, "assignedTo") &&
+        String((parsed.data as any).assignedTo || "") !== String(existing.assignedTo || "");
+      const changesToInUse = Object.prototype.hasOwnProperty.call(parsed.data, "status") &&
+        (parsed.data as any).status === "in-use" && existing.status !== "in-use";
+      const returnsToAvailable = Object.prototype.hasOwnProperty.call(parsed.data, "status") &&
+        (parsed.data as any).status === "available";
+      const clearsActiveHolder = existing.status === "in-use" &&
+        Boolean(existing.assignedTo) &&
+        Object.prototype.hasOwnProperty.call(parsed.data, "assignedTo") &&
+        !String((parsed.data as any).assignedTo || "").trim();
+      if (returnsToAvailable || clearsActiveHolder) {
+        await ensureEquipmentReturnAllowed(req.user, existing);
+      }
+      const requiresKitSafety = changesToInUse ||
+        (changesHolder && Boolean((parsed.data as any).assignedTo));
+      const updateAction = async () => storage.updateEquipment(id, parsed.data as any);
+      const equipment = requiresKitSafety
+        ? await runEquipmentActionWithKitSafety({
+            componentId: id,
+            user: req.user,
+            confirmation: body.kitExtraction,
+            actionContext: "direct-equipment-update",
+            action: updateAction,
+          })
+        : await updateAction();
       if (!equipment) {
         return res.status(404).json({ message: "Equipment not found" });
       }
       res.json(equipment);
     } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
       res.status(500).json({ message: error?.message || "Failed to update equipment" });
     }
   });
@@ -3873,6 +4388,322 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось загрузить запросы на оборудование" });
+    }
+  });
+
+  app.post("/api/equipment/:id/kit-extraction-request", async (req, res) => {
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+
+      const currentUser = req.user as any;
+      const item = await storage.getEquipmentById(req.params.id).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      const kit = await getEquipmentKitContext(item);
+      if (!kit) {
+        return res.status(409).json({ message: "Компонент больше не входит в комплект" });
+      }
+      await ensureEquipmentCompanyAccess(currentUser, item, kit.bundle);
+      if (!kit.isInUse) {
+        return res.status(409).json({
+          message: "Комплект не используется: извлечение можно подтвердить без запроса менеджеру.",
+          code: "KIT_EXTRACTION_CONFIRMATION_REQUIRED",
+        });
+      }
+
+      const allRequests = await storage.getEquipmentCheckoutRequests().catch(() => []);
+      const duplicate = (allRequests as any[]).find((request) =>
+        request.status === "pending" &&
+        request.requestType === "kit-extraction" &&
+        String(request.equipmentId) === String(item.id) &&
+        String(request.requestedBy) === String(currentUser.id),
+      );
+      if (duplicate) return res.json({ request: duplicate, duplicate: true });
+
+      const itemCompanyId = String(equipmentSpecs(item).companyId || "").trim();
+      const bundleCompanyId = String(equipmentSpecs(kit.bundle).companyId || "").trim();
+      const userCompanyIds = await getUserCompanyIds(currentUser);
+      const companyId = itemCompanyId || bundleCompanyId || userCompanyIds[0] || undefined;
+      const request = await storage.createEquipmentCheckoutRequest(insertEquipmentCheckoutRequestSchema.parse({
+        companyId,
+        equipmentId: item.id,
+        requestedBy: currentUser.id,
+        requestType: "kit-extraction",
+        currentHolder: kit.bundle.id,
+        status: "pending",
+        quantity: 1,
+        note: String(req.body?.reason || "").trim() || `Извлечение из активного комплекта «${kit.bundle.name}»`,
+      }));
+      res.json({ request, duplicate: false });
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(400).json({ message: error?.message || "Не удалось отправить запрос на извлечение" });
+    }
+  });
+
+  app.post("/api/equipment/:bundleId/components", async (req, res) => {
+    const lockedIds: string[] = [];
+    let snapshots: any[] = [];
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+      const bundle = await storage.getEquipmentById(req.params.bundleId).catch(() => undefined);
+      if (!bundle || bundle.status === "archived") {
+        return res.status(404).json({ message: "Комплект не найден" });
+      }
+      if (!isEquipmentKit(bundle)) {
+        return res.status(400).json({ message: "Выбранная позиция не является комплектом" });
+      }
+      await ensureEquipmentCompanyAccess(req.user, bundle);
+      if (!(await canManageEquipmentKit(req.user, bundle))) {
+        return res.status(403).json({ message: "Нет прав на изменение состава комплекта" });
+      }
+
+      const requestedComponentIds: string[] = (Array.isArray(req.body?.equipmentIds) ? req.body.equipmentIds : [])
+        .map((id: unknown) => String(id || "").trim())
+        .filter((id: string) => Boolean(id));
+      const componentIds: string[] = [...new Set<string>(requestedComponentIds)];
+      if (componentIds.length === 0) {
+        return res.status(400).json({ message: "Выберите хотя бы одну позицию" });
+      }
+      if (componentIds.includes(String(bundle.id))) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_SELF_NESTING_FORBIDDEN",
+          "Нельзя добавить комплект в самого себя.",
+          { parentBundleId: bundle.id },
+        );
+      }
+
+      const parentContext = await getEquipmentKitContext(bundle);
+      const directProjectLink = projectEquipmentBundles.find((entry) => entry.equipmentIds.includes(bundle.id));
+      const isActive = Boolean(directProjectLink) || (parentContext
+        ? Boolean(parentContext.isInUse)
+        : bundle.status === "in-use");
+      if (isActive && !(await canOverrideActiveKit(req.user, bundle))) {
+        throw createEquipmentKitActionError(
+          403,
+          "KIT_COMPONENT_REQUIRES_MANAGER",
+          `Комплект «${bundle.name}» используется. Изменить состав может только менеджер.`,
+          { parentBundleId: bundle.id, parentBundleName: bundle.name, kitInUse: true },
+        );
+      }
+      if (isActive && req.body?.activeKitApproval !== true) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_OVERRIDE_CONFIRMATION_REQUIRED",
+          `Подтвердите добавление позиций в активный комплект «${bundle.name}».`,
+          { parentBundleId: bundle.id, parentBundleName: bundle.name, kitInUse: true },
+        );
+      }
+
+      const idsToLock = [String(bundle.id), ...componentIds].sort();
+      const busyId = idsToLock.find((id) => equipmentKitActionLocks.has(id));
+      if (busyId) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_COMPONENT_BUSY",
+          "Состав комплекта уже изменяется. Обновите склад и повторите действие.",
+          { componentId: busyId, parentBundleId: bundle.id },
+        );
+      }
+      idsToLock.forEach((id) => {
+        equipmentKitActionLocks.add(id);
+        lockedIds.push(id);
+      });
+
+      const components: any[] = [];
+      const bundleCompanyId = String(equipmentSpecs(bundle).companyId || "").trim();
+      for (const componentId of componentIds) {
+        const component = await storage.getEquipmentById(componentId).catch(() => undefined);
+        if (!component || component.status === "archived") {
+          throw createEquipmentKitActionError(404, "EQUIPMENT_NOT_FOUND", "Одна из выбранных позиций не найдена.", { componentId });
+        }
+        await ensureEquipmentCompanyAccess(req.user, component, bundle);
+        const componentCompanyId = String(equipmentSpecs(component).companyId || "").trim();
+        if (bundleCompanyId && componentCompanyId && bundleCompanyId !== componentCompanyId) {
+          throw createEquipmentKitActionError(
+            409,
+            "KIT_COMPANY_MISMATCH",
+            "Нельзя объединять оборудование разных компаний.",
+            { componentId, parentBundleId: bundle.id },
+          );
+        }
+        const componentSpecs = equipmentSpecs(component);
+        if (String(componentSpecs.parentBundleId || "").trim()) {
+          throw createEquipmentKitActionError(
+            409,
+            "KIT_COMPONENT_ALREADY_ASSIGNED",
+            `Позиция «${component.name}» уже входит в другой комплект.`,
+            { componentId, parentBundleId: componentSpecs.parentBundleId },
+          );
+        }
+        if (component.status !== "available") {
+          throw createEquipmentKitActionError(
+            409,
+            "KIT_COMPONENT_NOT_AVAILABLE",
+            `Позиция «${component.name}» сейчас недоступна для добавления.`,
+            { componentId, status: component.status },
+          );
+        }
+        const operabilityStatus = String(component.operabilityStatus || "").trim() || "working";
+        if (operabilityStatus !== "working") {
+          throw createEquipmentKitActionError(
+            409,
+            "KIT_COMPONENT_INOPERABLE",
+            `Позиция «${component.name}» неисправна или находится в ремонте.`,
+            { componentId, operabilityStatus },
+          );
+        }
+        if (isEquipmentKit(component) && await equipmentKitContains(component.id, bundle.id)) {
+          throw createEquipmentKitActionError(
+            409,
+            "KIT_NESTING_CYCLE",
+            `Добавление «${component.name}» создаст циклическую вложенность комплектов.`,
+            { componentId, parentBundleId: bundle.id },
+          );
+        }
+        components.push(component);
+      }
+
+      snapshots = [
+        { ...bundle, specifications: equipmentSpecs(bundle) },
+        ...components.map((component) => ({ ...component, specifications: equipmentSpecs(component) })),
+      ];
+      const at = new Date().toISOString();
+      const actorUserId = (req.user as any)?.id || null;
+      const actorName = (req.user as any)?.name || (req.user as any)?.username || null;
+      const nextBundleSpecs = equipmentSpecs(bundle);
+      const existingIds = getEquipmentKitComponentIds(bundle);
+      nextBundleSpecs.bundleComponentIds = [...new Set([...existingIds, ...componentIds])];
+      const existingSnapshots = Array.isArray(nextBundleSpecs.bundleComponents) ? nextBundleSpecs.bundleComponents : [];
+      const snapshotById = new Map(existingSnapshots.map((entry: any) => [String(entry?.id || ""), entry]));
+
+      for (const component of components) {
+        const audit = {
+          id: crypto.randomUUID(),
+          action: "added",
+          componentId: component.id,
+          componentName: component.name,
+          parentBundleId: bundle.id,
+          parentBundleName: bundle.name,
+          actorUserId,
+          actorName,
+          at,
+          reason: String(req.body?.reason || "").trim() || "Добавлено в комплект вручную",
+          context: "manual-kit-component-add",
+          managerOverride: isActive,
+          projectId: directProjectLink?.projectId || parentContext?.projectLink?.projectId || null,
+        };
+        const nextComponentSpecs = equipmentSpecs(component);
+        nextComponentSpecs.parentBundleId = bundle.id;
+        nextComponentSpecs.parentBundleName = bundle.name;
+        nextComponentSpecs.parentBundleCreatedAt = at;
+        nextComponentSpecs.kitExtractionHistory = [
+          ...(Array.isArray(nextComponentSpecs.kitExtractionHistory) ? nextComponentSpecs.kitExtractionHistory : []),
+          audit,
+        ].slice(-100);
+        const updatedComponent = await storage.updateEquipment(component.id, {
+          status: "in-use",
+          assignedTo: null,
+          location: `В составе: ${bundle.name}`,
+          specifications: nextComponentSpecs,
+        } as any);
+        if (!updatedComponent) throw new Error(`Не удалось добавить «${component.name}» в комплект`);
+        snapshotById.set(String(component.id), {
+          id: component.id,
+          name: component.name,
+          model: component.model,
+          inventoryNumber: component.inventoryNumber,
+          type: component.type,
+        });
+        nextBundleSpecs.bundleExtractionHistory = [
+          ...(Array.isArray(nextBundleSpecs.bundleExtractionHistory) ? nextBundleSpecs.bundleExtractionHistory : []),
+          audit,
+        ].slice(-100);
+      }
+      nextBundleSpecs.bundleComponents = [...snapshotById.values()];
+      const updatedBundle = await storage.updateEquipment(bundle.id, { specifications: nextBundleSpecs } as any);
+      if (!updatedBundle) throw new Error("Не удалось обновить состав комплекта");
+      const updatedComponents = await Promise.all(componentIds.map((id) => storage.getEquipmentById(id)));
+      res.json({
+        success: true,
+        bundle: updatedBundle,
+        components: updatedComponents.filter(Boolean),
+        addedComponentIds: componentIds,
+      });
+    } catch (error: any) {
+      if (snapshots.length > 0) {
+        try {
+          await restoreEquipmentSnapshots(snapshots);
+        } catch (rollbackError) {
+          console.error("[Equipment kits] Failed to roll back component add:", rollbackError);
+        }
+      }
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(500).json({ message: error?.message || "Не удалось добавить позиции в комплект" });
+    } finally {
+      lockedIds.forEach((id) => equipmentKitActionLocks.delete(id));
+    }
+  });
+
+  app.delete("/api/equipment/:bundleId/components/:componentId", async (req, res) => {
+    let bundleLocked = false;
+    try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
+      const bundle = await storage.getEquipmentById(req.params.bundleId).catch(() => undefined);
+      const component = await storage.getEquipmentById(req.params.componentId).catch(() => undefined);
+      if (!bundle || bundle.status === "archived") return res.status(404).json({ message: "Комплект не найден" });
+      if (!component || component.status === "archived") return res.status(404).json({ message: "Компонент не найден" });
+      if (!isEquipmentKit(bundle)) return res.status(400).json({ message: "Выбранная позиция не является комплектом" });
+      if (String(equipmentSpecs(component).parentBundleId || "").trim() !== String(bundle.id)) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_COMPONENT_PARENT_MISMATCH",
+          `Позиция «${component.name}» больше не входит в комплект «${bundle.name}».`,
+          { componentId: component.id, parentBundleId: bundle.id },
+        );
+      }
+      await ensureEquipmentCompanyAccess(req.user, component, bundle);
+      if (!(await canManageEquipmentKit(req.user, bundle))) {
+        return res.status(403).json({ message: "Нет прав на изменение состава комплекта" });
+      }
+      if (equipmentKitActionLocks.has(String(bundle.id))) {
+        throw createEquipmentKitActionError(
+          409,
+          "KIT_COMPONENT_BUSY",
+          "Состав комплекта уже изменяется. Обновите склад и повторите действие.",
+          { componentId: component.id, parentBundleId: bundle.id },
+        );
+      }
+      equipmentKitActionLocks.add(String(bundle.id));
+      bundleLocked = true;
+
+      const updatedComponent = await runEquipmentActionWithKitSafety({
+        componentId: component.id,
+        user: req.user,
+        confirmation: req.body?.kitExtraction,
+        actionContext: "manual-kit-component-remove",
+        action: async (freshItem) => freshItem,
+      });
+      const updatedBundle = await storage.getEquipmentById(bundle.id).catch(() => undefined);
+      res.json({
+        success: true,
+        bundle: updatedBundle,
+        component: updatedComponent,
+        removedComponentId: component.id,
+      });
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(500).json({ message: error?.message || "Не удалось убрать позицию из комплекта" });
+    } finally {
+      if (bundleLocked) equipmentKitActionLocks.delete(String(req.params.bundleId));
     }
   });
 
@@ -3944,9 +4775,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         note: body.note && String(body.note).trim() ? String(body.note).trim() : undefined,
       });
 
-      const request = await storage.createEquipmentCheckoutRequest(requestData);
+      const request = await runEquipmentActionWithKitSafety({
+        componentId: equipmentId,
+        user: currentUser,
+        confirmation: body.kitExtraction,
+        actionContext: requestType === "transfer" ? "equipment-transfer-request" : "equipment-checkout-request",
+        action: async () => storage.createEquipmentCheckoutRequest(requestData),
+      });
       res.json(request);
     } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
       res.status(400).json({ message: error?.message || "Не удалось создать запрос на оборудование" });
     }
   });
@@ -3969,26 +4807,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const item = await storage.getEquipmentById(request.equipmentId).catch(() => undefined);
       if (!item || item.status === "archived") return res.status(404).json({ message: "Оборудование не найдено" });
+
+      if (request.requestType === "kit-extraction") {
+        const kit = await getEquipmentKitContext(item);
+        if (!kit) {
+          const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+            status: "approved",
+            reviewedBy: currentUser.id,
+            reviewedAt: new Date(),
+            decisionNote: "Компонент уже извлечён из комплекта",
+          } as any);
+          return res.json({ request: updatedRequest, equipment: item, alreadyExtracted: true });
+        }
+        if (req.body?.kitExtractionApproval !== true) {
+          return res.status(409).json({
+            message: `Подтвердите извлечение «${item.name}» из активного комплекта «${kit.bundle.name}».`,
+            code: "KIT_OVERRIDE_CONFIRMATION_REQUIRED",
+            parentBundleId: kit.bundle.id,
+            parentBundleName: kit.bundle.name,
+          });
+        }
+
+        const outcome = await runEquipmentActionWithKitSafety({
+          componentId: item.id,
+          user: currentUser,
+          confirmation: {
+            confirmed: true,
+            override: true,
+            bundleName: kit.bundle.name,
+            reason: request.note || "Запрос сотрудника на извлечение",
+            context: "manager-approved-kit-extraction",
+          },
+          actionContext: "manager-approved-kit-extraction",
+          action: async (freshItem) => {
+            const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+              status: "approved",
+              reviewedBy: currentUser.id,
+              reviewedAt: new Date(),
+              decisionNote: req.body?.decisionNote
+                ? String(req.body.decisionNote).trim()
+                : "Извлечение из активного комплекта подтверждено",
+            } as any);
+            return { request: updatedRequest, equipment: freshItem };
+          },
+        });
+        return res.json(outcome);
+      }
+
       const operabilityStatus = String((item as any).operabilityStatus || "").trim() ||
         (item.status === "broken" ? "broken" : item.status === "maintenance" ? "on_repair" : "working");
       if (operabilityStatus !== "working") {
         return res.status(400).json({ message: "Оборудование сейчас недоступно для выдачи" });
       }
 
-      const updatedEquipment = await storage.updateEquipment(request.equipmentId, {
-        status: "in-use",
-        assignedTo: request.requestedBy,
-        location: request.location || item.location,
-        lastUsed: new Date(),
-      } as any);
-      const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
-        status: "approved",
-        reviewedBy: currentUser.id,
-        reviewedAt: new Date(),
-      } as any);
+      const outcome = await runEquipmentActionWithKitSafety({
+        componentId: request.equipmentId,
+        user: currentUser,
+        confirmation: req.body?.kitExtraction,
+        actionContext: request.requestType === "transfer" ? "approved-equipment-transfer" : "approved-equipment-checkout",
+        action: async (freshItem) => {
+          const updatedEquipment = await storage.updateEquipment(request.equipmentId, {
+            status: "in-use",
+            assignedTo: request.requestedBy,
+            location: request.location || freshItem.location,
+            lastUsed: new Date(),
+          } as any);
+          const updatedRequest = await storage.updateEquipmentCheckoutRequest(request.id, {
+            status: "approved",
+            reviewedBy: currentUser.id,
+            reviewedAt: new Date(),
+          } as any);
+          return { request: updatedRequest, equipment: updatedEquipment };
+        },
+      });
 
-      res.json({ request: updatedRequest, equipment: updatedEquipment });
+      res.json(outcome);
     } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
       res.status(500).json({ message: error?.message || "Не удалось подтвердить запрос" });
     }
   });
@@ -4039,23 +4934,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (specs.companyId && await canManageCompany(req.user, String(specs.companyId))) ||
         (!specs.companyId && userCompanyIds.length > 0);
       if (!canDelete) return res.status(403).json({ message: "Нет прав на удаление оборудования" });
-      try {
-        const deleted = await storage.deleteEquipment(id);
-        if (deleted) return res.json({ success: true, mode: "deleted" });
-    } catch (error: any) {
-        console.warn("[Equipment] hard delete failed, archiving:", error?.message || error);
-      }
-      const archived = await storage.updateEquipment(id, {
-        status: "archived",
-        location: "Архив",
-        specifications: {
-          ...specs,
-          archivedAt: new Date().toISOString(),
-          archivedByUserId: (req.user as any)?.id || null,
+      const result = await runEquipmentActionWithKitSafety({
+        componentId: id,
+        user: req.user,
+        confirmation: req.body?.kitExtraction,
+        actionContext: "delete-equipment",
+        action: async (freshItem) => {
+          const disassembly = await disassembleEquipmentBundle(freshItem, req.user, "bundle-deleted");
+          try {
+            try {
+              const deleted = await storage.deleteEquipment(id);
+              if (deleted) {
+                for (let index = projectEquipmentBundles.length - 1; index >= 0; index--) {
+                  projectEquipmentBundles[index].equipmentIds = projectEquipmentBundles[index].equipmentIds
+                    .filter((equipmentId) => String(equipmentId) !== String(id));
+                  if (projectEquipmentBundles[index].equipmentIds.length === 0) {
+                    projectEquipmentBundles.splice(index, 1);
+                  }
+                }
+                return {
+                  success: true,
+                  mode: "deleted",
+                  disassembledComponentIds: disassembly.releasedComponentIds,
+                };
+              }
+            } catch (error: any) {
+              console.warn("[Equipment] hard delete failed, archiving:", error?.message || error);
+            }
+            const freshSpecs = equipmentSpecs(freshItem);
+            const archived = await storage.updateEquipment(id, {
+              status: "archived",
+              location: "Архив",
+              specifications: {
+                ...freshSpecs,
+                archivedAt: new Date().toISOString(),
+                archivedByUserId: (req.user as any)?.id || null,
+              },
+            } as any);
+            if (!archived) throw new Error("Не удалось удалить или архивировать оборудование");
+            for (let index = projectEquipmentBundles.length - 1; index >= 0; index--) {
+              projectEquipmentBundles[index].equipmentIds = projectEquipmentBundles[index].equipmentIds
+                .filter((equipmentId) => String(equipmentId) !== String(id));
+              if (projectEquipmentBundles[index].equipmentIds.length === 0) {
+                projectEquipmentBundles.splice(index, 1);
+              }
+            }
+            return {
+              success: true,
+              mode: "archived",
+              equipment: archived,
+              disassembledComponentIds: disassembly.releasedComponentIds,
+            };
+          } catch (error) {
+            await restoreEquipmentSnapshots(disassembly.snapshots);
+            throw error;
+          }
         },
-      } as any);
-      res.json({ success: true, mode: "archived", equipment: archived });
+      });
+      res.json(result);
     } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
       console.error("[Equipment] delete failed:", error?.message || error);
       res.status(500).json({ message: error?.message || "Не удалось удалить оборудование" });
     }
@@ -7293,18 +8231,14 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   });
 
   // Привязка набора оборудования к проекту (корзина → проект). Обязательны: дата возврата, сотрудник.
-  const projectEquipmentBundles: Array<{
-    projectId: string;
-    equipmentIds: string[];
-    sentAt: string;
-    returnDate: string;
-    assignedByUserId?: string;
-    assignedByName: string;
-  }> = [];
   app.post("/api/projects/:projectId/equipment-bundle", async (req, res) => {
+    const appliedExtractions: Array<{ component: any; bundle: any }> = [];
     try {
+      if (!(await hasWorkspaceAccess(req.user))) {
+        return res.status(403).json({ message: "Нет доступа к складу" });
+      }
       const { projectId } = req.params;
-      const { equipmentIds, returnDate, assignedByUserId, assignedByName } = req.body || {};
+      const { equipmentIds, returnDate, assignedByUserId, assignedByName, kitExtractions } = req.body || {};
       if (!Array.isArray(equipmentIds) || equipmentIds.length === 0) {
         return res.status(400).json({ message: "Укажите список оборудования (equipmentIds)" });
       }
@@ -7313,6 +8247,28 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       const project = await storage.getProjectById(projectId);
       if (!project && !isStubStorage) return res.status(404).json({ message: "Project not found" });
+
+      for (const equipmentId of equipmentIds.map((id: unknown) => String(id || "").trim())) {
+        const component = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+        if (!component || component.status === "archived") {
+          throw createEquipmentKitActionError(404, "EQUIPMENT_NOT_FOUND", "Оборудование не найдено.", { equipmentId });
+        }
+        const kit = await getEquipmentKitContext(component);
+        if (kit) {
+          appliedExtractions.push({
+            component: { ...component, specifications: equipmentSpecs(component) },
+            bundle: { ...kit.bundle, specifications: equipmentSpecs(kit.bundle) },
+          });
+        }
+        await runEquipmentActionWithKitSafety({
+          componentId: equipmentId,
+          user: req.user,
+          confirmation: kitExtractions?.[equipmentId],
+          actionContext: `send-equipment-to-project:${projectId}`,
+          action: async () => ({ success: true }),
+        });
+      }
+
       const name = typeof assignedByName === "string" && assignedByName.trim() ? assignedByName.trim() : "Не указан";
       projectEquipmentBundles.push({
         projectId,
@@ -7324,6 +8280,18 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       });
       res.json({ success: true, message: "Оборудование привязано к проекту", count: equipmentIds.length });
     } catch (e: any) {
+      for (const snapshot of [...appliedExtractions].reverse()) {
+        const currentComponent = await storage.getEquipmentById(snapshot.component.id).catch(() => undefined);
+        const currentParentId = String(equipmentSpecs(currentComponent).parentBundleId || "").trim();
+        if (!currentParentId) {
+          try {
+            await restoreEquipmentKitSnapshots(snapshot.component, snapshot.bundle);
+          } catch (rollbackError) {
+            console.error("[Equipment kits] Failed to roll back project batch:", rollbackError);
+          }
+        }
+      }
+      if (sendEquipmentKitActionError(res, e)) return;
       res.status(500).json({ message: e?.message || "Failed to attach equipment to project" });
     }
   });
@@ -7339,6 +8307,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!equipmentId || typeof equipmentId !== "string") {
         return res.status(400).json({ message: "Укажите equipmentId" });
       }
+      const item = await storage.getEquipmentById(equipmentId).catch(() => undefined);
+      if (item) await ensureEquipmentReturnAllowed(req.user, item);
       let found = false;
       let bundleAssignedBy: string | undefined;
       for (let i = projectEquipmentBundles.length - 1; i >= 0; i--) {
@@ -7362,6 +8332,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       }
       res.json({ success: true, message: "Оборудование возвращено на склад" });
     } catch (e: any) {
+      if (sendEquipmentKitActionError(res, e)) return;
       res.status(500).json({ message: e?.message || "Не удалось вернуть" });
     }
   });
