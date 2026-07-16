@@ -2,7 +2,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
-  users, companies, companyMembers, companyInvites, events, equipment, systems, streams, notifications, platformSettings, platformIncidents,
+  users, companies, companyMembers, companyInvites, events, equipment, equipmentComments, systems, streams, notifications, platformSettings, platformIncidents,
   equipmentReservations, equipmentCheckoutRequests, telegramUsers, obsConnections, analyticsEvents,
   eventParticipants, tasks, taskComments, taskHistory, roles,
   computers, projects, projectColumns, projectComments, kanbanBoards, kanbanBoardMembers, kanbanLists, kanbanCards, customLocations, projectLocations, kanbanCardLocations, equipmentContextLinks, locationIssues, locationIssueComments, chatSessions, chatMessages, repositories,
@@ -19,6 +19,7 @@ import {
   type CompanyInvite, type InsertCompanyInvite,
   type Event, type InsertEvent,
   type Equipment, type InsertEquipment,
+  type EquipmentComment, type InsertEquipmentComment,
   type System, type InsertSystem,
   type Stream, type InsertStream,
   type Notification, type InsertNotification,
@@ -149,6 +150,9 @@ export interface IStorage {
   updateEquipment(id: string, equipment: Partial<Equipment>): Promise<Equipment | undefined>;
   deleteEquipment(id: string): Promise<boolean>;
   uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined>;
+  getEquipmentComments(equipmentId: string): Promise<EquipmentComment[]>;
+  getEquipmentCommentsByEquipmentIds(equipmentIds: string[]): Promise<EquipmentComment[]>;
+  createEquipmentComment(comment: InsertEquipmentComment): Promise<EquipmentComment>;
   getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]>;
   replaceEquipmentContextLinks(input: {
     equipmentId: string;
@@ -625,9 +629,12 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async deleteEquipment(id: string): Promise<boolean> {
-    await db!.delete(equipmentContextLinks).where(eq(equipmentContextLinks.equipmentId, id));
-    const result = await db!.delete(equipment).where(eq(equipment.id, id)).returning({ id: equipment.id });
-    return result.length > 0;
+    return await db!.transaction(async (tx) => {
+      await tx.delete(equipmentContextLinks).where(eq(equipmentContextLinks.equipmentId, id));
+      await tx.delete(equipmentComments).where(eq(equipmentComments.equipmentId, id));
+      const result = await tx.delete(equipment).where(eq(equipment.id, id)).returning({ id: equipment.id });
+      return result.length > 0;
+    });
   }
 
   async uploadEquipmentPhoto(equipmentId: string, photoUrl: string): Promise<Equipment | undefined> {
@@ -638,6 +645,27 @@ export class PostgreSQLStorage implements IStorage {
     const newPhotos = [...currentPhotos, photoUrl];
     
     return await this.updateEquipment(equipmentId, { photos: newPhotos });
+  }
+
+  async getEquipmentComments(equipmentId: string): Promise<EquipmentComment[]> {
+    return await db!.select().from(equipmentComments)
+      .where(eq(equipmentComments.equipmentId, equipmentId))
+      .orderBy(equipmentComments.createdAt);
+  }
+
+  async getEquipmentCommentsByEquipmentIds(equipmentIds: string[]): Promise<EquipmentComment[]> {
+    const uniqueIds = Array.from(new Set(equipmentIds.map(String).filter(Boolean)));
+    if (uniqueIds.length === 0) return [];
+    return await db!.select().from(equipmentComments)
+      .where(inArray(equipmentComments.equipmentId, uniqueIds))
+      .orderBy(equipmentComments.createdAt);
+  }
+
+  async createEquipmentComment(comment: InsertEquipmentComment): Promise<EquipmentComment> {
+    const result = await db!.insert(equipmentComments)
+      .values({ ...comment, id: crypto.randomUUID() })
+      .returning();
+    return result[0];
   }
 
   async getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]> {
@@ -2158,6 +2186,7 @@ class StubStorage implements IStorage {
   private platformSettingsMap = new Map<string, PlatformSetting>();
   private platformIncidentsMap = new Map<string, PlatformIncident>();
   private equipmentCheckoutRequestsMap = new Map<string, EquipmentCheckoutRequest>();
+  private equipmentCommentsMap = new Map<string, EquipmentComment>();
   private equipmentContextLinksMap = new Map<string, EquipmentContextLink>();
   private events = new Map<string, Event>();
   private tasks = new Map<string, Task>();
@@ -2377,9 +2406,33 @@ class StubStorage implements IStorage {
     for (const [linkId, link] of this.equipmentContextLinksMap) {
       if (link.equipmentId === id) this.equipmentContextLinksMap.delete(linkId);
     }
+    for (const [commentId, comment] of this.equipmentCommentsMap) {
+      if (comment.equipmentId === id) this.equipmentCommentsMap.delete(commentId);
+    }
     return this.equipment.delete(id);
   }
   async uploadEquipmentPhoto(): Promise<Equipment | undefined> { return undefined; }
+  async getEquipmentComments(equipmentId: string): Promise<EquipmentComment[]> {
+    return Array.from(this.equipmentCommentsMap.values())
+      .filter((comment) => comment.equipmentId === equipmentId)
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async getEquipmentCommentsByEquipmentIds(equipmentIds: string[]): Promise<EquipmentComment[]> {
+    const idSet = new Set(equipmentIds.map(String).filter(Boolean));
+    return Array.from(this.equipmentCommentsMap.values())
+      .filter((comment) => idSet.has(String(comment.equipmentId)))
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  }
+  async createEquipmentComment(data: InsertEquipmentComment): Promise<EquipmentComment> {
+    const comment = {
+      ...data,
+      id: this.uid(),
+      createdAt: this.now(),
+      updatedAt: this.now(),
+    } as EquipmentComment;
+    this.equipmentCommentsMap.set(comment.id, comment);
+    return comment;
+  }
   async getEquipmentContextLinks(equipmentId?: string): Promise<EquipmentContextLink[]> {
     return Array.from(this.equipmentContextLinksMap.values())
       .filter((link) => !equipmentId || link.equipmentId === equipmentId)
@@ -3609,6 +3662,53 @@ export async function initDatabase(): Promise<void> {
         await client`CREATE INDEX IF NOT EXISTS equipment_context_links_card_active_idx
           ON equipment_context_links (kanban_card_id, active)
           WHERE kanban_card_id IS NOT NULL`;
+        await client`CREATE TABLE IF NOT EXISTS equipment_comments (
+          id varchar PRIMARY KEY,
+          equipment_id varchar NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+          company_id varchar NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+          user_id varchar NOT NULL,
+          author_name text NOT NULL,
+          content text NOT NULL DEFAULT '',
+          attachments jsonb DEFAULT '[]'::jsonb,
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        )`;
+        await client`ALTER TABLE equipment_comments ADD COLUMN IF NOT EXISTS company_id varchar`;
+        await client`ALTER TABLE equipment_comments ADD COLUMN IF NOT EXISTS author_name text`;
+        await client`ALTER TABLE equipment_comments ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb`;
+        await client`UPDATE equipment_comments SET attachments = '[]'::jsonb WHERE attachments IS NULL`;
+        await client`DO $equipment_comment_time_migration$
+          BEGIN
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'equipment_comments'
+                AND column_name = 'created_at'
+                AND data_type = 'timestamp without time zone'
+            ) THEN
+              ALTER TABLE equipment_comments
+                ALTER COLUMN created_at TYPE timestamptz
+                USING created_at AT TIME ZONE current_setting('TimeZone');
+            END IF;
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'equipment_comments'
+                AND column_name = 'updated_at'
+                AND data_type = 'timestamp without time zone'
+            ) THEN
+              ALTER TABLE equipment_comments
+                ALTER COLUMN updated_at TYPE timestamptz
+                USING updated_at AT TIME ZONE current_setting('TimeZone');
+            END IF;
+          END
+        $equipment_comment_time_migration$`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_comments_equipment_created_idx
+          ON equipment_comments (equipment_id, created_at)`;
+        await client`CREATE INDEX IF NOT EXISTS equipment_comments_company_created_idx
+          ON equipment_comments (company_id, created_at DESC)`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить equipment schema:", schemaErr);
       }

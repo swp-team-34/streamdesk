@@ -14,6 +14,7 @@ import { Package, Plus, Mic, Camera, Lightbulb, Monitor, Gavel, Edit, MapPin, Sc
 import { EquipmentForm } from "@/components/forms/equipment-form";
 import { BarcodeScanner } from "@/components/equipment/barcode-scanner";
 import { EquipmentBarcodeModal } from "@/components/equipment/barcode-generator";
+import { EquipmentActivity } from "@/components/equipment/equipment-activity";
 import { canCreateEquipment, canEditEquipment, canReserveEquipment } from "@/lib/equipment-permissions";
 import { buildBarcodeLabelBitmapPayload, renderCompactBarcodeLabel } from "@/lib/barcode-label";
 import { apiRequest, apiUrl, encodeUserHeader } from "@/lib/queryClient";
@@ -122,14 +123,6 @@ const INTERNAL_SPECIFICATION_KEYS = new Set([
   "deviceType",
 ]);
 
-type EquipmentComment = {
-  id: string;
-  text: string;
-  authorId?: string | null;
-  authorName?: string | null;
-  createdAt: string;
-};
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -160,20 +153,6 @@ function getEquipmentPhotos(item: Equipment | null | undefined): string[] {
     : [];
 }
 
-function getEquipmentComments(item: Equipment | null | undefined): EquipmentComment[] {
-  const comments = asRecord(item?.specifications).equipmentComments;
-  if (!Array.isArray(comments)) return [];
-  return comments
-    .map((comment: any) => ({
-      id: String(comment?.id || `comment-${comment?.createdAt || Math.random()}`),
-      text: String(comment?.text || "").trim(),
-      authorId: comment?.authorId ? String(comment.authorId) : null,
-      authorName: comment?.authorName ? String(comment.authorName) : null,
-      createdAt: String(comment?.createdAt || new Date().toISOString()),
-    }))
-    .filter((comment) => comment.text);
-}
-
 function getEquipmentStorageLocation(item: Equipment | null | undefined) {
   return String(item?.storageLocation || "").trim();
 }
@@ -188,6 +167,16 @@ function getEquipmentResponsibleContact(item: Equipment | null | undefined) {
 
 function getEquipmentCompanyId(item: Equipment | null | undefined) {
   return String(asRecord(item?.specifications).companyId || "").trim();
+}
+
+function getEquipmentActivitySummary(item: Equipment | null | undefined) {
+  const summary = asRecord((item as any)?.activitySummary);
+  return {
+    commentCount: Number(summary.commentCount || 0),
+    attachmentCount: Number(summary.attachmentCount || 0),
+    latestAt: summary.latestAt ? String(summary.latestAt) : "",
+    latestAuthorName: summary.latestAuthorName ? String(summary.latestAuthorName) : "",
+  };
 }
 
 function getEquipmentPhysicalDestination(item: Equipment | null | undefined) {
@@ -327,7 +316,6 @@ export default function EquipmentPage() {
   const [barcodeEquipment, setBarcodeEquipment] = useState<Equipment | null>(null);
   const [detailsEquipment, setDetailsEquipment] = useState<Equipment | null>(null);
   const [detailsNote, setDetailsNote] = useState("");
-  const [detailsComment, setDetailsComment] = useState("");
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [cart, setCart] = useState<Equipment[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -578,37 +566,6 @@ export default function EquipmentPage() {
     setDetailsEquipment(null);
     setDetailsReturnBundleId(null);
   };
-
-  const addEquipmentCommentMutation = useMutation({
-    mutationFn: async ({ equipmentItem, text }: { equipmentItem: Equipment; text: string }) => {
-      const commentText = text.trim();
-      if (!commentText) throw new Error("Введите комментарий");
-      const currentComments = getEquipmentComments(equipmentItem);
-      const nextComment: EquipmentComment = {
-        id: `comment-${Date.now()}`,
-        text: commentText,
-        authorId: currentUser?.id || null,
-        authorName: currentUser?.name || currentUser?.username || "Сотрудник",
-        createdAt: new Date().toISOString(),
-      };
-      const response = await apiRequest("PUT", `/api/equipment/${equipmentItem.id}`, {
-        specifications: {
-          ...asRecord(equipmentItem.specifications),
-          equipmentComments: [...currentComments, nextComment],
-        },
-      });
-      return response.json();
-    },
-    onSuccess: (updated: Equipment) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      setDetailsEquipment(updated);
-      setDetailsComment("");
-      toast({ title: "Комментарий добавлен" });
-    },
-    onError: (e: any) => {
-      toast({ title: "Ошибка", description: e?.message || "Не удалось добавить комментарий", variant: "destructive" });
-    },
-  });
 
   const sendToProjectMutation = useMutation({
     mutationFn: async ({
@@ -2696,7 +2653,7 @@ export default function EquipmentPage() {
               String(item.notes ?? "").trim() ||
                 getSpecificationEntries(item.specifications).length > 0,
             );
-            const itemComments = getEquipmentComments(item);
+            const activitySummary = getEquipmentActivitySummary(item);
             const physicalDestination = getEquipmentPhysicalDestination(item);
             const storageLocation = getEquipmentStorageLocation(item);
             const responsiblePerson = getEquipmentResponsiblePerson(item);
@@ -3052,11 +3009,13 @@ export default function EquipmentPage() {
                       </div>
                     </div>
                   )}
-                  {itemComments.length > 0 && (
+                  {activitySummary.commentCount > 0 && (
                     <div className="flex items-start gap-1.5 text-slate-500 dark:text-slate-400">
                       <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span className="min-w-0 break-words">
-                        {itemComments.length} комм., последний: {itemComments[itemComments.length - 1]?.authorName || "сотрудник"}
+                        {activitySummary.commentCount} зап.
+                        {activitySummary.attachmentCount > 0 ? ` · файлов: ${activitySummary.attachmentCount}` : ""}
+                        {activitySummary.latestAuthorName ? ` · последний: ${activitySummary.latestAuthorName}` : ""}
                       </span>
                     </div>
                   )}
@@ -4358,40 +4317,16 @@ export default function EquipmentPage() {
                 <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
                   <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                     <MessageSquare className="h-3.5 w-3.5" />
-                    Комментарии
+                    История и файлы
                   </div>
-                  <div className="space-y-3">
-                    {getEquipmentComments(detailsEquipment).length > 0 ? (
-                      getEquipmentComments(detailsEquipment).map((comment) => (
-                        <div key={comment.id} className="rounded-md border border-slate-200/70 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium text-slate-700 dark:text-slate-200">{comment.authorName || getAssignedUserName(comment.authorId) || "Сотрудник"}</span>
-                            <span>{formatDateTime(comment.createdAt)}</span>
-                          </div>
-                          <div className="whitespace-pre-wrap break-words leading-5 text-slate-700 dark:text-slate-200">{comment.text}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        Комментариев пока нет.
-                      </div>
-                    )}
-                    <Textarea
-                      value={detailsComment}
-                      onChange={(event) => setDetailsComment(event.target.value)}
-                      placeholder="Оставить комментарий по оборудованию"
-                      className="min-h-20 resize-y bg-white dark:bg-slate-950"
-                    />
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        onClick={() => addEquipmentCommentMutation.mutate({ equipmentItem: detailsEquipment, text: detailsComment })}
-                        disabled={addEquipmentCommentMutation.isPending || !detailsComment.trim()}
-                      >
-                        {addEquipmentCommentMutation.isPending ? "Добавление..." : "Добавить комментарий"}
-                      </Button>
-                    </div>
-                  </div>
+                  <EquipmentActivity
+                    equipmentId={detailsEquipment.id}
+                    canComment={Boolean(currentUser?.id && getEquipmentCompanyId(detailsEquipment))}
+                    onActivity={() => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+                    }}
+                  />
                 </div>
 
                 {userCanEdit &&

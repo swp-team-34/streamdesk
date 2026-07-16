@@ -119,6 +119,18 @@ export const equipment = pgTable("equipment", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const equipmentComments = pgTable("equipment_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  equipmentId: varchar("equipment_id").references(() => equipment.id, { onDelete: "cascade" }).notNull(),
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  userId: varchar("user_id").notNull(),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull().default(""),
+  attachments: jsonb("attachments").default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const systems = pgTable("systems", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -927,6 +939,12 @@ export const insertEquipmentContextLinkSchema = createInsertSchema(equipmentCont
   updatedAt: true,
 });
 
+export const insertEquipmentCommentSchema = createInsertSchema(equipmentComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertLocationIssueSchema = createInsertSchema(locationIssues).omit({
   id: true,
   createdAt: true,
@@ -1103,6 +1121,9 @@ export type InsertKanbanCardLocation = z.infer<typeof insertKanbanCardLocationSc
 
 export type EquipmentContextLink = typeof equipmentContextLinks.$inferSelect;
 export type InsertEquipmentContextLink = z.infer<typeof insertEquipmentContextLinkSchema>;
+
+export type EquipmentComment = typeof equipmentComments.$inferSelect;
+export type InsertEquipmentComment = z.infer<typeof insertEquipmentCommentSchema>;
 
 export type LocationIssue = typeof locationIssues.$inferSelect;
 export type InsertLocationIssue = z.infer<typeof insertLocationIssueSchema>;

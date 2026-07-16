@@ -41,10 +41,17 @@ function registeredRoutes(app: express.Express) {
     })));
 }
 
-function routeHandler(app: express.Express, method: string, path: string) {
+function routeHandler(
+  app: express.Express,
+  method: string,
+  path: string,
+  position: "first" | "last" = "first",
+) {
   const layer = ((app as any)._router?.stack || [])
     .find((item: any) => item.route?.path === path && item.route?.methods?.[method.toLowerCase()]);
-  const handler = layer?.route?.stack?.[0]?.handle as ((req: any, res: any) => Promise<void>) | undefined;
+  const stack = layer?.route?.stack || [];
+  const selected = position === "last" ? stack[stack.length - 1] : stack[0];
+  const handler = selected?.handle as ((req: any, res: any) => Promise<void>) | undefined;
   if (!handler) return undefined;
   return async (req: any, res: any) => {
     if (req.user?.id && !req.workspace) {
@@ -242,6 +249,56 @@ async function createEquipmentContextFixture() {
   return { company, project, location, board, list, cards, item };
 }
 
+async function createEquipmentActivityFixture(prefix = "activity") {
+  const suffix = `${Date.now()}-${++kitSequence}`;
+  const user = await storage.createUser({
+    username: `${prefix}-user-${suffix}`,
+    password: "test-password",
+    name: `${prefix} User`,
+    role: "employee",
+    permissions: [],
+    active: true,
+    workspaceMode: "company_member",
+  } as any);
+  const company = await storage.createCompany({
+    name: `${prefix} Company ${suffix}`,
+    ownerId: user.id,
+    status: "active",
+  } as any);
+  await storage.createCompanyMember({
+    companyId: company.id,
+    userId: user.id,
+    role: "member",
+    status: "active",
+  } as any);
+  const activeUser = await storage.updateUser(user.id, {
+    activeWorkspaceType: "company",
+    activeCompanyId: company.id,
+  } as any) || {
+    ...user,
+    activeWorkspaceType: "company",
+    activeCompanyId: company.id,
+  };
+  const item = await storage.createEquipment({
+    name: `${prefix} Camera ${suffix}`,
+    type: "camera",
+    status: "available",
+    notes: "Static equipment notes",
+    specifications: {
+      companyId: company.id,
+      sensor: "full-frame",
+      equipmentComments: [{
+        id: "legacy-comment",
+        text: "Legacy equipment observation",
+        authorId: user.id,
+        authorName: "Legacy Author",
+        createdAt: "2026-07-01T09:00:00.000Z",
+      }],
+    },
+  } as any);
+  return { user: activeUser, company, item };
+}
+
 describe("equipment detail route registration", () => {
   it("registers GET /api/equipment/:id for item details", async () => {
     const app = await createAppWithRoutes();
@@ -279,6 +336,148 @@ describe("equipment detail route registration", () => {
     expect(res.body).toMatchObject({
       message: expect.any(String),
     });
+  });
+});
+
+describe("equipment activity comments", () => {
+  it("stores attributed comments and validated files separately from static equipment data", async () => {
+    const app = await createAppWithRoutes();
+    const createComment = routeHandler(app, "POST", "/api/equipment/:id/comments", "last");
+    const listComments = routeHandler(app, "GET", "/api/equipment/:id/comments");
+    const listEquipment = routeHandler(app, "GET", "/api/equipment");
+    const { user, company, item } = await createEquipmentActivityFixture("activity-store");
+    const createResponse = createJsonResponse();
+
+    await createComment!({
+      user,
+      params: { id: item.id },
+      body: { content: "Minor connector wear" },
+      files: [{
+        originalname: "connector.jpg",
+        filename: "connector-test.jpg",
+        mimetype: "image/jpeg",
+        size: 2048,
+      }],
+    }, createResponse);
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.body).toMatchObject({
+      equipmentId: item.id,
+      companyId: company.id,
+      userId: user.id,
+      authorName: user.name,
+      content: "Minor connector wear",
+      attachments: [{
+        fileName: "connector.jpg",
+        mimeType: "image/jpeg",
+        fileUrl: "/uploads/equipment-comments/connector-test.jpg",
+      }],
+    });
+
+    await storage.updateEquipment(item.id, {
+      status: "in-use",
+      assignedTo: user.id,
+    } as any);
+    await storage.updateEquipment(item.id, {
+      status: "available",
+      assignedTo: null,
+    } as any);
+
+    const commentsResponse = createJsonResponse();
+    await listComments!({
+      user,
+      params: { id: item.id },
+    }, commentsResponse);
+
+    expect(commentsResponse.statusCode).toBe(200);
+    expect(commentsResponse.body).toEqual([
+      expect.objectContaining({
+        id: `legacy:${item.id}:legacy-comment`,
+        authorName: "Legacy Author",
+        content: "Legacy equipment observation",
+        legacy: true,
+      }),
+      expect.objectContaining({
+        authorName: user.name,
+        content: "Minor connector wear",
+        attachments: [expect.objectContaining({ fileName: "connector.jpg" })],
+      }),
+    ]);
+    const storedItem = await storage.getEquipmentById(item.id);
+    expect(storedItem?.notes).toBe("Static equipment notes");
+    expect(storedItem?.specifications).toMatchObject({
+      sensor: "full-frame",
+      equipmentComments: [expect.objectContaining({ id: "legacy-comment" })],
+    });
+
+    const equipmentResponse = createJsonResponse();
+    await listEquipment!({
+      user,
+      workspace: {
+        type: "company",
+        companyId: company.id,
+        requiresSelection: false,
+        source: "session",
+      },
+      query: {},
+    }, equipmentResponse);
+    const serialized = (equipmentResponse.body as any[]).find((entry) => entry.id === item.id);
+    expect(serialized).toMatchObject({
+      activitySummary: {
+        commentCount: 2,
+        attachmentCount: 1,
+        latestAuthorName: user.name,
+      },
+    });
+    expect(serialized.specifications).not.toHaveProperty("equipmentComments");
+  });
+
+  it("rejects unsupported files and isolates equipment activity between companies", async () => {
+    const app = await createAppWithRoutes();
+    const createComment = routeHandler(app, "POST", "/api/equipment/:id/comments", "last");
+    const listComments = routeHandler(app, "GET", "/api/equipment/:id/comments");
+    const owner = await createEquipmentActivityFixture("activity-owner");
+    const outsider = await createEquipmentActivityFixture("activity-outsider");
+
+    const rejectedResponse = createJsonResponse();
+    await createComment!({
+      user: owner.user,
+      params: { id: owner.item.id },
+      body: { content: "Executable attachment" },
+      files: [],
+      equipmentCommentAttachmentRejected: true,
+    }, rejectedResponse);
+    expect(rejectedResponse.statusCode).toBe(400);
+    expect(await storage.getEquipmentComments(owner.item.id)).toHaveLength(0);
+
+    const outsiderReadResponse = createJsonResponse();
+    await listComments!({
+      user: outsider.user,
+      workspace: {
+        type: "company",
+        companyId: outsider.company.id,
+        requiresSelection: false,
+        source: "session",
+      },
+      params: { id: owner.item.id },
+    }, outsiderReadResponse);
+    expect(outsiderReadResponse.statusCode).toBe(403);
+
+    const outsiderWriteResponse = createJsonResponse();
+    await createComment!({
+      user: outsider.user,
+      workspace: {
+        type: "company",
+        companyId: outsider.company.id,
+        requiresSelection: false,
+        source: "session",
+      },
+      params: { id: owner.item.id },
+      body: { content: "Cross-company write" },
+      files: [],
+    }, outsiderWriteResponse);
+    expect(outsiderWriteResponse.statusCode).toBe(403);
+    expect(await storage.getEquipmentComments(owner.item.id)).toHaveLength(0);
   });
 });
 
