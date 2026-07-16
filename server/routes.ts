@@ -277,7 +277,7 @@ const locationAttachmentUpload = multer({
       cb(null, `${base || "location-file"}-${uniqueSuffix}${ext}`);
     },
   }),
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (req, file, cb) => {
     const allowedMimeTypes = new Set([
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -287,10 +287,22 @@ const locationAttachmentUpload = multer({
       "image/webp",
       "text/plain",
     ]);
-    cb(null, allowedMimeTypes.has(file.mimetype));
+    const accepted = allowedMimeTypes.has(file.mimetype);
+    if (!accepted) (req as any).locationAttachmentRejected = true;
+    cb(null, accepted);
   },
   limits: { fileSize: 10 * 1024 * 1024 },
 });
+
+const locationTopicMessageUpload = (req: any, res: any, next: any) => {
+  locationAttachmentUpload.array("files", 5)(req, res, (error) => {
+    if (!error) return next();
+    const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? "Размер каждого файла не должен превышать 10 МБ"
+      : "Не удалось проверить вложения темы";
+    return res.status(400).json({ message });
+  });
+};
 
 // Helper function to check IP connectivity
 async function checkIP(ip: string, port: number = 80): Promise<boolean> {
@@ -1449,6 +1461,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Array.from(new Set(locationIds.map((value) => String(value || "").trim()).filter(Boolean)));
   };
 
+  const normalizeLocationTopicStatus = (status: unknown) => {
+    const value = String(status || "").trim();
+    if (["reported", "in_progress", "active"].includes(value)) return "active" as const;
+    if (value === "cancelled") return "archived" as const;
+    if (value === "resolved") return "resolved" as const;
+    if (value === "archived") return "archived" as const;
+    return "active" as const;
+  };
+
+  const normalizeLocationTopicType = (type: unknown) =>
+    String(type || "") === "note" ? "note" as const : "issue" as const;
+
   const getKanbanCardLocationIds = async (card: any): Promise<string[]> => {
     const links = await storage.getKanbanCardLocationLinks(String(card.id)).catch(() => []);
     const linkedIds = normalizeLocationIds((links as any[]).map((link) => link.locationId));
@@ -1548,11 +1572,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: location.name,
           archivedAt: location.archivedAt ?? null,
         })),
+      locationTopics: (allIssues as any[])
+        .filter((issue) =>
+          locationIds.includes(String(issue.locationId)) &&
+          normalizeLocationTopicStatus(issue.status) === "active",
+        )
+        .sort((left, right) =>
+          new Date(right.updatedAt || right.createdAt || 0).getTime() -
+          new Date(left.updatedAt || left.createdAt || 0).getTime(),
+        )
+        .slice(0, 5)
+        .map((issue) => ({
+          id: issue.id,
+          locationId: issue.locationId,
+          locationName: locationById.get(String(issue.locationId))?.name || "Площадка",
+          title: issue.title,
+          type: normalizeLocationTopicType(issue.type),
+          severity: normalizeLocationTopicType(issue.type) === "issue" ? issue.severity || "medium" : null,
+          status: normalizeLocationTopicStatus(issue.status),
+          updatedAt: issue.updatedAt || issue.createdAt || null,
+        })),
       locationWarnings: (allIssues as any[])
         .filter((issue) =>
           locationIds.includes(String(issue.locationId)) &&
+          normalizeLocationTopicType(issue.type) === "issue" &&
           ["high", "critical"].includes(String(issue.severity)) &&
-          !["resolved", "cancelled"].includes(String(issue.status)),
+          normalizeLocationTopicStatus(issue.status) === "active",
         )
         .map((issue) => ({
           id: issue.id,
@@ -9121,11 +9166,12 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
   };
 
   const buildProjectResponse = async (project: any) => {
-    const [directLocationIds, cardLocationIds, allLocations, comments] = await Promise.all([
+    const [directLocationIds, cardLocationIds, allLocations, comments, allIssues] = await Promise.all([
       getProjectDirectLocationIds(project.id),
       getProjectCardLocationIds(project.id),
       storage.getCustomLocations().catch(() => []),
       storage.getProjectComments(project.id).catch(() => []),
+      storage.getLocationIssues().catch(() => []),
     ]);
     const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
     const locationIds = normalizeLocationIds([...directLocationIds, ...cardLocationIds])
@@ -9161,6 +9207,26 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
           source: directSet.has(String(location.id)) && cardSet.has(String(location.id))
             ? "direct_and_cards"
             : directSet.has(String(location.id)) ? "direct" : "cards",
+        })),
+      locationTopics: (allIssues as any[])
+        .filter((issue) =>
+          locationIds.includes(String(issue.locationId)) &&
+          normalizeLocationTopicStatus(issue.status) === "active",
+        )
+        .sort((left, right) =>
+          new Date(right.updatedAt || right.createdAt || 0).getTime() -
+          new Date(left.updatedAt || left.createdAt || 0).getTime(),
+        )
+        .slice(0, 5)
+        .map((issue) => ({
+          id: issue.id,
+          locationId: issue.locationId,
+          locationName: locationById.get(String(issue.locationId))?.name || "Площадка",
+          title: issue.title,
+          type: normalizeLocationTopicType(issue.type),
+          severity: normalizeLocationTopicType(issue.type) === "issue" ? issue.severity || "medium" : null,
+          status: normalizeLocationTopicStatus(issue.status),
+          updatedAt: issue.updatedAt || issue.createdAt || null,
         })),
     };
   };
@@ -9820,7 +9886,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       linkedWork ? Promise.resolve(linkedWork) : getLocationLinkedWork(location),
     ]);
     const unresolvedIssues = (issues as any[])
-      .filter((issue: any) => !["resolved", "cancelled"].includes(String(issue.status))).length;
+      .filter((issue: any) => normalizeLocationTopicStatus(issue.status) === "active").length;
     const activeKanbanCards = resolvedLinkedWork.cards.filter((card) => card.status === "active").length;
     const activeProjects = resolvedLinkedWork.projects.filter((project) => !project.completed).length;
     return {
@@ -10093,14 +10159,152 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
 
+  const locationTopicTypeSchema = z.enum(["note", "issue"]);
   const locationIssueSeveritySchema = z.enum(["low", "medium", "high", "critical"]);
-  const locationIssueStatusSchema = z.enum(["reported", "in_progress", "resolved", "cancelled"]);
+  const locationTopicStatusSchema = z.enum(["active", "resolved", "archived"]);
+  const locationTopicCreateSchema = z.object({
+    locationId: z.string().trim().min(1),
+    type: locationTopicTypeSchema.default("issue"),
+    title: z.string().trim().min(1, "Название темы обязательно").max(240),
+    description: z.string().trim().min(1, "Описание темы обязательно").max(20_000),
+    severity: locationIssueSeveritySchema.nullable().optional(),
+    projectId: z.string().trim().min(1).max(160).nullable().optional(),
+    kanbanCardId: z.string().trim().min(1).max(160).nullable().optional(),
+  });
+  const locationTopicUpdateSchema = locationTopicCreateSchema
+    .omit({ locationId: true })
+    .partial()
+    .extend({ status: locationTopicStatusSchema.optional() });
+  const locationTopicMessageSchema = z.object({
+    content: z.string().trim().max(10_000).default(""),
+  });
+
+  const publishLocationTopicEvent = (
+    location: any,
+    action: DiscussionRealtimeEvent["action"],
+    recordId: string,
+    version?: string | Date | null,
+  ) => {
+    publishDiscussionEvent(createDiscussionRealtimeEvent({
+      channel: `location:${location.id}:topics`,
+      action,
+      recordId,
+      version,
+    }));
+    if (location.companyId) {
+      publishDiscussionEvent(createDiscussionRealtimeEvent({
+        channel: `company:${location.companyId}`,
+        action,
+        recordId,
+        version,
+      }));
+    }
+  };
+
+  const validateLocationTopicLinks = async (
+    currentUser: any,
+    location: any,
+    requestedProjectId: string | null,
+    requestedCardId: string | null,
+  ) => {
+    let projectId = requestedProjectId;
+    let project: any = null;
+    let card: any = null;
+
+    if (requestedCardId) {
+      card = await storage.getKanbanCardById(requestedCardId).catch(() => undefined);
+      if (!card) return { ok: false as const, status: 400, message: "Карточка Kanban V2 не найдена" };
+      const access = await getKanbanBoardAccess(currentUser, String(card.boardId));
+      if (!access) return { ok: false as const, status: 403, message: "Нет доступа к карточке Kanban V2" };
+      if (!access.board.companyId || String(access.board.companyId) !== String(location.companyId || "")) {
+        return { ok: false as const, status: 403, message: "Карточка принадлежит другой компании" };
+      }
+      const cardLocationIds = await getKanbanCardLocationIds(card);
+      if (!cardLocationIds.includes(String(location.id))) {
+        return { ok: false as const, status: 400, message: "Карточка не связана с выбранной площадкой" };
+      }
+      const cardProjectId = String(card.projectId || access.board.projectId || "").trim() || null;
+      if (projectId && cardProjectId && String(projectId) !== cardProjectId) {
+        return { ok: false as const, status: 400, message: "Карточка относится к другому проекту" };
+      }
+      projectId = projectId || cardProjectId;
+    }
+
+    if (projectId) {
+      project = await storage.getProjectById(projectId).catch(() => undefined);
+      if (!project) return { ok: false as const, status: 400, message: "Проект не найден" };
+      if (!(await canAccessProject(currentUser, project))) {
+        return { ok: false as const, status: 403, message: "Нет доступа к проекту" };
+      }
+      if (!project.companyId || String(project.companyId) !== String(location.companyId || "")) {
+        return { ok: false as const, status: 403, message: "Проект принадлежит другой компании" };
+      }
+      const [directLocationIds, cardLocationIds] = await Promise.all([
+        getProjectDirectLocationIds(project.id),
+        getProjectCardLocationIds(project.id),
+      ]);
+      if (!normalizeLocationIds([...directLocationIds, ...cardLocationIds]).includes(String(location.id))) {
+        return { ok: false as const, status: 400, message: "Проект не связан с выбранной площадкой" };
+      }
+    }
+
+    return {
+      ok: true as const,
+      projectId: projectId || null,
+      kanbanCardId: requestedCardId || null,
+      project,
+      card,
+    };
+  };
+
+  const serializeLocationTopic = async (issue: any, currentUser: any, providedLocation?: any) => {
+    const location = providedLocation || await storage.getCustomLocationById(issue.locationId).catch(() => undefined);
+    const [comments, reporter, project, card] = await Promise.all([
+      storage.getLocationIssueComments(issue.id).catch(() => []),
+      issue.reportedByUserId ? storage.getUser(String(issue.reportedByUserId)).catch(() => undefined) : undefined,
+      issue.projectId ? storage.getProjectById(String(issue.projectId)).catch(() => undefined) : undefined,
+      issue.kanbanCardId ? storage.getKanbanCardById(String(issue.kanbanCardId)).catch(() => undefined) : undefined,
+    ]);
+    const users = await storage.getUsers().catch(() => []);
+    const userById = new Map((users as any[]).map((user) => [String(user.id), user]));
+    const canManage = Boolean(location && await canManageLocationCompany(currentUser, String(location.companyId || "")));
+    const status = normalizeLocationTopicStatus(issue.status);
+    const type = normalizeLocationTopicType(issue.type);
+    return {
+      ...issue,
+      type,
+      status,
+      severity: type === "issue" ? String(issue.severity || "medium") : null,
+      authorName: String(issue.authorName || reporter?.name || reporter?.username || "Пользователь"),
+      comments: (comments as any[]).map((comment) => {
+        const author = userById.get(String(comment.userId)) as any;
+        return {
+          ...comment,
+          authorName: String(comment.authorName || author?.name || author?.username || "Пользователь"),
+          attachments: Array.isArray(comment.attachments) ? comment.attachments : [],
+        };
+      }),
+      project: project ? { id: project.id, name: project.name } : null,
+      kanbanCard: card ? { id: card.id, title: card.title, boardId: card.boardId } : null,
+      canEdit: status !== "archived" && (
+        canManage || String(issue.reportedByUserId || "") === String(currentUser.id)
+      ),
+      canManage,
+      canReply: status !== "archived" && !location?.archivedAt,
+    };
+  };
 
   app.get("/api/location-issues", async (req, res) => {
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const locationId = typeof req.query.locationId === "string" ? req.query.locationId : undefined;
+      const requestedStatus = typeof req.query.status === "string"
+        ? locationTopicStatusSchema.safeParse(req.query.status)
+        : null;
+      const requestedType = typeof req.query.type === "string"
+        ? locationTopicTypeSchema.safeParse(req.query.type)
+        : null;
       const locations = await storage.getCustomLocations();
       const accessibleLocationIds = new Set((await Promise.all(locations.map(async (location) =>
         (await canAccessLocation(currentUser, location)) ? String(location.id) : "",
@@ -10109,13 +10313,15 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
         return res.status(403).json({ message: "Нет доступа к площадке" });
       }
       const issues = (await storage.getLocationIssues(locationId))
-        .filter((issue) => accessibleLocationIds.has(String(issue.locationId)));
-      res.json(await Promise.all(issues.map(async (issue) => ({
-        ...issue,
-        comments: await storage.getLocationIssueComments(issue.id),
-      }))));
+        .filter((issue) => accessibleLocationIds.has(String(issue.locationId)))
+        .filter((issue) => !requestedStatus?.success || normalizeLocationTopicStatus(issue.status) === requestedStatus.data)
+        .filter((issue) => !requestedType?.success || normalizeLocationTopicType((issue as any).type) === requestedType.data);
+      const locationById = new Map((locations as any[]).map((location) => [String(location.id), location]));
+      res.json(await Promise.all(issues.map((issue) =>
+        serializeLocationTopic(issue, currentUser, locationById.get(String(issue.locationId))),
+      )));
     } catch {
-      res.status(500).json({ message: "Не удалось загрузить ошибки площадок" });
+      res.status(500).json({ message: "Не удалось загрузить темы площадок" });
     }
   });
 
@@ -10123,25 +10329,52 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     try {
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const parsed = insertLocationIssueSchema.parse({
-        ...req.body,
-        reportedByUserId: currentUser.id,
-        severity: locationIssueSeveritySchema.catch("medium").parse(req.body?.severity),
-        status: "reported",
-        photos: [],
-      });
-      const location = await storage.getCustomLocationById(parsed.locationId);
-      if (!location) {
-        return res.status(400).json({ message: "Выберите существующую площадку" });
+      const payload = locationTopicCreateSchema.parse(req.body || {});
+      if (payload.type === "issue" && !payload.severity) {
+        return res.status(400).json({ message: "Для проблемы укажите важность" });
       }
-      if (!(await canAccessLocation(currentUser, location))) return res.status(403).json({ message: "Нет доступа к площадке" });
-      if (location.archivedAt) return res.status(409).json({ message: "Нельзя создать новую проблему для архивной площадки" });
+      const location = await storage.getCustomLocationById(payload.locationId);
+      if (!location) return res.status(400).json({ message: "Выберите существующую площадку" });
+      if (!(await canAccessLocation(currentUser, location))) {
+        return res.status(403).json({ message: "Нет доступа к площадке" });
+      }
+      if (location.archivedAt) {
+        return res.status(409).json({ message: "Нельзя создать тему для архивной площадки" });
+      }
+      const links = await validateLocationTopicLinks(
+        currentUser,
+        location,
+        payload.projectId || null,
+        payload.kanbanCardId || null,
+      );
+      if (!links.ok) return res.status(links.status).json({ message: links.message });
+      const parsed = insertLocationIssueSchema.parse({
+        locationId: payload.locationId,
+        taskId: null,
+        kanbanCardId: links.kanbanCardId,
+        projectId: links.projectId,
+        type: payload.type,
+        title: payload.title,
+        description: payload.description,
+        reportedByUserId: currentUser.id,
+        authorName: String(currentUser.name || currentUser.username || "Пользователь"),
+        severity: payload.type === "issue" ? payload.severity : null,
+        status: "active",
+        photos: [],
+        resolvedAt: null,
+        resolvedByUserId: null,
+        archivedAt: null,
+        archivedByUserId: null,
+      });
       const issue = await storage.createLocationIssue(parsed);
-      res.status(201).json(issue);
+      publishLocationTopicEvent(location, "created", issue.id, issue.updatedAt);
+      res.status(201).json(await serializeLocationTopic(issue, currentUser, location));
     } catch (error: any) {
-      if (error?.name === "ZodError") return res.status(400).json({ message: "Проверьте обязательные поля ошибки", errors: error.flatten?.() });
-      console.error("[Location issues] Failed to create issue:", error);
-      res.status(500).json({ message: "Не удалось создать ошибку площадки" });
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте обязательные поля темы", errors: error.flatten?.() });
+      }
+      console.error("[Location topics] Failed to create topic:", error);
+      res.status(500).json({ message: "Не удалось создать тему площадки" });
     }
   });
 
@@ -10150,25 +10383,79 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const issue = await storage.getLocationIssueById(req.params.id);
-      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      if (!issue) return res.status(404).json({ message: "Тема площадки не найдена" });
       const location = await storage.getCustomLocationById(issue.locationId);
       if (!location || !(await canAccessLocation(currentUser, location))) {
         return res.status(403).json({ message: "Нет доступа к площадке" });
       }
-      const canManage = ["admin", "manager"].includes(String(currentUser.role));
+      const payload = locationTopicUpdateSchema.parse(req.body || {});
+      const canManage = await canManageLocationCompany(currentUser, String(location.companyId || ""));
       if (!canManage && String(issue.reportedByUserId) !== String(currentUser.id)) {
-        return res.status(403).json({ message: "Недостаточно прав для изменения ошибки" });
+        return res.status(403).json({ message: "Недостаточно прав для изменения темы" });
+      }
+      const currentStatus = normalizeLocationTopicStatus(issue.status);
+      if (currentStatus === "archived") {
+        return res.status(409).json({ message: "Архивную тему нельзя изменять" });
+      }
+      if (payload.status !== undefined && !canManage) {
+        return res.status(403).json({ message: "Изменять статус темы может менеджер компании" });
       }
       const update: Record<string, unknown> = {};
-      if (req.body?.title !== undefined) update.title = String(req.body.title).trim();
-      if (req.body?.description !== undefined) update.description = String(req.body.description).trim();
-      if (req.body?.severity !== undefined) update.severity = locationIssueSeveritySchema.parse(req.body.severity);
-      if (canManage && req.body?.status !== undefined) update.status = locationIssueStatusSchema.parse(req.body.status);
+      if (payload.title !== undefined) update.title = payload.title;
+      if (payload.description !== undefined) update.description = payload.description;
+      const nextType = payload.type ?? normalizeLocationTopicType((issue as any).type);
+      if (payload.type !== undefined) update.type = payload.type;
+      if (nextType === "note") {
+        update.severity = null;
+      } else if (payload.severity !== undefined) {
+        if (!payload.severity) return res.status(400).json({ message: "Для проблемы укажите важность" });
+        update.severity = payload.severity;
+      } else if (!issue.severity) {
+        update.severity = "medium";
+      }
+      if (
+        payload.projectId !== undefined ||
+        payload.kanbanCardId !== undefined
+      ) {
+        const links = await validateLocationTopicLinks(
+          currentUser,
+          location,
+          payload.projectId === undefined ? (issue.projectId || null) : payload.projectId,
+          payload.kanbanCardId === undefined ? (issue.kanbanCardId || null) : payload.kanbanCardId,
+        );
+        if (!links.ok) return res.status(links.status).json({ message: links.message });
+        update.projectId = links.projectId;
+        update.kanbanCardId = links.kanbanCardId;
+      }
+      if (payload.status !== undefined) {
+        if (payload.status === "active") {
+          update.status = "active";
+          update.resolvedAt = null;
+          update.resolvedByUserId = null;
+        } else if (payload.status === "resolved") {
+          update.status = "resolved";
+          update.resolvedAt = new Date();
+          update.resolvedByUserId = currentUser.id;
+        } else {
+          update.status = "archived";
+          update.archivedAt = new Date();
+          update.archivedByUserId = currentUser.id;
+        }
+      }
       const updated = await storage.updateLocationIssue(issue.id, update as any);
-      res.json(updated);
+      if (!updated) return res.status(404).json({ message: "Тема площадки не найдена" });
+      publishLocationTopicEvent(
+        location,
+        payload.status !== undefined ? "status" : "updated",
+        updated.id,
+        updated.updatedAt,
+      );
+      res.json(await serializeLocationTopic(updated, currentUser, location));
     } catch (error: any) {
-      if (error?.name === "ZodError") return res.status(400).json({ message: "Некорректные данные ошибки", errors: error.flatten?.() });
-      res.status(500).json({ message: "Не удалось обновить ошибку площадки" });
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Некорректные данные темы", errors: error.flatten?.() });
+      }
+      res.status(500).json({ message: "Не удалось обновить тему площадки" });
     }
   });
 
@@ -10177,34 +10464,76 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const issue = await storage.getLocationIssueById(req.params.id);
-      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      if (!issue) return res.status(404).json({ message: "Тема площадки не найдена" });
       const location = await storage.getCustomLocationById(issue.locationId);
       if (!location || !(await canAccessLocation(currentUser, location))) {
         return res.status(403).json({ message: "Нет доступа к площадке" });
       }
-      res.json(await storage.getLocationIssueComments(req.params.id));
+      const serialized = await serializeLocationTopic(issue, currentUser, location);
+      res.json(serialized.comments);
     }
     catch { res.status(500).json({ message: "Не удалось загрузить комментарии" }); }
   });
 
-  app.post("/api/location-issues/:id/comments", async (req, res) => {
+  app.post("/api/location-issues/:id/comments", locationTopicMessageUpload, async (req, res) => {
+    const uploadedFiles = Array.isArray(req.files) ? req.files as Express.Multer.File[] : [];
+    let filesPersisted = false;
+    const cleanupUploadedFiles = async () => {
+      await Promise.all(uploadedFiles.map((file) => fs.unlink(file.path).catch(() => undefined)));
+    };
     try {
       const currentUser = req.user as any;
-      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      if (!currentUser?.id) {
+        await cleanupUploadedFiles();
+        return res.status(401).json({ message: "Требуется авторизация" });
+      }
       const issue = await storage.getLocationIssueById(req.params.id);
-      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      if (!issue) {
+        await cleanupUploadedFiles();
+        return res.status(404).json({ message: "Тема площадки не найдена" });
+      }
       const location = await storage.getCustomLocationById(issue.locationId);
       if (!location || !(await canAccessLocation(currentUser, location))) {
+        await cleanupUploadedFiles();
         return res.status(403).json({ message: "Нет доступа к площадке" });
       }
+      if (location.archivedAt || normalizeLocationTopicStatus(issue.status) === "archived") {
+        await cleanupUploadedFiles();
+        return res.status(409).json({ message: "В архивную тему нельзя добавлять ответы" });
+      }
+      if ((req as any).locationAttachmentRejected) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({ message: "Формат одного или нескольких файлов не поддерживается" });
+      }
+      const payload = locationTopicMessageSchema.parse(req.body || {});
+      if (!payload.content && uploadedFiles.length === 0) {
+        return res.status(400).json({ message: "Добавьте текст или поддерживаемый файл до 10 МБ" });
+      }
+      const attachments = uploadedFiles.map((file) => ({
+        id: crypto.randomUUID(),
+        fileName: file.originalname,
+        fileUrl: `/uploads/locations/${file.filename}`,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        uploadedByUserId: currentUser.id,
+        uploadedByName: currentUser.name || currentUser.username || null,
+        createdAt: new Date().toISOString(),
+      }));
       const comment = insertLocationIssueCommentSchema.parse({
         issueId: req.params.id,
         userId: currentUser.id,
-        content: String(req.body?.content || "").trim(),
+        authorName: String(currentUser.name || currentUser.username || "Пользователь"),
+        content: payload.content,
+        attachments,
       });
-      if (!comment.content) return res.status(400).json({ message: "Комментарий не должен быть пустым" });
-      res.status(201).json(await storage.createLocationIssueComment(comment));
+      const created = await storage.createLocationIssueComment(comment);
+      filesPersisted = true;
+      const refreshedIssue = await storage.updateLocationIssue(issue.id, {});
+      publishLocationTopicEvent(location, "replied", created.id, refreshedIssue?.updatedAt || created.updatedAt);
+      const serialized = await serializeLocationTopic(refreshedIssue || issue, currentUser, location);
+      res.status(201).json(serialized.comments.find((item: any) => String(item.id) === String(created.id)) || created);
     } catch (error: any) {
+      if (!filesPersisted) await cleanupUploadedFiles();
       if (error?.name === "ZodError") return res.status(400).json({ message: "Некорректный комментарий" });
       res.status(500).json({ message: "Не удалось добавить комментарий" });
     }
@@ -10215,7 +10544,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const currentUser = req.user as any;
       if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
       const issue = await storage.getLocationIssueById(req.params.id);
-      if (!issue) return res.status(404).json({ message: "Ошибка площадки не найдена" });
+      if (!issue) return res.status(404).json({ message: "Тема площадки не найдена" });
       const location = await storage.getCustomLocationById(issue.locationId);
       if (!location || !(await canAccessLocation(currentUser, location))) {
         return res.status(403).json({ message: "Нет доступа к площадке" });
@@ -10223,9 +10552,10 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!req.file) return res.status(400).json({ message: "Выберите изображение до 5 МБ" });
       const photos = Array.isArray(issue.photos) ? issue.photos : [];
       const updated = await storage.updateLocationIssue(issue.id, { photos: [...photos, `/uploads/${req.file.filename}`] } as any);
-      res.json(updated);
+      if (updated) publishLocationTopicEvent(location, "updated", updated.id, updated.updatedAt);
+      res.json(updated ? await serializeLocationTopic(updated, currentUser, location) : updated);
     } catch {
-      res.status(500).json({ message: "Не удалось загрузить фото ошибки" });
+      res.status(500).json({ message: "Не удалось загрузить фото темы" });
     }
   });
 
@@ -10745,6 +11075,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     if (!parsed || !user?.id) return false;
 
     if (parsed.scope === "company") {
+      if (user.role === "admin") return true;
       const companyIds = await getUserCompanyIds(user).catch(() => []);
       return companyIds.map(String).includes(parsed.recordId);
     }

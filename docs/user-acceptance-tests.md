@@ -193,38 +193,40 @@ All steps execute without critical errors. The dashboard loads with skeleton sta
 ### Execution result
 All steps are executed with no problems. The coloring is eye-catching enough and the sorting is logical for the user.
 
-## UAT-006 — Verify Recording Place Statuses and Location-Based Issue Reporting
+## UAT-006 — Verify Location Statuses and Threaded Topics
 
 - **Scenario ID:** UAT-006
-- **Title:** Verify recording place status visibility, filtering, and issue reporting at production locations
+- **Title:** Verify Location status visibility, filtering, and threaded note/problem workflows
 - **Status:** Draft
-- **Related feature:** Recording Places, Issue Management
+- **Related feature:** Location workspaces, threaded topics, Kanban V2 and project links
 
 ### Objective
-Verify that production workers can view and filter recording place statuses (available, occupied, unavailable, under maintenance) and report issues at a location, with real-time visibility for managers.
+Verify that production workers can view and filter Location statuses, create separate note/problem topics, discuss them with safe files, and see authorized realtime updates across Locations, Kanban V2, projects, and Dashboard.
 
 ### Preconditions
-One or two users can take the roles of production worker and manaer for feature testing; the system contains recording places with various statuses; at least one location/task exists to link issues to.
+Two users can take the roles of production worker and company manager; the system contains active and archived Locations with different statuses; at least one Location is linked to a project and a Kanban V2 card.
 
 ### Test steps
 
-- Open the Recording Places list or dashboard section.
+- Open the Locations list or Dashboard section.
 - Verify a skeleton loading state appears while data loads.
-- After loading, verify each place displays its current status (available, occupied, unavailable, or under maintenance) clearly near the place name.
+- After loading, verify each Location displays its current status clearly near the name.
 - Apply the "available" status filter and confirm only available places are listed.
 - Apply the "occupied" status filter and confirm only occupied places are listed.
 - Apply the "unavailable" status filter and confirm only unavailable places are listed.
-- Select an "occupied" or "unavailable" place and view its related equipment options. Verify the system indicates that equipment planning for this place may be limited or unavailable.
-- Log in as an authorized Manager. Update a recording place status to a new value. Save and reload the page. Verify the status is persisted.
-- Log back in as the Production Worker. Navigate to a task, stream, or location page.
-- Create a new issue with a valid title, description, and location/work item. Submit it. Verify the system saves the issue and marks it as "reported".
-- Attempt to submit another issue with a required field (e.g., title) left empty. Verify the system prevents submission and shows validation errors.
-- Log in as the Manager. Open the dashboard or issue list. Verify the newly reported issue appears with its status, reporter, time, and related location/task.
-- Log back in as the Production Worker. Update the description of your reported issue and save. Verify the change is persisted.
-- As the Manager, refresh the dashboard and verify the issue updates are visible in real time without a manual page reload.
+- Log in as an authorized Manager. Update a Location status to a new value. Save and reload the page. Verify the status is persisted.
+- Log back in as the Production Worker. Create a `note` topic with title and description. Verify severity is not requested and the topic remains separate from maintained Location notes.
+- Create an `issue` topic with title, description, severity, and optional links to the related project and Kanban V2 card. Verify the initial status is `active`.
+- Attempt to submit another topic with a required field left empty or a link from another company. Verify the system rejects it.
+- Add a text reply and supported photo/document attachment. Verify author, timestamp, filename, and size are shown. Attempt an unsupported or oversized file and verify it is rejected.
+- Open the linked Kanban V2 card, project, and Dashboard widget. Verify each shows a compact active-topic summary and navigates back to the correct Location topic.
+- As the Manager, resolve the topic, reopen it, then resolve and archive it. Verify each state is visually distinct and available through filters, while history remains readable.
+- Verify a regular member cannot change lifecycle status and cannot read topics from another company.
+- With both users online, create a reply and change status. Verify authorized views update without manual reload; disconnect and reconnect one client and verify HTTP refetch restores current state.
+- Verify desktop and mobile layouts, empty states, archived Location behavior, and direct links using `locationId` plus `topicId`.
 
 ### Expected result
-Recording places display correct statuses near their names, filters work accurately, and occupied/unavailable places show equipment planning limitations. Authorized status updates persist after reload. Issues require mandatory fields, save successfully when complete, and appear on the Manager dashboard with full details. Updates and cancellations persist and reflect in real time on authorized dashboards.
+Locations display and filter statuses correctly. Topics preserve author/time history, keep durable notes separate, validate links and files, enforce company access and manager lifecycle permissions, and distinguish active/resolved/archived states. Linked Kanban V2, project, and Dashboard summaries navigate back to the topic and update through realtime events with polling/reconnect fallback.
 
 ### Execution result
 To be filled

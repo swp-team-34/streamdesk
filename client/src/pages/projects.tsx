@@ -605,18 +605,22 @@ export default function Projects() {
     ? companiesResponse.companies.map((entry: any) => entry?.company).filter((company: any) => company?.id)
     : [];
   const primaryCompanyId = String(companies[0]?.id || "");
-  useRealtimeSubscriptions(
-    companies.map((company: any) => String(company.id || "").trim()).filter(Boolean).map((companyId: string) => `company:${companyId}`),
-    (message) => {
-      if (message.type === "discussion_event" || message.type === "realtime_reconnected") {
-        queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      }
-    },
+  const companyTopicChannels = useMemo(
+    () => companies
+      .map((company: any) => String(company.id || "").trim())
+      .filter(Boolean)
+      .map((companyId: string) => `company:${companyId}`),
+    [companies],
   );
+  useRealtimeSubscriptions(companyTopicChannels, (message) => {
+    if (message.type !== "discussion_event" && message.type !== "realtime_reconnected") return;
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment-on-projects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+  });
 
   const { data: locations = [] } = useQuery<Array<{
     id: string;
@@ -1257,6 +1261,25 @@ export default function Projects() {
                           </a>
                         </Button>
                       ))}
+                    </div>
+                  )}
+                  {Array.isArray(project.locationTopics) && project.locationTopics.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
+                      <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-200">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Активные темы площадок: {project.locationTopics.length}
+                      </div>
+                      <div className="space-y-1">
+                        {project.locationTopics.slice(0, 3).map((topic: any) => (
+                          <a
+                            key={topic.id}
+                            href={`/locations?locationId=${encodeURIComponent(topic.locationId)}&topicId=${encodeURIComponent(topic.id)}`}
+                            className="block truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {topic.locationName}: {topic.title}
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {project.assignedTo && (

@@ -3568,12 +3568,19 @@ export async function initDatabase(): Promise<void> {
           location_id varchar NOT NULL,
           task_id varchar,
           kanban_card_id varchar,
+          project_id varchar,
+          type text NOT NULL DEFAULT 'issue',
           title text NOT NULL,
           description text NOT NULL,
-          severity text NOT NULL DEFAULT 'medium',
-          status text NOT NULL DEFAULT 'reported',
+          severity text DEFAULT 'medium',
+          status text NOT NULL DEFAULT 'active',
           reported_by_user_id varchar NOT NULL,
+          author_name text,
           photos jsonb DEFAULT '[]'::jsonb,
+          resolved_at timestamp,
+          resolved_by_user_id varchar,
+          archived_at timestamp,
+          archived_by_user_id varchar,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         )`;
@@ -3581,10 +3588,34 @@ export async function initDatabase(): Promise<void> {
           id varchar PRIMARY KEY,
           issue_id varchar NOT NULL,
           user_id varchar NOT NULL,
+          author_name text,
           content text NOT NULL,
+          attachments jsonb DEFAULT '[]'::jsonb,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         )`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS project_id varchar`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS type text DEFAULT 'issue'`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS author_name text`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS resolved_at timestamp`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS resolved_by_user_id varchar`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS archived_at timestamp`;
+        await client`ALTER TABLE location_issues ADD COLUMN IF NOT EXISTS archived_by_user_id varchar`;
+        await client`ALTER TABLE location_issues ALTER COLUMN severity DROP NOT NULL`;
+        await client`ALTER TABLE location_issues ALTER COLUMN status SET DEFAULT 'active'`;
+        await client`UPDATE location_issues SET type = 'issue' WHERE type IS NULL`;
+        await client`UPDATE location_issues SET status = 'active' WHERE status IN ('reported', 'in_progress')`;
+        await client`UPDATE location_issues
+          SET status = 'archived', archived_at = COALESCE(archived_at, updated_at, created_at, now())
+          WHERE status = 'cancelled'`;
+        await client`ALTER TABLE location_issues ALTER COLUMN type SET NOT NULL`;
+        await client`ALTER TABLE location_issue_comments ADD COLUMN IF NOT EXISTS author_name text`;
+        await client`ALTER TABLE location_issue_comments ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb`;
+        await client`UPDATE location_issue_comments SET attachments = '[]'::jsonb WHERE attachments IS NULL`;
+        await client`CREATE INDEX IF NOT EXISTS location_issues_location_status_idx
+          ON location_issues (location_id, status, updated_at DESC)`;
+        await client`CREATE INDEX IF NOT EXISTS location_issue_comments_issue_created_idx
+          ON location_issue_comments (issue_id, created_at)`;
       } catch (schemaErr) {
         console.warn("[DB] Не удалось обновить custom_locations schema:", schemaErr);
       }
