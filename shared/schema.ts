@@ -95,10 +95,35 @@ export const eventParticipants = pgTable("event_participants", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const equipmentCategories = pgTable("equipment_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  parentId: varchar("parent_id"),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const warehouseStorageLocations = pgTable("warehouse_storage_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  parentId: varchar("parent_id"),
+  name: text("name").notNull(),
+  code: text("code"),
+  type: text("type").notNull().default("other"),
+  position: integer("position").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const equipment = pgTable("equipment", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   type: text("type").notNull(),
+  categoryId: varchar("category_id").references(() => equipmentCategories.id),
   model: text("model"),
   serialNumber: text("serial_number"),
   inventoryNumber: text("inventory_number"),
@@ -111,6 +136,7 @@ export const equipment = pgTable("equipment", {
   locationId: varchar("location_id").references(() => customLocations.id),
   manualLocation: text("manual_location"),
   storageLocation: text("storage_location"),
+  storageLocationId: varchar("storage_location_id").references(() => warehouseStorageLocations.id),
   responsiblePerson: text("responsible_person"),
   responsibleContact: text("responsible_contact"),
   assignedTo: varchar("assigned_to").references(() => users.id),
@@ -771,6 +797,20 @@ export const insertEquipmentSchema = createInsertSchema(equipment).omit({
   createdAt: true,
 });
 
+export const insertEquipmentCategorySchema = createInsertSchema(equipmentCategories).omit({
+  id: true,
+  archivedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWarehouseStorageLocationSchema = createInsertSchema(warehouseStorageLocations).omit({
+  id: true,
+  archivedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertSystemSchema = createInsertSchema(systems).omit({
   id: true,
   createdAt: true,
@@ -1029,6 +1069,12 @@ export type InsertCompanyInvite = z.infer<typeof insertCompanyInviteSchema>;
 
 export type Equipment = typeof equipment.$inferSelect;
 export type InsertEquipment = z.infer<typeof insertEquipmentSchema>;
+
+export type EquipmentCategory = typeof equipmentCategories.$inferSelect;
+export type InsertEquipmentCategory = z.infer<typeof insertEquipmentCategorySchema>;
+
+export type WarehouseStorageLocation = typeof warehouseStorageLocations.$inferSelect;
+export type InsertWarehouseStorageLocation = z.infer<typeof insertWarehouseStorageLocationSchema>;
 
 export type System = typeof systems.$inferSelect;
 export type InsertSystem = z.infer<typeof insertSystemSchema>;
