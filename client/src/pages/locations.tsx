@@ -11,6 +11,8 @@ import {
   FileText,
   History,
   Loader2,
+  ListTodo,
+  Film,
   MapPin,
   MessageSquarePlus,
   Paperclip,
@@ -71,6 +73,31 @@ type Location = {
   updatedAt?: string | null;
   updatedByName?: string | null;
   createdAt?: string | null;
+  activeLinks?: {
+    activeKanbanCards: number;
+    activeProjects: number;
+    unresolvedDiscussions: number;
+    total: number;
+  };
+  linkedWork?: {
+    cards: Array<{
+      id: string;
+      title: string;
+      boardId: string;
+      boardName: string;
+      projectId?: string | null;
+      listName: string;
+      listType: string;
+      status: "active" | "completed";
+    }>;
+    projects: Array<{
+      id: string;
+      name: string;
+      status: string;
+      completed: boolean;
+      source: "direct" | "cards" | "direct_and_cards";
+    }>;
+  };
 };
 
 type LocationIssue = {
@@ -98,6 +125,7 @@ type ArchivePreview = {
   locationId: string;
   activeLinks: {
     activeKanbanCards: number;
+    activeProjects: number;
     unresolvedDiscussions: number;
     total: number;
   };
@@ -149,7 +177,10 @@ export default function LocationsPage() {
   const [search, setSearch] = useState("");
   const [locationDialog, setLocationDialog] = useState(false);
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
-  const [detailsLocationId, setDetailsLocationId] = useState<string | null>(null);
+  const [detailsLocationId, setDetailsLocationId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("locationId");
+  });
   const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
   const [archivePreview, setArchivePreview] = useState<ArchivePreview | null>(null);
   const [issueDialog, setIssueDialog] = useState(false);
@@ -185,7 +216,14 @@ export default function LocationsPage() {
   });
   const locations = locationsQuery.data ?? [];
   const issues = issuesQuery.data ?? [];
-  const detailsLocation = locations.find((location) => location.id === detailsLocationId) || null;
+  const detailsLocationQuery = useQuery<Location>({
+    queryKey: ["/api/locations", detailsLocationId],
+    enabled: Boolean(detailsLocationId),
+    queryFn: async () => (await apiRequest("GET", `/api/locations/${detailsLocationId}`)).json(),
+  });
+  const detailsLocation = detailsLocationQuery.data
+    ?? locations.find((location) => location.id === detailsLocationId)
+    ?? null;
   const archiveTarget = locations.find((location) => location.id === archiveTargetId) || null;
   const activeLocations = locations.filter((location) => !location.archivedAt);
 
@@ -260,6 +298,9 @@ export default function LocationsPage() {
   const invalidateLocations = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
     queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+    queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
   };
 
   const saveLocation = useMutation({
@@ -368,6 +409,8 @@ export default function LocationsPage() {
     mutationFn: async () => (await apiRequest("POST", "/api/location-issues", issueForm)).json(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/location-issues"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
       setIssueDialog(false);
       setIssueForm(EMPTY_ISSUE);
       toast({ title: "Проблема площадки зарегистрирована" });
@@ -680,6 +723,82 @@ export default function LocationsPage() {
                   </div>
                 )}
 
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <ListTodo className="h-4 w-4" />
+                        Карточки Kanban V2
+                      </div>
+                      <Badge variant="outline">{detailsLocation.linkedWork?.cards.length ?? 0}</Badge>
+                    </div>
+                    {detailsLocationQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground">Загружаем связи...</p>
+                    ) : (detailsLocation.linkedWork?.cards.length ?? 0) > 0 ? (
+                      <div className="max-h-52 space-y-2 overflow-y-auto">
+                        {detailsLocation.linkedWork?.cards.map((card) => (
+                          <a
+                            key={card.id}
+                            href={`/tasks-v2?boardId=${encodeURIComponent(card.boardId)}&cardId=${encodeURIComponent(card.id)}`}
+                            className="block rounded-md bg-muted/40 px-3 py-2 transition hover:bg-muted"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="min-w-0 truncate text-sm font-medium">{card.title}</span>
+                              <Badge variant={card.status === "active" ? "default" : "secondary"}>
+                                {card.status === "active" ? "Активна" : "Завершена"}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              {card.boardName} · {card.listName}
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Связанных карточек пока нет.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Film className="h-4 w-4" />
+                        Проекты
+                      </div>
+                      <Badge variant="outline">{detailsLocation.linkedWork?.projects.length ?? 0}</Badge>
+                    </div>
+                    {detailsLocationQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground">Загружаем связи...</p>
+                    ) : (detailsLocation.linkedWork?.projects.length ?? 0) > 0 ? (
+                      <div className="max-h-52 space-y-2 overflow-y-auto">
+                        {detailsLocation.linkedWork?.projects.map((project) => (
+                          <a
+                            key={project.id}
+                            href={`/projects?projectId=${encodeURIComponent(project.id)}`}
+                            className="block rounded-md bg-muted/40 px-3 py-2 transition hover:bg-muted"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="min-w-0 truncate text-sm font-medium">{project.name}</span>
+                              <Badge variant={project.completed ? "secondary" : "default"}>
+                                {project.completed ? "Завершён" : "Активен"}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {project.source === "cards"
+                                ? "Связь через карточки Kanban"
+                                : project.source === "direct_and_cards"
+                                  ? "Прямая связь и карточки Kanban"
+                                  : "Прямая связь проекта"}
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Связанных проектов пока нет.</p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="rounded-lg border p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
@@ -918,11 +1037,12 @@ export default function LocationsPage() {
                   </div>
                   <ul className="list-inside list-disc text-muted-foreground">
                     <li>Активные карточки Kanban V2: {archivePreview.activeLinks.activeKanbanCards}</li>
+                    <li>Активные проекты: {archivePreview.activeLinks.activeProjects}</li>
                     <li>Нерешённые проблемы: {archivePreview.activeLinks.unresolvedDiscussions}</li>
                   </ul>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Активных карточек и нерешённых проблем нет.</p>
+                <p className="text-sm text-muted-foreground">Активных проектов, карточек и нерешённых проблем нет.</p>
               )}
             </div>
           )}

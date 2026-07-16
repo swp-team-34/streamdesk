@@ -14,7 +14,7 @@ import {
   Plus, HardDrive, Calendar,
   User, Edit, Trash2, Film, Clock, CheckCircle2,
   Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink, Save,
-  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon
+  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +29,7 @@ import { ru } from "date-fns/locale";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 
 const projectSchema = z.object({
+  companyId: z.string().optional(),
   name: z.string().min(1, "Название обязательно"),
   client: z.string().optional(),
   description: z.string().optional(),
@@ -43,6 +44,7 @@ const projectSchema = z.object({
   storageLocation: z.string().optional(),
   estimatedSize: z.string().optional(),
   notes: z.string().optional(),
+  locationIds: z.array(z.string()).default([]),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -317,11 +319,13 @@ function ProjectTaskStats({ projectId, onClose }: { projectId: string; onClose: 
 function EditProjectForm({
   project,
   users = [],
+  locations = [],
   onSuccess,
   onCancel,
 }: {
   project: any;
   users?: any[];
+  locations?: Array<{ id: string; name: string; archivedAt?: string | Date | null }>;
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -331,6 +335,7 @@ function EditProjectForm({
   const [assignedTo, setAssignedTo] = useState(project?.assignedTo ?? "");
   const [participants, setParticipants] = useState<string[]>(normalizeParticipantIds(project?.participants));
   const [showInTaskManager, setShowInTaskManager] = useState(Boolean(project?.showInTaskManager));
+  const [locationIds, setLocationIds] = useState<string[]>(normalizeParticipantIds(project?.directLocationIds));
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -341,7 +346,8 @@ function EditProjectForm({
     setAssignedTo(project.assignedTo ?? "");
     setParticipants(normalizeParticipantIds(project.participants));
     setShowInTaskManager(Boolean(project.showInTaskManager));
-  }, [project?.id, project?.name, project?.description, project?.assignedTo, project?.participants, project?.showInTaskManager]);
+    setLocationIds(normalizeParticipantIds(project.directLocationIds));
+  }, [project?.id, project?.name, project?.description, project?.assignedTo, project?.participants, project?.showInTaskManager, project?.directLocationIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,6 +364,7 @@ function EditProjectForm({
         assignedTo: assignedTo || undefined,
         participants,
         showInTaskManager,
+        locationIds,
       });
       onSuccess();
     } catch (error: any) {
@@ -419,6 +426,30 @@ function EditProjectForm({
           <span className="text-muted-foreground">Локальная доска StreamDesk, без обязательной доски YouGile.</span>
         </span>
       </label>
+      <div className="space-y-2">
+        <label className="text-sm font-medium block">Площадки проекта</label>
+        <div className="max-h-44 overflow-y-auto rounded-lg border bg-background p-2 space-y-2">
+          {locations.filter((location) => !location.archivedAt || locationIds.includes(location.id)).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Активных площадок пока нет</p>
+          ) : (
+            locations
+              .filter((location) => !location.archivedAt || locationIds.includes(location.id))
+              .map((location) => (
+                <label key={location.id} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Checkbox
+                      checked={locationIds.includes(location.id)}
+                      onCheckedChange={() => setLocationIds((prev) => toggleId(prev, location.id))}
+                    />
+                    <span className="truncate">{location.name}</span>
+                  </span>
+                  {location.archivedAt && <Badge variant="secondary">Архив</Badge>}
+                </label>
+              ))
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">Площадки карточек Kanban добавляются в сводку проекта автоматически.</p>
+      </div>
       <div className="flex gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>Отмена</Button>
         <Button type="submit" disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
@@ -475,8 +506,41 @@ export default function Projects() {
     queryKey: ["/api/projects"],
   });
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const projectId = new URLSearchParams(window.location.search).get("projectId");
+    if (!projectId) return;
+    const project = (projects as any[]).find((item) => String(item.id) === projectId);
+    if (project) setSelectedProject(project);
+  }, [projects]);
+
   const { data: users = [] } = useQuery({
     queryKey: ["/api/users"],
+  });
+
+  const { data: companiesResponse } = useQuery<any>({
+    queryKey: ["/api/companies/me", "projects"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/companies/me");
+      return response.json();
+    },
+  });
+  const companies = Array.isArray(companiesResponse?.companies)
+    ? companiesResponse.companies.map((entry: any) => entry?.company).filter((company: any) => company?.id)
+    : [];
+  const primaryCompanyId = String(companies[0]?.id || "");
+
+  const { data: locations = [] } = useQuery<Array<{
+    id: string;
+    companyId?: string | null;
+    name: string;
+    archivedAt?: string | Date | null;
+  }>>({
+    queryKey: ["/api/locations", "all"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/locations?archive=all");
+      return response.json();
+    },
   });
 
   const { data: equipmentOnProjects = [] } = useQuery<Array<{ projectId: string; equipmentId: string }>>({
@@ -516,6 +580,7 @@ export default function Projects() {
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
+      companyId: "",
       name: "",
       client: "",
       description: "",
@@ -530,8 +595,15 @@ export default function Projects() {
       storageLocation: "",
       estimatedSize: "",
       notes: "",
+      locationIds: [],
     },
   });
+
+  useEffect(() => {
+    if (!primaryCompanyId || form.getValues("companyId")) return;
+    form.setValue("companyId", primaryCompanyId);
+  }, [form, primaryCompanyId]);
+  const selectedProjectCompanyId = form.watch("companyId") || primaryCompanyId;
 
   const createMutation = useMutation({
     mutationFn: async (data: ProjectFormData) => {
@@ -540,6 +612,7 @@ export default function Projects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
       toast({ title: "Успешно", description: "Проект создан" });
       setIsFormOpen(false);
       form.reset();
@@ -570,6 +643,7 @@ export default function Projects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/yougile/projects"] });
       toast({ title: "Готово", description: "Проект из YouGile добавлен в видеопроекты" });
     },
@@ -585,6 +659,7 @@ export default function Projects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
       toast({ title: "Успешно", description: "Проект обновлён" });
       setSelectedProject(null);
     },
@@ -747,6 +822,36 @@ export default function Projects() {
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {companies.length > 1 && (
+                  <FormField
+                    control={form.control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Компания *</FormLabel>
+                        <Select
+                          value={field.value || primaryCompanyId}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue("locationIds", []);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Выберите компанию" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {companies.map((company: any) => (
+                              <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="name"
@@ -846,6 +951,42 @@ export default function Projects() {
                       </label>
                     </FormItem>
                   )}
+                />
+                <FormField
+                  control={form.control}
+                  name="locationIds"
+                  render={({ field }) => {
+                    const selected = normalizeParticipantIds(field.value);
+                    const availableLocations = locations.filter((location) =>
+                      !location.archivedAt &&
+                      (!selectedProjectCompanyId || String(location.companyId || "") === selectedProjectCompanyId),
+                    );
+                    return (
+                      <FormItem>
+                        <FormLabel>Площадки проекта</FormLabel>
+                        <FormControl>
+                          <div className="max-h-44 overflow-y-auto rounded-lg border bg-background p-2 space-y-2">
+                            {availableLocations.length === 0 ? (
+                              <p className="text-sm text-muted-foreground px-2 py-1">Активных площадок пока нет</p>
+                            ) : (
+                              availableLocations.map((location) => (
+                                <label key={location.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
+                                  <Checkbox
+                                    checked={selected.includes(location.id)}
+                                    onCheckedChange={() => field.onChange(toggleId(selected, location.id))}
+                                  />
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  <span className="truncate">{location.name}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Можно выбрать несколько площадок; дубли автоматически исключаются.</p>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}
@@ -997,6 +1138,25 @@ export default function Projects() {
                   {project.description && (
                     <p className="text-sm text-muted-foreground line-clamp-3">{project.description}</p>
                   )}
+                  {Array.isArray(project.locations) && project.locations.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {project.locations.map((location: any) => (
+                        <Button
+                          key={location.id}
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-7 max-w-full rounded-full px-2 text-xs"
+                        >
+                          <a href={`/locations?locationId=${encodeURIComponent(location.id)}`}>
+                            <MapPin className="mr-1 h-3 w-3 shrink-0" />
+                            <span className="truncate">{location.name}</span>
+                            {location.source === "cards" && <span className="ml-1 text-muted-foreground">из Kanban</span>}
+                          </a>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   {project.assignedTo && (
                     <div className="flex items-center gap-2 text-sm">
                       <User className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -1105,7 +1265,7 @@ export default function Projects() {
 
       {/* Редактирование проекта: название, описание, участник */}
       <Dialog open={!!selectedProject} onOpenChange={(open) => !open && setSelectedProject(null)}>
-        <DialogContent className="max-w-md bg-background text-foreground">
+        <DialogContent className="max-w-2xl bg-background text-foreground">
           <DialogHeader>
             <DialogTitle>Изменить проект</DialogTitle>
           </DialogHeader>
@@ -1113,9 +1273,13 @@ export default function Projects() {
             <EditProjectForm
               project={selectedProject}
               users={Array.isArray(users) ? users : []}
+              locations={locations.filter((location) =>
+                !selectedProject.companyId || String(location.companyId || "") === String(selectedProject.companyId),
+              )}
               onSuccess={() => {
                 setSelectedProject(null);
                 queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
                 toast({ title: "Проект обновлён" });
               }}
               onCancel={() => setSelectedProject(null)}

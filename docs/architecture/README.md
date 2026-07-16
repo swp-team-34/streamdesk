@@ -30,6 +30,7 @@ The diagram shows three internal layers (Client, Server, Data) and the external 
 - **Authentication boundary:** Handled via `express-session` and a custom middleware that populates `req.user` from `req.session.userId`.
 - **Realtime boundary:** The server exposes a `/ws` WebSocket endpoint used for realtime updates and React Query invalidation for systems, streams, tasks, calendar events, and integration stats.
 - **Equipment module:** The Equipment module is stable, but its current primary state-changing workflow is **checkout requests and approve/reject handling**. The older `equipment_reservations` route still exists as legacy, but it is not the main warehouse workflow.
+- **Location context model:** Company-scoped Location workspaces are linked to Kanban V2 cards and projects through dedicated many-to-many tables. Existing single-location card data remains readable through an additive runtime migration, while archived Locations stay visible on historical links but cannot be selected for new links.
 
 **Coupling and cohesion:**
 - **Coupling between layers is low.** The client talks to the server only through REST over HTTP/JSON and WebSocket. 

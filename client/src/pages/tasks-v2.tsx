@@ -191,6 +191,15 @@ interface KanbanCardView {
   startDate?: string | Date | null;
   dueDate?: string | Date | null;
   locationId?: string | null;
+  locationIds?: string[];
+  locations?: Array<{ id: string; name: string; archivedAt?: string | Date | null }>;
+  locationWarnings?: Array<{
+    id: string;
+    locationId: string;
+    locationName: string;
+    title: string;
+    severity: string;
+  }>;
   labelIds?: string[];
   subtasks?: KanbanSubtask[];
   customFieldValues?: Record<string, unknown>;
@@ -338,6 +347,7 @@ const EMPTY_CARD_FORM = {
   startDate: "",
   dueDate: "",
   locationId: "",
+  locationIds: [] as string[],
   assigneeUserId: "",
   labelIds: [] as string[],
   customFieldValues: {} as Record<string, unknown>,
@@ -521,6 +531,15 @@ const getKanbanHistoryActionLabel = (action: string) => {
 const normalizeLabelIds = (labelIds?: string[] | null) =>
   Array.from(new Set((labelIds ?? []).map(String).filter(Boolean)));
 
+const normalizeLocationIds = (locationIds?: string[] | null) =>
+  Array.from(new Set((locationIds ?? []).map(String).filter(Boolean)));
+
+const getCardLocationIds = (card?: KanbanCardView | null) => {
+  const linkedIds = normalizeLocationIds(card?.locationIds);
+  if (linkedIds.length) return linkedIds;
+  return card?.locationId ? [String(card.locationId)] : [];
+};
+
 const getCompletionSummary = (
   sourceCards: KanbanCardView[],
   listById: Map<string, KanbanListView>,
@@ -575,7 +594,7 @@ const serializeCardForm = (form: typeof EMPTY_CARD_FORM) =>
     description: form.description.trim(),
     priority: form.priority,
     dueDate: form.dueDate || "",
-    locationId: form.locationId || "",
+    locationIds: normalizeLocationIds(form.locationIds).sort(),
     assigneeUserId: form.assigneeUserId || "",
     labelIds: normalizeLabelIds(form.labelIds).sort(),
     customFieldValues: form.customFieldValues ?? {},
@@ -671,7 +690,7 @@ interface SaveCardInput {
   priority?: KanbanCardPriority;
   startDate?: string | null;
   dueDate?: string | null;
-  locationId?: string | null;
+  locationIds?: string[];
   assigneeUserId?: string | null;
   labelIds?: string[];
   customFieldValues?: Record<string, unknown>;
@@ -870,12 +889,17 @@ export default function TasksV2Page() {
       return await res.json();
     },
   });
-  const { data: locations = [] } = useQuery<Array<{ id: string; name: string }>>({
-    queryKey: ["/api/locations"],
-  });
-  const { data: locationIssues = [] } = useQuery<Array<{ locationId: string; status: string; title: string }>>({
-    queryKey: ["/api/location-issues"],
-    refetchInterval: 15_000,
+  const { data: locations = [] } = useQuery<Array<{
+    id: string;
+    companyId?: string | null;
+    name: string;
+    archivedAt?: string | Date | null;
+  }>>({
+    queryKey: ["/api/locations", "all"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/locations?archive=all");
+      return await res.json();
+    },
   });
 
   const selectedBoard = useMemo(
@@ -1664,6 +1688,7 @@ export default function TasksV2Page() {
       startDate: toDateTimeLocalValue(selectedDetailCard.startDate),
       dueDate: toDateTimeLocalValue(selectedDetailCard.dueDate),
       locationId: selectedDetailCard.locationId || "",
+      locationIds: getCardLocationIds(selectedDetailCard),
       assigneeUserId: selectedDetailCard.assigneeUserId || "",
       labelIds: normalizeLabelIds(selectedDetailCard.labelIds),
       customFieldValues: selectedDetailCard.customFieldValues || {},
@@ -1887,7 +1912,7 @@ export default function TasksV2Page() {
         priority: input?.priority ?? cardForm.priority,
         startDate: input?.startDate !== undefined ? input.startDate : (cardForm.startDate || null),
         dueDate: input?.dueDate !== undefined ? input.dueDate : (cardForm.dueDate || null),
-        locationId: input?.locationId !== undefined ? input.locationId : (cardForm.locationId || null),
+        locationIds: input?.locationIds !== undefined ? input.locationIds : normalizeLocationIds(cardForm.locationIds),
         assigneeUserId: input?.assigneeUserId !== undefined ? input.assigneeUserId : (cardForm.assigneeUserId || null),
         labelIds: normalizeLabelIds(input?.labelIds ?? cardForm.labelIds),
         customFieldValues: input?.customFieldValues ?? cardForm.customFieldValues ?? {},
@@ -1908,6 +1933,8 @@ export default function TasksV2Page() {
     onSuccess: (card: KanbanCardView, input) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       invalidateProjectTaskStatsForBoard(selectedBoardId, card.projectId || selectedBoard?.projectId);
       toast({
         title: (input?.cardId ?? editingCardId) ? "Карточка обновлена" : "Карточка создана",
@@ -1945,6 +1972,8 @@ export default function TasksV2Page() {
     onSuccess: (cardId: string) => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       invalidateProjectTaskStatsForBoard(selectedBoardId, selectedBoard?.projectId);
       toast({
         title: "Карточка удалена",
@@ -1985,7 +2014,7 @@ export default function TasksV2Page() {
           priority: form.priority,
           startDate: form.startDate || null,
           dueDate: form.dueDate || null,
-          locationId: form.locationId || null,
+          locationIds: normalizeLocationIds(form.locationIds),
           assigneeUserId: form.assigneeUserId || null,
           labelIds: normalizeLabelIds(form.labelIds),
           customFieldValues: form.customFieldValues ?? {},
@@ -2002,6 +2031,8 @@ export default function TasksV2Page() {
       queryClient.invalidateQueries({ queryKey: ["/api/kanban/cards"] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, card.id] });
       queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, card.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       invalidateProjectTaskStatsForBoard(selectedBoardId, card.projectId || selectedBoard?.projectId);
       detailLastSavedSignatureRef.current = serializeCardForm(input?.form ?? {
         listId: card.listId,
@@ -2011,6 +2042,7 @@ export default function TasksV2Page() {
         startDate: toDateTimeLocalValue(card.startDate),
         dueDate: toDateTimeLocalValue(card.dueDate),
         locationId: card.locationId || "",
+        locationIds: getCardLocationIds(card),
         assigneeUserId: card.assigneeUserId || "",
         labelIds: normalizeLabelIds(card.labelIds),
         customFieldValues: card.customFieldValues || {},
@@ -2027,6 +2059,7 @@ export default function TasksV2Page() {
           startDate: toDateTimeLocalValue(card.startDate),
           dueDate: toDateTimeLocalValue(card.dueDate),
           locationId: card.locationId || "",
+          locationIds: getCardLocationIds(card),
           assigneeUserId: card.assigneeUserId || "",
           labelIds: normalizeLabelIds(card.labelIds),
           customFieldValues: card.customFieldValues || {},
@@ -2579,6 +2612,7 @@ export default function TasksV2Page() {
       startDate: toDateTimeLocalValue(card.startDate),
       dueDate: toDateTimeLocalValue(card.dueDate),
       locationId: card.locationId || "",
+      locationIds: getCardLocationIds(card),
       assigneeUserId: card.assigneeUserId || "",
       labelIds: normalizeLabelIds(card.labelIds),
       customFieldValues: card.customFieldValues || {},
@@ -3075,6 +3109,12 @@ export default function TasksV2Page() {
           {equipmentRequestCount > 0 && (
             <Badge variant="outline" className="mt-1.5 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
               Оборудование: {formatPluralRu(equipmentRequestCount, "запрос", "запроса", "запросов")}
+            </Badge>
+          )}
+          {list?.type === "active" && (card.locationWarnings?.length ?? 0) > 0 && (
+            <Badge variant="destructive" className="mt-1.5 w-fit gap-1 rounded-full text-xs">
+              <AlertTriangle className="h-3 w-3" />
+              Проблемы площадки: {card.locationWarnings?.length}
             </Badge>
           )}
           {activeCustomFields.some((field) => field.showInList !== false && formatCustomFieldValue(field, card.customFieldValues?.[field.id], userById)) && (
@@ -3907,6 +3947,12 @@ export default function TasksV2Page() {
                                                       <Badge variant="outline" className={["rounded-full", dueDateStatusClasses.badge].join(" ")}>
                                                         {getDueDateStatusLabel(dueDateStatus)}
                                                       </Badge>
+                                                      {list.type === "active" && (card.locationWarnings?.length ?? 0) > 0 && (
+                                                        <Badge variant="destructive" className="gap-1 rounded-full">
+                                                          <AlertTriangle className="h-3 w-3" />
+                                                          Площадка: {card.locationWarnings?.length}
+                                                        </Badge>
+                                                      )}
                                                     </div>
 
                                                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -3923,6 +3969,11 @@ export default function TasksV2Page() {
                                                           Оборудование: {equipmentRequestCount}
                                                         </span>
                                                       )}
+                                                      {card.locations?.map((location) => (
+                                                        <span key={location.id} className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
+                                                          Площадка: {location.name}
+                                                        </span>
+                                                      ))}
                                                     </div>
 
                                                     {cardLabels.length > 0 && (
@@ -4525,9 +4576,7 @@ export default function TasksV2Page() {
                 const detailEquipmentRequests = equipmentRequestsByCardId.get(selectedDetailCard.id) ?? [];
                 const visibleHistoryEntries = detailHistoryExpanded ? detailCardHistory : detailCardHistory.slice(0, 3);
                 const hiddenHistoryCount = Math.max(0, detailCardHistory.length - visibleHistoryEntries.length);
-                const activeLocationIssues = selectedDetailCard.locationId
-                  ? locationIssues.filter((issue) => issue.locationId === selectedDetailCard.locationId && !["resolved", "cancelled"].includes(issue.status))
-                  : [];
+                const activeLocationIssues = selectedDetailCard.locationWarnings ?? [];
 
                 return (
                   <>
@@ -4555,7 +4604,10 @@ export default function TasksV2Page() {
                 {activeLocationIssues.length > 0 && (
                   <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>На выбранной площадке есть активные ошибки: {activeLocationIssues.map((issue) => issue.title).join(", ")}.</span>
+                    <span>
+                      На связанных площадках есть проблемы высокой важности:{" "}
+                      {activeLocationIssues.map((issue) => `${issue.locationName}: ${issue.title}`).join(", ")}.
+                    </span>
                   </div>
                 )}
                 <div className={KANBAN_DETAIL_SECTION_CLASS}>
@@ -4661,17 +4713,64 @@ export default function TasksV2Page() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="kanban-detail-location">Площадка</label>
-                    <select
-                      id="kanban-detail-location"
-                      className={KANBAN_PANEL_SELECT_CLASS}
-                      value={detailCardForm.locationId}
-                      onChange={(event) => setDetailCardForm((prev) => ({ ...prev, locationId: event.target.value }))}
-                      disabled={!canEditSelectedBoard}
-                    >
-                      <option value="">Не привязана</option>
-                      {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-                    </select>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-sm font-medium">Площадки</label>
+                      <span className="text-xs text-muted-foreground">
+                        {normalizeLocationIds(detailCardForm.locationIds).length || "Нет связей"}
+                      </span>
+                    </div>
+                    <div className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border/40 bg-background/55 p-2">
+                      {locations
+                        .filter((location) =>
+                          Boolean(selectedBoard?.companyId) &&
+                          String(location.companyId || "") === String(selectedBoard?.companyId) &&
+                          (!location.archivedAt || normalizeLocationIds(detailCardForm.locationIds).includes(location.id)),
+                        )
+                        .map((location) => {
+                          const checked = normalizeLocationIds(detailCardForm.locationIds).includes(location.id);
+                          return (
+                            <label
+                              key={location.id}
+                              className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50"
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={!canEditSelectedBoard}
+                                  onChange={() => setDetailCardForm((prev) => ({
+                                    ...prev,
+                                    locationIds: checked
+                                      ? normalizeLocationIds(prev.locationIds).filter((locationId) => locationId !== location.id)
+                                      : normalizeLocationIds([...prev.locationIds, location.id]),
+                                  }))}
+                                />
+                                <span className="truncate">{location.name}</span>
+                              </span>
+                              {location.archivedAt && <Badge variant="secondary">Архив</Badge>}
+                            </label>
+                          );
+                        })}
+                      {locations.filter((location) =>
+                        Boolean(selectedBoard?.companyId) &&
+                        String(location.companyId || "") === String(selectedBoard?.companyId) &&
+                        (!location.archivedAt || normalizeLocationIds(detailCardForm.locationIds).includes(location.id)),
+                      ).length === 0 && (
+                        <p className="px-2 py-3 text-sm text-muted-foreground">Для этой компании нет активных площадок.</p>
+                      )}
+                    </div>
+                    {selectedDetailCard.locations && selectedDetailCard.locations.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedDetailCard.locations.map((location) => (
+                          <Button key={location.id} asChild variant="outline" size="sm" className="h-7 rounded-full px-2 text-xs">
+                            <a href={`/locations?locationId=${encodeURIComponent(location.id)}`}>
+                              <Building2 className="mr-1 h-3 w-3" />
+                              {location.name}
+                            </a>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <StreamDateTimePicker
