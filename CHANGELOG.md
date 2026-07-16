@@ -17,6 +17,7 @@ changes are collected under `Unreleased`.
 - Added an authenticated, permission-scoped WebSocket transport with bounded subscriptions, reconnect/refetch recovery, duplicate-event protection, and HTTP/storage as the source of truth.
 - Added company-scoped Location topics with note/problem types, severity, replies, safe file attachments, resolve/reopen/archive lifecycle, optional Kanban V2/project links, realtime refresh, and compact summaries in related work and Dashboard views.
 - Added manual and checkout-derived equipment links in Kanban V2 cards, bidirectional Warehouse/project navigation, and unified project statistics for tasks, deadlines, workload, Locations, issues, and equipment state.
+- Added company-scoped equipment activity with attributed comments, timezone-correct timestamps, validated photos/files, legacy-history preservation, realtime refresh, kit-component access, and compact Warehouse card indicators.
 
 ### Changed
 

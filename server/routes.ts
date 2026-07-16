@@ -23,6 +23,7 @@ import {
   insertRoleSchema,
   insertKanbanCardAttachmentSchema,
   insertKanbanLabelSchema,
+  insertEquipmentCommentSchema,
   insertLocationIssueSchema,
   insertLocationIssueCommentSchema,
 } from "@shared/schema";
@@ -300,6 +301,52 @@ const locationTopicMessageUpload = (req: any, res: any, next: any) => {
     const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
       ? "Размер каждого файла не должен превышать 10 МБ"
       : "Не удалось проверить вложения темы";
+    return res.status(400).json({ message });
+  });
+};
+
+const equipmentCommentAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      const uploadDir = path.join(process.cwd(), "uploads", "equipment-comments");
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (error) {
+        console.error("Error creating equipment comment upload directory:", error);
+      }
+      cb(null, uploadDir);
+    },
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const originalName = file.originalname || "file";
+      const ext = path.extname(originalName).toLowerCase();
+      const base = path.basename(originalName, ext).replace(/[^\p{L}0-9_\- ]/gu, "_");
+      cb(null, `${base || "equipment-file"}-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "text/plain",
+    ]);
+    const accepted = allowedMimeTypes.has(file.mimetype);
+    if (!accepted) (req as any).equipmentCommentAttachmentRejected = true;
+    cb(null, accepted);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+const equipmentCommentMessageUpload = (req: any, res: any, next: any) => {
+  equipmentCommentAttachmentUpload.array("files", 5)(req, res, (error) => {
+    if (!error) return next();
+    const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? "Размер каждого файла не должен превышать 10 МБ"
+      : "Не удалось проверить вложения комментария";
     return res.status(400).json({ message });
   });
 };
@@ -4729,6 +4776,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     Object.assign(new Error(message), { statusCode, code });
 
   const equipmentCompanyId = (item: any) => String(equipmentSpecs(item).companyId || "").trim();
+  const equipmentCommentPayloadSchema = z.object({
+    content: z.string().trim().max(10_000).default(""),
+  });
+
+  const getLegacyEquipmentComments = (item: any) => {
+    const legacy = equipmentSpecs(item).equipmentComments;
+    if (!Array.isArray(legacy)) return [];
+    return legacy
+      .map((comment: any, index: number) => {
+        const content = String(comment?.content || comment?.text || "").trim();
+        if (!content) return null;
+        const rawCreatedAt = String(comment?.createdAt || "").trim();
+        const createdAt = rawCreatedAt && !Number.isNaN(new Date(rawCreatedAt).getTime())
+          ? new Date(rawCreatedAt)
+          : new Date(0);
+        const legacyId = String(comment?.id || index).trim() || String(index);
+        return {
+          id: `legacy:${item.id}:${legacyId}`,
+          equipmentId: String(item.id),
+          companyId: equipmentCompanyId(item),
+          userId: String(comment?.authorId || comment?.userId || ""),
+          authorName: String(comment?.authorName || "Сотрудник").trim() || "Сотрудник",
+          content,
+          attachments: [],
+          createdAt,
+          updatedAt: createdAt,
+          legacy: true,
+        };
+      })
+      .filter(Boolean) as any[];
+  };
+
+  const getEquipmentActivityComments = async (item: any, preloadedComments?: any[]) => {
+    const companyId = equipmentCompanyId(item);
+    const stored = preloadedComments ?? await storage.getEquipmentComments(String(item.id)).catch(() => []);
+    const scopedStored = (stored as any[]).filter((comment) =>
+      String(comment.companyId || "") === companyId,
+    );
+    return [...getLegacyEquipmentComments(item), ...scopedStored]
+      .sort((left, right) =>
+        new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime(),
+      )
+      .map((comment) => ({
+        ...comment,
+        attachments: Array.isArray(comment.attachments) ? comment.attachments : [],
+      }));
+  };
+
+  const getEquipmentActivitySummary = async (item: any, preloadedComments?: any[]) => {
+    const comments = await getEquipmentActivityComments(item, preloadedComments);
+    const latest = comments[comments.length - 1];
+    return {
+      commentCount: comments.length,
+      attachmentCount: comments.reduce(
+        (total, comment) => total + (Array.isArray(comment.attachments) ? comment.attachments.length : 0),
+        0,
+      ),
+      latestAt: latest?.createdAt || null,
+      latestAuthorName: latest?.authorName || null,
+    };
+  };
+
+  const withoutLegacyEquipmentComments = (item: any) => {
+    const specifications = equipmentSpecs(item);
+    delete specifications.equipmentComments;
+    return specifications;
+  };
 
   const readPhysicalDestinationInput = (body: any) => {
     const nested = body?.physicalDestination && typeof body.physicalDestination === "object"
@@ -4893,12 +5007,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   };
 
-  const serializeEquipmentContext = async (item: any) => {
-    const [links, location] = await Promise.all([
+  const serializeEquipmentContext = async (item: any, preloadedComments?: any[]) => {
+    const [links, location, activitySummary] = await Promise.all([
       storage.getEquipmentContextLinks(String(item.id)).catch(() => []),
       item.locationId
         ? storage.getCustomLocationById(String(item.locationId)).catch(() => undefined)
         : Promise.resolve(undefined),
+      getEquipmentActivitySummary(item, preloadedComments),
     ]);
     const enrichedLinks = await Promise.all((links as any[]).map(async (link) => {
       const [project, card, request] = await Promise.all([
@@ -4921,6 +5036,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       : null;
     return {
       ...item,
+      specifications: withoutLegacyEquipmentComments(item),
+      activitySummary,
       physicalDestination: {
         locationId: item.locationId || null,
         locationName: location?.name || null,
@@ -4996,12 +5113,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  const publishEquipmentContextChanged = (item: any, action: "updated" | "status" = "updated") => {
-    const version = new Date();
+  const publishEquipmentContextChanged = (
+    item: any,
+    action: DiscussionRealtimeEvent["action"] = "updated",
+    recordId = String(item.id),
+    version: string | Date | null = new Date(),
+  ) => {
     publishDiscussionEvent(createDiscussionRealtimeEvent({
       channel: `equipment:${item.id}:comments`,
       action,
-      recordId: String(item.id),
+      recordId,
       version,
     }));
     const companyId = equipmentCompanyId(item);
@@ -5375,7 +5496,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       String(equipmentSpecs(item).companyId || "").trim() === String(workspace.companyId),
     );
     const visibleList = status ? scopedList : scopedList.filter((item: any) => item.status !== "archived");
-    res.json(await Promise.all(visibleList.map(serializeEquipmentContext)));
+    const storedComments = await storage
+      .getEquipmentCommentsByEquipmentIds(visibleList.map((item: any) => String(item.id)))
+      .catch(() => []);
+    const commentsByEquipmentId = new Map<string, any[]>();
+    for (const comment of storedComments as any[]) {
+      const equipmentId = String(comment.equipmentId || "");
+      const current = commentsByEquipmentId.get(equipmentId) || [];
+      current.push(comment);
+      commentsByEquipmentId.set(equipmentId, current);
+    }
+    res.json(await Promise.all(visibleList.map((item: any) =>
+      serializeEquipmentContext(item, commentsByEquipmentId.get(String(item.id)) || []),
+    )));
   });
 
   app.get("/api/equipment/:id", async (req, res) => {
@@ -5404,6 +5537,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const message = error?.message || "Не удалось загрузить оборудование";
       console.error("[Equipment] Details error:", message);
       res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/equipment/:id/comments", async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) return res.status(401).json({ message: "Требуется авторизация" });
+      const item = await storage.getEquipmentById(String(req.params.id || "")).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      await ensureEquipmentCompanyAccess(currentUser, item);
+      res.json(await getEquipmentActivityComments(item));
+    } catch (error: any) {
+      if (sendEquipmentKitActionError(res, error)) return;
+      res.status(500).json({ message: "Не удалось загрузить активность оборудования" });
+    }
+  });
+
+  app.post("/api/equipment/:id/comments", equipmentCommentMessageUpload, async (req, res) => {
+    const uploadedFiles = Array.isArray(req.files) ? req.files as Express.Multer.File[] : [];
+    let filesPersisted = false;
+    const cleanupUploadedFiles = async () => {
+      await Promise.all(uploadedFiles
+        .map((file) => file.path)
+        .filter(Boolean)
+        .map((filePath) => fs.unlink(filePath).catch(() => undefined)));
+    };
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser?.id) {
+        await cleanupUploadedFiles();
+        return res.status(401).json({ message: "Требуется авторизация" });
+      }
+      const item = await storage.getEquipmentById(String(req.params.id || "")).catch(() => undefined);
+      if (!item || item.status === "archived") {
+        await cleanupUploadedFiles();
+        return res.status(404).json({ message: "Оборудование не найдено" });
+      }
+      await ensureEquipmentCompanyAccess(currentUser, item);
+      if ((req as any).equipmentCommentAttachmentRejected) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({ message: "Формат одного или нескольких файлов не поддерживается" });
+      }
+      const payload = equipmentCommentPayloadSchema.parse(req.body || {});
+      if (!payload.content && uploadedFiles.length === 0) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({ message: "Добавьте текст или поддерживаемый файл до 10 МБ" });
+      }
+      const createdAt = new Date();
+      const attachments = uploadedFiles.map((file) => ({
+        id: crypto.randomUUID(),
+        fileName: file.originalname,
+        fileUrl: `/uploads/equipment-comments/${file.filename}`,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        uploadedByUserId: currentUser.id,
+        uploadedByName: currentUser.name || currentUser.username || null,
+        createdAt: createdAt.toISOString(),
+      }));
+      const comment = insertEquipmentCommentSchema.parse({
+        equipmentId: item.id,
+        companyId: equipmentCompanyId(item),
+        userId: currentUser.id,
+        authorName: String(currentUser.name || currentUser.username || "Пользователь"),
+        content: payload.content,
+        attachments,
+      });
+      const created = await storage.createEquipmentComment(comment);
+      filesPersisted = true;
+      publishEquipmentContextChanged(item, "created", created.id, created.createdAt);
+      res.status(201).json({
+        ...created,
+        attachments: Array.isArray(created.attachments) ? created.attachments : [],
+      });
+    } catch (error: any) {
+      if (!filesPersisted) await cleanupUploadedFiles();
+      if (sendEquipmentKitActionError(res, error)) return;
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Некорректный комментарий" });
+      }
+      res.status(500).json({ message: "Не удалось добавить комментарий" });
     }
   });
 
@@ -5769,6 +5984,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const existingSpecs = equipmentSpecs(existing);
+      if (Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
+        const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
+        delete submittedSpecs.equipmentComments;
+        updateData.specifications = Array.isArray(existingSpecs.equipmentComments)
+          ? { ...submittedSpecs, equipmentComments: existingSpecs.equipmentComments }
+          : submittedSpecs;
+      }
       const existingParentBundleId = String(existingSpecs.parentBundleId || "").trim();
       if (existingParentBundleId && Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
         const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
@@ -6443,6 +6665,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item) return res.status(404).json({ message: "Оборудование не найдено" });
       await ensureEquipmentCompanyAccess(req.user, item);
       const specs = item.specifications && typeof item.specifications === "object" ? item.specifications as any : {};
+      const activityAttachments = (await storage.getEquipmentComments(id).catch(() => []))
+        .flatMap((comment: any) => Array.isArray(comment.attachments) ? comment.attachments : [])
+        .map((attachment: any) => String(attachment?.fileUrl || ""))
+        .filter((fileUrl: string) => fileUrl.startsWith("/uploads/equipment-comments/"));
       const permissions = Array.isArray((req.user as any)?.permissions) ? (req.user as any).permissions : [];
       const canDelete =
         (req.user as any)?.role === "admin" ||
@@ -6508,6 +6734,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         },
       });
+      if ((result as any)?.mode === "deleted") {
+        await Promise.all(activityAttachments.map((fileUrl: string) =>
+          fs.unlink(path.join(process.cwd(), fileUrl.replace(/^\/+/, ""))).catch(() => undefined),
+        ));
+      }
       publishEquipmentContextChanged(item, "status");
       res.json(result);
     } catch (error: any) {
