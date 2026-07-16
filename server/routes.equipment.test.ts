@@ -1822,4 +1822,366 @@ describe("warehouse company scope", () => {
     expect(ids).toEqual(expect.arrayContaining([visibleKit.bundle.id, visibleKit.component.id]));
     expect(ids).not.toEqual(expect.arrayContaining([hiddenKit.bundle.id, hiddenKit.component.id]));
   });
+
+  it("keeps Warehouse categories and storage locations isolated by active company", async () => {
+    const app = await createAppWithRoutes();
+    const createCategory = routeHandler(app, "POST", "/api/warehouse/categories");
+    const createStorage = routeHandler(app, "POST", "/api/warehouse/storage-locations");
+    const listCategories = routeHandler(app, "GET", "/api/warehouse/categories");
+    const listStorage = routeHandler(app, "GET", "/api/warehouse/storage-locations");
+    const first = await createCompanyMember("admin");
+    const second = await createCompanyMember("admin");
+
+    const categoryResponse = createJsonResponse();
+    await createCategory!({
+      user: first.user,
+      workspace: { type: "company", companyId: first.company.id },
+      body: { name: "Video", parentId: null },
+    }, categoryResponse);
+    expect(categoryResponse.statusCode).toBe(201);
+
+    const storageResponse = createJsonResponse();
+    await createStorage!({
+      user: first.user,
+      workspace: { type: "company", companyId: first.company.id },
+      body: { name: "Room 204", type: "room", parentId: null },
+    }, storageResponse);
+    expect(storageResponse.statusCode).toBe(201);
+
+    const secondCategories = createJsonResponse();
+    await listCategories!({
+      user: second.user,
+      workspace: { type: "company", companyId: second.company.id },
+      query: { archive: "all" },
+    }, secondCategories);
+    expect(secondCategories.body).toEqual([]);
+
+    const secondStorage = createJsonResponse();
+    await listStorage!({
+      user: second.user,
+      workspace: { type: "company", companyId: second.company.id },
+      query: { archive: "all" },
+    }, secondStorage);
+    expect(secondStorage.body).toEqual([]);
+  });
+
+  it("supports category/subcategory selection and hierarchical storage on equipment", async () => {
+    const app = await createAppWithRoutes();
+    const createCategory = routeHandler(app, "POST", "/api/warehouse/categories");
+    const createStorage = routeHandler(app, "POST", "/api/warehouse/storage-locations");
+    const updateEquipment = routeHandler(app, "PUT", "/api/equipment/:id");
+    const membership = await createCompanyMember("admin");
+    const requestBase = {
+      user: membership.user,
+      workspace: { type: "company", companyId: membership.company.id },
+    };
+
+    const rootCategoryResponse = createJsonResponse();
+    await createCategory!({
+      ...requestBase,
+      body: { name: "Video", parentId: null },
+    }, rootCategoryResponse);
+    const rootCategory = rootCategoryResponse.body as any;
+
+    const childCategoryResponse = createJsonResponse();
+    await createCategory!({
+      ...requestBase,
+      body: { name: "Cameras", parentId: rootCategory.id },
+    }, childCategoryResponse);
+    const childCategory = childCategoryResponse.body as any;
+    expect(childCategoryResponse.statusCode).toBe(201);
+
+    const thirdLevelResponse = createJsonResponse();
+    await createCategory!({
+      ...requestBase,
+      body: { name: "Cinema", parentId: childCategory.id },
+    }, thirdLevelResponse);
+    expect(thirdLevelResponse.statusCode).toBe(400);
+    expect(thirdLevelResponse.body).toMatchObject({ code: "WAREHOUSE_CATEGORY_DEPTH_EXCEEDED" });
+
+    const roomResponse = createJsonResponse();
+    await createStorage!({
+      ...requestBase,
+      body: { name: "Room 204", type: "room", parentId: null },
+    }, roomResponse);
+    const room = roomResponse.body as any;
+
+    const rackResponse = createJsonResponse();
+    await createStorage!({
+      ...requestBase,
+      body: { name: "Rack B", type: "rack", parentId: room.id },
+    }, rackResponse);
+    const rack = rackResponse.body as any;
+
+    const shelfResponse = createJsonResponse();
+    await createStorage!({
+      ...requestBase,
+      body: { name: "Shelf 3", type: "shelf", parentId: rack.id },
+    }, shelfResponse);
+    const shelf = shelfResponse.body as any;
+
+    const item = await storage.createEquipment({
+      name: `Warehouse settings item ${Date.now()}-${++kitSequence}`,
+      type: "camera",
+      status: "in-use",
+      assignedTo: membership.user.id,
+      specifications: { companyId: membership.company.id },
+    } as any);
+    const updateResponse = createJsonResponse();
+    await updateEquipment!({
+      ...requestBase,
+      params: { id: item.id },
+      body: {
+        status: "available",
+        assignedTo: null,
+        categoryId: childCategory.id,
+        storageLocationId: shelf.id,
+      },
+    }, updateResponse);
+
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.body).toMatchObject({
+      id: item.id,
+      status: "available",
+      type: "Cameras",
+      categoryId: childCategory.id,
+      storageLocationId: shelf.id,
+      storageLocation: "Room 204 / Rack B / Shelf 3",
+      category: { id: childCategory.id, name: "Cameras" },
+      warehouseStorageLocation: {
+        id: shelf.id,
+        path: "Room 204 / Rack B / Shelf 3",
+      },
+    });
+  });
+
+  it("preserves linked equipment through category and storage rename/archive", async () => {
+    const app = await createAppWithRoutes();
+    const createCategory = routeHandler(app, "POST", "/api/warehouse/categories");
+    const updateCategory = routeHandler(app, "PUT", "/api/warehouse/categories/:id");
+    const createStorage = routeHandler(app, "POST", "/api/warehouse/storage-locations");
+    const updateStorage = routeHandler(app, "PUT", "/api/warehouse/storage-locations/:id");
+    const getEquipment = routeHandler(app, "GET", "/api/equipment/:id");
+    const membership = await createCompanyMember("admin");
+    const requestBase = {
+      user: membership.user,
+      workspace: { type: "company", companyId: membership.company.id },
+    };
+
+    const categoryResponse = createJsonResponse();
+    await createCategory!({
+      ...requestBase,
+      body: { name: "Audio", parentId: null },
+    }, categoryResponse);
+    const category = categoryResponse.body as any;
+
+    const storageResponse = createJsonResponse();
+    await createStorage!({
+      ...requestBase,
+      body: { name: "Room A", type: "room", parentId: null },
+    }, storageResponse);
+    const storageLocation = storageResponse.body as any;
+
+    const item = await storage.createEquipment({
+      name: `Rename archive item ${Date.now()}-${++kitSequence}`,
+      type: "Audio",
+      categoryId: category.id,
+      location: "Legacy previous venue",
+      manualLocation: "Legacy previous venue",
+      storageLocation: "Room A",
+      storageLocationId: storageLocation.id,
+      status: "available",
+      specifications: { companyId: membership.company.id },
+    } as any);
+
+    const renameCategoryResponse = createJsonResponse();
+    await updateCategory!({
+      ...requestBase,
+      params: { id: category.id },
+      body: { name: "Sound" },
+    }, renameCategoryResponse);
+    expect(renameCategoryResponse.statusCode).toBe(200);
+
+    const renameStorageResponse = createJsonResponse();
+    await updateStorage!({
+      ...requestBase,
+      params: { id: storageLocation.id },
+      body: { name: "Room B" },
+    }, renameStorageResponse);
+    expect(renameStorageResponse.statusCode).toBe(200);
+
+    const archiveCategoryResponse = createJsonResponse();
+    await updateCategory!({
+      ...requestBase,
+      params: { id: category.id },
+      body: { archived: true },
+    }, archiveCategoryResponse);
+    const archiveStorageResponse = createJsonResponse();
+    await updateStorage!({
+      ...requestBase,
+      params: { id: storageLocation.id },
+      body: { archived: true },
+    }, archiveStorageResponse);
+    expect(archiveCategoryResponse.statusCode).toBe(200);
+    expect(archiveStorageResponse.statusCode).toBe(200);
+
+    const detailResponse = createJsonResponse();
+    await getEquipment!({
+      ...requestBase,
+      params: { id: item.id },
+    }, detailResponse);
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.body).toMatchObject({
+      id: item.id,
+      categoryId: category.id,
+      type: "Sound",
+      storageLocationId: storageLocation.id,
+      storageLocation: "Room B",
+      location: null,
+      locationId: null,
+      manualLocation: null,
+      category: { name: "Sound", archived: true },
+      warehouseStorageLocation: { path: "Room B", archived: true },
+      physicalDestination: { displayName: null },
+    });
+  });
+
+  it("allows workers to select storage on return but blocks settings management", async () => {
+    const app = await createAppWithRoutes();
+    const createStorage = routeHandler(app, "POST", "/api/warehouse/storage-locations");
+    const updateEquipment = routeHandler(app, "PUT", "/api/equipment/:id");
+    const manager = await createCompanyMember("admin");
+    const workerId = `warehouse-worker-${Date.now()}-${++kitSequence}`;
+    await storage.createCompanyMember({
+      companyId: manager.company.id,
+      userId: workerId,
+      role: "member",
+      status: "active",
+    } as any);
+    const worker = { id: workerId, role: "employee", name: "Warehouse worker", permissions: [] };
+    const workspace = { type: "company", companyId: manager.company.id };
+
+    const storageResponse = createJsonResponse();
+    await createStorage!({
+      user: manager.user,
+      workspace,
+      body: { name: "Return shelf", type: "shelf", parentId: null },
+    }, storageResponse);
+    const storageLocation = storageResponse.body as any;
+
+    const forbiddenSettingsResponse = createJsonResponse();
+    await createStorage!({
+      user: worker,
+      workspace,
+      body: { name: "Unauthorized shelf", type: "shelf", parentId: null },
+    }, forbiddenSettingsResponse);
+    expect(forbiddenSettingsResponse.statusCode).toBe(403);
+
+    const item = await storage.createEquipment({
+      name: `Worker return item ${Date.now()}-${++kitSequence}`,
+      type: "camera",
+      status: "in-use",
+      assignedTo: workerId,
+      location: "Previous venue",
+      manualLocation: "Previous venue",
+      specifications: { companyId: manager.company.id },
+    } as any);
+    const returnResponse = createJsonResponse();
+    await updateEquipment!({
+      user: worker,
+      workspace,
+      params: { id: item.id },
+      body: {
+        status: "available",
+        assignedTo: null,
+        storageLocationId: storageLocation.id,
+      },
+    }, returnResponse);
+    expect(returnResponse.statusCode).toBe(200);
+    expect(returnResponse.body).toMatchObject({
+      id: item.id,
+      status: "available",
+      assignedTo: null,
+      location: null,
+      locationId: null,
+      manualLocation: null,
+      storageLocationId: storageLocation.id,
+      storageLocation: "Return shelf",
+      physicalDestination: {
+        locationId: null,
+        manualLocation: null,
+        displayName: null,
+      },
+    });
+  });
+
+  it("clears the previous physical destination on project return", async () => {
+    const app = await createAppWithRoutes();
+    const createStorage = routeHandler(app, "POST", "/api/warehouse/storage-locations");
+    const sendToProject = routeHandler(app, "POST", "/api/projects/:projectId/equipment-bundle");
+    const returnFromProject = routeHandler(app, "POST", "/api/equipment-return");
+    const membership = await createCompanyMember("admin");
+    const workspace = { type: "company", companyId: membership.company.id };
+    const project = await storage.createProject({
+      name: `Return project ${Date.now()}-${++kitSequence}`,
+      companyId: membership.company.id,
+      ownerId: membership.user.id,
+      status: "planning",
+    } as any);
+    const item = await storage.createEquipment({
+      name: `Project return item ${Date.now()}-${++kitSequence}`,
+      type: "camera",
+      status: "in-use",
+      assignedTo: membership.user.id,
+      location: "Previous project venue",
+      manualLocation: "Previous project venue",
+      specifications: { companyId: membership.company.id },
+    } as any);
+
+    const storageResponse = createJsonResponse();
+    await createStorage!({
+      user: membership.user,
+      workspace,
+      body: { name: "Project return shelf", type: "shelf", parentId: null },
+    }, storageResponse);
+    const storageLocation = storageResponse.body as any;
+
+    const sendResponse = createJsonResponse();
+    await sendToProject!({
+      user: membership.user,
+      workspace,
+      params: { projectId: project.id },
+      body: {
+        equipmentIds: [item.id],
+        returnDate: "2026-07-30",
+        assignedByUserId: membership.user.id,
+        assignedByName: membership.user.name,
+      },
+    }, sendResponse);
+    expect(sendResponse.statusCode).toBe(200);
+
+    const returnResponse = createJsonResponse();
+    await returnFromProject!({
+      user: membership.user,
+      workspace,
+      body: {
+        equipmentId: item.id,
+        storageLocationId: storageLocation.id,
+      },
+    }, returnResponse);
+
+    expect(returnResponse.statusCode).toBe(200);
+    expect(returnResponse.body).toMatchObject({
+      success: true,
+      equipment: {
+        id: item.id,
+        status: "available",
+        location: null,
+        locationId: null,
+        manualLocation: null,
+        storageLocation: "Project return shelf",
+        physicalDestination: { displayName: null },
+      },
+    });
+  });
 });
