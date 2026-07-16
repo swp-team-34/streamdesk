@@ -5015,12 +5015,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const serializeEquipmentContext = async (item: any, preloadedComments?: any[]) => {
-    const [links, location, activitySummary] = await Promise.all([
+    const companyId = equipmentCompanyId(item);
+    const [links, location, activitySummary, category, storageLocation, companyStorageLocations] = await Promise.all([
       storage.getEquipmentContextLinks(String(item.id)).catch(() => []),
       item.locationId
         ? storage.getCustomLocationById(String(item.locationId)).catch(() => undefined)
         : Promise.resolve(undefined),
       getEquipmentActivitySummary(item, preloadedComments),
+      item.categoryId
+        ? storage.getEquipmentCategoryById(String(item.categoryId)).catch(() => undefined)
+        : Promise.resolve(undefined),
+      item.storageLocationId
+        ? storage.getWarehouseStorageLocationById(String(item.storageLocationId)).catch(() => undefined)
+        : Promise.resolve(undefined),
+      item.storageLocationId && companyId
+        ? storage.getWarehouseStorageLocations(companyId).catch(() => [])
+        : Promise.resolve([]),
     ]);
     const enrichedLinks = await Promise.all((links as any[]).map(async (link) => {
       const [project, card, request] = await Promise.all([
@@ -5037,20 +5047,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkoutRequest: request ? { id: request.id, status: request.status, requestType: request.requestType } : null,
       };
     }));
-    const manualLocation = String(item.manualLocation || "").trim() || null;
-    const legacyLocation = !item.locationId && !manualLocation && String(item.location || "").trim()
+    const storedInWarehouse = String(item.status || "") === "available" &&
+      Boolean(item.storageLocationId || String(item.storageLocation || "").trim());
+    const effectiveLocationId = storedInWarehouse ? null : item.locationId || null;
+    const manualLocation = storedInWarehouse
+      ? null
+      : String(item.manualLocation || "").trim() || null;
+    const legacyLocation = !effectiveLocationId && !manualLocation && !storedInWarehouse && String(item.location || "").trim()
       ? String(item.location).trim()
+      : null;
+    const storageLocationsById = new Map(
+      (companyStorageLocations as any[]).map((entry) => [String(entry.id), entry]),
+    );
+    const storagePath = storageLocation
+      ? warehouseStorageLocationPath(storageLocation, storageLocationsById)
       : null;
     return {
       ...item,
+      ...(storedInWarehouse ? {
+        location: null,
+        locationId: null,
+        manualLocation: null,
+      } : {}),
       specifications: withoutLegacyEquipmentComments(item),
       activitySummary,
+      category: category ? {
+        id: category.id,
+        name: category.name,
+        parentId: category.parentId || null,
+        archived: Boolean(category.archivedAt),
+      } : null,
+      warehouseStorageLocation: storageLocation ? {
+        id: storageLocation.id,
+        name: storageLocation.name,
+        code: storageLocation.code || null,
+        type: storageLocation.type,
+        parentId: storageLocation.parentId || null,
+        path: storagePath || storageLocation.name,
+        archived: Boolean(storageLocation.archivedAt),
+      } : null,
       physicalDestination: {
-        locationId: item.locationId || null,
-        locationName: location?.name || null,
+        locationId: effectiveLocationId,
+        locationName: storedInWarehouse ? null : location?.name || null,
         manualLocation,
-        displayName: location?.name || manualLocation || legacyLocation,
-        archived: Boolean(location?.archivedAt),
+        displayName: storedInWarehouse ? null : location?.name || manualLocation || legacyLocation,
+        archived: storedInWarehouse ? false : Boolean(location?.archivedAt),
         legacyLocation,
       },
       workContext: {
@@ -5141,6 +5182,221 @@ export async function registerRoutes(app: Express): Promise<Server> {
         version,
       }));
     }
+  };
+
+  const publishWarehouseSettingsChanged = (companyId: string, recordId: string) => {
+    publishDiscussionEvent(createDiscussionRealtimeEvent({
+      channel: `company:${companyId}`,
+      action: "updated",
+      recordId,
+      version: new Date(),
+    }));
+  };
+
+  const canManageWarehouseSettings = async (user: any, companyId: string) => {
+    if (["admin", "manager", "tech_director"].includes(String(user?.role || ""))) return true;
+    if (user?.workspaceMode === "company_owner") return true;
+    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    if (permissions.includes("equipment:edit")) return true;
+    return canManageCompany(user, companyId);
+  };
+
+  const warehouseCategoryInputSchema = z.object({
+    name: z.string().trim().min(1).max(120),
+    parentId: z.string().trim().min(1).nullable().optional(),
+    position: z.coerce.number().int().min(0).max(100_000).optional(),
+  });
+
+  const warehouseStorageLocationTypes = ["room", "zone", "rack", "shelf", "case", "bin", "other"] as const;
+  const warehouseStorageLocationInputSchema = z.object({
+    name: z.string().trim().min(1).max(120),
+    code: z.string().trim().max(80).nullable().optional(),
+    type: z.enum(warehouseStorageLocationTypes).default("other"),
+    parentId: z.string().trim().min(1).nullable().optional(),
+    position: z.coerce.number().int().min(0).max(100_000).optional(),
+  });
+
+  const normalizedWarehouseSettingName = (value: unknown) =>
+    String(value || "").trim().toLocaleLowerCase("ru-RU");
+
+  const getWarehouseCompanyContext = async (
+    req: express.Request,
+    res: express.Response,
+    manage = false,
+  ) => {
+    const workspace = await requireActiveCompanyWorkspace(req, res);
+    if (!workspace) return null;
+    if (manage && !(await canManageWarehouseSettings(req.user, String(workspace.companyId)))) {
+      res.status(403).json({ message: "Нет прав на изменение настроек склада" });
+      return null;
+    }
+    return { companyId: String(workspace.companyId) };
+  };
+
+  const validateWarehouseCategoryParent = async (
+    companyId: string,
+    parentId: string | null | undefined,
+    currentId?: string,
+  ) => {
+    if (!parentId) return null;
+    if (parentId === currentId) {
+      throw equipmentContextError(400, "WAREHOUSE_CATEGORY_PARENT_SELF", "Категория не может быть родителем самой себя");
+    }
+    const parent = await storage.getEquipmentCategoryById(parentId).catch(() => undefined);
+    if (!parent || String(parent.companyId) !== companyId) {
+      throw equipmentContextError(400, "WAREHOUSE_CATEGORY_PARENT_NOT_FOUND", "Родительская категория не найдена");
+    }
+    if (parent.parentId) {
+      throw equipmentContextError(400, "WAREHOUSE_CATEGORY_DEPTH_EXCEEDED", "Поддерживаются только категории и один уровень подкатегорий");
+    }
+    if (parent.archivedAt) {
+      throw equipmentContextError(409, "WAREHOUSE_CATEGORY_PARENT_ARCHIVED", "Нельзя добавить подкатегорию в архивную категорию");
+    }
+    return parent;
+  };
+
+  const ensureWarehouseCategoryNameAvailable = async (input: {
+    companyId: string;
+    name: string;
+    parentId?: string | null;
+    excludeId?: string;
+  }) => {
+    const categories = await storage.getEquipmentCategories(input.companyId);
+    const duplicate = categories.find((category) =>
+      category.id !== input.excludeId &&
+      String(category.parentId || "") === String(input.parentId || "") &&
+      normalizedWarehouseSettingName(category.name) === normalizedWarehouseSettingName(input.name),
+    );
+    if (duplicate) {
+      throw equipmentContextError(409, "WAREHOUSE_CATEGORY_DUPLICATE", "Категория с таким названием уже существует на этом уровне");
+    }
+  };
+
+  const getWarehouseStorageDepth = (
+    locationId: string,
+    locationsById: Map<string, any>,
+    visited = new Set<string>(),
+  ): number => {
+    if (!locationId || visited.has(locationId)) return 0;
+    visited.add(locationId);
+    const location = locationsById.get(locationId);
+    return location?.parentId
+      ? 1 + getWarehouseStorageDepth(String(location.parentId), locationsById, visited)
+      : 1;
+  };
+
+  const validateWarehouseStorageParent = async (
+    companyId: string,
+    parentId: string | null | undefined,
+    currentId?: string,
+  ) => {
+    if (!parentId) return null;
+    if (parentId === currentId) {
+      throw equipmentContextError(400, "WAREHOUSE_STORAGE_PARENT_SELF", "Место хранения не может быть родителем самого себя");
+    }
+    const locations = await storage.getWarehouseStorageLocations(companyId);
+    const locationsById = new Map(locations.map((location) => [String(location.id), location]));
+    const parent = locationsById.get(parentId);
+    if (!parent) {
+      throw equipmentContextError(400, "WAREHOUSE_STORAGE_PARENT_NOT_FOUND", "Родительское место хранения не найдено");
+    }
+    if (parent.archivedAt) {
+      throw equipmentContextError(409, "WAREHOUSE_STORAGE_PARENT_ARCHIVED", "Нельзя добавить место внутрь архивного раздела");
+    }
+    let cursor: any = parent;
+    const visited = new Set<string>();
+    while (cursor) {
+      const cursorId = String(cursor.id);
+      if (cursorId === currentId) {
+        throw equipmentContextError(409, "WAREHOUSE_STORAGE_CYCLE", "Нельзя переместить место хранения внутрь его дочернего раздела");
+      }
+      if (visited.has(cursorId)) break;
+      visited.add(cursorId);
+      cursor = cursor.parentId ? locationsById.get(String(cursor.parentId)) : null;
+    }
+    if (getWarehouseStorageDepth(parentId, locationsById) >= 6) {
+      throw equipmentContextError(400, "WAREHOUSE_STORAGE_DEPTH_EXCEEDED", "Поддерживается не более шести уровней хранения");
+    }
+    return parent;
+  };
+
+  const ensureWarehouseStorageNameAvailable = async (input: {
+    companyId: string;
+    name: string;
+    parentId?: string | null;
+    excludeId?: string;
+  }) => {
+    const locations = await storage.getWarehouseStorageLocations(input.companyId);
+    const duplicate = locations.find((location) =>
+      location.id !== input.excludeId &&
+      String(location.parentId || "") === String(input.parentId || "") &&
+      normalizedWarehouseSettingName(location.name) === normalizedWarehouseSettingName(input.name),
+    );
+    if (duplicate) {
+      throw equipmentContextError(409, "WAREHOUSE_STORAGE_DUPLICATE", "Место хранения с таким названием уже существует на этом уровне");
+    }
+  };
+
+  const warehouseStorageLocationPath = (
+    location: any,
+    locationsById: Map<string, any>,
+  ) => {
+    const parts: string[] = [];
+    const visited = new Set<string>();
+    let cursor = location;
+    while (cursor && !visited.has(String(cursor.id))) {
+      visited.add(String(cursor.id));
+      parts.unshift(String(cursor.name || "").trim());
+      cursor = cursor.parentId ? locationsById.get(String(cursor.parentId)) : null;
+    }
+    return parts.filter(Boolean).join(" / ");
+  };
+
+  const validateEquipmentCategorySelection = async (input: {
+    body: any;
+    companyId: string;
+    existingCategoryId?: string | null;
+  }) => {
+    const provided = Object.prototype.hasOwnProperty.call(input.body || {}, "categoryId");
+    if (!provided) return { provided: false, categoryId: null, name: null };
+    const categoryId = String(input.body?.categoryId || "").trim();
+    if (!categoryId) return { provided: true, categoryId: null, name: null };
+    const category = await storage.getEquipmentCategoryById(categoryId).catch(() => undefined);
+    if (!category || String(category.companyId) !== input.companyId) {
+      throw equipmentContextError(400, "EQUIPMENT_CATEGORY_NOT_FOUND", "Выбранная категория не найдена");
+    }
+    if (category.archivedAt && categoryId !== String(input.existingCategoryId || "")) {
+      throw equipmentContextError(409, "EQUIPMENT_CATEGORY_ARCHIVED", "Архивную категорию нельзя выбрать");
+    }
+    return { provided: true, categoryId, name: String(category.name), category };
+  };
+
+  const validateEquipmentStorageSelection = async (input: {
+    body: any;
+    companyId: string;
+    existingStorageLocationId?: string | null;
+  }) => {
+    const provided = Object.prototype.hasOwnProperty.call(input.body || {}, "storageLocationId");
+    if (!provided) return { provided: false, storageLocationId: null, displayName: null };
+    const storageLocationId = String(input.body?.storageLocationId || "").trim();
+    if (!storageLocationId) {
+      return { provided: true, storageLocationId: null, displayName: null };
+    }
+    const location = await storage.getWarehouseStorageLocationById(storageLocationId).catch(() => undefined);
+    if (!location || String(location.companyId) !== input.companyId) {
+      throw equipmentContextError(400, "WAREHOUSE_STORAGE_NOT_FOUND", "Выбранное место хранения не найдено");
+    }
+    if (location.archivedAt && storageLocationId !== String(input.existingStorageLocationId || "")) {
+      throw equipmentContextError(409, "WAREHOUSE_STORAGE_ARCHIVED", "Архивное место хранения нельзя выбрать");
+    }
+    const locations = await storage.getWarehouseStorageLocations(input.companyId);
+    const locationsById = new Map(locations.map((entry) => [String(entry.id), entry]));
+    return {
+      provided: true,
+      storageLocationId,
+      displayName: warehouseStorageLocationPath(location, locationsById) || String(location.name),
+      location,
+    };
   };
 
   const getKanbanCardEquipmentAccess = async (
@@ -5483,6 +5739,297 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const syncEquipmentCategoryFallbacks = async (companyId: string) => {
+    const categories = await storage.getEquipmentCategories(companyId);
+    const categoriesById = new Map(categories.map((category) => [String(category.id), category]));
+    const equipmentItems = await storage.getEquipment().catch(() => []);
+    await Promise.all((equipmentItems as any[])
+      .filter((item) => equipmentCompanyId(item) === companyId && item.categoryId)
+      .map((item) => {
+        const category = categoriesById.get(String(item.categoryId));
+        if (!category || String(item.type || "") === String(category.name)) return Promise.resolve(undefined);
+        return storage.updateEquipment(String(item.id), { type: category.name } as any);
+      }));
+  };
+
+  const syncEquipmentStorageFallbacks = async (companyId: string) => {
+    const locations = await storage.getWarehouseStorageLocations(companyId);
+    const locationsById = new Map(locations.map((location) => [String(location.id), location]));
+    const equipmentItems = await storage.getEquipment().catch(() => []);
+    await Promise.all((equipmentItems as any[])
+      .filter((item) => equipmentCompanyId(item) === companyId && item.storageLocationId)
+      .map((item) => {
+        const location = locationsById.get(String(item.storageLocationId));
+        if (!location) return Promise.resolve(undefined);
+        const nextDisplayName = warehouseStorageLocationPath(location, locationsById);
+        if (String(item.storageLocation || "") === nextDisplayName) return Promise.resolve(undefined);
+        return storage.updateEquipment(String(item.id), { storageLocation: nextDisplayName } as any);
+      }));
+  };
+
+  app.get("/api/warehouse/categories", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res);
+      if (!context) return;
+      const categories = await storage.getEquipmentCategories(context.companyId);
+      const includeArchived = String(req.query.archive || "") === "all";
+      const equipmentItems = await storage.getEquipment().catch(() => []);
+      const usage = new Map<string, number>();
+      for (const item of equipmentItems as any[]) {
+        if (equipmentCompanyId(item) !== context.companyId || !item.categoryId) continue;
+        usage.set(String(item.categoryId), (usage.get(String(item.categoryId)) || 0) + 1);
+      }
+      res.json(categories
+        .filter((category) => includeArchived || !category.archivedAt)
+        .map((category) => ({
+          ...category,
+          equipmentCount: usage.get(String(category.id)) || 0,
+          childCount: categories.filter((child) => String(child.parentId || "") === String(category.id)).length,
+        })));
+    } catch (error: any) {
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось загрузить категории склада",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.post("/api/warehouse/categories", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res, true);
+      if (!context) return;
+      const input = warehouseCategoryInputSchema.parse(req.body || {});
+      const parentId = input.parentId || null;
+      await validateWarehouseCategoryParent(context.companyId, parentId);
+      await ensureWarehouseCategoryNameAvailable({
+        companyId: context.companyId,
+        name: input.name,
+        parentId,
+      });
+      const categories = await storage.getEquipmentCategories(context.companyId);
+      const siblings = categories.filter((category) =>
+        String(category.parentId || "") === String(parentId || ""),
+      );
+      const category = await storage.createEquipmentCategory({
+        companyId: context.companyId,
+        name: input.name,
+        parentId,
+        position: input.position ?? siblings.length,
+      });
+      publishWarehouseSettingsChanged(context.companyId, category.id);
+      res.status(201).json(category);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте название и уровень категории" });
+      }
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось создать категорию",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.put("/api/warehouse/categories/:id", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res, true);
+      if (!context) return;
+      const current = await storage.getEquipmentCategoryById(String(req.params.id)).catch(() => undefined);
+      if (!current || String(current.companyId) !== context.companyId) {
+        return res.status(404).json({ message: "Категория не найдена" });
+      }
+      const input = warehouseCategoryInputSchema.parse({
+        name: req.body?.name ?? current.name,
+        parentId: Object.prototype.hasOwnProperty.call(req.body || {}, "parentId")
+          ? req.body.parentId || null
+          : current.parentId || null,
+        position: req.body?.position ?? current.position,
+      });
+      const parentId = input.parentId || null;
+      if (parentId) {
+        const hasChildren = (await storage.getEquipmentCategories(context.companyId))
+          .some((category) => String(category.parentId || "") === String(current.id));
+        if (hasChildren) {
+          throw equipmentContextError(
+            409,
+            "WAREHOUSE_CATEGORY_HAS_CHILDREN",
+            "Сначала переместите или архивируйте подкатегории",
+          );
+        }
+      }
+      await validateWarehouseCategoryParent(context.companyId, parentId, current.id);
+      await ensureWarehouseCategoryNameAvailable({
+        companyId: context.companyId,
+        name: input.name,
+        parentId,
+        excludeId: current.id,
+      });
+      const wantsArchived = Object.prototype.hasOwnProperty.call(req.body || {}, "archived")
+        ? Boolean(req.body.archived)
+        : Boolean(current.archivedAt);
+      if (!wantsArchived && parentId) {
+        await validateWarehouseCategoryParent(context.companyId, parentId, current.id);
+      }
+      const updated = await storage.updateEquipmentCategory(current.id, {
+        name: input.name,
+        parentId,
+        position: input.position ?? current.position,
+        archivedAt: wantsArchived ? current.archivedAt || new Date() : null,
+      });
+      if (wantsArchived && !current.parentId) {
+        const children = (await storage.getEquipmentCategories(context.companyId))
+          .filter((category) => String(category.parentId || "") === String(current.id));
+        await Promise.all(children.map((category) =>
+          storage.updateEquipmentCategory(category.id, { archivedAt: category.archivedAt || new Date() }),
+        ));
+      }
+      await syncEquipmentCategoryFallbacks(context.companyId);
+      publishWarehouseSettingsChanged(context.companyId, current.id);
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные категории" });
+      }
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось обновить категорию",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.get("/api/warehouse/storage-locations", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res);
+      if (!context) return;
+      const locations = await storage.getWarehouseStorageLocations(context.companyId);
+      const locationsById = new Map(locations.map((location) => [String(location.id), location]));
+      const includeArchived = String(req.query.archive || "") === "all";
+      const equipmentItems = await storage.getEquipment().catch(() => []);
+      const usage = new Map<string, number>();
+      for (const item of equipmentItems as any[]) {
+        if (equipmentCompanyId(item) !== context.companyId || !item.storageLocationId) continue;
+        usage.set(String(item.storageLocationId), (usage.get(String(item.storageLocationId)) || 0) + 1);
+      }
+      res.json(locations
+        .filter((location) => includeArchived || !location.archivedAt)
+        .map((location) => ({
+          ...location,
+          path: warehouseStorageLocationPath(location, locationsById),
+          equipmentCount: usage.get(String(location.id)) || 0,
+          childCount: locations.filter((child) => String(child.parentId || "") === String(location.id)).length,
+        })));
+    } catch (error: any) {
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось загрузить места хранения",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.post("/api/warehouse/storage-locations", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res, true);
+      if (!context) return;
+      const input = warehouseStorageLocationInputSchema.parse(req.body || {});
+      const parentId = input.parentId || null;
+      await validateWarehouseStorageParent(context.companyId, parentId);
+      await ensureWarehouseStorageNameAvailable({
+        companyId: context.companyId,
+        name: input.name,
+        parentId,
+      });
+      const locations = await storage.getWarehouseStorageLocations(context.companyId);
+      const siblings = locations.filter((location) =>
+        String(location.parentId || "") === String(parentId || ""),
+      );
+      const location = await storage.createWarehouseStorageLocation({
+        companyId: context.companyId,
+        name: input.name,
+        code: input.code || null,
+        type: input.type,
+        parentId,
+        position: input.position ?? siblings.length,
+      });
+      publishWarehouseSettingsChanged(context.companyId, location.id);
+      res.status(201).json(location);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте название, тип и уровень места хранения" });
+      }
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось создать место хранения",
+        code: error?.code,
+      });
+    }
+  });
+
+  app.put("/api/warehouse/storage-locations/:id", async (req, res) => {
+    try {
+      const context = await getWarehouseCompanyContext(req, res, true);
+      if (!context) return;
+      const current = await storage.getWarehouseStorageLocationById(String(req.params.id)).catch(() => undefined);
+      if (!current || String(current.companyId) !== context.companyId) {
+        return res.status(404).json({ message: "Место хранения не найдено" });
+      }
+      const input = warehouseStorageLocationInputSchema.parse({
+        name: req.body?.name ?? current.name,
+        code: Object.prototype.hasOwnProperty.call(req.body || {}, "code")
+          ? req.body.code || null
+          : current.code || null,
+        type: req.body?.type ?? current.type,
+        parentId: Object.prototype.hasOwnProperty.call(req.body || {}, "parentId")
+          ? req.body.parentId || null
+          : current.parentId || null,
+        position: req.body?.position ?? current.position,
+      });
+      const parentId = input.parentId || null;
+      await validateWarehouseStorageParent(context.companyId, parentId, current.id);
+      await ensureWarehouseStorageNameAvailable({
+        companyId: context.companyId,
+        name: input.name,
+        parentId,
+        excludeId: current.id,
+      });
+      const wantsArchived = Object.prototype.hasOwnProperty.call(req.body || {}, "archived")
+        ? Boolean(req.body.archived)
+        : Boolean(current.archivedAt);
+      const updated = await storage.updateWarehouseStorageLocation(current.id, {
+        name: input.name,
+        code: input.code || null,
+        type: input.type,
+        parentId,
+        position: input.position ?? current.position,
+        archivedAt: wantsArchived ? current.archivedAt || new Date() : null,
+      });
+      if (wantsArchived) {
+        const allLocations = await storage.getWarehouseStorageLocations(context.companyId);
+        const pending = [String(current.id)];
+        const descendants: any[] = [];
+        while (pending.length > 0) {
+          const parent = pending.shift()!;
+          const children = allLocations.filter((location) => String(location.parentId || "") === parent);
+          descendants.push(...children);
+          pending.push(...children.map((child) => String(child.id)));
+        }
+        await Promise.all(descendants.map((location) =>
+          storage.updateWarehouseStorageLocation(location.id, {
+            archivedAt: location.archivedAt || new Date(),
+          }),
+        ));
+      }
+      await syncEquipmentStorageFallbacks(context.companyId);
+      publishWarehouseSettingsChanged(context.companyId, current.id);
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") {
+        return res.status(400).json({ message: "Проверьте данные места хранения" });
+      }
+      res.status(error?.statusCode || 500).json({
+        message: error?.message || "Не удалось обновить место хранения",
+        code: error?.code,
+      });
+    }
+  });
+
   // Equipment
   app.get("/api/equipment", async (req, res) => {
     const workspace = await requireActiveWorkspace(req, res);
@@ -5803,9 +6350,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: currentUser,
         companyId: targetCompanyId,
       });
+      const categorySelection = await validateEquipmentCategorySelection({
+        body,
+        companyId: targetCompanyId,
+      });
+      const storageSelection = await validateEquipmentStorageSelection({
+        body,
+        companyId: targetCompanyId,
+      });
       const sanitized: Record<string, unknown> = {
         name,
-        type: (body.type && String(body.type).trim()) || "other",
+        type: categorySelection.categoryId
+          ? categorySelection.name
+          : (body.type && String(body.type).trim()) || "other",
+        categoryId: categorySelection.provided ? categorySelection.categoryId || undefined : undefined,
         model: body.model && String(body.model).trim() ? String(body.model).trim() : undefined,
         serialNumber: body.serialNumber && String(body.serialNumber).trim() ? String(body.serialNumber).trim() : undefined,
         inventoryNumber: body.inventoryNumber && String(body.inventoryNumber).trim() ? String(body.inventoryNumber).trim() : await generateEquipmentInventoryNumber(body.type || "other"),
@@ -5829,7 +6387,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : body.location && String(body.location).trim() ? String(body.location).trim() : undefined,
         locationId: physicalDestination.provided ? physicalDestination.locationId || undefined : undefined,
         manualLocation: physicalDestination.provided ? physicalDestination.manualLocation || undefined : undefined,
-        storageLocation: body.storageLocation && String(body.storageLocation).trim() ? String(body.storageLocation).trim() : undefined,
+        storageLocation: storageSelection.storageLocationId
+          ? storageSelection.displayName
+          : body.storageLocation && String(body.storageLocation).trim()
+            ? String(body.storageLocation).trim()
+            : undefined,
+        storageLocationId: storageSelection.provided
+          ? storageSelection.storageLocationId || undefined
+          : undefined,
         responsiblePerson: body.responsiblePerson && String(body.responsiblePerson).trim() ? String(body.responsiblePerson).trim() : undefined,
         responsibleContact: body.responsibleContact && String(body.responsibleContact).trim() ? String(body.responsibleContact).trim() : undefined,
         photos: Array.isArray(body.photos) ? body.photos : [],
@@ -5900,6 +6465,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "locationId",
         "manualLocation",
         "physicalDestination",
+        "storageLocation",
+        "storageLocationId",
         "workContext",
         "kitExtraction",
       ]);
@@ -5949,10 +6516,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: req.user,
         companyId,
       });
+      const categorySelection = await validateEquipmentCategorySelection({
+        body,
+        companyId,
+        existingCategoryId: existing.categoryId,
+      });
+      const storageSelection = await validateEquipmentStorageSelection({
+        body,
+        companyId,
+        existingStorageLocationId: existing.storageLocationId,
+      });
+      const clearsPhysicalDestinationOnReturn =
+        (existing.status === "in-use" && String(body.status || "") === "available") ||
+        (
+          existing.status === "in-use" &&
+          Object.prototype.hasOwnProperty.call(body, "assignedTo") &&
+          !String(body.assignedTo || "").trim()
+        );
       const updateData: Record<string, unknown> = {};
       const copyFields = [
         "name",
         "type",
+        "categoryId",
         "model",
         "serialNumber",
         "inventoryNumber",
@@ -5963,6 +6548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "operabilityStatus",
         "location",
         "storageLocation",
+        "storageLocationId",
         "responsiblePerson",
         "responsibleContact",
         "assignedTo",
@@ -5977,6 +6563,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.locationId = physicalDestination.locationId;
         updateData.manualLocation = physicalDestination.manualLocation;
         updateData.location = physicalDestination.displayName;
+      }
+      if (categorySelection.provided) {
+        updateData.categoryId = categorySelection.categoryId;
+        if (categorySelection.categoryId) updateData.type = categorySelection.name;
+      }
+      if (storageSelection.provided) {
+        updateData.storageLocationId = storageSelection.storageLocationId;
+        updateData.storageLocation = storageSelection.storageLocationId
+          ? storageSelection.displayName
+          : String(body.storageLocation || "").trim() || null;
+      }
+      if (clearsPhysicalDestinationOnReturn) {
+        updateData.locationId = null;
+        updateData.manualLocation = null;
+        updateData.location = null;
       }
       if (orphanedMembershipRecovered && Object.prototype.hasOwnProperty.call(updateData, "specifications")) {
         const submittedSpecs = equipmentSpecs({ specifications: updateData.specifications });
@@ -10331,6 +10932,19 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!item) return res.status(404).json({ message: "Оборудование не найдено" });
       await ensureEquipmentCompanyAccess(req.user, item);
       await ensureEquipmentReturnAllowed(req.user, item);
+      const companyId = equipmentCompanyId(item);
+      const storageSelection = await validateEquipmentStorageSelection({
+        body: req.body || {},
+        companyId,
+        existingStorageLocationId: item.storageLocationId,
+      });
+      const manualStorageLocation = String(req.body?.storageLocation || "").trim();
+      if (!storageSelection.storageLocationId && !manualStorageLocation) {
+        return res.status(400).json({ message: "Выберите место хранения или укажите его вручную" });
+      }
+      if (manualStorageLocation.length > 500) {
+        return res.status(400).json({ message: "Описание места хранения не должно превышать 500 символов" });
+      }
       let found = false;
       let bundleAssignedBy: string | undefined;
       for (let i = projectEquipmentBundles.length - 1; i >= 0; i--) {
@@ -10352,7 +10966,25 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       if (!found) {
         return res.status(404).json({ message: "Оборудование не найдено на проекте или уже возвращено. Обновите страницу." });
       }
-      res.json({ success: true, message: "Оборудование возвращено на склад" });
+      const updated = await storage.updateEquipment(item.id, {
+        status: "available",
+        assignedTo: null,
+        lastUsed: new Date(),
+        location: null,
+        locationId: null,
+        manualLocation: null,
+        storageLocationId: storageSelection.storageLocationId,
+        storageLocation: storageSelection.storageLocationId
+          ? storageSelection.displayName
+          : manualStorageLocation,
+      } as any);
+      await deactivateCurrentEquipmentCheckoutContext(item.id);
+      publishEquipmentContextChanged(updated || item, "status");
+      res.json({
+        success: true,
+        message: "Оборудование возвращено на склад",
+        equipment: updated ? await serializeEquipmentContext(updated) : null,
+      });
     } catch (e: any) {
       if (sendEquipmentKitActionError(res, e)) return;
       res.status(500).json({ message: e?.message || "Не удалось вернуть" });

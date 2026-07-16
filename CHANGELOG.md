@@ -18,12 +18,14 @@ changes are collected under `Unreleased`.
 - Added company-scoped Location topics with note/problem types, severity, replies, safe file attachments, resolve/reopen/archive lifecycle, optional Kanban V2/project links, realtime refresh, and compact summaries in related work and Dashboard views.
 - Added manual and checkout-derived equipment links in Kanban V2 cards, bidirectional Warehouse/project navigation, and unified project statistics for tasks, deadlines, workload, Locations, issues, and equipment state.
 - Added company-scoped equipment activity with attributed comments, timezone-correct timestamps, validated photos/files, legacy-history preservation, realtime refresh, kit-component access, and compact Warehouse card indicators.
+- Added company-scoped Warehouse settings for categories, subcategories, and hierarchical storage locations, including ordering, archiving, usage counts, and selection during equipment creation, editing, and return.
 
 ### Changed
 
 - Changed workspace switching to flush registered autosaves, close feature state through a workspace remount, clear React Query data, and reconnect realtime subscriptions before loading the target workspace.
 - Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.
 - Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
+- Changed Warehouse cards, filters, kit creation, and exports to use configured categories while retaining legacy equipment types only as a compatibility fallback.
 
 ### Fixed
 
@@ -34,6 +36,7 @@ changes are collected under `Unreleased`.
 - Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
 - Fixed first-click project board opening, remembered the selected Kanban V2 board per user/workspace, and refreshed card equipment immediately after Warehouse deletion.
 - Fixed Kanban V2 overdue status across Calendar, board/list/details, project statistics, and Dashboard by using one Moscow-timezone rule, excluding completed cards, and refreshing deadline state while views remain open.
+- Fixed equipment return flows to require a storage destination and clear the previous active Location so returned items no longer show stale "Сейчас" data.
 
 ## [v3.0.0-rc.1] - 2026-07-11
 
