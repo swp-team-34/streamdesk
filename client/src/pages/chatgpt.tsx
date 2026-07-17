@@ -497,15 +497,15 @@ export default function ChatGPT() {
   // Если пользователь не загружен, показываем сообщение
   if (!currentUser?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full shadow-xl border-2">
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md border-border/50 bg-surface-raised shadow-lg">
           <CardContent className="pt-8 pb-8 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
-            <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Требуется авторизация</h3>
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-warning" />
+            <h3 className="mb-2 text-xl font-bold text-foreground">Требуется авторизация</h3>
             <p className="text-muted-foreground mb-6">
               Пожалуйста, войдите в систему для использования AI Ассистента.
             </p>
-            <Button onClick={() => window.location.href = "/login"} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+            <Button onClick={() => window.location.href = "/login"}>
               Войти
             </Button>
           </CardContent>
@@ -515,13 +515,13 @@ export default function ChatGPT() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+    <div className="min-h-screen bg-background">
       <div className="container max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Заголовок в стиле приложения */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
-              <MessageSquare className="w-8 h-8 text-purple-500" />
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
+              <MessageSquare className="h-8 w-8 text-primary" />
               AI Ассистент
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">
@@ -530,14 +530,14 @@ export default function ChatGPT() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row h-[calc(100vh-11rem)] min-h-[320px] rounded-xl overflow-hidden shadow-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm relative flex-1">
+        <div className="relative flex h-[calc(100vh-11rem)] min-h-[320px] flex-1 flex-col overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-lg sm:flex-row">
       {/* Боковая панель с чатами */}
-      <div className={`${sidebarOpen ? 'block' : 'hidden'} sm:block absolute sm:relative z-50 sm:z-auto w-full sm:w-72 flex-shrink-0 flex flex-col border-r border-slate-200/80 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-900/80 h-full min-h-0`}>
-        <div className="p-3 sm:p-4 border-b border-slate-200/80 dark:border-slate-700/80 flex flex-nowrap items-center gap-2 min-w-0">
+      <div className={`${sidebarOpen ? 'block' : 'hidden'} absolute z-50 flex h-full min-h-0 w-full flex-shrink-0 flex-col border-r border-border/50 bg-surface-subtle sm:relative sm:z-auto sm:block sm:w-72`}>
+        <div className="flex min-w-0 flex-nowrap items-center gap-2 border-b border-border/50 p-3 sm:p-4">
           <Button
             size="sm"
             onClick={handleCreateChat}
-            className="flex-1 min-w-0 justify-center sm:justify-start gap-2 h-9 sm:h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0 text-sm font-medium shrink-0"
+            className="h-9 min-w-0 flex-1 shrink-0 justify-center gap-2 text-sm font-medium shadow-sm sm:h-10 sm:justify-start"
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span className="truncate">Новый чат</span>
@@ -546,14 +546,14 @@ export default function ChatGPT() {
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="sm:hidden h-9 w-9 p-0 shrink-0 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="h-9 w-9 shrink-0 p-0 sm:hidden"
           >
             <X className="w-4 h-4" />
           </Button>
         </div>
 
         {isCreatingChat && (
-          <div className="p-3 sm:p-4 border-b border-slate-200/80 dark:border-slate-800/80 space-y-3 bg-white dark:bg-slate-900">
+          <div className="space-y-3 border-b border-border/50 bg-surface-raised p-3 sm:p-4">
             <Input
               placeholder="Введите название чата..."
               value={newChatTitle}
@@ -567,14 +567,14 @@ export default function ChatGPT() {
                   setNewChatTitle("");
                 }
               }}
-              className="h-9 text-sm border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 w-full"
+              className="h-9 w-full text-sm"
               autoFocus
             />
             <div className="flex flex-nowrap gap-2">
               <Button
                 size="sm"
                 onClick={handleCreateChat}
-                className="h-9 flex-1 min-w-0 text-sm bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                className="h-9 min-w-0 flex-1 shrink-0 text-sm"
                 disabled={createChatMutation.isPending}
               >
                 {createChatMutation.isPending ? (
@@ -593,7 +593,7 @@ export default function ChatGPT() {
                   setIsCreatingChat(false);
                   setNewChatTitle("");
                 }}
-                className="h-9 shrink-0 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="h-9 shrink-0 text-sm"
                 disabled={createChatMutation.isPending}
               >
                 Отмена
@@ -606,17 +606,17 @@ export default function ChatGPT() {
           <div className="p-2 sm:p-3">
             {chatsLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : chats.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                  <FileText className="w-8 h-8 text-slate-400" />
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <p className="mb-1 text-sm font-medium text-foreground/80">
                   Нет чатов
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Создайте новый чат для начала общения
                 </p>
               </div>
@@ -625,10 +625,10 @@ export default function ChatGPT() {
                 <div
                   key={chat.id}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer group mb-1.5 transition-all duration-200",
+                    "group mb-1.5 flex cursor-pointer items-center justify-between rounded-control border px-3 py-2.5 transition-colors",
                     selectedChatId === chat.id
-                      ? "bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 shadow-sm"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent"
+                      ? "border-primary/30 bg-primary/10 shadow-xs"
+                      : "border-transparent hover:bg-surface-raised"
                   )}
                   onClick={() => {
                     handleChatSelect(chat.id);
@@ -638,16 +638,16 @@ export default function ChatGPT() {
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <div className={cn(
                       "w-2 h-2 rounded-full flex-shrink-0",
-                      selectedChatId === chat.id ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+                      selectedChatId === chat.id ? "bg-primary" : "bg-muted-foreground/30"
                     )} />
-                    <p className="text-sm text-slate-900 dark:text-slate-100 truncate font-medium">
+                    <p className="truncate text-sm font-medium text-foreground">
                       {chat.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || chat.title}
                     </p>
                   </div>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-opacity flex-shrink-0"
+                    className="h-6 w-6 flex-shrink-0 p-0 opacity-0 transition-opacity hover:bg-error-muted hover:text-error group-hover:opacity-100"
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (!currentUser?.id) {
@@ -685,30 +685,30 @@ export default function ChatGPT() {
       </div>
 
       {/* Основная область чата */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-slate-900/50">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-raised">
         {/* Header с выбором модели */}
-        <div className="border-b border-slate-200/80 dark:border-slate-700/80 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-surface-raised/95 px-3 py-3 backdrop-blur-sm sm:gap-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="sm:hidden h-9 w-9 p-0 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="h-9 w-9 shrink-0 p-0 sm:hidden"
             >
               <Menu className="w-5 h-5" />
             </Button>
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              <div className="w-9 h-9 shrink-0 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary shadow-sm">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 block truncate">AI Ассистент</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 block">Готов к общению</span>
+                <span className="block truncate text-sm font-semibold text-foreground">AI Ассистент</span>
+                <span className="block text-xs text-muted-foreground">Готов к общению</span>
               </div>
             </div>
           </div>
           <Select value={selectedModel} onValueChange={setSelectedModel}>
-            <SelectTrigger className="w-full min-w-[140px] max-w-[200px] sm:w-[200px] h-9 text-sm border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 shrink-0">
+            <SelectTrigger className="h-9 w-full min-w-[140px] max-w-[200px] shrink-0 text-sm sm:w-[200px]">
               <SelectValue placeholder="Выберите модель" />
             </SelectTrigger>
             <SelectContent>
@@ -721,11 +721,11 @@ export default function ChatGPT() {
                   <div className="flex items-center gap-2.5">
                     <div className={cn(
                       "w-2.5 h-2.5 rounded-full",
-                      model.status === "online" ? "bg-green-500 shadow-sm shadow-green-500/50" : "bg-gray-400"
+                      model.status === "online" ? "bg-success" : "bg-muted-foreground/40"
                     )} />
                     <span className="text-sm font-medium">{model.name}</span>
                     {model.status === "offline" && (
-                      <span className="text-xs text-slate-400 ml-auto">Недоступна</span>
+                      <span className="ml-auto text-xs text-muted-foreground">Недоступна</span>
                     )}
                   </div>
                 </SelectItem>
@@ -735,13 +735,13 @@ export default function ChatGPT() {
         </div>
 
         {/* Чат */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden hide-scrollbar bg-gradient-to-b from-white via-slate-50/50 to-white dark:from-slate-900 dark:via-slate-950/50 dark:to-slate-900 overscroll-contain">
+        <div className="hide-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-background/45">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
             {messagesLoading ? (
               <div className="flex items-center justify-center py-16">
                   <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Загрузка сообщений...</p>
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Загрузка сообщений...</p>
                 </div>
               </div>
             ) : (
@@ -757,9 +757,7 @@ export default function ChatGPT() {
                     {/* Аватар */}
                     <div className={cn(
                       "flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-md",
-                      message.role === "user" 
-                        ? "bg-gradient-to-br from-blue-500 to-blue-600" 
-                        : "bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-600 dark:to-slate-700"
+                      message.role === "user" ? "bg-primary" : "bg-foreground/80"
                     )}>
                       {message.role === "user" ? (
                         <UserIcon className="w-5 h-5 text-white" />
@@ -776,9 +774,9 @@ export default function ChatGPT() {
                           {message.attachments.map((attachment) => (
                             <div
                               key={attachment.id}
-                              className="flex items-center gap-2 p-1.5 sm:p-2 bg-slate-50 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors"
+                              className="flex items-center gap-2 rounded-control border border-border/50 bg-surface-subtle p-1.5 transition-colors hover:bg-muted sm:p-2"
                             >
-                              <div className="text-slate-500 dark:text-slate-400">
+                              <div className="text-muted-foreground">
                                 {getFileIcon({ type: attachment.type } as File)}
                               </div>
                               <a
@@ -786,11 +784,11 @@ export default function ChatGPT() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 download={attachment.name}
-                                className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 truncate"
+                                className="flex-1 truncate text-xs text-foreground/80 transition-colors hover:text-primary sm:text-sm"
                               >
                                 {attachment.name}
                               </a>
-                              <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                              <span className="text-[10px] text-muted-foreground sm:text-xs">
                                 {formatFileSize(attachment.size)}
                               </span>
                               <Button
@@ -810,12 +808,12 @@ export default function ChatGPT() {
                             </div>
                           ))}
                           {message.attachments.some(a => a.transcription) && (
-                            <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+                            <div className="mt-2 rounded-control border border-border/50 bg-surface-subtle p-3">
+                              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                                 <FileText className="w-3.5 h-3.5" />
                                 Транскрипция:
                               </p>
-                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                              <p className="text-sm leading-relaxed text-foreground/80">
                                 {message.attachments.find(a => a.transcription)?.transcription}
                               </p>
                             </div>
@@ -827,8 +825,8 @@ export default function ChatGPT() {
                     <div className={cn(
                       "leading-relaxed whitespace-pre-wrap text-sm sm:text-base break-words rounded-2xl px-4 py-3 shadow-sm",
                       message.role === "user"
-                          ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white"
-                          : "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700"
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border/50 bg-surface-raised text-foreground"
                       )}>
                         {message.content.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || message.content}
                       </div>
@@ -839,13 +837,13 @@ export default function ChatGPT() {
             )}
             {isLoading && (
               <div className="flex gap-4 sm:gap-5">
-                <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-600 dark:to-slate-700 shadow-md">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-foreground/80 shadow-sm sm:h-10 sm:w-10">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex-1 rounded-2xl border border-border/50 bg-surface-raised px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                    <span className="text-sm text-slate-500 dark:text-slate-400">Печатает...</span>
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Печатает...</span>
                   </div>
                 </div>
               </div>
@@ -855,25 +853,25 @@ export default function ChatGPT() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-lg">
+        <div className="border-t border-border/50 bg-surface-raised/95 shadow-lg backdrop-blur-sm">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
             {attachedFiles.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {attachedFiles.map((file, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs border border-slate-200 dark:border-slate-700 shadow-sm"
+                    className="flex items-center gap-2 rounded-control border border-border/50 bg-surface-subtle px-3 py-1.5 text-xs shadow-sm"
                   >
-                    <div className="text-slate-500 dark:text-slate-400">
+                    <div className="text-muted-foreground">
                       {getFileIcon(file)}
                     </div>
-                    <span className="text-slate-700 dark:text-slate-300 truncate max-w-[120px] sm:max-w-[150px] font-medium">{file.name}</span>
-                    <span className="text-slate-500 dark:text-slate-400 text-[10px]">
+                    <span className="max-w-[120px] truncate font-medium text-foreground/80 sm:max-w-[150px]">{file.name}</span>
+                    <span className="text-[10px] text-muted-foreground">
                       {formatFileSize(file.size)}
                     </span>
                     <button
                       onClick={() => removeFile(index)}
-                      className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors ml-1"
+                      className="ml-1 text-muted-foreground transition-colors hover:text-error"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -893,7 +891,7 @@ export default function ChatGPT() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading || !selectedModel}
-                className="p-2.5 shrink-0 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 rounded-control p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 title="Прикрепить файл"
               >
                 <Paperclip className="w-5 h-5" />
@@ -918,14 +916,14 @@ export default function ChatGPT() {
                   placeholder="Напишите сообщение..."
                   disabled={isLoading || !selectedModel}
                   rows={1}
-                  className="flex-1 min-w-0 w-full px-4 py-3 text-sm sm:text-base border-2 border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  className="min-w-0 flex-1 resize-none rounded-control border border-input bg-background px-4 py-3 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
                   style={{ minHeight: '52px', maxHeight: '200px' }}
                 />
                 <button
                   type="button"
                   onClick={handleSend}
                   disabled={isLoading || (!input.trim() && attachedFiles.length === 0) || !selectedModel}
-                  className="shrink-0 p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 h-[52px] w-[52px] flex items-center justify-center"
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-control bg-primary p-2.5 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Отправить"
                 >
                   {isLoading ? (
@@ -936,7 +934,7 @@ export default function ChatGPT() {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 text-center">
+            <p className="mt-3 text-center text-xs text-muted-foreground">
               AI может делать ошибки. Проверяйте важную информацию.
             </p>
           </div>
