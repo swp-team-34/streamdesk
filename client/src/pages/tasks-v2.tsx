@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DragDropContext, Draggable, Droppable, type DraggableStyle, type DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import {
   ArrowDown,
   ArrowLeft,
@@ -11,8 +11,6 @@ import {
   Plus,
   Settings2,
   Trash2,
-  WandSparkles,
-  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +69,37 @@ import {
 import { KanbanCardLabelsEditor } from "@/components/kanban/kanban-card-labels-editor";
 import { KanbanCardListRow } from "@/components/kanban/kanban-card-list-row";
 import { KanbanListViewGroup } from "@/components/kanban/kanban-list-view-group";
+import { KanbanInlineCardComposer } from "@/components/kanban/kanban-inline-card-composer";
+import { KanbanInlineListCreator } from "@/components/kanban/kanban-inline-list-creator";
+import {
+  BOARD_LIST_GROUPING_STORAGE_KEY,
+  BOARD_VIEW_MODE_STORAGE_KEY,
+  DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES,
+  DETAIL_AUTOSAVE_DELAY_MS,
+  EMPTY_BOARD_FORM,
+  EMPTY_CARD_FORM,
+  EMPTY_CUSTOM_FIELD_FORM,
+  EMPTY_LABEL_FORM,
+  EMPTY_LABEL_GROUP_FORM,
+  EMPTY_LIST_FORM,
+  EMPTY_MEMBER_FORM,
+  LIST_COLOR_PRESETS,
+  LIST_VIEW_ALL_DROPPABLE_ID,
+  asRecord,
+  confirmDelete,
+  getDraggableCardStyle,
+  type CompaniesResponse,
+  type KanbanBoardView,
+  type KanbanCardMoveInput,
+  type KanbanListReorderInput,
+  type SaveCardDetailInput,
+  type SaveCardInput,
+  type SaveCustomFieldInput,
+  type SaveLabelGroupInput,
+  type SaveLabelInput,
+  type SaveListInput,
+  type UserSummary,
+} from "@/components/kanban/kanban-page-config";
 import {
   KanbanCustomFieldsSection,
   type KanbanCustomFieldFormState,
@@ -165,7 +194,6 @@ import {
 } from "@/lib/kanban-custom-field-filters";
 import {
   getKanbanMentionQuery,
-  insertKanbanMention,
   parseKanbanSmartInput,
 } from "@/lib/kanban-smart-input";
 import {
@@ -174,218 +202,6 @@ import {
   getKanbanCardWorkloadUserIds,
 } from "@shared/kanban-card-roles";
 
-interface CompanySummary {
-  id: string;
-  name: string;
-}
-
-interface CompanyMembershipSummary {
-  id: string;
-  role: string;
-  status: string;
-}
-
-interface CompanyMemberSummary {
-  id: string;
-  companyId: string;
-  userId: string;
-  role: string;
-  status: string;
-}
-
-interface CompanyWorkspaceItem {
-  company: CompanySummary;
-  membership: CompanyMembershipSummary;
-  members: CompanyMemberSummary[];
-}
-
-interface CompaniesResponse {
-  companies: CompanyWorkspaceItem[];
-}
-
-interface UserSummary {
-  id: string;
-  name: string;
-  email?: string | null;
-  username?: string | null;
-  active?: boolean | null;
-}
-
-interface KanbanBoardView {
-  id: string;
-  companyId?: string | null;
-  projectId?: string | null;
-  name: string;
-  description?: string | null;
-  visibility: BoardVisibility;
-  createdByUserId: string;
-  createdAt?: string | Date | null;
-  updatedAt?: string | Date | null;
-  customFields?: KanbanCustomFieldDefinition[];
-  labelGroups?: KanbanLabelGroupView[];
-  canManage?: boolean;
-  canEdit?: boolean;
-  canComment?: boolean;
-  isMember?: boolean;
-  membershipRole?: string | null;
-}
-
-const EMPTY_BOARD_FORM: KanbanBoardFormState = {
-  companyId: "",
-  name: "",
-  description: "",
-  visibility: "personal",
-};
-
-const EMPTY_LIST_FORM = {
-  name: "",
-  color: "",
-  type: "active" as KanbanListType,
-};
-
-const LIST_COLOR_PRESETS = [
-  { label: "Slate", value: "#64748b" },
-  { label: "Blue", value: "#2563eb" },
-  { label: "Cyan", value: "#0891b2" },
-  { label: "Emerald", value: "#059669" },
-  { label: "Amber", value: "#d97706" },
-  { label: "Rose", value: "#e11d48" },
-  { label: "Violet", value: "#7c3aed" },
-  { label: "Indigo", value: "#4f46e5" },
-] as const;
-
-const BOARD_VIEW_MODE_STORAGE_KEY = "streamdesk.tasks.v2.viewMode";
-const BOARD_LIST_GROUPING_STORAGE_KEY = "streamdesk.tasks.v2.listGrouping";
-const LIST_VIEW_ALL_DROPPABLE_ID = "list-view:all";
-const DETAIL_AUTOSAVE_DELAY_MS = 700;
-
-const EMPTY_CARD_FORM: KanbanCardDetailForm = {
-  listId: "",
-  title: "",
-  description: "",
-  priority: "medium" as KanbanCardPriority,
-  startDate: "",
-  startDateHasTime: true,
-  dueDate: "",
-  dueDateHasTime: true,
-  locationId: "",
-  locationIds: [] as string[],
-  initiatorUserId: "",
-  responsibleUserId: "",
-  assigneeUserIds: [] as string[],
-  assigneeUserId: "",
-  labelIds: [] as string[],
-  customFieldValues: {} as Record<string, unknown>,
-};
-
-const EMPTY_LABEL_FORM = {
-  name: "",
-  color: "",
-  groupId: "",
-};
-
-const EMPTY_CUSTOM_FIELD_FORM: KanbanCustomFieldFormState = {
-  name: "",
-  type: "text" as KanbanCustomFieldType,
-  options: "",
-  required: false,
-  showOnCard: true,
-  showInList: true,
-};
-
-const EMPTY_LABEL_GROUP_FORM: KanbanLabelGroupFormState = {
-  name: "",
-  color: "",
-};
-
-const EMPTY_MEMBER_FORM: MemberFormState = {
-  userId: "",
-  role: "viewer",
-  canComment: false,
-};
-
-const DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES = [
-  { name: "File Storage Location", type: "text" as KanbanCustomFieldType, showOnCard: true, showInList: true },
-  { name: "Recording Date", type: "date" as KanbanCustomFieldType, showOnCard: true, showInList: true },
-];
-
-const asRecord = (value: unknown): Record<string, unknown> | null => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-};
-
-const getDraggableCardStyle = (
-  style: DraggableStyle | undefined,
-): CSSProperties | undefined => {
-  return style as CSSProperties | undefined;
-};
-
-const confirmDelete = (message: string) =>
-  typeof window !== "undefined" && window.confirm(message);
-
-interface KanbanCardMoveInput {
-  boardId: string;
-  cardId: string;
-  targetListId: string;
-  targetPosition: number;
-}
-
-interface KanbanListReorderInput {
-  boardId: string;
-  listIds: string[];
-}
-
-interface SaveListInput {
-  listId?: string | null;
-  name?: string;
-  color?: string | null;
-  type?: KanbanListType;
-  closeInline?: boolean;
-}
-
-interface SaveCardInput {
-  cardId?: string | null;
-  listId?: string;
-  title?: string;
-  description?: string | null;
-  priority?: KanbanCardPriority;
-  startDate?: string | null;
-  startDateHasTime?: boolean;
-  dueDate?: string | null;
-  dueDateHasTime?: boolean;
-  locationIds?: string[];
-  initiatorUserId?: string | null;
-  responsibleUserId?: string | null;
-  assigneeUserIds?: string[];
-  assigneeUserId?: string | null;
-  labelIds?: string[];
-  customFieldValues?: Record<string, unknown>;
-  inlineListId?: string;
-}
-
-interface SaveLabelInput {
-  labelId?: string | null;
-  name?: string;
-  color?: string | null;
-  groupId?: string | null;
-  attachToDetail?: boolean;
-}
-
-interface SaveCustomFieldInput {
-  fieldId?: string | null;
-  form?: typeof EMPTY_CUSTOM_FIELD_FORM;
-}
-
-interface SaveLabelGroupInput {
-  groupId?: string | null;
-  form?: typeof EMPTY_LABEL_GROUP_FORM;
-}
-
-interface SaveCardDetailInput {
-  form?: typeof EMPTY_CARD_FORM;
-  silent?: boolean;
-  closeAfter?: boolean;
-}
 
 export default function TasksV2Page() {
   const queryClient = useQueryClient();
@@ -3258,100 +3074,25 @@ export default function TasksV2Page() {
                                   </div>
 
                                   {canEditSelectedBoard && (
-                                    <div className="rounded-[18px] border border-border/40 bg-muted/20 p-2">
-                                      {inlineCardListId === list.id ? (
-                                        <div className="space-y-2">
-                                          <Input
-                                            value={inlineCardTitle}
-                                            onChange={(event) => setInlineCardTitle(event.target.value)}
-                                            placeholder="Задача завтра 14:00 высокий приоритет @user"
-                                            autoFocus
-                                            disabled={isCardPending}
-                                            className={KANBAN_PANEL_INPUT_CLASS}
-                                            onKeyDown={(event) => {
-                                              if (event.key === "Escape") {
-                                                event.preventDefault();
-                                                handleCancelInlineCard();
-                                              }
-                                              if (event.key === "Enter") {
-                                                event.preventDefault();
-                                                handleSubmitInlineCard(list.id);
-                                              }
-                                            }}
-                                            onBlur={() => {
-                                              if (!inlineCardTitle.trim()) handleCancelInlineCard();
-                                            }}
-                                          />
-                                          {inlineMentionSuggestions.length > 0 && (
-                                            <div className="rounded-xl border border-border/40 bg-popover p-1 shadow-lg">
-                                              {inlineMentionSuggestions.map((user) => (
-                                                <button
-                                                  key={user.id}
-                                                  type="button"
-                                                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted/60"
-                                                  onMouseDown={(event) => event.preventDefault()}
-                                                  onClick={() => setInlineCardTitle((current) =>
-                                                    insertKanbanMention(current, user.username || user.name),
-                                                  )}
-                                                >
-                                                  <span>{user.name}</span>
-                                                  {user.username && <span className="text-xs text-muted-foreground">@{user.username}</span>}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          )}
-                                          {inlineSmartInput.tokens.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5">
-                                              {inlineSmartInput.tokens.map((token) => (
-                                                <button
-                                                  key={token.id}
-                                                  type="button"
-                                                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-xs text-primary"
-                                                  title="Нажмите, чтобы оставить эту фразу обычным текстом"
-                                                  onMouseDown={(event) => event.preventDefault()}
-                                                  onClick={() => setInlineSmartCancelledTokenIds((current) => [...current, token.id])}
-                                                >
-                                                  <WandSparkles className="h-3 w-3" />
-                                                  {token.label}
-                                                  <X className="h-3 w-3" />
-                                                </button>
-                                              ))}
-                                            </div>
-                                          )}
-                                          {inlineSmartInput.errors.map((error) => (
-                                            <p key={error} className="text-xs text-destructive">{error}</p>
-                                          ))}
-                                          <div className="flex justify-end gap-2">
-                                            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={handleCancelInlineCard}>
-                                              Отмена
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              className="rounded-xl"
-                                              onMouseDown={(event) => event.preventDefault()}
-                                              onClick={() => handleSubmitInlineCard(list.id)}
-                                              disabled={!inlineSmartInput.title.trim() || inlineSmartInput.errors.length > 0 || isCardPending}
-                                            >
-                                              Добавить
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                                          onClick={() => {
-                                            setInlineCardListId(list.id);
-                                            setInlineCardTitle("");
-                                            setInlineSmartCancelledTokenIds([]);
-                                          }}
-                                          disabled={isCardPending}
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                          Добавить задачу
-                                        </button>
-                                      )}
-                                    </div>
+                                    <KanbanInlineCardComposer
+                                      open={inlineCardListId === list.id}
+                                      value={inlineCardTitle}
+                                      smartInput={inlineSmartInput}
+                                      mentionSuggestions={inlineMentionSuggestions}
+                                      pending={isCardPending}
+                                      onOpen={() => {
+                                        setInlineCardListId(list.id);
+                                        setInlineCardTitle("");
+                                        setInlineSmartCancelledTokenIds([]);
+                                      }}
+                                      onChange={setInlineCardTitle}
+                                      onCancelToken={(tokenId) => setInlineSmartCancelledTokenIds((current) => [
+                                        ...current,
+                                        tokenId,
+                                      ])}
+                                      onCancel={handleCancelInlineCard}
+                                      onSubmit={() => handleSubmitInlineCard(list.id)}
+                                    />
                                   )}
 
 	                                  <div
@@ -3443,62 +3184,18 @@ export default function TasksV2Page() {
 	                      })}
 	                      {listDropProvided.placeholder}
 	                      {canEditSelectedBoard && (
-                        <Card className="task-board-column flex w-[calc(100vw-2.5rem)] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm sm:w-[320px]">
-                          <CardContent className="flex w-full flex-col justify-start p-4">
-                            {inlineListOpen ? (
-                              <div className="space-y-3">
-                                <Input
-                                  value={inlineListTitle}
-                                  onChange={(event) => setInlineListTitle(event.target.value)}
-                                  placeholder="Название столбца"
-                                  autoFocus
-                                  disabled={isListPending}
-                                  className={KANBAN_PANEL_INPUT_CLASS}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                      event.preventDefault();
-                                      handleCancelInlineList();
-                                    }
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      handleSubmitInlineList();
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    if (!inlineListTitle.trim()) handleCancelInlineList();
-                                  }}
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={handleCancelInlineList}>
-                                    Отмена
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="rounded-xl"
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={handleSubmitInlineList}
-                                    disabled={!inlineListTitle.trim() || isListPending}
-                                  >
-                                    Создать
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-[20px] text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                                onClick={() => {
-                                  setInlineListOpen(true);
-                                  setInlineListTitle("");
-                                }}
-                                disabled={isListPending}
-                              >
-                                <Plus className="h-5 w-5" />
-                                Новый столбец
-                              </button>
-                            )}
-                          </CardContent>
-	                        </Card>
+                        <KanbanInlineListCreator
+                          open={inlineListOpen}
+                          title={inlineListTitle}
+                          pending={isListPending}
+                          onOpen={() => {
+                            setInlineListOpen(true);
+                            setInlineListTitle("");
+                          }}
+                          onTitleChange={setInlineListTitle}
+                          onCancel={handleCancelInlineList}
+                          onSubmit={handleSubmitInlineList}
+                        />
 	                      )}
 	                    </div>
                         )}
