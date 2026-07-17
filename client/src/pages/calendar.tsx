@@ -55,6 +55,11 @@ import {
   type CalendarTimelineViewMode,
 } from "@/lib/calendar-timeline";
 import {
+  buildCalendarAllDayDraftSlot,
+  CALENDAR_DATE_LONG_PRESS_MS,
+  hasCalendarDatePressMoved,
+} from "@/lib/calendar-all-day";
+import {
   CALENDAR_SETTINGS_STORAGE_KEY,
   CALENDAR_SLOT_HEIGHT,
   CALENDAR_TIME_SLOTS,
@@ -106,6 +111,15 @@ export default function Calendar() {
     startX: number;
     scrollLeft: number;
   } | null>(null);
+  const timelineDatePressRef = useRef<{
+    pointerId: number;
+    date: Date;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    triggered: boolean;
+    timerId: number | null;
+  } | null>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const calendarPointerActionRef = useRef<{
     mode: CalendarPointerMode;
@@ -113,6 +127,70 @@ export default function Calendar() {
     startX: number;
     startY: number;
   } | null>(null);
+
+  const openAllDayEventForm = useCallback((date: Date) => {
+    setDraftSlot(buildCalendarAllDayDraftSlot(date));
+    setSelectedEntry(null);
+    setIsDetailOpen(false);
+    setIsFormOpen(true);
+  }, []);
+
+  const clearTimelineDatePressTimer = useCallback(() => {
+    const press = timelineDatePressRef.current;
+    if (press?.timerId != null) {
+      window.clearTimeout(press.timerId);
+      press.timerId = null;
+    }
+  }, []);
+
+  const startTimelineDatePress = useCallback((
+    event: ReactPointerEvent<HTMLButtonElement>,
+    date: Date,
+  ) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    clearTimelineDatePressTimer();
+    const press = {
+      pointerId: event.pointerId,
+      date: new Date(date),
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      triggered: false,
+      timerId: null as number | null,
+    };
+    timelineDatePressRef.current = press;
+    press.timerId = window.setTimeout(() => {
+      if (timelineDatePressRef.current !== press || press.moved) return;
+      press.triggered = true;
+      openAllDayEventForm(press.date);
+    }, CALENDAR_DATE_LONG_PRESS_MS);
+  }, [clearTimelineDatePressTimer, openAllDayEventForm]);
+
+  const updateTimelineDatePressMovement = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const press = timelineDatePressRef.current;
+    if (!press || press.pointerId !== event.pointerId || press.moved) return;
+    if (!hasCalendarDatePressMoved(
+      { x: press.startX, y: press.startY },
+      { x: event.clientX, y: event.clientY },
+    )) return;
+    press.moved = true;
+    clearTimelineDatePressTimer();
+  }, [clearTimelineDatePressTimer]);
+
+  const finishTimelineDatePress = useCallback((
+    event: ReactPointerEvent<HTMLElement>,
+    activate: boolean,
+  ) => {
+    const press = timelineDatePressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    clearTimelineDatePressTimer();
+    timelineDatePressRef.current = null;
+    if (activate && !press.moved && !press.triggered) {
+      openAllDayEventForm(press.date);
+    }
+  }, [clearTimelineDatePressTimer, openAllDayEventForm]);
+
+  useEffect(() => () => clearTimelineDatePressTimer(), [clearTimelineDatePressTimer]);
 
   const { data: events = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -1008,13 +1086,15 @@ export default function Calendar() {
   }, []);
 
   const handleTimelinePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    updateTimelineDatePressMovement(event);
     const pan = timelinePanRef.current;
     const element = timelineScrollRef.current;
     if (!pan || !element || pan.pointerId !== event.pointerId) return;
     element.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
-  }, []);
+  }, [updateTimelineDatePressMovement]);
 
   const handleTimelinePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    finishTimelineDatePress(event, true);
     const pan = timelinePanRef.current;
     const element = timelineScrollRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
@@ -1023,7 +1103,19 @@ export default function Calendar() {
       element.releasePointerCapture(event.pointerId);
     }
     commitTimelineScroll();
-  }, [commitTimelineScroll]);
+  }, [commitTimelineScroll, finishTimelineDatePress]);
+
+  const handleTimelinePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    finishTimelineDatePress(event, false);
+    const pan = timelinePanRef.current;
+    const element = timelineScrollRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    timelinePanRef.current = null;
+    if (element?.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
+    }
+    commitTimelineScroll();
+  }, [commitTimelineScroll, finishTimelineDatePress]);
 
   const shiftSelectedDate = (direction: -1 | 1) => {
     const current = selectedDate;
@@ -1082,13 +1174,16 @@ export default function Calendar() {
         <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: timelineColumnTemplate }}>
           <div className="sticky left-0 z-30 border-r border-border/35 bg-muted/95 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
           {days.map((day, dayIndex) => (
-            <div
+            <button
               key={day.toISOString()}
+              type="button"
               data-calendar-all-day
               data-scope={scope}
               data-date={day.toISOString()}
               data-day-index={dayIndex}
-              className="min-h-10 border-r border-border/35 last:border-r-0"
+              aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+              className="min-h-10 cursor-pointer border-r border-border/35 transition-colors hover:bg-primary/5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0"
+              onClick={() => openAllDayEventForm(day)}
             />
           ))}
         </div>
@@ -1104,13 +1199,16 @@ export default function Calendar() {
         >
           <div className="absolute inset-1 grid gap-1" style={{ gridTemplateColumns: dayColumnTemplate }}>
             {days.map((day, dayIndex) => (
-              <div
+              <button
                 key={day.toISOString()}
+                type="button"
                 data-calendar-all-day
                 data-scope={scope}
                 data-date={day.toISOString()}
                 data-day-index={dayIndex}
-                className="min-h-8 rounded-lg border border-dashed border-border/25"
+                aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+                className="min-h-8 cursor-pointer rounded-lg border border-dashed border-border/25 transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                onClick={() => openAllDayEventForm(day)}
               />
             ))}
           </div>
@@ -1241,7 +1339,7 @@ export default function Calendar() {
         onPointerDown={handleTimelinePointerDown}
         onPointerMove={handleTimelinePointerMove}
         onPointerUp={handleTimelinePointerEnd}
-        onPointerCancel={handleTimelinePointerEnd}
+        onPointerCancel={handleTimelinePointerCancel}
         onWheel={(event) => {
           if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
           event.preventDefault();
@@ -1262,14 +1360,23 @@ export default function Calendar() {
               {timelineDays.map((day) => {
                 const isToday = isSameDay(day, now);
                 return (
-                  <div
+                  <button
                     key={day.toISOString()}
+                    type="button"
                     data-calendar-horizontal-pan
-                    className="cursor-grab select-none border-b border-r border-border/35 bg-card px-1 py-2 text-center last:border-r-0 active:cursor-grabbing"
+                    aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+                    className="cursor-grab select-none border-b border-r border-border/35 bg-card px-1 py-2 text-center transition-colors hover:bg-muted/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0 active:cursor-grabbing"
                     style={{
                       scrollSnapAlign: "start",
                       scrollMarginLeft: CALENDAR_TIMELINE_GUTTER_WIDTH,
                     }}
+                    onPointerDown={(event) => startTimelineDatePress(event, day)}
+                    onPointerUp={(event) => finishTimelineDatePress(event, true)}
+                    onPointerCancel={(event) => finishTimelineDatePress(event, false)}
+                    onClick={(event) => {
+                      if (event.detail === 0) openAllDayEventForm(day);
+                    }}
+                    onContextMenu={(event) => event.preventDefault()}
                   >
                     <div className="truncate text-[10px] uppercase text-muted-foreground sm:text-xs">
                       {format(day, "EEE", { locale: ru })}
@@ -1280,7 +1387,7 @@ export default function Calendar() {
                     )}>
                       {format(day, "d")}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -1462,6 +1569,7 @@ export default function Calendar() {
         periodLabel={toolbarPeriodLabel}
         viewMode={viewMode}
         onCreateEvent={() => {
+          setDraftSlot(null);
           setSelectedEntry(null);
           setIsFormOpen(true);
         }}
