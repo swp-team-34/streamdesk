@@ -191,19 +191,19 @@ export default function Monitoring() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "online": return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case "offline": return <AlertTriangle className="w-4 h-4 text-red-600" />;
-      case "maintenance": return <Activity className="w-4 h-4 text-yellow-600" />;
-      default: return <Monitor className="w-4 h-4 text-gray-600" />;
+      case "online": return <CheckCircle className="h-4 w-4 text-success" />;
+      case "offline": return <AlertTriangle className="h-4 w-4 text-error" />;
+      case "maintenance": return <Activity className="h-4 w-4 text-warning" />;
+      default: return <Monitor className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "online": return "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300";
-      case "offline": return "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300";
-      case "maintenance": return "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300";
-      default: return "bg-muted text-muted-foreground";
+      case "online": return "border-success/25 bg-success-muted text-success";
+      case "offline": return "border-error/25 bg-error-muted text-error";
+      case "maintenance": return "border-warning/25 bg-warning-muted text-warning";
+      default: return "border-border/40 bg-surface-subtle text-muted-foreground";
     }
   };
 
@@ -269,23 +269,23 @@ export default function Monitoring() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Загрузка данных мониторинга...</p>
+          <p className="text-muted-foreground">Загрузка данных мониторинга...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 w-full min-w-0 max-w-full">
+    <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-4 px-2 py-3 sm:px-4 sm:py-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             Отслеживание состояния всех систем в реальном времени
           </p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-muted-foreground/50'}`} title={isConnected ? 'Обновления в реальном времени' : 'WebSocket не подключён (запустите сервер с WS)'}></div>
+            <div className={`h-2 w-2 shrink-0 rounded-full ${isConnected ? 'bg-success' : 'bg-muted-foreground/50'}`} title={isConnected ? 'Обновления в реальном времени' : 'WebSocket не подключён (запустите сервер с WS)'}></div>
             <span className="text-sm text-muted-foreground">
               {isConnected ? 'Обновления в реальном времени' : 'Обновление по кнопке'}
             </span>
@@ -307,7 +307,7 @@ export default function Monitoring() {
 
       {/* System Overview — плитки с иконками и акцентами */}
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="rounded-2xl border-border/70 bg-card/90">
+        <Card className="rounded-surface border-border/50 bg-surface-raised shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="text-base sm:text-lg">Точность графиков и диапазон</CardTitle>
           </CardHeader>
@@ -351,7 +351,7 @@ export default function Monitoring() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-primary/20 bg-primary/5">
+        <Card className="rounded-surface border-primary/25 bg-primary/5 shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="text-base sm:text-lg">Агенты для компании</CardTitle>
           </CardHeader>
@@ -359,7 +359,7 @@ export default function Monitoring() {
             <div className="text-sm text-muted-foreground">
               Запустите bat/sh на машине, и она сама передаст характеристики, тип устройства и heartbeat в систему мониторинга компании.
             </div>
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/80 px-3 py-2 text-sm">
+            <label className="flex items-center justify-between gap-3 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-sm">
               <span className="flex items-center gap-2 font-medium text-foreground">
                 <Power className="h-4 w-4 text-primary" />
                 Добавить в автозапуск
@@ -388,57 +388,57 @@ export default function Monitoring() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        <Card className="rounded-2xl border-border shadow-sm overflow-hidden">
+        <Card className="overflow-hidden rounded-surface border-border/50 bg-surface-raised shadow-xs">
           <CardContent className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Всего систем</p>
                 <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{systemsStats.total}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                <Monitor className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-surface-subtle">
+                <Monitor className="h-6 w-6 text-muted-foreground" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-green-200 dark:border-green-900/50 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden rounded-surface border-success/25 bg-surface-raised shadow-xs">
           <CardContent className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Онлайн</p>
-                <p className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{systemsStats.online}</p>
+                <p className="mt-1 text-2xl font-bold text-success sm:text-3xl">{systemsStats.online}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-success-muted">
+                <CheckCircle className="h-6 w-6 text-success" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden rounded-surface border-error/25 bg-surface-raised shadow-xs">
           <CardContent className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Офлайн</p>
-                <p className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400 mt-1">{systemsStats.offline}</p>
+                <p className="mt-1 text-2xl font-bold text-error sm:text-3xl">{systemsStats.offline}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-error-muted">
+                <AlertTriangle className="h-6 w-6 text-error" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-blue-200 dark:border-blue-900/50 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden rounded-surface border-info/25 bg-surface-raised shadow-xs">
           <CardContent className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">Доступность</p>
-                <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{systemsStats.uptime}%</p>
+                <p className="mt-1 text-2xl font-bold text-info sm:text-3xl">{systemsStats.uptime}%</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-info-muted">
+                <TrendingUp className="h-6 w-6 text-info" />
               </div>
             </div>
             <div className="mt-4">
@@ -449,10 +449,10 @@ export default function Monitoring() {
       </div>
 
       {/* Systems Grid — современные карточки */}
-      <Card className="rounded-2xl border border-border shadow-sm overflow-hidden">
+      <Card className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <span className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <span className="flex h-9 w-9 items-center justify-center rounded-control bg-primary/10">
               <Radio className="w-5 h-5 text-primary" />
             </span>
             Агентский мониторинг ({agentSystems.length})
@@ -460,7 +460,7 @@ export default function Monitoring() {
         </CardHeader>
         <CardContent className="space-y-5">
           {agentSystems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+            <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-5 text-sm text-muted-foreground">
               Запустите `agent-computer.bat`, `agent-server.bat` или `agent-vmix.bat`, и машина появится здесь без ручного ввода IP.
             </div>
           ) : (
@@ -475,7 +475,7 @@ export default function Monitoring() {
                       key={system.id}
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
-                      className="shrink-0 rounded-lg"
+                      className="shrink-0 rounded-control"
                       onClick={() => setSelectedAgentSystemId(system.id)}
                     >
                       {system.name}
@@ -488,7 +488,7 @@ export default function Monitoring() {
               {selectedAgentSystem && (
                 <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5">
                   <div className="space-y-3">
-                    <div className="rounded-xl border border-border p-4">
+                    <div className="rounded-surface border border-border/50 bg-surface-subtle p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm text-muted-foreground">Выбранный агент</p>
@@ -513,7 +513,7 @@ export default function Monitoring() {
                           )}
                           <p className="text-xs text-muted-foreground font-mono truncate">{selectedAgentSystem.ipAddress || selectedAgentInfo.agentKey}</p>
                         </div>
-                        <Badge className={cn("rounded-lg", selectedAgentSystem.status === "online" ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" : "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300")}>
+                        <Badge className={cn("rounded-control", getStatusColor(selectedAgentSystem.status))}>
                           {getStatusText(selectedAgentSystem.status)}
                         </Badge>
                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startRenameSystem(selectedAgentSystem)} title="Переименовать">
@@ -524,13 +524,13 @@ export default function Monitoring() {
                         </Button>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                        <div className="rounded-lg bg-muted/40 px-2 py-1">
+                        <div className="rounded-control bg-surface-overlay px-2 py-1">
                           Интервал: <span className="font-medium text-foreground">{selectedAgentInfo.intervalSec ?? "-" } c</span>
                         </div>
-                        <div className="rounded-lg bg-muted/40 px-2 py-1">
+                        <div className="rounded-control bg-surface-overlay px-2 py-1">
                           Задержка: <span className="font-medium text-foreground">{Number.isFinite(Number(selectedAgentInfo.sampleLagMs)) ? `${Math.round(Number(selectedAgentInfo.sampleLagMs))} мс` : "-"}</span>
                         </div>
-                        <div className="rounded-lg bg-muted/40 px-2 py-1">
+                        <div className="rounded-control bg-surface-overlay px-2 py-1">
                           Давность: <span className="font-medium text-foreground">{selectedAgentInfo.staleSec ?? 0} c</span>
                         </div>
                       </div>
@@ -560,42 +560,42 @@ export default function Monitoring() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-border p-3 col-span-2">
+                      <div className="col-span-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
                         <p className="text-xs text-muted-foreground">GPU</p>
                         <p className="text-sm font-semibold leading-snug">{selectedGpuText || "-"}</p>
                       </div>
-                      <div className="rounded-xl border border-border p-3">
+                      <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                         <p className="text-xs text-muted-foreground">Сеть вход</p>
                         <p className="text-lg font-semibold">{fmtNumber(selectedAgentMetrics.networkRxMbps, " Mbps")}</p>
                       </div>
-                      <div className="rounded-xl border border-border p-3">
+                      <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                         <p className="text-xs text-muted-foreground">Сеть выход</p>
                         <p className="text-lg font-semibold">{fmtNumber(selectedAgentMetrics.networkTxMbps, " Mbps")}</p>
                       </div>
-                      <div className="rounded-xl border border-border p-3">
+                      <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                         <p className="text-xs text-muted-foreground">vMix</p>
-                        <p className={cn("text-lg font-semibold", selectedAgentVmix.connected ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+                        <p className={cn("text-lg font-semibold", selectedAgentVmix.connected ? "text-success" : "text-muted-foreground")}>
                           {selectedAgentVmix.enabled ? (selectedAgentVmix.connected ? "online" : "offline") : "off"}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-border p-4 min-h-[460px]">
+                  <div className="min-h-[460px] rounded-surface border border-border/50 bg-surface-subtle p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold text-foreground">График нагрузки</p>
                         <p className="text-xs text-muted-foreground">История heartbeat по выбранной машине</p>
                       </div>
-                      <Badge variant="secondary" className="rounded-lg">{chartData.length} точек</Badge>
+                      <Badge variant="secondary" className="rounded-control">{chartData.length} точек</Badge>
                     </div>
                     {chartData.length === 0 ? (
-                      <div className="h-[250px] flex items-center justify-center rounded-lg bg-muted/30 text-sm text-muted-foreground">
+                      <div className="flex h-[250px] items-center justify-center rounded-control bg-surface-overlay text-sm text-muted-foreground">
                         История появится после нескольких heartbeat от агента
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="h-[210px] rounded-lg border border-border/60 p-2">
+                        <div className="h-[210px] rounded-control border border-border/50 bg-surface-raised p-2">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -610,7 +610,7 @@ export default function Monitoring() {
                           </ResponsiveContainer>
                         </div>
                         <div className="grid gap-4">
-                          <div className="h-[220px] rounded-lg border border-border/60 p-2">
+                          <div className="h-[220px] rounded-control border border-border/50 bg-surface-raised p-2">
                             <ResponsiveContainer width="100%" height="100%">
                               <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -636,11 +636,11 @@ export default function Monitoring() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Online Systems */}
-        <Card className="rounded-2xl border border-border shadow-sm overflow-hidden bg-card/50 dark:bg-card/30">
+        <Card className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-foreground">
-              <span className="w-9 h-9 rounded-xl bg-green-500/15 dark:bg-green-500/20 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+              <span className="flex h-9 w-9 items-center justify-center rounded-control bg-success-muted">
+                <CheckCircle className="h-5 w-5 text-success" />
               </span>
               Онлайн системы ({onlineSystems.length})
             </CardTitle>
@@ -648,15 +648,15 @@ export default function Monitoring() {
           <CardContent>
             <div className="space-y-2">
               {onlineSystems.length === 0 ? (
-                <p className="text-muted-foreground text-center py-6 rounded-xl bg-muted/30">Нет онлайн систем</p>
+                <p className="rounded-surface bg-surface-subtle py-6 text-center text-muted-foreground">Нет онлайн систем</p>
               ) : (
                 onlineSystems.map((system: any) => (
                   <div
                     key={system.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl border border-green-200/60 dark:border-green-800/40 bg-green-50/80 dark:bg-green-950/30 hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors"
+                    className="flex items-center justify-between gap-3 rounded-surface border border-success/25 bg-success-muted p-3 transition-colors hover:bg-success-muted/80"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0 text-green-600 dark:text-green-400">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-surface-raised text-success">
                         {getSystemTypeIcon(system.type)}
                       </div>
                       <div className="min-w-0">
@@ -668,7 +668,7 @@ export default function Monitoring() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <Badge className={cn("rounded-lg font-medium", getStatusColor(system.status))}>
+                      <Badge className={cn("rounded-control font-medium", getStatusColor(system.status))}>
                         {getStatusText(system.status)}
                       </Badge>
                       {system.lastPing && (
@@ -685,11 +685,11 @@ export default function Monitoring() {
         </Card>
 
         {/* Offline/Problem Systems */}
-        <Card className="rounded-2xl border border-border shadow-sm overflow-hidden bg-card/50 dark:bg-card/30">
+        <Card className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-foreground">
-              <span className="w-9 h-9 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <span className="flex h-9 w-9 items-center justify-center rounded-control bg-warning-muted">
+                <AlertTriangle className="h-5 w-5 text-warning" />
               </span>
               Проблемные системы ({offlineSystems.length + maintenanceSystems.length})
             </CardTitle>
@@ -697,16 +697,16 @@ export default function Monitoring() {
           <CardContent>
             <div className="space-y-2">
               {offlineSystems.length === 0 && maintenanceSystems.length === 0 ? (
-                <p className="text-muted-foreground text-center py-6 rounded-xl bg-muted/30">Все системы работают нормально</p>
+                <p className="rounded-surface bg-surface-subtle py-6 text-center text-muted-foreground">Все системы работают нормально</p>
               ) : (
                 <>
                   {offlineSystems.map((system: any) => (
                     <div
                       key={system.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-xl border border-red-200/60 dark:border-red-800/40 bg-red-50/80 dark:bg-red-950/30 hover:bg-red-50/100 dark:hover:bg-red-950/50 transition-colors"
+                      className="flex items-center justify-between gap-3 rounded-surface border border-error/25 bg-error-muted p-3 transition-colors hover:bg-error-muted/80"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0 text-red-600 dark:text-red-400">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-surface-raised text-error">
                           {getSystemTypeIcon(system.type)}
                         </div>
                         <div className="min-w-0">
@@ -718,7 +718,7 @@ export default function Monitoring() {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <Badge className={cn("rounded-lg font-medium", getStatusColor(system.status))}>
+                        <Badge className={cn("rounded-control font-medium", getStatusColor(system.status))}>
                           {getStatusText(system.status)}
                         </Badge>
                         {system.lastPing && (
@@ -732,10 +732,10 @@ export default function Monitoring() {
                   {maintenanceSystems.map((system: any) => (
                     <div
                       key={system.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/80 dark:bg-amber-950/30 hover:bg-amber-50/100 dark:hover:bg-amber-950/50 transition-colors"
+                      className="flex items-center justify-between gap-3 rounded-surface border border-warning/25 bg-warning-muted p-3 transition-colors hover:bg-warning-muted/80"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-surface-raised text-warning">
                           {getSystemTypeIcon(system.type)}
                         </div>
                         <div className="min-w-0">
@@ -747,7 +747,7 @@ export default function Monitoring() {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <Badge className={cn("rounded-lg font-medium", getStatusColor(system.status))}>
+                        <Badge className={cn("rounded-control font-medium", getStatusColor(system.status))}>
                           {getStatusText(system.status)}
                         </Badge>
                       </div>
@@ -762,10 +762,10 @@ export default function Monitoring() {
 
       {/* Active Streams Monitoring */}
       {streams && streams.length > 0 && (
-        <Card className="rounded-2xl border border-border shadow-sm overflow-hidden">
+        <Card className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <span className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <span className="flex h-8 w-8 items-center justify-center rounded-control bg-primary/10">
                 <Activity className="w-4 h-4 text-primary" />
               </span>
               Активные стримы ({streams.length})
@@ -774,10 +774,10 @@ export default function Monitoring() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {streams.map((stream: any) => (
-                <div key={stream.id} className="p-4 rounded-xl border border-border bg-card/50">
+                <div key={stream.id} className="rounded-surface border border-border/50 bg-surface-subtle p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-foreground truncate">{stream.title}</h3>
-                    <Badge className="rounded-lg bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 shrink-0">Живой эфир</Badge>
+                    <Badge className="shrink-0 rounded-control border-success/25 bg-success-muted text-success">Живой эфир</Badge>
                   </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex justify-between">
