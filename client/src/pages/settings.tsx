@@ -179,7 +179,7 @@ function YouGileIntegration() {
   };
 
   return (
-    <div className="rounded-lg border border-border p-4 space-y-3">
+    <div className="space-y-3 rounded-surface border border-border/50 bg-surface-subtle p-4">
       <h3 className="font-semibold flex items-center gap-2">
         <Link2 className="w-5 h-5 text-primary" />
         YouGile (таск-менеджер)
@@ -224,7 +224,7 @@ function YouGileIntegration() {
         )}
       </div>
       {checkResult && (
-        <p className={cn("text-sm", checkResult.ok ? "text-green-600 dark:text-green-400" : "text-destructive")}>
+        <p className={cn("text-sm", checkResult.ok ? "text-success" : "text-error")}>
           {checkResult.message}
         </p>
       )}
@@ -469,12 +469,12 @@ export default function Settings() {
   }, []);
 
   return (
-    <div className="min-w-0 overflow-x-hidden space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-[1200px] min-w-0 space-y-4 overflow-x-hidden px-2 py-3 sm:px-4 sm:py-4">
       {/* Блок профиля в стиле Telegram: аватар + имя + контакты */}
-      <div className="rounded-2xl border border-border bg-card/80 dark:bg-card/90 backdrop-blur-sm overflow-hidden">
+      <div className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
         <div className="p-6 sm:p-8 flex flex-col items-center text-center">
           <div className="relative group">
-            <Avatar className="h-24 w-24 sm:h-28 sm:w-28 rounded-full border-4 border-background shadow-lg">
+            <Avatar className="h-24 w-24 rounded-full border-4 border-surface-raised shadow-surface sm:h-28 sm:w-28">
               <AvatarImage src={profileUser?.avatar ? (profileUser.avatar.startsWith("http") ? profileUser.avatar : (API_BASE.replace(/\/$/, "") || "") + profileUser.avatar) : undefined} />
               <AvatarFallback className="bg-primary/20 text-primary text-2xl font-semibold">
                 {profileUser?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2) || "U"}
@@ -484,7 +484,7 @@ export default function Settings() {
               type="button"
               onClick={() => avatarInputRef.current?.click()}
               disabled={avatarLoading}
-              className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg border-2 border-background hover:bg-primary/90 transition-colors"
+              className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-surface-raised bg-primary text-primary-foreground shadow-surface transition-colors hover:bg-primary/90"
               aria-label="Сменить фото"
             >
               <Camera className="w-4 h-4" />
@@ -504,7 +504,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4 sm:space-y-6 min-w-0">
-        <TabsList className="flex w-full overflow-x-auto gap-0.5 p-1 min-w-0 sm:overflow-visible h-auto flex-nowrap">
+        <TabsList className="flex h-auto w-full min-w-0 flex-nowrap gap-0.5 overflow-x-auto rounded-control border border-border/40 bg-surface-subtle p-1 sm:overflow-visible">
           {settingsTabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -517,7 +517,7 @@ export default function Settings() {
         </TabsList>
 
         <TabsContent value="profile">
-          <Card>
+          <Card className="border-border/50 bg-surface-raised shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <User className="w-5 h-5 mr-2" />
@@ -557,7 +557,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="notifications">
-          <Card>
+          <Card className="border-border/50 bg-surface-raised shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Bell className="w-5 h-5 mr-2" />
@@ -566,52 +566,52 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div>
                     <Label htmlFor="email-notifications">Email уведомления</Label>
-                    <p className="text-sm text-gray-600">Получать уведомления по электронной почте</p>
+                    <p className="text-sm text-muted-foreground">Получать уведомления по электронной почте</p>
                   </div>
                   <Switch id="email-notifications" defaultChecked />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div>
                     <Label htmlFor="system-alerts">Системные предупреждения</Label>
-                    <p className="text-sm text-gray-600">Уведомления о проблемах с системой</p>
+                    <p className="text-sm text-muted-foreground">Уведомления о проблемах с системой</p>
                   </div>
                   <Switch id="system-alerts" defaultChecked />
                 </div>
 
                 {!isPlatformOwner && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                     <div>
                       <Label htmlFor="stream-notifications">Уведомления о стримах</Label>
-                      <p className="text-sm text-gray-600">Уведомления о начале и окончании стримов</p>
+                      <p className="text-sm text-muted-foreground">Уведомления о начале и окончании стримов</p>
                     </div>
                     <Switch id="stream-notifications" defaultChecked />
                   </div>
                 )}
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div>
                     <Label htmlFor="calendar-reminders">Напоминания календаря</Label>
-                    <p className="text-sm text-gray-600">Напоминания о предстоящих событиях</p>
+                    <p className="text-sm text-muted-foreground">Напоминания о предстоящих событиях</p>
                   </div>
                   <Switch id="calendar-reminders" defaultChecked />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div>
                     <Label htmlFor="equipment-alerts">Уведомления об оборудовании</Label>
-                    <p className="text-sm text-gray-600">Уведомления о статусе оборудования</p>
+                    <p className="text-sm text-muted-foreground">Уведомления о статусе оборудования</p>
                   </div>
                   <Switch id="equipment-alerts" />
                 </div>
               </div>
 
               {/* Push Notifications */}
-              <div className="border-t pt-6 space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-4 border-t border-border/40 pt-6">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Label htmlFor="push-notifications">Push-уведомления в браузере</Label>
@@ -619,10 +619,10 @@ export default function Settings() {
                         <Badge variant="secondary" className="text-xs">Не поддерживается</Badge>
                       )}
                       {isSupported && isSubscribed && (
-                        <Badge variant="default" className="text-xs bg-green-500">Включено</Badge>
+                        <Badge variant="secondary" className="border-success/25 bg-success-muted text-xs text-success">Включено</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       Получать уведомления даже когда браузер закрыт
                     </p>
                   </div>
@@ -649,7 +649,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="mobile">
-          <Card className="min-w-0">
+          <Card className="min-w-0 border-border/50 bg-surface-raised shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Smartphone className="w-5 h-5 mr-2 shrink-0" />
@@ -668,8 +668,8 @@ export default function Settings() {
                     <label
                       key={c.tabKey}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50",
+                        "flex cursor-pointer items-center gap-3 rounded-control border p-3 transition-colors",
+                        checked ? "border-primary/50 bg-primary/10" : "border-border/40 bg-surface-subtle hover:bg-surface-overlay",
                         disabled && "opacity-60 cursor-not-allowed",
                       )}
                     >
@@ -693,7 +693,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="security">
-          <Card>
+          <Card className="border-border/50 bg-surface-raised shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Shield className="w-5 h-5 mr-2" />
@@ -716,11 +716,11 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between">
+              <div className="border-t border-border/40 pt-6">
+                <div className="flex items-center justify-between gap-4 rounded-control border border-border/40 bg-surface-subtle p-3">
                   <div>
                     <Label htmlFor="two-factor">Двухфакторная аутентификация</Label>
-                    <p className="text-sm text-gray-600">Дополнительная защита вашего аккаунта</p>
+                    <p className="text-sm text-muted-foreground">Дополнительная защита вашего аккаунта</p>
                   </div>
                   <Switch id="two-factor" />
                 </div>
@@ -766,7 +766,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="language">
-          <Card>
+          <Card className="border-border/50 bg-surface-raised shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Languages className="w-5 h-5 mr-2" />
@@ -800,7 +800,7 @@ export default function Settings() {
             <TelegramAuth onSuccess={(telegramUser) => {
               console.log('Telegram user connected:', telegramUser);
             }} />
-            <Card>
+            <Card className="border-border/50 bg-surface-raised shadow-xs">
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Globe className="w-5 h-5 mr-2" />
@@ -811,7 +811,7 @@ export default function Settings() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-4">
                   <h3 className="font-semibold flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 text-sm font-bold">YT</span>
                     YouTube
@@ -820,7 +820,7 @@ export default function Settings() {
                   <Label htmlFor="youtube-key" className="text-xs">API Key (опционально)</Label>
                   <Input id="youtube-key" placeholder="Для статистики просмотров" className="max-w-md" />
                 </div>
-                <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-4">
                   <h3 className="font-semibold flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 text-sm font-bold">VK</span>
                     ВКонтакте
@@ -829,7 +829,7 @@ export default function Settings() {
                   <Label htmlFor="vk-token" className="text-xs">Access Token (опционально)</Label>
                   <Input id="vk-token" placeholder="Для доступа к API" className="max-w-md" />
                 </div>
-                <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-4">
                   <h3 className="font-semibold flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-bold">TW</span>
                     Twitch

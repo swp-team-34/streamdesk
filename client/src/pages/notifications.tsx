@@ -44,7 +44,7 @@ function getCurrentUserId(): string | null {
 
 function decodePossiblyBrokenText(value: unknown): string {
   const text = String(value ?? "");
-  if (!/[РС][\u0080-\uFFFF]|[ÐÑ]/.test(text)) return text;
+  if (!/[РС][\u0080-\uFFFF]|[\u00d0\u00d1]/.test(text)) return text;
 
   try {
     const bytes: number[] = [];
@@ -58,7 +58,7 @@ function decodePossiblyBrokenText(value: unknown): string {
     const decoded = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
     const score = (sample: string) =>
       (sample.match(/[а-яё]/gi)?.length ?? 0) -
-      (sample.match(/[�]/g)?.length ?? 0) * 20 -
+      (sample.match(/[\ufffd]/g)?.length ?? 0) * 20 -
       (sample.match(/[РС][\u0080-\uFFFF]/g)?.length ?? 0) * 2;
     return score(decoded) > score(text) ? decoded : text;
   } catch {
@@ -69,26 +69,26 @@ function decodePossiblyBrokenText(value: unknown): string {
 function getNotificationIcon(type: string) {
   switch (type) {
     case "success":
-      return <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />;
+      return <CheckCircle className="h-5 w-5 text-success" />;
     case "warning":
-      return <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
+      return <AlertTriangle className="h-5 w-5 text-warning" />;
     case "error":
-      return <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+      return <AlertCircle className="h-5 w-5 text-error" />;
     default:
-      return <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+      return <Info className="h-5 w-5 text-info" />;
   }
 }
 
 function getNotificationColor(type: string) {
   switch (type) {
     case "success":
-      return "border-l-emerald-400";
+      return "border-l-success";
     case "warning":
-      return "border-l-amber-400";
+      return "border-l-warning";
     case "error":
-      return "border-l-red-400";
+      return "border-l-error";
     default:
-      return "border-l-blue-400";
+      return "border-l-info";
   }
 }
 
@@ -202,7 +202,7 @@ export default function Notifications() {
       <div className="mx-auto w-full max-w-6xl space-y-4 px-3 py-4 sm:px-4 lg:px-0">
         <div className="h-5 w-64 max-w-full animate-pulse rounded bg-muted" />
         {[1, 2, 3].map((item) => (
-          <div key={item} className="h-24 animate-pulse rounded-lg bg-muted" />
+          <div key={item} className="h-24 animate-pulse rounded-surface bg-surface-subtle" />
         ))}
       </div>
     );
@@ -216,7 +216,7 @@ export default function Notifications() {
           <p className="mt-1 text-sm text-muted-foreground">
             Системные события, задачи и обращения в поддержку.
             {unreadCount > 0 && (
-              <Badge className="ml-2 border-red-200 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100">
+              <Badge className="ml-2 border-error/25 bg-error-muted text-error">
                 {unreadCount} новых
               </Badge>
             )}
@@ -236,14 +236,14 @@ export default function Notifications() {
         )}
       </div>
 
-      <Card className="border-border bg-card">
+      <Card className="border-border/50 bg-surface-raised shadow-xs">
         <CardContent className="px-4 py-3 text-sm text-muted-foreground sm:px-5">
           <strong className="text-foreground">Push-уведомления:</strong> чтобы получать события даже при закрытой вкладке,
           разрешите уведомления в браузере. На телефоне лучше установить приложение как PWA.
         </CardContent>
       </Card>
 
-      <Card className="border-primary/20 bg-card">
+      <Card className="border-primary/25 bg-surface-raised shadow-xs">
         <CardHeader className="px-4 sm:px-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <AlertCircle className="h-5 w-5 text-primary" />
@@ -314,7 +314,7 @@ export default function Notifications() {
       </Card>
 
       {myReports.length > 0 && (
-        <Card className="border-primary/20 bg-card">
+        <Card className="border-primary/25 bg-surface-raised shadow-xs">
           <CardHeader className="px-4 sm:px-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <AlertTriangle className="h-5 w-5 text-primary" />
@@ -328,7 +328,7 @@ export default function Notifications() {
               return (
                 <div
                   key={report.id}
-                  className={`rounded-lg border p-3 ${done ? "bg-muted/40 opacity-75" : report.status === "investigating" ? "border-blue-400/40 bg-blue-500/5" : "bg-background"}`}
+                  className={`rounded-control border p-3 ${done ? "border-border/40 bg-surface-subtle opacity-75" : report.status === "investigating" ? "border-info/30 bg-info-muted" : "border-border/40 bg-surface-subtle"}`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -349,7 +349,7 @@ export default function Notifications() {
 
       <div className="space-y-3">
         {notifications.length === 0 ? (
-          <Card className="bg-card">
+          <Card className="border-dashed border-border/60 bg-surface-raised shadow-xs">
             <CardContent className="flex flex-col items-center justify-center px-4 py-12 text-center">
               <Bell className="mb-4 h-12 w-12 text-muted-foreground" />
               <h3 className="text-lg font-semibold text-foreground">Нет уведомлений</h3>
@@ -362,7 +362,7 @@ export default function Notifications() {
           notifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`border-border bg-card text-card-foreground transition-colors dark:bg-slate-950/80 ${!notification.read ? `${getNotificationColor(notification.type)} border-l-4 shadow-sm` : ""}`}
+              className={`border-border/50 bg-surface-raised text-foreground shadow-xs transition-colors ${!notification.read ? `${getNotificationColor(notification.type)} border-l-4 bg-surface-overlay` : ""}`}
             >
               <CardHeader className="px-4 pb-3 sm:px-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -374,7 +374,7 @@ export default function Notifications() {
                           {decodePossiblyBrokenText(notification.title)}
                         </CardTitle>
                         <Badge variant="outline" className="text-xs">{decodePossiblyBrokenText(getTypeLabel(notification.type))}</Badge>
-                        {!notification.read && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                        {!notification.read && <span className="h-2 w-2 rounded-full bg-info" />}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: ru })}
