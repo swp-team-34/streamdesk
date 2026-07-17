@@ -126,7 +126,7 @@ export function KanbanLabelsSection({
                   <Badge
                     variant="outline"
                     className="cursor-text rounded-full border-transparent px-3 py-1.5"
-                    style={{ backgroundColor: label.color || "var(--muted)", color: "hsl(var(--foreground))" }}
+                    style={{ backgroundColor: label.color || "var(--muted)", color: "var(--foreground)" }}
                     onDoubleClick={() => onBeginEdit(label)}
                   >
                     {label.name}

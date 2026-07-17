@@ -220,8 +220,8 @@ body::-webkit-scrollbar,
 }
 
 .dashboard-widget-invalid-target > div {
-  border-color: hsl(var(--destructive));
-  box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 18%, transparent);
 }
 
 @media (min-width: 1024px) {
@@ -845,7 +845,7 @@ body::-webkit-scrollbar,
   
   .dark .task-card:hover {
     border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-    box-shadow: 0 0 15px rgba(var(--neon-cyan), 0.2);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--neon-cyan) 20%, transparent);
   }
 
   .scheduler-button {

@@ -59,7 +59,7 @@ export function KanbanCardLabelsEditor({
               className="inline-flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5 text-sm"
               style={{
                 backgroundColor: label.color || "var(--muted)",
-                color: "hsl(var(--foreground))",
+                color: "var(--foreground)",
               }}
               onClick={() => onRemove(label.id)}
               disabled={!canEdit}

@@ -278,7 +278,7 @@ export function KanbanBoardCard({
                   className="gap-1 rounded-full border-transparent"
                   style={{
                     backgroundColor: label.color || "var(--muted)",
-                    color: "hsl(var(--foreground))",
+                    color: "var(--foreground)",
                   }}
                 >
                   {label.name}

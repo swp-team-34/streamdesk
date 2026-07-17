@@ -143,7 +143,7 @@ export function KanbanCardMetadata({
                 className="rounded-full border-transparent"
                 style={{
                   backgroundColor: label.color || "var(--muted)",
-                  color: "hsl(var(--foreground))",
+                  color: "var(--foreground)",
                 }}
               >
                 {label.name}
