@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Monitor, Server, Wifi, Activity, AlertTriangle, CheckCircle, RefreshCw, TrendingUp, Cpu, HardDrive, MemoryStick, Radio, Download, Power, Trash2, Edit2 } from "lucide-react";
@@ -355,11 +356,9 @@ export default function Monitoring() {
                 <Power className="h-4 w-4 text-primary" />
                 Добавить в автозапуск
               </span>
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-primary"
+              <Checkbox
                 checked={agentAutostart}
-                onChange={(event) => setAgentAutostart(event.target.checked)}
+                onCheckedChange={(checked) => setAgentAutostart(checked === true)}
               />
             </label>
             <div className="grid gap-2 sm:grid-cols-2">

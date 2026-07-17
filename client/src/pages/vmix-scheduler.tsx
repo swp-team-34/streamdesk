@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -54,6 +55,15 @@ import {
   type VmixTargetMode,
 } from "@/lib/vmix-scheduler-model";
 import { cn } from "@/lib/utils";
+
+const VMIX_ACTION_OPTIONS = [
+  { id: "action-cut", value: "Cut", label: "Cut (резкий переход)" },
+  { id: "action-fade", value: "Fade", label: "Fade (плавный переход)" },
+  { id: "action-stream", value: "StartStreaming", label: "Начать стрим" },
+  { id: "action-recording", value: "StartRecording", label: "Начать запись" },
+  { id: "action-stop-stream", value: "StopStreaming", label: "Остановить стрим" },
+  { id: "action-stop-recording", value: "StopRecording", label: "Остановить запись" },
+];
 
 export default function VmixScheduler() {
   const [vmixHost, setVmixHost] = useState(localStorage.getItem("vmix_host") || "localhost");
@@ -1056,114 +1066,25 @@ export default function VmixScheduler() {
                           <Label>Действия</Label>
                           <div className="space-y-2 mt-2">
                             <div className="grid grid-cols-2 gap-2">
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-cut"
-                                  checked={newEventActions.includes("Cut")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "Cut"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "Cut"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-cut" className="font-normal cursor-pointer text-sm">
-                                  Cut (резкий переход)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-fade"
-                                  checked={newEventActions.includes("Fade")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "Fade"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "Fade"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-fade" className="font-normal cursor-pointer text-sm">
-                                  Fade (плавный переход)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stream"
-                                  checked={newEventActions.includes("StartStreaming")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StartStreaming"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StartStreaming"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stream" className="font-normal cursor-pointer text-sm">
-                                  Начать стрим
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-recording"
-                                  checked={newEventActions.includes("StartRecording")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StartRecording"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StartRecording"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-recording" className="font-normal cursor-pointer text-sm">
-                                  Начать запись
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stop-stream"
-                                  checked={newEventActions.includes("StopStreaming")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StopStreaming"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StopStreaming"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stop-stream" className="font-normal cursor-pointer text-sm">
-                                  Остановить стрим
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stop-recording"
-                                  checked={newEventActions.includes("StopRecording")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StopRecording"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StopRecording"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stop-recording" className="font-normal cursor-pointer text-sm">
-                                  Остановить запись
-                                </Label>
-                              </div>
+                              {VMIX_ACTION_OPTIONS.map((action) => {
+                                const selected = newEventActions.includes(action.value);
+                                return (
+                                  <label
+                                    key={action.value}
+                                    htmlFor={action.id}
+                                    className="flex min-h-10 items-center gap-2 rounded-control border border-border/35 bg-surface-raised px-3 text-sm"
+                                  >
+                                    <Checkbox
+                                      id={action.id}
+                                      checked={selected}
+                                      onCheckedChange={(checked) => setNewEventActions(checked === true
+                                        ? [...newEventActions, action.value]
+                                        : newEventActions.filter((value) => value !== action.value))}
+                                    />
+                                    {action.label}
+                                  </label>
+                                );
+                              })}
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
                               Примечание: Если выбран инпут, автоматически выполнится Preview → Cut. 

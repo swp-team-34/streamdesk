@@ -1,6 +1,7 @@
 import { Building2, WandSparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { StreamSelect } from "@/components/ui/stream-select";
@@ -242,12 +243,11 @@ export function KanbanCardDetailFields({
               return (
                 <label key={location.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50">
                   <span className="flex min-w-0 items-center gap-2">
-                    <input
+                    <Checkbox
                       aria-label={`Связать площадку «${location.name}»`}
-                      type="checkbox"
                       checked={checked}
                       disabled={!canEdit}
-                      onChange={() => patchForm({
+                      onCheckedChange={() => patchForm({
                         locationIds: checked
                           ? selectedLocationIds.filter((locationId) => locationId !== location.id)
                           : normalizeLocationIds([...selectedLocationIds, location.id]),

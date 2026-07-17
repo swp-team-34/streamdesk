@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -396,14 +397,14 @@ export default function Dashboard() {
                 return (
                   <label
                     key={widget.id}
+                    htmlFor={`dashboard-widget-visible-${widget.id}`}
                     className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-sm"
                   >
                     <span className="truncate font-medium">{widget.title}</span>
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      id={`dashboard-widget-visible-${widget.id}`}
                       checked={isVisible}
-                      onChange={(event) => toggleWidgetVisibility(widget.id, event.target.checked)}
-                      className="h-4 w-4 accent-primary"
+                      onCheckedChange={(checked) => toggleWidgetVisibility(widget.id, checked === true)}
                     />
                   </label>
                 );

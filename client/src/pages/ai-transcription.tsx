@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -242,13 +243,11 @@ export default function AITranscription() {
             <div className="space-y-2">
               <Label htmlFor="enable-diarization">Диаризация спикеров</Label>
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="enable-diarization"
                   checked={enableDiarization}
-                  onChange={(e) => setEnableDiarization(e.target.checked)}
+                  onCheckedChange={(checked) => setEnableDiarization(checked === true)}
                   disabled={transcribing || (connectionChecked && apiAvailable === false)}
-                  className="w-4 h-4"
                 />
                 <label htmlFor="enable-diarization" className="text-sm text-muted-foreground">
                   Определять разных спикеров
@@ -370,4 +369,3 @@ export default function AITranscription() {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StreamSelect } from "@/components/ui/stream-select";
 
 export interface KanbanBoardMemberView {
@@ -107,14 +108,14 @@ export function KanbanBoardMembersSection({
             disabled={pending}
           />
 
-          <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-sm">
-            <input
-              type="checkbox"
+          <label htmlFor="kanban-member-can-comment" className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-sm">
+            <Checkbox
+              id="kanban-member-can-comment"
               checked={form.role === "editor" ? true : form.canComment}
-              onChange={(event) => onFormChange({ ...form, canComment: event.target.checked })}
+              onCheckedChange={(checked) => onFormChange({ ...form, canComment: checked === true })}
               disabled={form.role === "editor" || pending}
             />
-            can comment
+            Может комментировать
           </label>
 
           <div className="flex gap-2">
