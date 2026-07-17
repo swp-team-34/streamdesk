@@ -107,9 +107,10 @@ The following ADRs document the most important architectural decisions made for 
 
 - [ADR-001: Centralized Equipment Permission Evaluator](./adr/ADR-001-centralized-equipment-permissions.md)
 - [ADR-002: Declarative Protected Route Wrapper](./adr/ADR-002-declarative-protected-route-wrapper.md)
-- [ADR-003: Unified Monorepo Test and Coverage Configuration](./adr/ADR-003-unified-monorepo-coverage.md)
+- [ADR-003: Unified Monorepo Test and Coverage Configuration](./adr/ADR-003-unified-monorepo-coverage.md) (Superseded)
 - [ADR-004: Authenticated Scoped Realtime Transport](./adr/ADR-004-authenticated-scoped-realtime.md)
 - [ADR-005: Validated Active Workspace Tenant Boundary](./adr/ADR-005-active-workspace-tenant-boundary.md)
+- [ADR-006: Split Client-Server Architecture](./adr/ADR-006-split-client-server-architecture.md)
 
 ### How the decisions fit together
 
@@ -121,8 +122,8 @@ These five decisions form the foundation of our team's approach to **security, f
    - Together, they create a defense-in-depth approach: the UI prevents unauthorized navigation, and the server enforces permissions before modifying data.
 
 2. **Maintainability & Testability (QR-003):**
-   - **ADR-003** ensures that the entire monorepo (client, server, and shared logic) is covered by a unified automated testing and coverage pipeline. 
-   - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.
+   - **ADR-006** establishes the split client, server, and shared architecture, ensuring clear separation of concerns while keeping types in sync.
+   - Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable within this modular structure, providing repeatable evidence that critical access-control behavior remains correct over time.
 
 3. **Realtime Security & Consistency (QR-002, QR-003):**
    - **ADR-004** authenticates WebSocket upgrades through the same session model as REST, rechecks scope access for every subscription, and keeps all mutations in authorized HTTP routes.

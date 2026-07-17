@@ -16,10 +16,18 @@ ADRs document important architectural and technical decisions made during the pr
 
 - **ADR-003 – Unified Monorepo Coverage**
   
-  Explains the unified strategy for collecting and reporting code coverage across the monorepo.
+  Explains the unified strategy for collecting and reporting code coverage across the monorepo. (Superseded by ADR-006)
 
 - **ADR-004 – Authenticated Scoped Realtime Transport**
 
   Defines session-authenticated WebSocket upgrades, authorized scope subscriptions, identifier-only events, and reconnect/refetch recovery.
+
+- **ADR-005 – Validated Active Workspace Tenant Boundary**
+
+  Establishes the selected company or personal workspace as a server-validated boundary.
+
+- **ADR-006 – Split Client-Server Architecture**
+
+  Establishes the modular monorepo structure, dividing the codebase into client, server, and shared components.
 
 Use the navigation menu to open an individual ADR for complete details.
