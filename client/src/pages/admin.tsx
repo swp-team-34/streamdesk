@@ -11,11 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Users, Shield, Settings, Edit, Trash2, 
-  UserPlus, Key, Check, X, AlertCircle, Github, Plus, History, Clock, FileText,
+import {
+  Users, Shield, Settings, Edit, Trash2,
+  UserPlus, Key, Check, X, AlertCircle, Github, Plus,
   Building2, Copy, Link as LinkIcon, Loader2
 } from "lucide-react";
+import { UserLogsTab } from "@/components/admin/user-logs-tab";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { User, Role } from "@shared/schema";
@@ -900,154 +901,6 @@ export default function Admin() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// Компонент для просмотра логов сотрудников
-function UserLogsTab() {
-  const [selectedUserId, setSelectedUserId] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const { toast } = useToast();
-
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-  });
-
-  const { data: logs = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/admin/user-logs", selectedUserId, startDate, endDate],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedUserId !== "all") params.append("userId", selectedUserId);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      
-      const response = await apiRequest("GET", `/api/admin/user-logs?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch logs");
-      return response.json();
-    },
-    enabled: true,
-  });
-
-  const getUserName = (userId: string | null) => {
-    if (!userId) return "Неизвестно";
-    const user = users.find(u => u.id === userId);
-    return user?.name || user?.username || "Неизвестно";
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleString("ru-RU", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getActionLabel = (action: string) => {
-    const labels: Record<string, string> = {
-      created: "Создано",
-      updated: "Обновлено",
-      status_changed: "Изменен статус",
-      assigned: "Назначено",
-      commented: "Комментарий",
-      deleted: "Удалено",
-    };
-    return labels[action] || action;
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Логи активности сотрудников</CardTitle>
-          <CardDescription>
-            Просмотр истории действий пользователей в системе
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Пользователь</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Все пользователи" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все пользователи</SelectItem>
-                  {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name || user.username}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Начало периода</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Конец периода</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5" />
-            История действий ({logs.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Загрузка...</div>
-          ) : logs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Нет записей</div>
-          ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto hide-scrollbar">
-              {logs.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                    {log.type === "task_history" ? (
-                      <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    ) : (
-                      <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{getUserName(log.userId)}</span>
-                      <Badge variant="outline">{getActionLabel(log.action)}</Badge>
-                      <span className="text-sm text-gray-500">{formatDate(log.timestamp)}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{log.description}</p>
-                    {log.data?.taskId && (
-                      <p className="text-xs text-gray-500 mt-1">ID задачи: {log.data.taskId}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

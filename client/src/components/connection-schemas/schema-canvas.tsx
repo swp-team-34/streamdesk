@@ -3,46 +3,27 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, FileImage, FileText } from "lucide-react";
 import { SIGNAL_COLOR_PRESET } from "./signal-colors";
-
-interface Port {
-  id: string;
-  name: string;
-  type: "in" | "out";
-  portType?: string;
-}
-
-interface Device {
-  id: string;
-  name: string;
-  type: string;
-  position: { x: number; y: number };
-  width?: number;
-  height?: number;
-  portsIn: Port[];
-  portsOut: Port[];
-  manufacturer?: string;
-  model?: string;
-  properties?: Record<string, any>;
-}
-
-interface Zone {
-  id: string;
-  name: string;
-  position: { x: number; y: number };
-  width: number;
-  height: number;
-  color?: string;
-}
-
-interface Cable {
-  id: string;
-  fromDeviceId: string;
-  fromPortId: string;
-  toDeviceId: string;
-  toPortId: string;
-  cableType?: string;
-  protocol?: string;
-}
+import type {
+  SchemaCable as Cable,
+  SchemaDevice as Device,
+  SchemaPort as Port,
+  SchemaZone as Zone,
+} from "@/lib/connection-schema-model";
+import {
+  SCHEMA_CABLE_LABEL_OFFSET as CABLE_LABEL_OFFSET,
+  SCHEMA_GRID_STEP as GRID_STEP,
+  SCHEMA_PORT_HEIGHT as PORT_HEIGHT,
+  getSchemaCableEndpoints as getCableEndpoints,
+  getSchemaCablePath as getCablePath,
+  getSchemaDeviceHeight as calculateDeviceHeight,
+  getSchemaDeviceWidth as getDeviceWidth,
+  getSchemaPortBoxWidth as getPortBoxWidth,
+  getSchemaPortColor as getPortColor,
+  getSchemaPortLayout as getPortLayout,
+  getSchemaPortPosition,
+  isSchemaConnectionValid as isConnectionValid,
+  normalizeSchemaConnectionType as normalizeConnectionType,
+} from "@/lib/connection-schema-geometry";
 
 interface SchemaCanvasProps {
   schemaId: string;
@@ -71,18 +52,6 @@ export interface SchemaCanvasRef {
 
 const SCENE_WIDTH = 16000;
 const SCENE_HEIGHT = 12000;
-const DEVICE_WIDTH_MIN = 200;
-const DEVICE_WIDTH_DEFAULT = 260;
-const PORT_BOX_WIDTH = 30;
-const DEVICE_WIDTH_PADDING = 60;
-const PORT_ROW_PADDING = 28;
-const PORT_BOX_MIN_WIDTH = 34;
-const DEVICE_HEIGHT_BASE = 80;
-const PORT_HEIGHT = 20;
-const PORT_SPACING = 5;
-const GRID_STEP = 48;
-const CABLE_EXIT_OFFSET = 26;
-const CABLE_LABEL_OFFSET = 14;
 
 export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(function SchemaCanvas({
   schemaId,
@@ -429,166 +398,13 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
     };
   }, [panState]);
 
-  const getPortBoxWidth = (port?: Port): number => {
-    const name = (port?.name || "").trim();
-    return Math.max(PORT_BOX_MIN_WIDTH, Math.min(140, name.length * 7 + 16));
-  };
-
-  const getPortLayout = (device: Device, type: "in" | "out") => {
-    const ports = type === "in" ? device.portsIn || [] : device.portsOut || [];
-    const widths = ports.map((port) => getPortBoxWidth(port));
-    const totalPortsWidth = widths.reduce((sum, width) => sum + width, 0);
-    const totalSpacing = Math.max(0, ports.length - 1) * PORT_SPACING;
-    const contentWidth = totalPortsWidth + totalSpacing;
-    const deviceWidth = getDeviceWidth(device);
-    const startX = Math.max(PORT_ROW_PADDING, (deviceWidth - contentWidth) / 2);
-    let currentX = startX;
-    return ports.map((port, index) => {
-      const width = widths[index];
-      const layout = { port, x: currentX, width, centerX: currentX + width / 2 };
-      currentX += width + PORT_SPACING;
-      return layout;
-    });
-  };
-
-  /** Ширина карточки: из настроек или авто по количеству портов (чтобы все влезали в ряд). */
-  const getDeviceWidth = (device: Device): number => {
-    const calcRowWidth = (ports: Port[] = []) =>
-      ports.reduce((sum, port) => sum + getPortBoxWidth(port), 0) + Math.max(0, ports.length - 1) * PORT_SPACING + PORT_ROW_PADDING * 2;
-    const widthFromPorts = Math.max(calcRowWidth(device.portsIn), calcRowWidth(device.portsOut), DEVICE_WIDTH_DEFAULT);
-    const customW = device.properties?.width as number | undefined;
-    const baseWidth = Math.max(DEVICE_WIDTH_DEFAULT, widthFromPorts);
-    if (customW != null && customW >= DEVICE_WIDTH_MIN) return Math.max(customW, baseWidth);
-    return baseWidth;
-  };
-  /** Высота карточки: компактная, не растёт с числом портов (только ширина «длинная»). Один ряд IN, один ряд OUT. */
-  const calculateDeviceHeight = (device: Device): number => {
-    const customH = device.properties?.height as number | undefined;
-    if (customH != null && customH >= DEVICE_HEIGHT_BASE) return customH;
-    const hasIn = (device.portsIn?.length ?? 0) > 0;
-    const hasOut = (device.portsOut?.length ?? 0) > 0;
-    const rows = (hasIn ? 1 : 0) + (hasOut ? 1 : 0) || 1;
-    return DEVICE_HEIGHT_BASE + rows * (PORT_HEIGHT + PORT_SPACING);
-  };
-
   const getPortPosition = (device: Device, port: Port, index: number): { x: number; y: number } => {
-    const deviceHeight = calculateDeviceHeight(device);
-    const pos = localPositions[device.id] ?? device.position;
-    const layout = getPortLayout(device, port.type);
-    const item = layout[index];
-    const portY = port.type === "in" ? pos.y : pos.y + deviceHeight - PORT_HEIGHT;
-    const portX = pos.x + (item?.x ?? 0);
-    return { x: portX, y: portY };
-  };
-
-  const normalizeConnectionType = (value?: string): string => {
-    const raw = (value || "").trim().toUpperCase();
-    if (!raw) return "";
-    const cleaned = raw
-      .replace(/\b(INPUT|OUTPUT|IN|OUT|PORT|ПОРТ|ВХОД|ВЫХОД)\b/g, " ")
-      .replace(/[#:()[\],]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (cleaned.includes("USB C") || cleaned.includes("USBC") || cleaned.includes("TYPE C")) return "USB-C";
-    if (cleaned.includes("DISPLAYPORT") || cleaned === "DP") return "DP";
-    if (cleaned.includes("HDMI")) return "HDMI";
-    if (cleaned.includes("SDI")) return "SDI";
-    if (cleaned.includes("RJ45")) return "RJ45";
-    if (cleaned.includes("ETHERNET") || cleaned.includes("ETHERNET")) return "ETH";
-    if (cleaned.includes("LAN")) return "LAN";
-    if (cleaned.includes("USB")) return "USB";
-    if (cleaned.includes("BNC")) return "BNC";
-    if (cleaned.includes("XLR")) return "XLR";
-    if (cleaned.includes("TRS") || cleaned.includes("JACK")) return "TRS";
-    if (cleaned.includes("RCA")) return "RCA";
-    if (cleaned.includes("WIRELESS") || cleaned.includes("WIFI") || cleaned.includes("RF")) return "WIRELESS";
-    if (cleaned.includes("NDI")) return "NDI";
-    if (cleaned.includes("AES")) return "AES";
-    if (cleaned.includes("MADI")) return "MADI";
-    if (cleaned === "AC" || cleaned.includes("220V")) return "AC";
-    if (cleaned.includes("DC")) return "DC";
-    return cleaned;
+    return getSchemaPortPosition(device, port, index, localPositions);
   };
 
   const getSignalColor = (signal?: string): string => {
     const normalized = normalizeConnectionType(signal);
     return SIGNAL_COLOR_PRESET[normalized] || SIGNAL_COLOR_PRESET.DEFAULT;
-  };
-
-  const getCableEndpoints = (
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    fromType: "in" | "out",
-    toType?: "in" | "out",
-  ) => {
-    return {
-      start: {
-        x: from.x,
-        y: from.y + (fromType === "out" ? CABLE_EXIT_OFFSET : -CABLE_EXIT_OFFSET),
-      },
-      end: {
-        x: to.x,
-        y: to.y + (toType ? (toType === "out" ? CABLE_EXIT_OFFSET : -CABLE_EXIT_OFFSET) : 0),
-      },
-    };
-  };
-
-  /**
-   * Ортогональный маршрут кабеля с одним углом.
-   * Адаптивно: если устройства расположены более горизонтально — сначала горизонталь, потом вертикаль;
-   * если более вертикально — сначала вертикаль, потом горизонталь. Линия всегда ровная (без диагоналей).
-   */
-  const getCablePath = (from: { x: number; y: number }, to: { x: number; y: number }, laneOffset = 0) => {
-    const dx = Math.abs(to.x - from.x);
-    const dy = Math.abs(to.y - from.y);
-    const midX = (from.x + to.x) / 2 + laneOffset;
-    const midY = (from.y + to.y) / 2 + laneOffset;
-    // Горизонтально далеко — первый отрезок горизонтальный; иначе вертикальный
-    if (dx >= dy) {
-      return `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`;
-    }
-    return `M ${from.x} ${from.y} L ${from.x} ${midY} L ${to.x} ${midY} L ${to.x} ${to.y}`;
-  };
-
-  const getPortColor = (portType?: string): string => {
-    const colors: Record<string, string> = {
-      HDMI: "#1a1a1a",
-      SDI: "#808080",
-      USB: "#0066cc",
-      ETH: "#ffd700",
-      LAN: "#ffd700",
-      "USB-C": "#0066cc",
-      BNC: "#808080",
-      Wireless: "#7c3aed",
-      DC: "#4a5568",
-      XLR: "#4b5563",
-      TRS: "#4b5563",
-      RCA: "#4b5563",
-      DP: "#2563eb",
-    };
-    return colors[normalizeConnectionType(portType)] || "#666666";
-  };
-
-  const getSignalCategory = (portType?: string): "video" | "audio" | "network" | "power" | "control" | "other" => {
-    const t = normalizeConnectionType(portType);
-    if (["HDMI", "SDI", "DP", "DISPLAYPORT"].includes(t)) return "video";
-    if (["XLR", "TRS", "RCA", "JACK"].includes(t)) return "audio";
-    if (["ETH", "LAN", "RJ45"].includes(t)) return "network";
-    if (["DC", "AC"].includes(t)) return "power";
-    if (["USB", "USB-C"].includes(t)) return "control";
-    return "other";
-  };
-
-  const isConnectionValid = (fromPort: Port, toPort: Port): boolean => {
-    if (!(fromPort.type === "out" && toPort.type === "in")) return false;
-    const catFrom = getSignalCategory(fromPort.portType);
-    const catTo = getSignalCategory(toPort.portType);
-    if (catFrom === "other" || catTo === "other") return true;
-    if (catFrom === catTo) return true;
-    // Допускаем USB как универсальный (часто управление/захват)
-    if (catFrom === "control" || catTo === "control") return true;
-    return false;
   };
 
   const handleZoomIn = () => setScale((s) => Math.min(s + 0.1, 3));

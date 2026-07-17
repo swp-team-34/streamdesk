@@ -11,7 +11,6 @@ import {
   insertEquipmentSchema,
   insertSystemSchema,
   insertStreamSchema,
-  insertNotificationSchema,
   insertEquipmentReservationSchema,
   insertEquipmentCheckoutRequestSchema,
   insertTelegramUserSchema,
@@ -56,6 +55,10 @@ import {
   parseRealtimeChannel,
   type DiscussionRealtimeEvent,
 } from "./realtime";
+import { registerNotificationRoutes } from "./routes/notifications";
+import { registerPushNotificationRoutes } from "./routes/push-notifications";
+import { registerRoomRoutes } from "./routes/rooms";
+import { withDbTimeout } from "./services/db-timeout";
 
 /** Парсит заголовок x-user: поддерживает JSON и Base64 (для кириллицы в имени). */
 function parseUserHeader(header: string | undefined): Record<string, unknown> {
@@ -383,60 +386,6 @@ async function checkIP(ip: string, port: number = 80): Promise<boolean> {
 
     socket.connect(port, ip);
   });
-}
-
-// Обертка для быстрой обработки ошибок БД с таймаутом
-async function withDbTimeout<T>(
-  operation: () => Promise<T>,
-  timeoutMs: number = 3000, // 3 секунды по умолчанию для GET запросов (быстро!)
-  defaultValue: T
-): Promise<T> {
-  const startTime = Date.now();
-  let timeoutId: NodeJS.Timeout | null = null;
-
-  try {
-    // Убеждаемся, что timeoutMs положительное число
-    const safeTimeout = Math.max(1, Math.floor(timeoutMs));
-
-    const timeoutPromise = new Promise<T>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error('Database operation timeout'));
-      }, safeTimeout);
-    });
-
-    const result = await Promise.race([operation(), timeoutPromise]);
-
-    // Очищаем таймаут если операция завершилась успешно
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-
-    const duration = Math.max(0, Date.now() - startTime); // Убеждаемся, что duration не отрицательное
-    if (duration > 1000) {
-      console.warn(`[DB] Slow query: ${duration}ms`);
-    }
-    return result;
-  } catch (error: any) {
-    // Очищаем таймаут при ошибке
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-
-    const duration = Math.max(0, Date.now() - startTime); // Убеждаемся, что duration не отрицательное
-    const errorMsg = error.message?.toLowerCase() || '';
-
-    // Логируем только важные ошибки, не таймауты
-    if (errorMsg.includes('timeout')) {
-      // Таймаут - это нормально, просто возвращаем дефолт
-      return defaultValue;
-    } else if (errorMsg.includes('econnrefused') || errorMsg.includes('connect')) {
-      // Ошибка подключения - возвращаем дефолт быстро
-      return defaultValue;
-    }
-
-    // Возвращаем значение по умолчанию (пустой массив для списков)
-    return defaultValue;
-  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -8848,138 +8797,8 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
   });
 
-  // Rooms (аудитории/кабинеты для карт: редактируемые вместимость и уровень доступа)
-  type RoomRow = { id: string; name: string; type: string; capacity: number; accessLevel: string; floorId: string };
-  const defaultRoomsList: RoomRow[] = [
-    { id: "100", name: "100", type: "Кабинет", capacity: 4, accessLevel: "green", floorId: "floor-1" },
-    { id: "101", name: "101", type: "Кабинет", capacity: 6, accessLevel: "green", floorId: "floor-1" },
-    { id: "102", name: "102", type: "Переговорная", capacity: 8, accessLevel: "green", floorId: "floor-1" },
-    { id: "103", name: "103", type: "Переговорная", capacity: 10, accessLevel: "green", floorId: "floor-1" },
-    { id: "107", name: "107", type: "Большая лекционная «Север»", capacity: 150, accessLevel: "red", floorId: "floor-1" },
-    { id: "109", name: "109", type: "Лекционная", capacity: 80, accessLevel: "yellow", floorId: "floor-1" },
-    { id: "110", name: "110", type: "Аудитория", capacity: 40, accessLevel: "yellow", floorId: "floor-1" },
-    { id: "111", name: "111", type: "Кабинет", capacity: 2, accessLevel: "red", floorId: "floor-1" },
-    { id: "112", name: "112", type: "Студия", capacity: 15, accessLevel: "yellow", floorId: "floor-1" },
-    { id: "200", name: "200", type: "Лекционная", capacity: 100, accessLevel: "yellow", floorId: "floor-2" },
-    { id: "201", name: "201", type: "Кабинет", capacity: 4, accessLevel: "green", floorId: "floor-2" },
-    { id: "202", name: "202", type: "Переговорная", capacity: 12, accessLevel: "green", floorId: "floor-2" },
-    { id: "300", name: "300", type: "Конференц-зал", capacity: 200, accessLevel: "red", floorId: "floor-3" },
-    { id: "301", name: "301", type: "Кабинет", capacity: 4, accessLevel: "green", floorId: "floor-3" },
-  ];
-  let roomsStore: RoomRow[] = defaultRoomsList.map((r) => ({ ...r }));
-  app.get("/api/rooms", async (_req, res) => {
-    res.json(roomsStore);
-  });
-  app.get("/api/rooms/:id", async (req, res) => {
-    const room = roomsStore.find((r) => r.id === req.params.id);
-    if (!room) return res.status(404).json({ message: "Room not found" });
-    res.json(room);
-  });
-  app.put("/api/rooms/:id", async (req, res) => {
-    const { id } = req.params;
-    const { capacity, accessLevel, name, type } = req.body;
-    const index = roomsStore.findIndex((r) => r.id === id);
-    if (index === -1) return res.status(404).json({ message: "Room not found" });
-    if (capacity != null) roomsStore[index].capacity = Number(capacity);
-    if (accessLevel != null) roomsStore[index].accessLevel = String(accessLevel);
-    if (name != null) roomsStore[index].name = String(name);
-    if (type != null) roomsStore[index].type = String(type);
-    res.json(roomsStore[index]);
-  });
-
-  // Notifications
-  app.get("/api/notifications/:userId", async (req, res) => {
-    const { userId } = req.params;
-    if (!req.user?.id || String(userId) !== String(req.user.id)) {
-      return res.status(404).json({ message: "Notifications not found" });
-    }
-    // Используем withDbTimeout для быстрой обработки ошибок БД
-    const notifications = await withDbTimeout(
-      () => storage.getNotificationsByUser(userId),
-      3000,
-      [] // Пустой массив по умолчанию
-    );
-    res.json(notifications);
-  });
-
-  app.post("/api/notifications", async (req, res) => {
-    try {
-      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const notificationData = insertNotificationSchema.parse({
-        ...req.body,
-        userId: req.user.id,
-      });
-      const notification = await storage.createNotification(notificationData);
-      res.json(notification);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid notification data" });
-    }
-  });
-
-  app.patch("/api/notifications/:id/read", async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
-      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      const success = await storage.markNotificationRead(id);
-      if (!success) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to mark notification as read" });
-    }
-  });
-
-  app.put("/api/notifications/:id/read", async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
-      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      const success = await storage.markNotificationRead(id);
-      if (!success) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to mark notification as read" });
-    }
-  });
-
-  app.put("/api/notifications/mark-all-read", async (req, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ message: "Требуется авторизация" });
-      const count = await storage.markAllNotificationsRead(userId);
-      res.json({ success: true, count });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to mark all as read" });
-    }
-  });
-
-  app.delete("/api/notifications/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (!req.user?.id) return res.status(401).json({ message: "Требуется авторизация" });
-      const ownNotifications = await storage.getNotificationsByUser(req.user.id);
-      if (!(ownNotifications as any[]).some((notification) => String(notification.id) === String(id))) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      const success = await storage.deleteNotification(id);
-      if (!success) {
-        return res.status(404).json({ message: "Notification not found" });
-      }
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete notification" });
-    }
-  });
+  registerRoomRoutes(app);
+  registerNotificationRoutes(app, storage);
 
   const requireEquipmentPhotoWorkspace = async (
     req: express.Request,
@@ -13753,29 +13572,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     wss.close();
   });
 
-  // Push notification subscription routes
-  app.post("/api/push/subscribe", async (req, res) => {
-    try {
-      const { endpoint, keys } = req.body;
-      // In production, save subscription to database with user ID
-      // For now, just acknowledge
-      console.log("Push subscription received:", endpoint);
-      res.json({ success: true, message: "Subscription saved" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to save subscription" });
-    }
-  });
-
-  app.post("/api/push/unsubscribe", async (req, res) => {
-    try {
-      const { endpoint } = req.body;
-      // In production, remove subscription from database
-      console.log("Push unsubscription received:", endpoint);
-      res.json({ success: true, message: "Subscription removed" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to remove subscription" });
-    }
-  });
+  registerPushNotificationRoutes(app);
 
   function normalizeEstimateText(value: unknown) {
     return String(value ?? "").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}0-9]+/gu, " ").trim();
