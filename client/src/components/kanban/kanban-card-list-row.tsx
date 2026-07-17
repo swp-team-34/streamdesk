@@ -2,6 +2,7 @@ import { AlertTriangle, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import {
   getDueDateStatus,
   getDueDateStatusClasses,
@@ -17,7 +18,6 @@ import {
 import {
   KANBAN_BOARD_GHOST_BADGE_CLASS,
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
 } from "./kanban-styles";
 
 interface KanbanCardListLabel {
@@ -158,19 +158,14 @@ export function KanbanCardListRow({
           </div>
         )}
       </div>
-      <select
-        aria-label={`Список для ${card.title}`}
-        className={`${KANBAN_PANEL_SELECT_CLASS} min-w-0`}
+      <StreamSelect
+        ariaLabel={`Список для ${card.title}`}
+        className="min-w-0"
         value={card.listId}
-        onChange={(event) => onMove(event.target.value)}
+        options={lists.map((item) => ({ value: item.id, label: item.name }))}
+        onValueChange={onMove}
         disabled={!canEdit || movePending}
-      >
-        {lists.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
+      />
       <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]} className="w-fit rounded-full">
         {CARD_PRIORITY_LABELS[card.priority]}
       </Badge>

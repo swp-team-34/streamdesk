@@ -11,8 +11,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { TaskManagerSortBy, TaskManagerSortDirection } from "@/lib/task-manager-sort";
-import { KANBAN_PANEL_INPUT_CLASS, KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 export type BoardViewMode = "kanban" | "list";
 export type BoardListGrouping = "none" | "list" | "due" | "assignee" | "priority" | `field:${string}`;
@@ -172,22 +173,23 @@ export function KanbanBoardToolbar({
                 </Button>
               </div>
               {viewMode === "list" && (
-                <select
-                  aria-label="Группировка списка"
-                  className={`${KANBAN_PANEL_SELECT_CLASS} col-span-3 w-full lg:col-span-1 lg:w-[220px]`}
+                <StreamSelect
+                  ariaLabel="Группировка списка"
+                  className="col-span-3 w-full lg:col-span-1 lg:w-[220px]"
                   value={listGrouping}
-                  onChange={(event) => onListGroupingChange(event.target.value as BoardListGrouping)}
-                >
-                  <option value="none">Без группировки</option>
-                  <option value="list">По списку</option>
-                  <option value="due">По сроку</option>
-                  <option value="assignee">По исполнителю</option>
-                  <option value="priority">По приоритету</option>
-                  {customFields.length > 0 && <option disabled>──────────</option>}
-                  {customFields.map((field) => (
-                    <option key={field.id} value={`field:${field.id}`}>По полю: {field.name}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "none", label: "Без группировки" },
+                    { value: "list", label: "По списку" },
+                    { value: "due", label: "По сроку" },
+                    { value: "assignee", label: "По исполнителю" },
+                    { value: "priority", label: "По приоритету" },
+                    ...(customFields.length > 0
+                      ? [{ value: "__custom-fields-divider__", label: "Поля карточек", disabled: true }]
+                      : []),
+                    ...customFields.map((field) => ({ value: `field:${field.id}`, label: `По полю: ${field.name}` })),
+                  ]}
+                  onValueChange={(value) => onListGroupingChange(value as BoardListGrouping)}
+                />
               )}
             </div>
           </div>

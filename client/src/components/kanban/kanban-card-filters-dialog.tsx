@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type {
   KanbanCustomFieldDefinition,
   KanbanLabelGroupView,
@@ -27,7 +28,6 @@ import {
 import type { TaskManagerWorkloadFilter } from "@/lib/task-manager-filters";
 import {
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
 } from "./kanban-styles";
 
 export interface KanbanCardFiltersState {
@@ -102,6 +102,10 @@ export function KanbanCardFiltersDialog({
       [fieldId]: value,
     },
   });
+  const userOptions = [
+    { value: "", label: "Все" },
+    ...users.map((user) => ({ value: user.id, label: user.name })),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,165 +117,136 @@ export function KanbanCardFiltersDialog({
         <div className="grid gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-status">Статус / список</label>
-            <select
+            <StreamSelect
               id="kanban-mobile-filter-status"
-              className={KANBAN_PANEL_SELECT_CLASS}
               value={filters.status}
-              onChange={(event) => update({ status: event.target.value })}
-            >
-              <option value="all">Все статусы</option>
-              {Object.entries(LIST_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={`type:${value}`}>{label}</option>
-              ))}
-              {lists.length > 0 && <option disabled>──────────</option>}
-              {lists.map((list) => (
-                <option key={list.id} value={`list:${list.id}`}>{list.name}</option>
-              ))}
-            </select>
+              options={[
+                { value: "all", label: "Все статусы" },
+                ...Object.entries(LIST_TYPE_LABELS).map(([value, label]) => ({ value: `type:${value}`, label })),
+                ...(lists.length > 0
+                  ? [{ value: "__lists-divider__", label: "Списки доски", disabled: true }]
+                  : []),
+                ...lists.map((list) => ({ value: `list:${list.id}`, label: list.name })),
+              ]}
+              onValueChange={(status) => update({ status })}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-assignee">Исполнитель</label>
-            <select
+            <StreamSelect
               id="kanban-mobile-filter-assignee"
-              className={KANBAN_PANEL_SELECT_CLASS}
               value={filters.assigneeUserId}
-              onChange={(event) => update({ assigneeUserId: event.target.value })}
-            >
-              <option value="">Все</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
+              options={userOptions}
+              onValueChange={(assigneeUserId) => update({ assigneeUserId })}
+            />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-responsible">Ответственный</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-responsible"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.responsibleUserId}
-                onChange={(event) => update({ responsibleUserId: event.target.value })}
-              >
-                <option value="">Все</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.name}</option>
-                ))}
-              </select>
+                options={userOptions}
+                onValueChange={(responsibleUserId) => update({ responsibleUserId })}
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-initiator">Инициатор</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-initiator"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.initiatorUserId}
-                onChange={(event) => update({ initiatorUserId: event.target.value })}
-              >
-                <option value="">Все</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.name}</option>
-                ))}
-              </select>
+                options={userOptions}
+                onValueChange={(initiatorUserId) => update({ initiatorUserId })}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-priority">Приоритет</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-priority"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.priority}
-                onChange={(event) => update({ priority: event.target.value })}
-              >
-                <option value="all">Все</option>
-                {Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+                options={[
+                  { value: "all", label: "Все" },
+                  ...Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => ({ value, label })),
+                ]}
+                onValueChange={(priority) => update({ priority })}
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-due">Срок</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-due"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.dueStatus}
-                onChange={(event) => update({ dueStatus: event.target.value })}
-              >
-                <option value="all">Все</option>
-                <option value="overdue">Просрочено</option>
-                <option value="soon">Скоро срок</option>
-                <option value="upcoming">Запланировано</option>
-                <option value="complete">Завершено</option>
-                <option value="none">Без срока</option>
-              </select>
+                options={[
+                  { value: "all", label: "Все" },
+                  { value: "overdue", label: "Просрочено" },
+                  { value: "soon", label: "Скоро срок" },
+                  { value: "upcoming", label: "Запланировано" },
+                  { value: "complete", label: "Завершено" },
+                  { value: "none", label: "Без срока" },
+                ]}
+                onValueChange={(dueStatus) => update({ dueStatus })}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-workload">Нагрузка</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-workload"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.workload}
-                onChange={(event) => update({
-                  workload: event.target.value as TaskManagerWorkloadFilter,
-                })}
-              >
-                <option value="all">Любая нагрузка</option>
-                <option value="overdue">Просроченные</option>
-                <option value="due-soon">Горят в 24 часа</option>
-                <option value="in-progress">В работе</option>
-                <option value="completed">Выполненные</option>
-                <option value="unassigned">Без исполнителя</option>
-                <option value="no-deadline">Без срока</option>
-              </select>
+                options={[
+                  { value: "all", label: "Любая нагрузка" },
+                  { value: "overdue", label: "Просроченные" },
+                  { value: "due-soon", label: "Горят в 24 часа" },
+                  { value: "in-progress", label: "В работе" },
+                  { value: "completed", label: "Выполненные" },
+                  { value: "unassigned", label: "Без исполнителя" },
+                  { value: "no-deadline", label: "Без срока" },
+                ]}
+                onValueChange={(workload) => update({ workload: workload as TaskManagerWorkloadFilter })}
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-location">Локация</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-location"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.location}
-                onChange={(event) => update({ location: event.target.value })}
-              >
-                <option value="">Все локации</option>
-                {locations.length === 0 ? (
-                  <option value="__empty" disabled>Локации не найдены</option>
-                ) : (
-                  locations.map((location) => (
-                    <option key={location} value={location}>{location}</option>
-                  ))
-                )}
-              </select>
+                options={[
+                  { value: "", label: "Все локации" },
+                  ...(locations.length === 0
+                    ? [{ value: "__empty", label: "Локации не найдены", disabled: true }]
+                    : locations.map((location) => ({ value: location, label: location }))),
+                ]}
+                onValueChange={(location) => update({ location })}
+              />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label">Метка</label>
-            <select
+            <StreamSelect
               id="kanban-mobile-filter-label"
-              className={KANBAN_PANEL_SELECT_CLASS}
               value={filters.labelId}
-              onChange={(event) => update({ labelId: event.target.value })}
-            >
-              <option value="">Все</option>
-              {labels.filter((label) => !label.archivedAt).map((label) => (
-                <option key={label.id} value={label.id}>{label.name}</option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Все" },
+                ...labels.filter((label) => !label.archivedAt).map((label) => ({ value: label.id, label: label.name })),
+              ]}
+              onValueChange={(labelId) => update({ labelId })}
+            />
           </div>
           {labelGroups.length > 0 && (
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label-group">Группа меток</label>
-              <select
+              <StreamSelect
                 id="kanban-mobile-filter-label-group"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={filters.labelGroupId}
-                onChange={(event) => update({ labelGroupId: event.target.value })}
-              >
-                <option value="">Все группы</option>
-                {labelGroups.map((group) => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Все группы" },
+                  ...labelGroups.map((group) => ({ value: group.id, label: group.name })),
+                ]}
+                onValueChange={(labelGroupId) => update({ labelGroupId })}
+              />
             </div>
           )}
           {customFields.length > 0 && (
@@ -296,25 +271,21 @@ export function KanbanCardFiltersDialog({
                       </details>
                     </div>
                     {field.type === "select" || field.type === "multi-select" || field.type === "checkbox" ? (
-                      <select
+                      <StreamSelect
                         id={`kanban-filter-field-${field.id}`}
-                        className={KANBAN_PANEL_SELECT_CLASS}
                         value={filters.customFieldValues[field.id] || ""}
-                        onChange={(event) => updateCustomField(field.id, event.target.value)}
-                      >
-                        <option value="">Любое значение</option>
-                        <option value={KANBAN_EMPTY_FIELD_FILTER}>Без значения</option>
-                        {field.type === "checkbox" ? (
-                          <>
-                            <option value="true">Да</option>
-                            <option value="false">Нет</option>
-                          </>
-                        ) : (
-                          (field.options ?? []).map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))
-                        )}
-                      </select>
+                        options={[
+                          { value: "", label: "Любое значение" },
+                          { value: KANBAN_EMPTY_FIELD_FILTER, label: "Без значения" },
+                          ...(field.type === "checkbox"
+                            ? [
+                                { value: "true", label: "Да" },
+                                { value: "false", label: "Нет" },
+                              ]
+                            : (field.options ?? []).map((option) => ({ value: option, label: option }))),
+                        ]}
+                        onValueChange={(value) => updateCustomField(field.id, value)}
+                      />
                     ) : (
                       <div className="flex gap-2">
                         <Input

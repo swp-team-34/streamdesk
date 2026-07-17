@@ -2,11 +2,9 @@ import { Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanLabelGroupView, KanbanLabelView } from "@/lib/kanban-board-model";
-import {
-  KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
-} from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 export const LABEL_COLOR_PRESETS = [
   { label: "Sky", value: "#0ea5e9" },
@@ -160,18 +158,17 @@ export function KanbanLabelsSection({
 
               {canEdit && (
                 <div className="mt-3 space-y-3">
-                  <select
-                    aria-label={`Группа метки ${label.name}`}
-                    className={`${KANBAN_PANEL_SELECT_CLASS} max-w-[260px]`}
+                  <StreamSelect
+                    ariaLabel={`Группа метки ${label.name}`}
+                    className="max-w-[260px]"
                     value={label.groupId || ""}
-                    onChange={(event) => onGroupChange(label, event.target.value || null)}
+                    options={[
+                      { value: "", label: "Без группы" },
+                      ...groups.map((group) => ({ value: group.id, label: group.name })),
+                    ]}
+                    onValueChange={(groupId) => onGroupChange(label, groupId || null)}
                     disabled={savePending}
-                  >
-                    <option value="">Без группы</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>{group.name}</option>
-                    ))}
-                  </select>
+                  />
                   <div className="flex flex-wrap gap-2">
                     {LABEL_COLOR_PRESETS.map((preset) => (
                       <button

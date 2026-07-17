@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import type { KanbanCardView, KanbanListView } from "@/lib/kanban-board-model";
 import { KanbanListViewGroup } from "./kanban-list-view-group";
 
@@ -49,7 +50,7 @@ describe("KanbanListViewGroup", () => {
     fireEvent.change(input, { target: { value: "Updated" } });
     fireEvent.keyDown(input, { key: "Escape" });
     fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "done" } });
+    chooseStreamSelectOption("Список для новой задачи в группе All", "Done");
     fireEvent.click(screen.getByRole("button", { name: "Добавить" }));
 
     expect(screen.getByText("Prepare stream")).toBeInTheDocument();

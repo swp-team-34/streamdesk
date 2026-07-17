@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCustomFieldsSection } from "./kanban-custom-fields-section";
 
 const form = {
@@ -35,7 +36,7 @@ describe("KanbanCustomFieldsSection", () => {
       />,
     );
     expect(screen.getByLabelText("Опции поля")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Тип поля"), { target: { value: "select" } });
+    chooseStreamSelectOption("Тип поля", "Select");
     expect(onFormChange).toHaveBeenCalledWith({ ...form, type: "select" });
 
     rerender(

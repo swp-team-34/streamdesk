@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import {
   EMPTY_KANBAN_CARD_FILTERS,
   KanbanCardFiltersDialog,
@@ -31,11 +32,11 @@ describe("KanbanCardFiltersDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Статус / список"), { target: { value: "list:list-1" } });
+    chooseStreamSelectOption("Статус / список", "Active");
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ status: "list:list-1" }));
-    fireEvent.change(screen.getByLabelText("Исполнитель"), { target: { value: "user-1" } });
+    chooseStreamSelectOption("Исполнитель", "Tim");
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ assigneeUserId: "user-1" }));
-    fireEvent.change(screen.getByLabelText("Локация"), { target: { value: "Studio" } });
+    chooseStreamSelectOption("Локация", "Studio");
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ location: "Studio" }));
   });
 

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type {
   KanbanCustomFieldDefinition,
   KanbanCustomFieldType,
@@ -7,7 +8,6 @@ import type {
 import { CUSTOM_FIELD_TYPE_LABELS } from "@/lib/kanban-presentation";
 import {
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
 } from "./kanban-styles";
 
 export interface KanbanCustomFieldFormState {
@@ -71,20 +71,16 @@ export function KanbanCustomFieldsSection({
               className={KANBAN_PANEL_INPUT_CLASS}
               disabled={savePending}
             />
-            <select
-              aria-label="Тип поля"
-              className={KANBAN_PANEL_SELECT_CLASS}
+            <StreamSelect
+              ariaLabel="Тип поля"
               value={form.type}
-              onChange={(event) => onFormChange({
+              options={Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              onValueChange={(value) => onFormChange({
                 ...form,
-                type: event.target.value as KanbanCustomFieldType,
+                type: value as KanbanCustomFieldType,
               })}
               disabled={savePending}
-            >
-              {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
+            />
             <Input
               aria-label="Опции поля"
               value={form.options}

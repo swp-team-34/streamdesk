@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
+import { StreamSelect } from "@/components/ui/stream-select";
 
 export interface KanbanBoardMemberView {
   id: string;
@@ -77,34 +77,27 @@ export function KanbanBoardMembersSection({
 
       {!personal && canManage && (
         <div className="mt-4 grid gap-3 rounded-2xl border border-border/35 bg-muted/20 p-3 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
-          <select
-            aria-label="Участник доски"
-            className={KANBAN_PANEL_SELECT_CLASS}
+          <StreamSelect
+            ariaLabel="Участник доски"
             value={form.userId}
-            onChange={(event) => onFormChange({ ...form, userId: event.target.value })}
+            options={editingMemberId
+              ? [{ value: form.userId, label: userById.get(form.userId)?.name || form.userId }]
+              : availableMembers.length === 0
+                ? [{ value: "", label: "Нет доступных участников", disabled: true }]
+                : availableMembers.map((user) => ({ value: user.id, label: user.name, description: user.email || undefined }))}
+            onValueChange={(userId) => onFormChange({ ...form, userId })}
             disabled={Boolean(editingMemberId) || pending}
-          >
-            {editingMemberId ? (
-              <option value={form.userId}>
-                {userById.get(form.userId)?.name || form.userId}
-              </option>
-            ) : availableMembers.length === 0 ? (
-              <option value="">Нет доступных участников</option>
-            ) : (
-              availableMembers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))
-            )}
-          </select>
+          />
 
-          <select
-            aria-label="Роль участника"
-            className={KANBAN_PANEL_SELECT_CLASS}
+          <StreamSelect
+            ariaLabel="Роль участника"
             value={form.role}
-            onChange={(event) => {
-              const role = event.target.value as MemberFormState["role"];
+            options={[
+              { value: "viewer", label: "viewer" },
+              { value: "editor", label: "editor" },
+            ]}
+            onValueChange={(value) => {
+              const role = value as MemberFormState["role"];
               onFormChange({
                 ...form,
                 role,
@@ -112,10 +105,7 @@ export function KanbanBoardMembersSection({
               });
             }}
             disabled={pending}
-          >
-            <option value="viewer">viewer</option>
-            <option value="editor">editor</option>
-          </select>
+          />
 
           <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-sm">
             <input

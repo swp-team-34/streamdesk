@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCustomFieldEditor } from "./kanban-custom-field-editor";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
 
@@ -96,7 +97,7 @@ describe("KanbanCustomFieldEditor", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "user-1" } });
+    chooseStreamSelectOption("Field name", "Tim");
     expect(onChange).toHaveBeenCalledWith("user-1");
   });
 });

@@ -1,9 +1,7 @@
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
-import {
-  KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
-} from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 interface UserOption {
   id: string;
@@ -46,18 +44,17 @@ export function KanbanCustomFieldEditor({
 
   if (field.type === "select") {
     return (
-      <select
+      <StreamSelect
         id={commonId}
-        className={KANBAN_PANEL_SELECT_CLASS}
+        ariaLabel={field.name}
         value={String(value ?? "")}
-        onChange={(event) => onChange(event.target.value)}
+        options={[
+          { value: "", label: "Не выбрано" },
+          ...(field.options ?? []).map((option) => ({ value: option, label: option })),
+        ]}
+        onValueChange={onChange}
         disabled={disabled}
-      >
-        <option value="">Не выбрано</option>
-        {(field.options ?? []).map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
+      />
     );
   }
 
@@ -95,18 +92,17 @@ export function KanbanCustomFieldEditor({
 
   if (field.type === "person") {
     return (
-      <select
+      <StreamSelect
         id={commonId}
-        className={KANBAN_PANEL_SELECT_CLASS}
+        ariaLabel={field.name}
         value={String(value ?? "")}
-        onChange={(event) => onChange(event.target.value)}
+        options={[
+          { value: "", label: "Не выбрано" },
+          ...users.map((user) => ({ value: user.id, label: user.name })),
+        ]}
+        onValueChange={onChange}
         disabled={disabled}
-      >
-        <option value="">Не выбрано</option>
-        {users.map((user) => (
-          <option key={user.id} value={user.id}>{user.name}</option>
-        ))}
-      </select>
+      />
     );
   }
 

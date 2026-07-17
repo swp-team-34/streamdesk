@@ -3,11 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { Textarea } from "@/components/ui/textarea";
 import { KanbanUserMultiSelect } from "@/components/kanban/kanban-user-multi-select";
 import {
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
   KANBAN_PANEL_TEXTAREA_CLASS,
 } from "@/components/kanban/kanban-styles";
 import {
@@ -147,15 +147,13 @@ export function KanbanCardDetailFields({
 
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="kanban-detail-list">Список</label>
-          <select
+          <StreamSelect
             id="kanban-detail-list"
-            className={KANBAN_PANEL_SELECT_CLASS}
             value={form.listId}
-            onChange={(event) => patchForm({ listId: event.target.value })}
+            options={lists.map((list) => ({ value: list.id, label: list.name }))}
+            onValueChange={(listId) => patchForm({ listId })}
             disabled={!canEdit}
-          >
-            {lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
-          </select>
+          />
         </div>
       </div>
 
@@ -174,50 +172,49 @@ export function KanbanCardDetailFields({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="kanban-detail-priority">Приоритет</label>
-          <select
+          <StreamSelect
             id="kanban-detail-priority"
-            className={KANBAN_PANEL_SELECT_CLASS}
             value={form.priority}
-            onChange={(event) => patchForm({ priority: event.target.value as KanbanCardPriority })}
+            options={Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
+            onValueChange={(priority) => patchForm({ priority: priority as KanbanCardPriority })}
             disabled={!canEdit}
-          >
-            {Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+          />
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="kanban-detail-responsible">Ответственный</label>
-          <select
+          <StreamSelect
             id="kanban-detail-responsible"
-            className={KANBAN_PANEL_SELECT_CLASS}
             value={form.responsibleUserId}
-            onChange={(event) => patchForm({ responsibleUserId: event.target.value })}
+            options={[
+              { value: "", label: "Без ответственного" },
+              ...(form.responsibleUserId && !users.some((user) => user.id === form.responsibleUserId)
+                ? [{ value: form.responsibleUserId, label: `${getUserName(form.responsibleUserId)} (недоступен)` }]
+                : []),
+              ...users.map((user) => ({ value: user.id, label: user.name })),
+            ]}
+            onValueChange={(responsibleUserId) => patchForm({ responsibleUserId })}
             disabled={!canEdit}
-          >
-            <option value="">Без ответственного</option>
-            {form.responsibleUserId && !users.some((user) => user.id === form.responsibleUserId) && (
-              <option value={form.responsibleUserId}>{getUserName(form.responsibleUserId)} (недоступен)</option>
-            )}
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </select>
+          />
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="kanban-detail-initiator">Инициатор</label>
-          <select
+          <StreamSelect
             id="kanban-detail-initiator"
-            className={KANBAN_PANEL_SELECT_CLASS}
             value={form.initiatorUserId}
-            onChange={(event) => patchForm({ initiatorUserId: event.target.value })}
+            options={[
+              ...(form.initiatorUserId && !users.some((user) => user.id === form.initiatorUserId)
+                ? [{ value: form.initiatorUserId, label: `${getUserName(form.initiatorUserId)} (недоступен)` }]
+                : []),
+              ...users.map((user) => ({ value: user.id, label: user.name })),
+              ...(users.length === 0 && !form.initiatorUserId
+                ? [{ value: "", label: "Нет доступных пользователей", disabled: true }]
+                : []),
+            ]}
+            onValueChange={(initiatorUserId) => patchForm({ initiatorUserId })}
             disabled={!canEdit}
-          >
-            {form.initiatorUserId && !users.some((user) => user.id === form.initiatorUserId) && (
-              <option value={form.initiatorUserId}>{getUserName(form.initiatorUserId)} (недоступен)</option>
-            )}
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </select>
+          />
         </div>
 
         <div className="space-y-2">

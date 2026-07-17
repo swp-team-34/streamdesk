@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanLabelsSection } from "./kanban-labels-section";
 
 const label = { id: "label-1", boardId: "board-1", name: "Live", color: "#0ea5e9" };
@@ -65,9 +66,7 @@ describe("KanbanLabelsSection", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Переименовать Live" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Группа метки Live" }), {
-      target: { value: "group-1" },
-    });
+    chooseStreamSelectOption("Группа метки Live", "Production");
     fireEvent.click(screen.getByRole("button", { name: "Цвет метки Rose" }));
     fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
     expect(onBeginEdit).toHaveBeenCalledWith(label);

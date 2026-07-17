@@ -2,6 +2,7 @@ import { Package, Plus, X } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type {
   EquipmentSummaryView,
   KanbanEquipmentLinkView,
@@ -11,7 +12,6 @@ import {
   getEquipmentWorkflowStatusVariant,
 } from "@/lib/kanban-presentation";
 import { formatDueDateLabel } from "@/lib/task-dates";
-import { KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
 
 interface KanbanCardEquipmentSectionProps {
   companyScoped: boolean;
@@ -56,24 +56,27 @@ export function KanbanCardEquipmentSection({
 
       {canManage && (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <select
-            aria-label="Оборудование для карточки"
+          <StreamSelect
+            ariaLabel="Оборудование для карточки"
             value={selection}
-            onChange={(event) => onSelectionChange(event.target.value)}
-            className={`${KANBAN_PANEL_SELECT_CLASS} flex-1`}
+            options={[
+              {
+                value: "",
+                label: availableEquipment.length > 0
+                  ? "Выберите оборудование"
+                  : "Всё доступное оборудование уже связано",
+                disabled: availableEquipment.length === 0,
+              },
+              ...availableEquipment.map((item) => ({
+                value: item.id,
+                label: item.name,
+                description: item.model || undefined,
+              })),
+            ]}
+            onValueChange={onSelectionChange}
+            className="flex-1"
             disabled={attachPending || detachPending || availableEquipment.length === 0}
-          >
-            <option value="">
-              {availableEquipment.length > 0
-                ? "Выберите оборудование"
-                : "Всё доступное оборудование уже связано"}
-            </option>
-            {availableEquipment.map((item) => (
-              <option key={item.id} value={item.id}>
-                {[item.name, item.model].filter(Boolean).join(" · ")}
-              </option>
-            ))}
-          </select>
+          />
           <Button
             type="button"
             className="rounded-xl"
