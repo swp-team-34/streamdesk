@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import type { SchemaDevice, SchemaZone } from "@/lib/connection-schema-model";
 
 export function ZoneEditForm({
@@ -23,19 +24,13 @@ export function ZoneEditForm({
         onChange={(event) => setName(event.target.value)}
         className="h-8 border-slate-600 bg-slate-700 text-white"
       />
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
-          className="h-8 w-8 cursor-pointer rounded"
-        />
-        <Input
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
-          className="h-8 flex-1 border-slate-600 bg-slate-700 text-sm text-white"
-        />
-      </div>
+      <StreamColorPicker
+        id="schema-zone-edit-color"
+        value={color}
+        onChange={setColor}
+        ariaLabel="Цвет зоны"
+        className="h-8 border-slate-600 bg-slate-700 text-white hover:bg-slate-600"
+      />
       <div className="flex gap-2">
         <Button size="sm" className="h-8 flex-1" onClick={() => onSave(name.trim(), color)}>
           Сохранить

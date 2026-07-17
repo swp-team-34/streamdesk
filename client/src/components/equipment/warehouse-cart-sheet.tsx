@@ -2,6 +2,9 @@ import type { Equipment } from "@shared/schema";
 import { FileText, Send, ShoppingCart, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
+import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamTimePicker } from "@/components/ui/stream-time-picker";
 import {
   Select,
   SelectContent,
@@ -171,37 +174,31 @@ export function WarehouseCartSheet({
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-handoff-at">Выдать</label>
-                    <Input
+                    <StreamDateTimePicker
                       id="cart-handoff-at"
-                      type="datetime-local"
+                      label="Выдать"
                       value={handoffAt}
-                      onChange={(event) => onHandoffAtChange(event.target.value)}
-                      className="bg-white dark:bg-slate-800"
+                      onChange={onHandoffAtChange}
                     />
                   </div>
                   <div className="grid grid-cols-[1fr_92px] gap-2">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-return-date">
-                        Вернуть до <span className="text-red-500">*</span>
-                      </label>
-                      <Input
+                      <StreamDatePicker
                         id="cart-return-date"
-                        type="date"
+                        label="Вернуть до *"
                         value={returnDate}
-                        onChange={(event) => onReturnDateChange(event.target.value)}
-                        min={new Date().toISOString().slice(0, 10)}
-                        className="bg-white dark:bg-slate-800"
+                        onChange={onReturnDateChange}
+                        minValue={new Date().toISOString().slice(0, 10)}
+                        className="px-2 [&>svg]:hidden"
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-return-time">Время</label>
-                      <Input
+                      <StreamTimePicker
                         id="cart-return-time"
-                        type="time"
+                        label="Время"
                         value={returnTime}
-                        onChange={(event) => onReturnTimeChange(event.target.value)}
-                        className="bg-white px-2 dark:bg-slate-800"
+                        onChange={onReturnTimeChange}
+                        className="px-2 [&>svg]:hidden"
                       />
                     </div>
                   </div>

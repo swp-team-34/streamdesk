@@ -22,8 +22,8 @@ import {
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,8 @@ export function AppearanceSettings() {
     () => normalizedAccent ? analyzeUiAccent(normalizedAccent) : null,
     [normalizedAccent],
   );
-  const hasChanges = JSON.stringify(draft) !== JSON.stringify(savedPreferences);
+  const hasChanges = JSON.stringify(draft) !== JSON.stringify(savedPreferences)
+    || Boolean(normalizedAccent && normalizedAccent !== normalizeHexColor(savedPreferences.accent));
   const canSave = Boolean(accentAnalysis?.valid) && !isHydratingPreferences && !isSavingPreferences;
 
   const updateDraft = (next: UserUiPreferences) => {
@@ -216,26 +217,13 @@ export function AppearanceSettings() {
             })}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,240px)_1fr] sm:items-start">
-            <Input
-              type="color"
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,280px)_1fr] sm:items-start">
+            <StreamColorPicker
               value={normalizedAccent || DEFAULT_USER_UI_PREFERENCES.accent}
-              onChange={(event) => updateAccent(event.target.value)}
-              aria-label="Выбрать собственный акцент"
-              className="h-10 w-14 cursor-pointer p-1"
+              onChange={updateAccent}
+              ariaLabel="Выбрать собственный акцент"
+              presets={ACCENT_PRESETS}
             />
-            <div className="space-y-1">
-              <Input
-                value={accentInput}
-                onChange={(event) => updateAccent(event.target.value)}
-                aria-label="HEX-код акцента"
-                placeholder="#5E6AD2"
-                maxLength={7}
-              />
-              {!normalizedAccent && (
-                <p className="text-xs text-destructive">Введите полный HEX-код, например #5E6AD2.</p>
-              )}
-            </div>
             {accentAnalysis && !accentAnalysis.valid && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
                 <p className="text-foreground">Этот оттенок недостаточно контрастный.</p>

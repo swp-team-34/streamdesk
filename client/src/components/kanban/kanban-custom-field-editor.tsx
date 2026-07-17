@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
 import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
@@ -95,15 +96,25 @@ export function KanbanCustomFieldEditor({
     );
   }
 
+  if (field.type === "date") {
+    return (
+      <StreamDatePicker
+        id={commonId}
+        value={String(value ?? "")}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    );
+  }
+
   const inputType = field.type === "number"
     ? "number"
-    : field.type === "date"
-      ? "date"
-      : field.type === "email"
-        ? "email"
-        : field.type === "url"
-          ? "url"
-          : "text";
+    : field.type === "email"
+      ? "email"
+      : field.type === "url"
+        ? "url"
+        : "text";
 
   return (
     <Input

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { 
   Video, 
   RefreshCw, 
@@ -1019,12 +1020,12 @@ export default function VmixScheduler() {
                           />
                         </div>
                         <div>
-                          <Label>Время начала *</Label>
-                          <Input 
-                            type="datetime-local" 
+                          <StreamDateTimePicker
+                            id="vmix-event-start-time"
+                            label="Время начала *"
                             value={newEventStartTime}
-                            onChange={(e) => setNewEventStartTime(e.target.value)}
-                            min={new Date().toISOString().slice(0, 16)}
+                            onChange={setNewEventStartTime}
+                            minValue={new Date().toISOString().slice(0, 16)}
                           />
                         </div>
                         {connection?.inputs && connection.inputs.length > 0 && (

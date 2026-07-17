@@ -4,6 +4,7 @@ import { AlertTriangle, BrainCircuit, Clock3, FileSpreadsheet, Loader2, Network,
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -489,12 +490,21 @@ export default function EstimatesPage() {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Начало</label>
-                <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} className="h-9" />
+                <StreamDateTimePicker
+                  id="estimate-shift-start"
+                  label="Начало"
+                  value={startAt}
+                  onChange={setStartAt}
+                />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Окончание</label>
-                <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} className="h-9" />
+                <StreamDateTimePicker
+                  id="estimate-shift-end"
+                  label="Окончание"
+                  value={endAt}
+                  minValue={startAt || null}
+                  onChange={setEndAt}
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-slate-500 dark:text-slate-400">Смен вручную</label>

@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
+import { LABEL_COLOR_PRESETS } from "@/components/kanban/kanban-labels-section";
 import type { KanbanLabelGroupView, KanbanLabelView } from "@/lib/kanban-board-model";
 import { formatPluralRu } from "@/lib/plural-ru";
 import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
@@ -60,12 +62,12 @@ export function KanbanLabelGroupsSection({
             className={KANBAN_PANEL_INPUT_CLASS}
             disabled={savePending}
           />
-          <Input
-            aria-label="Цвет группы меток"
+          <StreamColorPicker
+            ariaLabel="Цвет группы меток"
             value={form.color}
-            onChange={(event) => onFormChange({ ...form, color: event.target.value })}
-            placeholder="#8b5cf6"
-            className={KANBAN_PANEL_INPUT_CLASS}
+            onChange={(color) => onFormChange({ ...form, color })}
+            presets={LABEL_COLOR_PRESETS.map((preset) => ({ ...preset }))}
+            className="h-10 sm:h-10"
             disabled={savePending}
           />
           <div className="flex gap-2">

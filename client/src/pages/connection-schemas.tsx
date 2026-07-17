@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { 
   Network, 
@@ -774,20 +775,13 @@ export default function ConnectionSchemas() {
                 />
               </div>
               <div>
-                <Label>Цвет</Label>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    type="color"
-                    value={drawnZoneColor}
-                    onChange={(e) => setDrawnZoneColor(e.target.value)}
-                    className="w-14 h-9"
-                  />
-                  <Input
-                    value={drawnZoneColor}
-                    onChange={(e) => setDrawnZoneColor(e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
+                <StreamColorPicker
+                  id="drawn-zone-color"
+                  label="Цвет"
+                  ariaLabel="Цвет выделенной зоны"
+                  value={drawnZoneColor}
+                  onChange={setDrawnZoneColor}
+                />
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={confirmDrawnZone}>

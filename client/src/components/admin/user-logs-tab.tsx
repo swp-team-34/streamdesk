@@ -4,9 +4,9 @@ import { Clock, FileText, History } from "lucide-react";
 import type { User } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
 import { apiRequest } from "@/lib/queryClient";
 
 export function formatUserLogDate(date: string) {
@@ -86,12 +86,22 @@ export function UserLogsTab() {
               </Select>
             </div>
             <div>
-              <Label>Начало периода</Label>
-              <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              <StreamDatePicker
+                id="user-log-start-date"
+                label="Начало периода"
+                value={startDate}
+                maxValue={endDate || null}
+                onChange={setStartDate}
+              />
             </div>
             <div>
-              <Label>Конец периода</Label>
-              <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+              <StreamDatePicker
+                id="user-log-end-date"
+                label="Конец периода"
+                value={endDate}
+                minValue={startDate || null}
+                onChange={setEndDate}
+              />
             </div>
           </div>
         </CardContent>
