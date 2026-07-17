@@ -113,7 +113,6 @@ export default function Calendar() {
   const timelineLastScrollLeftRef = useRef(0);
   const timelineBufferDaysRef = useRef(CALENDAR_TIMELINE_BUFFER_DAYS);
   const timelinePendingBufferShiftRef = useRef(0);
-  const timelinePendingRebaseOffsetRef = useRef<number | null>(null);
   const timelinePanRef = useRef<{
     pointerId: number;
     startX: number;
@@ -434,23 +433,6 @@ export default function Calendar() {
     if (pendingBufferShift > 0) {
       timelinePendingBufferShiftRef.current = 0;
       element.scrollLeft += pendingBufferShift * timelineDayWidth;
-      timelineLastScrollLeftRef.current = element.scrollLeft;
-      const frameId = window.requestAnimationFrame(() => {
-        timelineRecenteringRef.current = false;
-      });
-      return () => {
-        window.cancelAnimationFrame(frameId);
-        timelineRecenteringRef.current = false;
-      };
-    }
-
-    const pendingRebaseOffset = timelinePendingRebaseOffsetRef.current;
-    if (pendingRebaseOffset != null) {
-      timelinePendingRebaseOffsetRef.current = null;
-      element.scrollLeft = getCalendarTimelineScrollLeft(
-        timelineBufferDays,
-        timelineDayWidth,
-      ) + pendingRebaseOffset;
       timelineLastScrollLeftRef.current = element.scrollLeft;
       const frameId = window.requestAnimationFrame(() => {
         timelineRecenteringRef.current = false;
@@ -1059,8 +1041,20 @@ export default function Calendar() {
     const targetDate = timelineDays[targetIndex];
     if (!targetDate) return;
 
+    const resetExpandedBuffer = () => {
+      timelineBufferDaysRef.current = CALENDAR_TIMELINE_BUFFER_DAYS;
+      timelinePendingBufferShiftRef.current = 0;
+      setTimelineBufferDays(CALENDAR_TIMELINE_BUFFER_DAYS);
+    };
+
     if (!isSameDay(targetDate, selectedDate)) {
+      resetExpandedBuffer();
       setSelectedDate(new Date(targetDate));
+      return;
+    }
+
+    if (timelineBufferDaysRef.current !== CALENDAR_TIMELINE_BUFFER_DAYS) {
+      resetExpandedBuffer();
       return;
     }
 
@@ -1105,17 +1099,7 @@ export default function Calendar() {
       return;
     }
 
-    const firstVisibleIndex = Math.max(0, Math.min(
-      timelineDays.length - 1,
-      Math.floor(element.scrollLeft / timelineDayWidth),
-    ));
-    const nextAnchorDate = timelineDays[firstVisibleIndex];
-    if (!nextAnchorDate || isSameDay(nextAnchorDate, selectedDate)) return;
-
-    timelinePendingRebaseOffsetRef.current = element.scrollLeft - firstVisibleIndex * timelineDayWidth;
-    timelineRecenteringRef.current = true;
-    setSelectedDate(new Date(nextAnchorDate));
-  }, [selectedDate, timelineDayWidth, timelineDays]);
+  }, [timelineDayWidth, timelineDays]);
 
   const handleTimelineScroll = useCallback(() => {
     if (timelineRecenteringRef.current) return;

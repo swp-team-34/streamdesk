@@ -81,17 +81,17 @@ describe("calendar timeline helpers", () => {
     const baseInput = {
       viewportWidth: 756,
       dayWidth: 100,
-      dayCount: 49,
-      bufferDays: 28,
+      dayCount: 119,
+      bufferDays: 56,
       gutterWidth: 56,
-      thresholdDays: 14,
-      incrementDays: 21,
-      maxBufferDays: 49,
+      thresholdDays: 42,
+      incrementDays: 56,
+      maxBufferDays: 336,
     };
 
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 2_100 })).toBe(28);
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 650 })).toBe(49);
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 3_600 })).toBe(49);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 5_600 })).toBe(56);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 4_000 })).toBe(112);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 7_200 })).toBe(112);
   });
 
   it("caps progressive timeline buffering", () => {
@@ -99,22 +99,22 @@ describe("calendar timeline helpers", () => {
       scrollLeft: 0,
       viewportWidth: 756,
       dayWidth: 100,
-      dayCount: 105,
-      bufferDays: 49,
-    })).toBe(49);
+      dayCount: 679,
+      bufferDays: 336,
+    })).toBe(336);
   });
 
   it("detects both prefetch edges before the viewport reaches the end", () => {
     const input = {
       viewportWidth: 756,
       dayWidth: 100,
-      dayCount: 105,
+      dayCount: 231,
       gutterWidth: 56,
-      thresholdDays: 14,
+      thresholdDays: 42,
     };
 
-    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 1_500 })).toBe(false);
-    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 1_400 })).toBe(true);
-    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 8_400 })).toBe(true);
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 11_200 })).toBe(false);
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 4_200 })).toBe(true);
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 18_800 })).toBe(true);
   });
 });
