@@ -326,3 +326,247 @@ Existing Warehouse and project records persist valid changes automatically, pend
 
 ### Execution result
 To be filled
+
+## UAT-010 — Verify Dashboard Widget Resize, Reset, and New Operational Widgets
+
+- **Scenario ID:** UAT-010
+- **Title:** Verify widget resizing via handles, reset options, and new Sprint 5 operational widgets
+- **Status:** Draft
+- **Related feature:** Dashboard
+
+### Objective
+
+Verify that managers can resize widgets directly using corner handles, reset layout positions/sizes, and view the new operational widgets (active projects, equipment for tasks, upcoming returns, unassigned tasks, team workload, location updates).
+
+### Preconditions
+- The user is logged in as a Manager.
+- The Dashboard is populated with multiple widgets, including the new Sprint 5 widgets.
+- Some widgets are hidden via the visibility controls.
+
+### Test steps
+
+1. Open the Dashboard. Locate a supported widget and verify it has a clear corner resize handle that does not block drag, links, or controls.
+2. Drag the resize handle horizontally and vertically. Verify the widget resizes within documented min/max bounds and snaps to the Dashboard grid, reflowing neighbors without overlap.
+3. Verify the fixed `S/M/L/XL` selector is removed from the primary workflow.
+4. Open the reset control menu. Select `Reset positions` and confirm. Verify widgets return to default order/placement while retaining their current sizes.
+5. Select `Reset positions and sizes` and confirm. Verify widgets return to default order AND default dimensions.
+6. Verify both reset actions preserved which widgets were visible and hidden before the reset.
+7. Verify the reset asks for confirmation and successfully recovers a malformed saved layout.
+8. Reload the page. Verify all layout dimensions and placement persist without interrupting widget data refresh.
+9. Observe the new widgets.
+10. For each new widget, verify it has loading, empty, error, and refresh states without resizing surrounding layout unexpectedly.
+11. Verify each new widget respects company isolation and existing module permissions.
+12. Verify item counts are capped with a clear route to the complete source list.
+13. On a mobile viewport, verify the Dashboard remains usable and does not require precise corner dragging where too narrow; verify an accessible fallback is available.
+
+### Expected result
+
+Resize handles work and snap to grid; S/M/L/XL selector is removed. Reset options restore positions/sizes correctly while preserving visibility selections; confirmations prevent accidents. All new Sprint 5 widgets load data correctly, show proper states, link to source lists, respect permissions, and support hide/show/move/resize/persistence. The Dashboard layout persists after reload, and mobile fallback functions without breaking.
+
+### Execution result
+
+To be filled
+
+## UAT-013 — Verify Equipment Categories, Storage Locations, Kit Expansion, and Physical/Work Context
+
+- **Scenario ID:** UAT-013
+- **Title:** Verify equipment taxonomy maintenance, storage location hierarchy, kit component expansion, and destination/work-context assignment
+- **Status:** Draft
+- **Related feature:** Warehouse
+
+### Objective
+
+Verify that warehouse managers can maintain equipment categories/subcategories and storage locations, expand kits to inspect components, and assign physical destinations and work context to equipment without altering availability state.
+
+### Preconditions
+
+- The user is logged in as a Warehouse Manager.
+- A Production Worker user is available for permission testing.
+- Multiple equipment items, kits, categories, and storage locations exist.
+
+### Test steps
+
+- Open Warehouse Settings. Navigate to Categories. Create a new category with subcategories. Rename, reorder, and archive/restore a category. Verify archived values remain on existing records but are excluded from new selections by default.
+- Navigate to Storage Locations (separate section). Create a hierarchical location (e.g., Room A > Rack 3 > Shelf 2). Archive a location with equipment linked to it; verify confirmation is required and historical value remains visible.
+- Open a kit card. Click to expand/collapse its complete component list without leaving the page. Verify each component displays name, inventory ID, availability, operability, ownership/location, and relevant warnings.
+- Select a component from the expanded list. Verify it opens the equipment details without losing kit navigation context. From the equipment details, verify it links back to the parent kit.
+- Verify composition updates immediately after adding/removing a component or changing its status. Verify broken/on-repair/checked-out/overdue components are visually distinguishable inside the kit.
+- For a large kit, verify the list is searchable or progressively disclosed rather than expanding indefinitely.
+- Open an equipment edit/checkout form. Select a structured physical storage location OR enter a manual physical destination. Verify archived locations are excluded from new selections.
+- Optionally select a company project and one or more Kanban V2 cards as work context. Verify the card selector filters by the selected project, and selecting a card derives its project (conflicting selection shows feedback).
+- Verify automatic request/checkout links and manual contextual links are stored distinctly (e.g., labeled differently).- Verify that adding, editing, or removing physical/work context does NOT issue, return, reserve, repair, or change availability/operability state.
+- Verify broken/on-repair equipment cannot be newly issued via this workflow, but historical context remains visible.
+- Log in as a standard Production Worker. Verify they can view the context but cannot modify protected taxonomy or storage locations unless permissions explicitly allow.
+
+### Expected result
+
+Category and storage-location hierarchies are maintainable with archive/restore, preserving historical data. Kits expand fully with component details and navigation to parent/child. Physical and work context (destination, project, Kanban cards) can be assigned separately from inventory state changes. Links are distinct, filters work by project, and state-changing actions (checkout/return) remain separate. Permissions are enforced, and mobile/desktop layouts are usable.
+
+### Execution result
+
+To be filled
+
+## UAT-011 — Verify Equipment Categories, Storage Locations, Kit Expansion, and Physical/Work Context
+
+- **Scenario ID:** UAT-011
+- **Title:** Verify equipment taxonomy maintenance, storage location hierarchy, kit component expansion, and destination/work-context assignment
+- **Status:** Draft
+- **Related feature:** Warehouse
+
+### Objective
+
+Verify that warehouse managers can maintain equipment categories/subcategories and storage locations, expand kits to inspect components, and assign physical destinations and work context to equipment without altering availability state.
+
+### Preconditions
+
+- The user is logged in as a Warehouse Manager.
+- A Production Worker user is available for permission testing.
+- Multiple equipment items, kits, categories, and storage locations exist.
+
+### Test steps
+
+- Open Warehouse Settings. Navigate to Categories. Create a new category with subcategories. Rename, reorder, and archive/restore a category. Verify archived values remain on existing records but are excluded from new selections by default.
+- Navigate to Storage Locations (separate section). Create a hierarchical location (e.g., Room A > Rack 3 > Shelf 2). Archive a location with equipment linked to it; verify confirmation is required and historical value remains visible.
+- Open a kit card. Click to expand/collapse its complete component list without leaving the page. Verify each component displays name, inventory ID, availability, operability, ownership/location, and relevant warnings.
+- Select a component from the expanded list. Verify it opens the equipment details without losing kit navigation context. From the equipment details, verify it links back to the parent kit.
+- Verify composition updates immediately after adding/removing a component or changing its status. Verify broken/on-repair/checked-out/overdue components are visually distinguishable inside the kit.
+- For a large kit, verify the list is searchable or progressively disclosed rather than expanding indefinitely.
+- Open an equipment edit/checkout form. Select a structured physical storage location OR enter a manual physical destination. Verify archived locations are excluded from new selections.
+- Optionally select a company project and one or more Kanban V2 cards as work context. Verify the card selector filters by the selected project, and selecting a card derives its project (conflicting selection shows feedback).
+- Verify automatic request/checkout links and manual contextual links are stored distinctly (e.g., labeled differently).
+- Verify that adding, editing, or removing physical/work context does NOT issue, return, reserve, repair, or change availability/operability state.
+- Verify broken/on-repair equipment cannot be newly issued via this workflow, but historical context remains visible.
+- Log in as a standard Production Worker. Verify they can view the context but cannot modify protected taxonomy or storage locations unless permissions explicitly allow.
+
+### Expected result
+
+Category and storage-location hierarchies are maintainable with archive/restore, preserving historical data. Kits expand fully with component details and navigation to parent/child. Physical and work context (destination, project, Kanban cards) can be assigned separately from inventory state changes. Links are distinct, filters work by project, and state-changing actions (checkout/return) remain separate. Permissions are enforced, and mobile/desktop layouts are usable.
+
+### Execution result
+
+To be filled
+
+## UAT-012 — Verify Production Location Editing, Bidirectional Links, and Threaded Discussions
+
+- **Scenario ID:** UAT-012
+- **Title:** Verify production location metadata editing, bidirectional linking with cards/projects, and threaded topic discussions with photos
+- **Status:** Draft
+- **Related feature:** Locations
+
+### Objective
+
+Verify that managers can edit and archive production locations, link them bidirectionally to Kanban V2 cards and projects, and maintain threaded issue discussions with photos at the location level.
+
+### Preconditions
+
+- The user is logged in as a Production Manager.
+- A Kanban V2 card and a Project exist.
+- Another user (Production Worker) is available for collaboration or one user can log in as both roles.
+
+### Test steps
+
+- Open a Production Location details. Edit its name, type, address, operational status, and maintained notes. Verify who last updated it and when.
+- Archive the location while it has active cards or unresolved discussions. Verify a confirmation dialog summarizes those active links before allowing archiving.
+- Restore the location from the archive filter. Verify it reappears in normal selections while historical links remain intact on existing cards/projects.
+- Open a Kanban V2 card. Select multiple company locations for it. Remove one. Save. Navigate to the Location details view and verify the card appears in its linked list.
+- Open a Project. Select multiple locations (either directly or via aggregation from its board cards). Verify the Location details view lists both the project and its linked cards.
+- Navigate from the card directly to the location, and from the location back to the card/project, without losing context.
+- At the Location page, create a topic (type `issue`) with title, description, severity, and optional links to a Kanban V2 card/project.
+- Create a second topic (type `note`). Verify they are visually distinct and filterable by active/resolved/archived.
+- Add replies inside the `issue` topic. Verify each reply shows author and timestamp, and photos/files can be attached using existing upload safeguards.
+- Mark the issue topic as resolved, then reopen it. Verify it transitions correctly and remains in history.
+- Verify general maintained location notes remain separate from the discussion/thread history.
+- On the linked Kanban V2 card/project, verify a compact topic/issue summary appears and navigates back to the location topic.
+- As the Manager, refresh the Dashboard location widget and verify it updates when topics are created, replied to, resolved, or archived (real-time/WebSocket with refetch fallback).
+
+### Expected result
+
+Location metadata edits persist with auditing. Archiving warns about active links, preserves history, and is reversible. Bidirectional linking works seamlessly between locations, Kanban V2 cards, and projects, with clear navigation. Topic discussions support notes/issues with severity, threaded replies, photo attachments, and resolved/archived states. Topic summaries appear on linked work items, and the Dashboard widget reflects changes in real time.
+
+### Execution result
+
+To be filled
+
+## UAT-013 — Verify Free Horizontal Scrolling in Calendar Timeline Views
+
+- **Scenario ID:** UAT-013
+- **Title:** Verify free horizontal scrolling and day-boundary snapping in Day, 3 Days, and Week Calendar views
+- **Status:** Draft
+- **Related feature:** Calendar
+
+### Objective
+
+Verify that users can freely scroll horizontally across adjacent dates in Day, 3 Days, and Week timeline views, with smooth snapping to full day boundaries, while existing navigation and drag/drop remain stable.
+
+### Preconditions
+
+- The user is logged in.
+- The Calendar contains events and Kanban V2 cards across multiple adjacent dates.
+
+### Test steps
+
+- Open the Calendar in Day view. Using mouse wheel, trackpad, or touch, scroll horizontally to the right. Verify adjacent dates load without a full page reload.
+- Stop scrolling. Verify the viewport snaps to exactly one complete day (no partial days visible at edges).
+- Switch to 3 Days view. Scroll horizontally and verify it snaps to exactly three complete days.
+- Switch to Week view (7 Days). Scroll horizontally and verify it snaps to exactly seven complete days at supported desktop widths.
+- Verify scrolling can advance by one day at a time—it is not limited to whole-view page jumps.
+- Use the existing previous/next navigation arrows and the Today button. Verify they synchronize the same visible date range as the scrolled position.
+- Verify the header, all-day area, and timeline columns remain aligned during and after scrolling.
+- Drag a Kanban V2 card to a different day/time slot. Verify drag/drop remains stable while horizontal scrolling is available.
+- Resize an existing event by dragging its bottom edge. Verify resize behavior remains stable during the scroll.
+- Using keyboard navigation (e.g., arrow keys) and reduced-motion preferences, verify usable fallbacks exist.
+- On a mobile viewport, scroll horizontally and verify the gesture does not accidentally trigger page-level horizontal overflow outside the Calendar container.
+- Confirm Month view is explicitly excluded from this timeline-scrolling scope (it does not have free horizontal scroll behavior).
+
+### Expected result
+
+Day, 3 Days, and Week views support free horizontal scrolling via all input methods (mouse, trackpad, touch). Adjacent data loads dynamically. The viewport snaps cleanly to full day boundaries (1, 3, or 7 days). Navigation arrows/Today sync with the scrolled range. Header/columns stay aligned. Drag/drop and resize operations remain fully functional. Keyboard and accessibility fallbacks work. Mobile scrolling stays contained without page overflow.
+
+### Execution result
+
+To be filled
+
+## UAT-014 — Verify Project Statistics, Autosave for Projects/Equipment, and Active Workspace Switching
+
+- **Scenario ID:** UAT-014
+- **Title:** Verify detailed project statistics, autosave behavior on edits, and active company/personal workspace switching
+- **Status:** Draft
+- **Related feature:** Projects, Global Workspace
+
+### Objective
+
+Verify that project statistics display comprehensive operational metrics, that editing projects and equipment saves automatically after debounce, and that switching between company workspaces and personal workspace properly isolates data.
+
+### Preconditions
+
+- The user has membership in at least two companies.
+- A project with a dedicated Kanban V2 board exists, containing cards with assignments, deadlines, locations, and equipment links.
+- Another user is available to simulate concurrent edits.
+
+### Test steps
+
+- Open a Project. Navigate to its Statistics section. Verify it displays: total/active/in-progress/completed/overdue/unassigned Kanban V2 cards.
+- Verify deadline statistics distinguish overdue, due soon, future, and no-deadline cards.
+- Verify assignee statistics show card distribution/workload based on current project members.
+- Verify location statistics show linked active/archived locations and unresolved issues by severity.
+- Verify equipment statistics show linked/requested/approved/issued/returned/overdue/broken-or-repair counts without double counting.
+- Click on a metric (e.g., "overdue cards") and verify it filters/links to the records that produced it.
+- Update a card status, deadline, assignment, or equipment link. Verify statistics update without a page reload.
+- Open the Edit Project form. Change its name, description, or assignees. Wait for the autosave debounce. Verify the form shows idle → dirty → saving → saved states, without a Save button.
+- Leave a required field empty. Verify the form remains dirty and does not send an invalid request, then auto-saves after correction.
+- Simulate a concurrent edit (another user modifies the same project). Verify autosave avoids duplicate/stale writes and preserves the latest valid form state.
+- Open an existing Equipment record. Edit its physical destination and work context. Verify the same autosave states appear and changes reflect globally.
+- Observe the global header synchronization indicator—verify it reflects autosave progress, success, or error.
+- Switch the active workspace from Company A to Company B using the workspace switcher. Verify pending autosaves complete safely before switching.
+- After switching, verify query caches, Dashboard data, notifications, and realtime subscriptions are cleared/refreshed for the new company.
+- Switch to Personal Workspace. Verify it exposes only personal Kanban V2 boards, Calendar events, and projects—company-only modules/actions are hidden or show a clear empty state.
+- Verify the user remains in the same module if it exists in the target workspace; otherwise, they land on the target Dashboard.
+- Log out and back in. Verify the last still-authorized workspace is restored automatically.
+
+### Expected result
+
+Project statistics show accurate, linked metrics across tasks, people, locations, and equipment, updating in real time. Autosave works via debounce with clear UI states, handles invalid fields gracefully, prevents stale concurrent writes, and integrates with the global sync indicator. Workspace switching safely completes autosaves, clears caches, isolates company/personal data, and remembers the last valid choice. Personal workspace shows only personal boards/events/projects without leaking company data.
+
+### Execution result
+
+To be filled
