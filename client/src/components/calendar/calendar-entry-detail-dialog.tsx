@@ -80,9 +80,9 @@ export function CalendarEntryDetailDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl border-border/50 bg-card p-0 sm:max-w-md">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
         {entry && (
-          <div className="space-y-4 p-4 sm:p-5">
+          <div className="space-y-4 bg-surface-overlay p-4 sm:p-5">
             {isTaskEntry(entry) || isKanbanEntry(entry) ? (
               <>
                 <div className="flex items-start gap-3">
@@ -104,7 +104,7 @@ export function CalendarEntryDetailDialog({
                   </div>
                 </div>
 
-                <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="space-y-3 rounded-surface border border-border/40 bg-surface-subtle p-3 text-sm text-muted-foreground">
                   {getTaskScheduleLabel(entry.task) && (
                     <div className="flex items-start gap-3">
                       <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -174,7 +174,7 @@ export function CalendarEntryDetailDialog({
                       <p className="font-medium text-foreground">Подзадачи</p>
                       <div className="space-y-1.5">
                         {entry.task.subtasks.map((subtask) => (
-                          <div key={subtask.id} className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-foreground">
+                          <div key={subtask.id} className="rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-foreground shadow-xs">
                             {subtask.completed ? "✓ " : ""}
                             {subtask.title}
                           </div>
@@ -192,7 +192,7 @@ export function CalendarEntryDetailDialog({
                             href={link.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block rounded-lg border border-border/50 px-3 py-2 text-primary hover:underline"
+                            className="block rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-primary shadow-xs hover:underline"
                           >
                             {link.title || link.url}
                           </a>
@@ -207,7 +207,7 @@ export function CalendarEntryDetailDialog({
                         {entry.task.attachments.map((file, index) => (
                           <div
                             key={`${file.url || file.name || index}`}
-                            className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-foreground"
+                            className="flex items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-foreground shadow-xs"
                           >
                             <Paperclip className="h-4 w-4 shrink-0 text-primary" />
                             <span className="truncate">{file.name || file.url || "Файл"}</span>
@@ -218,7 +218,7 @@ export function CalendarEntryDetailDialog({
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-t border-border/35 pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-border/40 pt-3">
                   {isKanbanEntry(entry) && (
                     <Button
                       size="sm"
@@ -243,7 +243,7 @@ export function CalendarEntryDetailDialog({
                   />
                   <h3 className="break-words pr-6 text-lg font-semibold leading-tight text-foreground">{entry.title}</h3>
                 </div>
-                <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="space-y-3 rounded-surface border border-border/40 bg-surface-subtle p-3 text-sm text-muted-foreground">
                   <div className="flex items-start gap-3">
                     <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span className="text-foreground">
@@ -274,12 +274,12 @@ export function CalendarEntryDetailDialog({
                             const isMe = currentUserId && participant.userId === currentUserId;
                             const isInvited = participant.status === "invited";
                             return (
-                              <li key={participant.id} className="flex items-center justify-between gap-2 text-sm">
+                              <li key={participant.id} className="flex items-center justify-between gap-2 rounded-control bg-surface-raised px-2 py-1.5 text-sm">
                                 <span className="truncate text-foreground">{participant.userName ?? "?"}</span>
                                 <span className={cn(
                                   "shrink-0 text-xs",
-                                  participant.status === "accepted" && "text-green-600 dark:text-green-400",
-                                  participant.status === "declined" && "text-rose-600 dark:text-rose-400",
+                                  participant.status === "accepted" && "text-success",
+                                  participant.status === "declined" && "text-error",
                                   participant.status === "invited" && "text-muted-foreground",
                                 )}>
                                   {participant.status === "accepted" && "Принято"}
@@ -291,7 +291,7 @@ export function CalendarEntryDetailDialog({
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 w-7 p-0 text-green-600 hover:bg-green-500/10 hover:text-green-700"
+                                      className="h-7 w-7 p-0 text-success hover:bg-success/10 hover:text-success"
                                       onClick={() => onRespondParticipant({
                                         eventId: entry.id,
                                         participantId: participant.id,
@@ -304,7 +304,7 @@ export function CalendarEntryDetailDialog({
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700"
+                                      className="h-7 w-7 p-0 text-error hover:bg-error/10 hover:text-error"
                                       onClick={() => onRespondParticipant({
                                         eventId: entry.id,
                                         participantId: participant.id,
@@ -332,7 +332,7 @@ export function CalendarEntryDetailDialog({
                     </Badge>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 border-t border-border/35 pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-border/40 pt-3">
                   <Button size="sm" className="gap-2" onClick={onEditEvent}>
                     <Edit className="h-4 w-4" />
                     Изменить

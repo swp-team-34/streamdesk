@@ -23,9 +23,9 @@ describe("CalendarToolbar", () => {
     );
 
     fireEvent.click(screen.getByText("Событие"));
-    fireEvent.click(screen.getByText("←"));
+    fireEvent.click(screen.getByRole("button", { name: "Предыдущий период" }));
     fireEvent.click(screen.getByText("Сегодня"));
-    fireEvent.click(screen.getByText("Настройки"));
+    fireEvent.click(screen.getByRole("button", { name: "Настройки календаря" }));
     fireEvent.click(screen.getByText("День"));
 
     expect(onCreateEvent).toHaveBeenCalledOnce();

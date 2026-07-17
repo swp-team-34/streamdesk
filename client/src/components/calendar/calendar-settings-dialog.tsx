@@ -26,7 +26,7 @@ export function CalendarSettingsDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl border-border/50 bg-card sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Настройки календаря</DialogTitle>
         </DialogHeader>
@@ -35,7 +35,7 @@ export function CalendarSettingsDialog({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Начало рабочего дня</span>
               <select
-                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+                className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
                 value={settings.workdayStart}
                 onChange={(event) => onSettingsChange((previous) => ({
                   ...previous,
@@ -50,7 +50,7 @@ export function CalendarSettingsDialog({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Конец рабочего дня</span>
               <select
-                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+                className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
                 value={settings.workdayEnd}
                 onChange={(event) => onSettingsChange((previous) => ({
                   ...previous,
@@ -67,7 +67,7 @@ export function CalendarSettingsDialog({
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">Шаг сетки</span>
             <select
-              className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
+              className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
               value={settings.gridStep}
               onChange={(event) => onSettingsChange((previous) => ({
                 ...previous,
@@ -80,7 +80,7 @@ export function CalendarSettingsDialog({
             </select>
           </label>
 
-          <div className="grid gap-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+          <div className="grid gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
             {([
               ["showWeekends", "Показывать выходные"],
               ["showAllDay", "Показывать all-day зону"],
@@ -102,7 +102,7 @@ export function CalendarSettingsDialog({
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">Timezone label</span>
             <input
-              className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
               value={settings.timezoneLabel}
               onChange={(event) => onSettingsChange((previous) => ({
                 ...previous,

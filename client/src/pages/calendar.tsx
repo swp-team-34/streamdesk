@@ -492,17 +492,17 @@ export default function Calendar() {
     const urgency = getEntryDeadlineUrgency(entry);
     if (urgency === "overdue") {
       return {
-        card: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
-        inline: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
-        dot: "bg-red-400",
+        card: `border-l-error ${getDueDateStatusClasses("overdue").card} text-foreground`,
+        inline: `border-l-error ${getDueDateStatusClasses("overdue").card} text-foreground`,
+        dot: "bg-error",
         badge: getDueDateStatusClasses("overdue").badge,
       };
     }
     if (urgency === "soon") {
       return {
-        card: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
-        inline: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
-        dot: "bg-amber-400",
+        card: `border-l-warning ${getDueDateStatusClasses("soon").card} text-foreground`,
+        inline: `border-l-warning ${getDueDateStatusClasses("soon").card} text-foreground`,
+        dot: "bg-warning",
         badge: getDueDateStatusClasses("soon").badge,
       };
     }
@@ -583,8 +583,8 @@ export default function Calendar() {
     return (
       <div
         className={cn(
-          "pointer-events-none absolute z-30 rounded-xl border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25 backdrop-blur",
-                  (calendarPointerPreview.mode === "resize-start" || calendarPointerPreview.mode === "resize-end") && "border-dashed",
+          "pointer-events-none absolute z-30 rounded-control border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/25",
+          (calendarPointerPreview.mode === "resize-start" || calendarPointerPreview.mode === "resize-end") && "border-dashed",
         )}
         style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
       >
@@ -632,7 +632,7 @@ export default function Calendar() {
 
     return (
       <div
-        className="pointer-events-none absolute z-20 rounded-xl border border-primary/60 bg-primary/15 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/20 backdrop-blur"
+        className="pointer-events-none absolute z-20 rounded-control border border-primary/60 bg-primary/15 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/20"
         style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
       >
         <div className="truncate font-semibold">Новое событие</div>
@@ -972,12 +972,12 @@ export default function Calendar() {
         {(entry.kind === "task" || entry.kind === "kanban") && (
           <div className="mt-auto flex min-w-0 items-center gap-1 overflow-hidden pt-0.5">
             {entry.task.priority && (
-              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+              <span className="max-w-full truncate rounded-full bg-surface-raised/70 px-1.5 py-0.5 text-[10px] leading-none">
                 {TASK_PRIORITY_LABELS[entry.task.priority] || entry.task.priority}
               </span>
             )}
             {getEntryDeadlineUrgency(entry) !== "none" && (
-              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+              <span className="max-w-full truncate rounded-full bg-surface-raised/70 px-1.5 py-0.5 text-[10px] leading-none">
                 {getDueDateStatusLabel(getEntryDeadlineUrgency(entry))}
               </span>
             )}
@@ -1171,8 +1171,8 @@ export default function Calendar() {
     const timelineColumnTemplate = `${CALENDAR_TIMELINE_GUTTER_WIDTH}px repeat(${Math.max(1, days.length)}, ${timelineDayWidth}px)`;
     if (allDayEntries.length === 0 && !allDayPreview) {
       return (
-        <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: timelineColumnTemplate }}>
-          <div className="sticky left-0 z-30 border-r border-border/35 bg-muted/95 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+        <div className="grid border-b border-border/40 bg-surface-subtle" style={{ gridTemplateColumns: timelineColumnTemplate }}>
+          <div className="sticky left-0 z-30 border-r border-border/40 bg-surface-subtle px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
           {days.map((day, dayIndex) => (
             <button
               key={day.toISOString()}
@@ -1182,7 +1182,7 @@ export default function Calendar() {
               data-date={day.toISOString()}
               data-day-index={dayIndex}
               aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
-              className="min-h-10 cursor-pointer border-r border-border/35 transition-colors hover:bg-primary/5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0"
+              className="min-h-10 cursor-pointer border-r border-border/30 transition-colors hover:bg-primary/5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0"
               onClick={() => openAllDayEventForm(day)}
             />
           ))}
@@ -1191,8 +1191,8 @@ export default function Calendar() {
     }
 
     return (
-      <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: timelineColumnTemplate }}>
-        <div className="sticky left-0 z-30 border-r border-border/35 bg-muted/95 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+      <div className="grid border-b border-border/40 bg-surface-subtle" style={{ gridTemplateColumns: timelineColumnTemplate }}>
+        <div className="sticky left-0 z-30 border-r border-border/40 bg-surface-subtle px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
         <div
           className="relative max-h-28 min-h-10 overflow-y-auto p-1"
           style={{ gridColumn: `span ${Math.max(1, days.length)} / span ${Math.max(1, days.length)}` }}
@@ -1207,7 +1207,7 @@ export default function Calendar() {
                 data-date={day.toISOString()}
                 data-day-index={dayIndex}
                 aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
-                className="min-h-8 cursor-pointer rounded-lg border border-dashed border-border/25 transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                className="min-h-8 cursor-pointer rounded-control border border-dashed border-border/30 transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                 onClick={() => openAllDayEventForm(day)}
               />
             ))}
@@ -1225,7 +1225,7 @@ export default function Calendar() {
                 key={getCalendarEntryKey(entry)}
                 type="button"
                 data-calendar-all-day-entry
-                className={cn("relative z-10 min-w-0 cursor-grab rounded-lg border border-border/40 px-2 py-1 text-left text-xs shadow-sm", getEventCardClasses(entry))}
+                className={cn("relative z-10 min-w-0 cursor-grab rounded-control border border-border/40 px-2 py-1 text-left text-xs shadow-xs", getEventCardClasses(entry))}
                 style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: index + 1, ...getEntryColorStyle(entry) }}
                 onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
               >
@@ -1257,7 +1257,7 @@ export default function Calendar() {
               const last = visibleIndexes.at(-1) ?? first;
               return (
                 <div
-                  className="pointer-events-none relative z-20 min-w-0 rounded-lg border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25"
+                  className="pointer-events-none relative z-20 min-w-0 rounded-control border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/25"
                   style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: allDayEntries.length + 1 }}
                 >
                   <span className="block truncate font-semibold">{allDayPreview.entry.title}</span>
@@ -1293,7 +1293,7 @@ export default function Calendar() {
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between gap-3 border-b border-border/20 bg-muted/20 px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/35",
+          "flex w-full items-center justify-between gap-3 border-b border-border/30 bg-surface-subtle px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/60",
           sticky && "sticky left-0 z-30",
         )}
         style={sticky && timelineViewportWidth > 0 ? { width: timelineViewportWidth } : undefined}
@@ -1328,7 +1328,7 @@ export default function Calendar() {
         ref={timelineScrollRef}
         tabIndex={0}
         aria-label="Временная шкала календаря. Используйте стрелки для перехода по дням."
-        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-xl border border-border/30 bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         style={{
           scrollSnapType: "x mandatory",
           overscrollBehaviorX: "contain",
@@ -1347,13 +1347,13 @@ export default function Calendar() {
         }}
       >
         <div className="min-w-max" style={{ width: timelineContentWidth }}>
-          <div className="sticky top-0 z-50 bg-card shadow-sm shadow-background/30">
+          <div className="sticky top-0 z-50 border-b border-border/40 bg-surface-raised shadow-xs">
             {renderAllDayZone(timelineDays, timelineViewMode)}
             {renderCompressedHoursControl(timelineVisibleDays, "before", true)}
-            <div className="grid bg-card" style={{ gridTemplateColumns }}>
+            <div className="grid bg-surface-raised" style={{ gridTemplateColumns }}>
               <div
                 data-calendar-horizontal-pan
-                className="sticky left-0 z-30 cursor-grab border-b border-r border-border/35 bg-card px-2 py-2 text-[10px] font-medium text-foreground active:cursor-grabbing sm:text-xs"
+                className="sticky left-0 z-30 cursor-grab border-b border-r border-border/40 bg-surface-raised px-2 py-2 text-[10px] font-medium text-muted-foreground active:cursor-grabbing sm:text-xs"
               >
                 Н{timelineWeekNumber}
               </div>
@@ -1365,7 +1365,7 @@ export default function Calendar() {
                     type="button"
                     data-calendar-horizontal-pan
                     aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
-                    className="cursor-grab select-none border-b border-r border-border/35 bg-card px-1 py-2 text-center transition-colors hover:bg-muted/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0 active:cursor-grabbing"
+                    className="cursor-grab select-none border-b border-r border-border/40 bg-surface-raised px-1 py-2 text-center transition-colors hover:bg-muted/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0 active:cursor-grabbing"
                     style={{
                       scrollSnapAlign: "start",
                       scrollMarginLeft: CALENDAR_TIMELINE_GUTTER_WIDTH,
@@ -1382,8 +1382,8 @@ export default function Calendar() {
                       {format(day, "EEE", { locale: ru })}
                     </div>
                     <div className={cn(
-                      "inline-block min-w-6 rounded-md text-sm font-semibold",
-                      isToday && "bg-red-500 px-1 text-white",
+                      "inline-flex min-h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold",
+                      isToday && "bg-primary px-1 text-primary-foreground",
                     )}>
                       {format(day, "d")}
                     </div>
@@ -1396,7 +1396,7 @@ export default function Calendar() {
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
               <Fragment key={hour}>
                 <div
-                  className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/35 bg-card pr-1 text-[10px] text-muted-foreground sm:text-xs"
+                  className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/30 bg-surface-raised pr-1 text-[10px] text-muted-foreground sm:text-xs"
                   style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                 >
                   {`${String(hour).padStart(2, "0")}:00`}
@@ -1404,7 +1404,7 @@ export default function Calendar() {
                 {timelineDays.map((day) => (
                   <div
                     key={`${hour}-${day.toISOString()}`}
-                    className="border-b border-r border-border/25 last:border-r-0"
+                    className="border-b border-r border-border/20 last:border-r-0"
                     style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                   />
                 ))}
@@ -1417,13 +1417,13 @@ export default function Calendar() {
           >
             <div className="grid pointer-events-auto" style={{ gridTemplateColumns }}>
               <div
-                className="pointer-events-none sticky left-0 z-40 border-r border-border/35 bg-card"
+                className="pointer-events-none sticky left-0 z-40 border-r border-border/40 bg-surface-raised"
                 style={{ height: timelineHeight }}
               >
                 {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
                   <div
                     key={`timeline-hour-label-${hour}`}
-                    className="flex items-start justify-end border-b border-border/35 pr-1 text-[10px] text-muted-foreground sm:text-xs"
+                    className="flex items-start justify-end border-b border-border/30 pr-1 text-[10px] text-muted-foreground sm:text-xs"
                     style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                   >
                     {`${String(hour).padStart(2, "0")}:00`}
@@ -1479,7 +1479,7 @@ export default function Calendar() {
                 )}
                 {showNowLine && (
                   <div
-                    className="pointer-events-none absolute z-10 h-px bg-red-500"
+                    className="pointer-events-none absolute z-10 h-px bg-error"
                     style={{
                       top: nowTop,
                       left: `${(100 / columnCount) * todayIndex}%`,
@@ -1517,7 +1517,7 @@ export default function Calendar() {
                             type="button"
                             data-calendar-entry-block
                             className={cn(
-                              "pointer-events-auto absolute cursor-grab overflow-hidden rounded-xl border border-border/30 text-left text-xs shadow-md backdrop-blur-sm transition hover:shadow-lg active:cursor-grabbing",
+                              "pointer-events-auto absolute cursor-grab overflow-hidden rounded-control border border-border/40 text-left text-xs shadow-xs transition hover:shadow-surface active:cursor-grabbing",
                               getEventCardClasses(entry),
                             )}
                             style={{
@@ -1564,7 +1564,7 @@ export default function Calendar() {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">
+    <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-5">
       <CalendarToolbar
         periodLabel={toolbarPeriodLabel}
         viewMode={viewMode}
@@ -1580,23 +1580,10 @@ export default function Calendar() {
       />
 
       {viewMode === "month" ? (
-        <div className="space-y-1.5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1 sm:gap-1.5 p-2 sm:p-3 bg-card rounded-xl border border-border/40 w-full min-w-0">
-            <div className="flex items-center gap-2 text-foreground shrink-0">
-              <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-              <span className="font-semibold text-base sm:text-lg truncate">{format(selectedDate, "LLLL yyyy", { locale: ru })}</span>
-            </div>
-            <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:w-auto min-w-0">
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}>← Пред</Button>
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}>След →</Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border/35 overflow-hidden bg-card min-w-0">
-            <div className="grid grid-cols-7 border-b border-border/30">
+        <div className="min-w-0 overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
+            <div className="grid grid-cols-7 border-b border-border/40 bg-surface-subtle">
               {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
-                <div key={day} className="p-1 sm:p-1.5 text-center text-[10px] sm:text-xs font-semibold text-muted-foreground">{day}</div>
+                <div key={day} className="p-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">{day}</div>
               ))}
             </div>
             <div className="grid grid-cols-7">
@@ -1621,11 +1608,9 @@ export default function Calendar() {
                       data-scope="month"
                       data-date={day.toISOString()}
                       className={cn(
-                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30 transition-colors",
-                        !isCurrentMonth ? "bg-muted/20 opacity-70" : "bg-card",
-                        isToday && "ring-2 ring-inset ring-primary",
+                        "min-h-[56px] cursor-pointer border-b border-r border-border/25 p-0.5 transition-colors hover:bg-muted/40 sm:min-h-[72px] sm:p-1 md:min-h-[84px] [&:nth-child(7n)]:border-r-0",
+                        !isCurrentMonth ? "bg-surface-subtle/70 text-muted-foreground" : "bg-surface-raised",
                         isPointerPreviewDay && "bg-primary/10 ring-2 ring-inset ring-primary/50",
-                        "cursor-pointer",
                       )}
                       onClick={(event) => {
                         if ((event.target as HTMLElement).closest("[data-calendar-entry-block]")) return;
@@ -1635,8 +1620,12 @@ export default function Calendar() {
                       <button
                         type="button"
                         className={cn(
-                          "mb-0.5 rounded px-0.5 text-xs font-semibold hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:mb-1 sm:text-sm",
-                          isToday ? "text-primary" : isCurrentMonth ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500",
+                          "mb-0.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-medium hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:mb-1 sm:text-sm",
+                          isToday
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : isCurrentMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground",
                         )}
                         aria-label={`Открыть ${format(day, "d MMMM yyyy", { locale: ru })}`}
                         onClick={(event) => {
@@ -1652,30 +1641,41 @@ export default function Calendar() {
                             key={getCalendarEntryKey(entry)}
                             type="button"
                             data-calendar-entry-block
-                            className={cn("block w-full min-w-0 overflow-hidden rounded-r-xl rounded-l-md px-1.5 py-1 text-left text-[10px] shadow-sm cursor-grab active:cursor-grabbing sm:text-xs", getEventInlineClasses(entry))}
+                            className={cn("block w-full min-w-0 cursor-grab overflow-hidden rounded-control border border-border/30 px-1.5 py-1 text-left text-[10px] shadow-xs active:cursor-grabbing sm:text-xs", getEventInlineClasses(entry))}
                             style={getEntryColorStyle(entry, "inline")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
                           >
                             {renderMonthEntryContent(entry)}
                           </button>
                         ))}
-                        {dayEntries.length > 3 && <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">+{dayEntries.length - 3} ещё</div>}
+                        {dayEntries.length > 3 && (
+                          <button
+                            type="button"
+                            className="rounded-control px-1 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:text-xs"
+                            aria-label={`Показать ещё ${dayEntries.length - 3} событий за ${format(day, "d MMMM", { locale: ru })}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDayView(day);
+                            }}
+                          >
+                            +{dayEntries.length - 3} ещё
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 });
               })()}
             </div>
-          </div>
         </div>
       ) : isTimelineView ? (
         renderTimelineView()
       ) : viewMode === "list" ? (
-        <div className="rounded-xl border border-border/30 bg-card overflow-hidden min-w-0">
-          <div className="p-2 sm:p-3 border-b border-border/30">
+        <div className="min-w-0 overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
+          <div className="border-b border-border/40 bg-surface-subtle p-2 sm:p-3">
             <div className="flex items-center gap-2 text-foreground">
               <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
-              <span className="font-semibold text-sm sm:text-base">
+              <span className="text-sm font-medium sm:text-base">
                 {format(weekStart, "d MMM", { locale: ru })} – {format(weekEnd, "d MMM yyyy", { locale: ru })}
               </span>
             </div>
@@ -1693,7 +1693,7 @@ export default function Calendar() {
                 );
               }
               return listEntries.map((entry) => (
-                <Card key={`${getCalendarEntryKey(entry)}:${entry._day.toISOString()}`} className={cn("rounded-xl border border-border/50 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
+                <Card key={`${getCalendarEntryKey(entry)}:${entry._day.toISOString()}`} className={cn("cursor-pointer overflow-hidden rounded-control border border-border/40 shadow-xs transition hover:shadow-surface", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
                   <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                       <div className="flex-1 min-w-0">
