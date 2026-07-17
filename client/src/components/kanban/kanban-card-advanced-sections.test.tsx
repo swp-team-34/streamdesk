@@ -90,4 +90,20 @@ describe("KanbanCardAdvancedSections", () => {
     const { container } = render(<KanbanCardAdvancedSections {...baseProps} expanded={false} />);
     expect(container.querySelectorAll(".hidden")).toHaveLength(5);
   });
+
+  it("separates resource workflows from activity workflows", () => {
+    const { rerender } = render(
+      <KanbanCardAdvancedSections {...baseProps} mode="resources" />,
+    );
+    expect(screen.getByText("Equipment section")).toBeInTheDocument();
+    expect(screen.getByText("Subtasks section")).toBeInTheDocument();
+    expect(screen.getByText("Attachments section")).toBeInTheDocument();
+    expect(screen.queryByText("Activity section")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Discussion/)).not.toBeInTheDocument();
+
+    rerender(<KanbanCardAdvancedSections {...baseProps} mode="activity" />);
+    expect(screen.queryByText("Equipment section")).not.toBeInTheDocument();
+    expect(screen.getByText("Activity section")).toBeInTheDocument();
+    expect(screen.getByText(/Discussion/)).toBeInTheDocument();
+  });
 });

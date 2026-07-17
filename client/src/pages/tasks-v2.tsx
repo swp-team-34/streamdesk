@@ -55,10 +55,15 @@ import {
   EMPTY_KANBAN_CARD_FILTERS,
   KanbanCardFiltersDialog,
 } from "@/components/kanban/kanban-card-filters-dialog";
-import { KanbanCardAdvancedSections } from "@/components/kanban/kanban-card-advanced-sections";
+import {
+  KanbanCardAdvancedSections,
+  type KanbanCardAdvancedSectionsProps,
+} from "@/components/kanban/kanban-card-advanced-sections";
 import { KanbanCardCustomFieldsEditor } from "@/components/kanban/kanban-card-custom-fields-editor";
 import {
   KanbanCardDetailDialog,
+  KanbanCardDetailTabContent,
+  type KanbanDetailTab,
   type KanbanDetailSaveStatus as DetailSaveStatus,
 } from "@/components/kanban/kanban-card-detail-dialog";
 import { KanbanCardDetailFields } from "@/components/kanban/kanban-card-detail-fields";
@@ -270,6 +275,7 @@ export default function TasksV2Page() {
   const [detailSaveStatus, setDetailSaveStatus] = useState<DetailSaveStatus>("idle");
   const [detailSaveError, setDetailSaveError] = useState("");
   const [detailAdvancedOpen, setDetailAdvancedOpen] = useState(false);
+  const [detailDefaultTab, setDetailDefaultTab] = useState<KanbanDetailTab>("overview");
   const [inlineSmartCancelledTokenIds, setInlineSmartCancelledTokenIds] = useState<string[]>([]);
   const [detailSmartCancelledTokenIds, setDetailSmartCancelledTokenIds] = useState<string[]>([]);
   const [detailHistoryExpanded, setDetailHistoryExpanded] = useState(false);
@@ -1190,6 +1196,7 @@ export default function TasksV2Page() {
     setDetailSaveStatus("idle");
     setDetailSaveError("");
     setDetailAdvancedOpen(false);
+    setDetailDefaultTab("overview");
     setInlineSmartCancelledTokenIds([]);
     setDetailSmartCancelledTokenIds([]);
     setDetailHistoryExpanded(false);
@@ -2247,6 +2254,7 @@ export default function TasksV2Page() {
   const handleOpenCardDetail = (cardId: string, openAdvanced = false) => {
     setDetailHistoryExpanded(false);
     setDetailAdvancedOpen(openAdvanced);
+    setDetailDefaultTab(openAdvanced ? "resources" : "overview");
     setDetailSmartCancelledTokenIds([]);
     setEquipmentLinkSelection("");
     setDetailCardId(cardId);
@@ -2281,6 +2289,7 @@ export default function TasksV2Page() {
     setDetailSaveStatus("idle");
     setDetailSaveError("");
     setDetailAdvancedOpen(false);
+    setDetailDefaultTab("overview");
     setDetailSmartCancelledTokenIds([]);
     setDetailHistoryExpanded(false);
     setEquipmentLinkSelection("");
@@ -3288,155 +3297,183 @@ export default function TasksV2Page() {
         formTitle={detailCardForm.title}
         saveStatus={detailSaveStatus}
         saveError={detailSaveError}
+        defaultTab={detailDefaultTab}
         onClose={handleCloseCardDetail}
       >
         {selectedDetailCard && (() => {
-                const detailEquipmentLinks = equipmentLinksByCardId.get(selectedDetailCard.id) ?? [];
-                const availableEquipmentToLink = getAvailableEquipmentToLink(
-                  equipment,
-                  detailEquipmentLinks,
-                );
+          const detailEquipmentLinks = equipmentLinksByCardId.get(selectedDetailCard.id) ?? [];
+          const availableEquipmentToLink = getAvailableEquipmentToLink(
+            equipment,
+            detailEquipmentLinks,
+          );
+          const advancedSectionsProps: KanbanCardAdvancedSectionsProps = {
+            expanded: true,
+            sectionClassName: KANBAN_DETAIL_SECTION_CLASS,
+            boardId: selectedBoardId || "",
+            cardId: selectedDetailCard.id,
+            commentCount: selectedDetailCard.commentCount ?? 0,
+            canComment: canCommentSelectedBoard,
+            canEdit: canEditSelectedBoard,
+            companyScoped: Boolean(selectedBoard?.companyId),
+            equipmentLinks: detailEquipmentLinks,
+            availableEquipment: availableEquipmentToLink,
+            equipmentLoading: equipmentLinksLoading,
+            canManageEquipment: canManageSelectedCardEquipment,
+            equipmentSelection: equipmentLinkSelection,
+            attachPending: attachEquipmentMutation.isPending,
+            detachPending: detachEquipmentMutation.isPending,
+            subtasks: selectedDetailCard.subtasks,
+            subtaskDraft: detailSubtaskDraft,
+            subtaskPending: saveCardSubtasksMutation.isPending,
+            attachments: detailCardAttachments,
+            attachmentsLoading: detailCardAttachmentsLoading,
+            uploadPending: uploadCardAttachmentMutation.isPending,
+            deleteAttachmentPending: deleteCardAttachmentMutation.isPending,
+            history: detailCardHistory,
+            historyLoading: detailCardHistoryLoading,
+            historyExpanded: detailHistoryExpanded,
+            getUserName: (userId) => {
+              const user = userById.get(userId);
+              return user?.name || user?.username || userId;
+            },
+            getHistoryChangeLines,
+            confirmDelete,
+            onEquipmentSelectionChange: setEquipmentLinkSelection,
+            onAttachEquipment: (equipmentId) => attachEquipmentMutation.mutate({
+              cardId: selectedDetailCard.id,
+              equipmentId,
+            }),
+            onDetachEquipment: (equipmentId) => detachEquipmentMutation.mutate({
+              cardId: selectedDetailCard.id,
+              equipmentId,
+            }),
+            onSubtaskDraftChange: setDetailSubtaskDraft,
+            onSaveSubtasks: (subtasks, clearDraftOnSuccess) => {
+              saveCardSubtasksMutation.mutate(subtasks, {
+                onSuccess: clearDraftOnSuccess
+                  ? () => setDetailSubtaskDraft("")
+                  : undefined,
+              });
+            },
+            onUploadAttachment: (file) => uploadCardAttachmentMutation.mutate(file),
+            onDeleteAttachment: (attachmentId) => deleteCardAttachmentMutation.mutate(attachmentId),
+            onToggleHistoryExpanded: () => setDetailHistoryExpanded((current) => !current),
+            onCommentActivity: () => {
+              queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
+              queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, selectedDetailCard.id] });
+              queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, selectedDetailCard.id] });
+            },
+          };
 
           return (
             <>
-                <KanbanCardLocationContext card={selectedDetailCard} />
-                <div className={KANBAN_DETAIL_SECTION_CLASS}>
-                <KanbanCardDetailFields
-                  form={detailCardForm}
-                  canEdit={canEditSelectedBoard}
-                  lists={lists}
-                  users={availableAssignees}
-                  locations={locations}
-                  linkedLocations={selectedDetailCard.locations ?? []}
-                  boardCompanyId={String(selectedBoard?.companyId || "")}
-                  smartInput={detailSmartInput}
-                  getUserName={(userId) => userById.get(userId)?.name || userId}
-                  onChange={setDetailCardForm}
-                  onCancelSmartToken={(tokenId) => setDetailSmartCancelledTokenIds((current) => [
-                    ...current,
-                    tokenId,
-                  ])}
-                  onSmartInputApplied={() => {
-                    setDetailSmartCancelledTokenIds([]);
-                    toast({
-                      title: "Умный ввод применён",
-                      description: "Ручные изменения полей после этого имеют приоритет.",
-                    });
-                  }}
-                />
+              <KanbanCardDetailTabContent value="overview">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(250px,0.75fr)]">
+                  <div className="min-w-0 space-y-4">
+                    <KanbanCardLocationContext card={selectedDetailCard} />
+                    <div className={KANBAN_DETAIL_SECTION_CLASS}>
+                      <KanbanCardDetailFields
+                        form={detailCardForm}
+                        canEdit={canEditSelectedBoard}
+                        lists={lists}
+                        users={availableAssignees}
+                        locations={locations}
+                        linkedLocations={selectedDetailCard.locations ?? []}
+                        boardCompanyId={String(selectedBoard?.companyId || "")}
+                        smartInput={detailSmartInput}
+                        getUserName={(userId) => userById.get(userId)?.name || userId}
+                        onChange={setDetailCardForm}
+                        onCancelSmartToken={(tokenId) => setDetailSmartCancelledTokenIds((current) => [
+                          ...current,
+                          tokenId,
+                        ])}
+                        onSmartInputApplied={() => {
+                          setDetailSmartCancelledTokenIds([]);
+                          toast({
+                            title: "Умный ввод применён",
+                            description: "Ручные изменения полей после этого имеют приоритет.",
+                          });
+                        }}
+                      />
 
-                <KanbanCardLabelsEditor
-                  labels={boardLabels}
-                  selectedLabelIds={detailCardForm.labelIds}
-                  query={detailLabelQuery}
-                  canEdit={canEditSelectedBoard}
-                  loading={boardLabelsLoading}
-                  saveLabelPending={saveLabelMutation.isPending}
-                  saveCardPending={saveCardDetailMutation.isPending}
-                  onQueryChange={setDetailLabelQuery}
-                  onAttach={handleAttachDetailLabel}
-                  onRemove={handleRemoveDetailLabel}
-                  onCreate={handleCreateDetailLabel}
-                />
+                      <div className="mt-5 border-t border-border/50 pt-5">
+                        <KanbanCardLabelsEditor
+                          labels={boardLabels}
+                          selectedLabelIds={detailCardForm.labelIds}
+                          query={detailLabelQuery}
+                          canEdit={canEditSelectedBoard}
+                          loading={boardLabelsLoading}
+                          saveLabelPending={saveLabelMutation.isPending}
+                          saveCardPending={saveCardDetailMutation.isPending}
+                          onQueryChange={setDetailLabelQuery}
+                          onAttach={handleAttachDetailLabel}
+                          onRemove={handleRemoveDetailLabel}
+                          onCreate={handleCreateDetailLabel}
+                        />
+                      </div>
 
-                <Collapsible open={detailAdvancedOpen} onOpenChange={setDetailAdvancedOpen}>
-                  <CollapsibleTrigger asChild>
-                    <Button type="button" variant="outline" className="w-full justify-between rounded-xl">
-                      <span className="inline-flex items-center gap-2">
-                        <Settings2 className="h-4 w-4" />
-                        Дополнительные поля и активность
-                      </span>
-                      <ChevronDown className={`h-4 w-4 transition-transform ${detailAdvancedOpen ? "rotate-180" : ""}`} />
-                    </Button>
-                  </CollapsibleTrigger>
-                </Collapsible>
+                      <Collapsible open={detailAdvancedOpen} onOpenChange={setDetailAdvancedOpen}>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="mt-5 w-full justify-between border-t border-border/50 pt-4"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Settings2 className="h-4 w-4" />
+                              Дополнительные поля
+                            </span>
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${detailAdvancedOpen ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                      </Collapsible>
 
-                <KanbanCardCustomFieldsEditor
-                  expanded={detailAdvancedOpen}
-                  fields={activeCustomFields}
-                  values={detailCardForm.customFieldValues ?? {}}
-                  users={availableAssignees}
-                  canEdit={canEditSelectedBoard}
-                  loading={boardCustomFieldsLoading}
-                  form={customFieldForm}
-                  savePending={saveCustomFieldMutation.isPending}
-                  onValuesChange={(customFieldValues) => setDetailCardForm((current) => ({
-                    ...current,
-                    customFieldValues,
-                  }))}
-                  onFormChange={setCustomFieldForm}
-                  onSave={() => saveCustomFieldMutation.mutate(undefined)}
-                />
+                      <KanbanCardCustomFieldsEditor
+                        expanded={detailAdvancedOpen}
+                        fields={activeCustomFields}
+                        values={detailCardForm.customFieldValues ?? {}}
+                        users={availableAssignees}
+                        canEdit={canEditSelectedBoard}
+                        loading={boardCustomFieldsLoading}
+                        form={customFieldForm}
+                        savePending={saveCustomFieldMutation.isPending}
+                        onValuesChange={(customFieldValues) => setDetailCardForm((current) => ({
+                          ...current,
+                          customFieldValues,
+                        }))}
+                        onFormChange={setCustomFieldForm}
+                        onSave={() => saveCustomFieldMutation.mutate(undefined)}
+                      />
+                    </div>
+                  </div>
+                  <aside className="min-w-0 xl:sticky xl:top-0 xl:self-start">
+                    <KanbanCardMetadata
+                      card={selectedDetailCard}
+                      list={selectedDetailList}
+                      labels={boardLabels}
+                      creatorName={userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}
+                      expanded
+                      className={KANBAN_DETAIL_SECTION_CLASS}
+                    />
+                  </aside>
                 </div>
+              </KanbanCardDetailTabContent>
 
-                <KanbanCardMetadata
-                  card={selectedDetailCard}
-                  list={selectedDetailList}
-                  labels={boardLabels}
-                  creatorName={userById.get(selectedDetailCard.creatorUserId)?.name || selectedDetailCard.creatorUserId}
-                  expanded={detailAdvancedOpen}
-                  className={KANBAN_DETAIL_SECTION_CLASS}
-                />
-
+              <KanbanCardDetailTabContent value="resources" className="space-y-4">
                 <KanbanCardAdvancedSections
-                  expanded={detailAdvancedOpen}
-                  sectionClassName={KANBAN_DETAIL_SECTION_CLASS}
-                  boardId={selectedBoardId || ""}
-                  cardId={selectedDetailCard.id}
-                  commentCount={selectedDetailCard.commentCount ?? 0}
-                  canComment={canCommentSelectedBoard}
-                  canEdit={canEditSelectedBoard}
-                  companyScoped={Boolean(selectedBoard?.companyId)}
-                  equipmentLinks={detailEquipmentLinks}
-                  availableEquipment={availableEquipmentToLink}
-                  equipmentLoading={equipmentLinksLoading}
-                  canManageEquipment={canManageSelectedCardEquipment}
-                  equipmentSelection={equipmentLinkSelection}
-                  attachPending={attachEquipmentMutation.isPending}
-                  detachPending={detachEquipmentMutation.isPending}
-                  subtasks={selectedDetailCard.subtasks}
-                  subtaskDraft={detailSubtaskDraft}
-                  subtaskPending={saveCardSubtasksMutation.isPending}
-                  attachments={detailCardAttachments}
-                  attachmentsLoading={detailCardAttachmentsLoading}
-                  uploadPending={uploadCardAttachmentMutation.isPending}
-                  deleteAttachmentPending={deleteCardAttachmentMutation.isPending}
-                  history={detailCardHistory}
-                  historyLoading={detailCardHistoryLoading}
-                  historyExpanded={detailHistoryExpanded}
-                  getUserName={(userId) => {
-                    const user = userById.get(userId);
-                    return user?.name || user?.username || userId;
-                  }}
-                  getHistoryChangeLines={getHistoryChangeLines}
-                  confirmDelete={confirmDelete}
-                  onEquipmentSelectionChange={setEquipmentLinkSelection}
-                  onAttachEquipment={(equipmentId) => attachEquipmentMutation.mutate({
-                    cardId: selectedDetailCard.id,
-                    equipmentId,
-                  })}
-                  onDetachEquipment={(equipmentId) => detachEquipmentMutation.mutate({
-                    cardId: selectedDetailCard.id,
-                    equipmentId,
-                  })}
-                  onSubtaskDraftChange={setDetailSubtaskDraft}
-                  onSaveSubtasks={(subtasks, clearDraftOnSuccess) => {
-                    saveCardSubtasksMutation.mutate(subtasks, {
-                      onSuccess: clearDraftOnSuccess
-                        ? () => setDetailSubtaskDraft("")
-                        : undefined,
-                    });
-                  }}
-                  onUploadAttachment={(file) => uploadCardAttachmentMutation.mutate(file)}
-                  onDeleteAttachment={(attachmentId) => deleteCardAttachmentMutation.mutate(attachmentId)}
-                  onToggleHistoryExpanded={() => setDetailHistoryExpanded((current) => !current)}
-                  onCommentActivity={() => {
-                    queryClient.invalidateQueries({ queryKey: ["kanban-cards", selectedBoardId] });
-                    queryClient.invalidateQueries({ queryKey: ["kanban-card", selectedBoardId, selectedDetailCard.id] });
-                    queryClient.invalidateQueries({ queryKey: ["kanban-card-history", selectedBoardId, selectedDetailCard.id] });
-                  }}
+                  {...advancedSectionsProps}
+                  mode="resources"
                 />
+              </KanbanCardDetailTabContent>
 
+              <KanbanCardDetailTabContent value="activity" className="space-y-4">
+                <KanbanCardAdvancedSections
+                  {...advancedSectionsProps}
+                  mode="activity"
+                />
+              </KanbanCardDetailTabContent>
             </>
           );
         })()}

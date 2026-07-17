@@ -29,7 +29,7 @@ export function KanbanCardActivitySection({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold">Activity Log</h3>
+          <h3 className="text-sm font-semibold">История изменений</h3>
           {entries.length > 0 && (
             <Badge variant="outline" className="rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
               {entries.length}

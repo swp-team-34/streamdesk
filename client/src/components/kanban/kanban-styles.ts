@@ -9,7 +9,7 @@ export const KANBAN_PANEL_SELECT_CLASS =
 export const KANBAN_PANEL_TEXTAREA_CLASS =
   "rounded-2xl border-border/50 bg-background shadow-none focus-visible:ring-ring";
 export const KANBAN_DETAIL_SECTION_CLASS =
-  "rounded-[22px] border border-border/45 bg-muted/20 p-4 shadow-sm";
+  "rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs";
 export const KANBAN_BOARD_SOFT_BADGE_CLASS =
   "rounded-full border border-border/45 bg-muted/30 px-3 py-1 text-muted-foreground";
 export const KANBAN_BOARD_GHOST_BADGE_CLASS =
