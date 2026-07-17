@@ -302,11 +302,11 @@ export function BarcodeScanner({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "available": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-      case "in-use": return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
-      case "maintenance": return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-      case "broken": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-      default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+      case "available": return "border-success/25 bg-success-muted text-success";
+      case "in-use": return "border-info/25 bg-info-muted text-info";
+      case "maintenance": return "border-warning/25 bg-warning-muted text-warning";
+      case "broken": return "border-error/25 bg-error-muted text-error";
+      default: return "border-border/40 bg-surface-subtle text-muted-foreground";
     }
   };
 
@@ -322,13 +322,13 @@ export function BarcodeScanner({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md p-0 overflow-hidden bg-white dark:bg-slate-900">
-        <DialogHeader className="p-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+      <DialogContent className="max-w-md overflow-hidden bg-surface-overlay p-0">
+        <DialogHeader className="border-b border-border/50 p-4 pb-2">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
             <Camera className="w-5 h-5" />
             Сканер штрих-кода
           </DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             Наведите камеру на штрих-код оборудования
           </DialogDescription>
         </DialogHeader>
@@ -341,10 +341,10 @@ export function BarcodeScanner({
                 <Camera className="w-10 h-10 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+                <h3 className="mb-2 font-semibold text-foreground">
                   Разрешите доступ к камере
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                <p className="mb-4 text-sm text-muted-foreground">
                   Для сканирования штрих-кодов требуется доступ к камере вашего устройства
                 </p>
               </div>
@@ -367,14 +367,14 @@ export function BarcodeScanner({
           {/* Permission Denied State */}
           {permissionState === "denied" && !scannedCode && (
             <div className="text-center py-8 space-y-4">
-              <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto">
-                <AlertCircle className="w-10 h-10 text-red-500" />
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-error-muted">
+                <AlertCircle className="h-10 w-10 text-error" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+                <h3 className="mb-2 font-semibold text-foreground">
                   Доступ к камере запрещён
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   {error || "Разрешите доступ к камере в настройках браузера и попробуйте снова"}
                 </p>
               </div>
@@ -395,12 +395,12 @@ export function BarcodeScanner({
               <div 
                 id="barcode-reader" 
                 ref={containerRef}
-                className="barcode-scanner-view w-full rounded-xl overflow-hidden bg-black border-2 border-slate-200 dark:border-slate-700 [&_video]:object-cover [&_video]:min-h-[280px] [&_img]:object-cover"
+                className="barcode-scanner-view w-full overflow-hidden rounded-surface border border-border/60 bg-black [&_img]:object-cover [&_video]:min-h-[280px] [&_video]:object-cover"
                 style={{ minHeight: "280px" }}
               />
               {scanning && (
-                <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
                   Сканирование...
                 </div>
               )}
@@ -410,8 +410,8 @@ export function BarcodeScanner({
           {/* Error State (non-permission) */}
           {error && permissionState !== "denied" && (
             <div className="text-center py-8">
-              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-              <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+              <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
+              <p className="mb-4 text-error">{error}</p>
               <Button onClick={handleRescan}>
                 Попробовать снова
               </Button>
@@ -421,9 +421,9 @@ export function BarcodeScanner({
           {/* Result View */}
           {scannedCode && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="flex items-center justify-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-mono text-sm text-emerald-800 dark:text-emerald-300 break-all">{scannedCode}</span>
+              <div className="flex items-center justify-center gap-2 rounded-control border border-success/25 bg-success-muted p-3">
+                <CheckCircle className="h-5 w-5 shrink-0 text-success" />
+                <span className="break-all font-mono text-sm text-success">{scannedCode}</span>
               </div>
 
               {isLoading && (
@@ -433,13 +433,13 @@ export function BarcodeScanner({
               )}
 
               {isError && (
-                <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+                <Card className="border-warning/25 bg-warning-muted">
                   <CardContent className="py-6 text-center">
-                    <Package className="w-12 h-12 mx-auto mb-4 text-amber-400" />
-                    <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">
+                    <Package className="mx-auto mb-4 h-12 w-12 text-warning" />
+                    <p className="mb-2 font-medium text-warning">
                       Оборудование не найдено
                     </p>
-                    <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
+                    <p className="mb-4 text-sm text-warning">
                       Штрих-код не зарегистрирован в системе
                     </p>
                     {onBarcodeScanned && (
@@ -460,12 +460,12 @@ export function BarcodeScanner({
               )}
 
               {equipment && (
-                <Card className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300" data-testid="scanned-equipment-result">
+                <Card className="animate-in border-border/50 bg-surface-raised shadow-surface fade-in slide-in-from-bottom-4 duration-300" data-testid="scanned-equipment-result">
                   <CardContent className="py-4">
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <h3 className="font-semibold text-lg text-slate-900 dark:text-white">{equipment.name}</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{equipment.model}</p>
+                        <h3 className="text-lg font-semibold text-foreground">{equipment.name}</h3>
+                        <p className="text-sm text-muted-foreground">{equipment.model}</p>
                       </div>
                       <Badge className={getStatusColor(equipment.status)}>
                         {getStatusText(equipment.status)}
@@ -474,27 +474,27 @@ export function BarcodeScanner({
 
                     <div className="space-y-2 text-sm">
                       {equipment.serialNumber && (
-                        <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                          <span className="text-slate-500 dark:text-slate-400">Серийный номер:</span>
+                        <div className="flex justify-between text-foreground">
+                          <span className="text-muted-foreground">Серийный номер:</span>
                           <span className="font-medium">{equipment.serialNumber}</span>
                         </div>
                       )}
                       {equipment.inventoryNumber && (
-                        <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                          <span className="text-slate-500 dark:text-slate-400">Инв. номер:</span>
+                        <div className="flex justify-between text-foreground">
+                          <span className="text-muted-foreground">Инв. номер:</span>
                           <span className="font-medium">{equipment.inventoryNumber}</span>
                         </div>
                       )}
                       {equipment.location && (
-                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                          <MapPin className="w-4 h-4 text-slate-400" />
-                          <span className="text-slate-500 dark:text-slate-400">Место:</span>
+                        <div className="flex items-center gap-1 text-foreground">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Место:</span>
                           <span className="font-medium ml-1">{equipment.location}</span>
                         </div>
                       )}
                       {equipment.assignedTo && (
-                        <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                          <span className="text-slate-500 dark:text-slate-400">Забрал:</span>
+                        <div className="flex justify-between text-foreground">
+                          <span className="text-muted-foreground">Забрал:</span>
                           <span className="font-medium">{getAssignedUserName(equipment.assignedTo)}</span>
                         </div>
                       )}
@@ -502,10 +502,10 @@ export function BarcodeScanner({
 
                     {/* Action Buttons */}
                     {(canReserve || canEdit) && (
-                      <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border/50 pt-4">
                         {canReserve && equipment.status === "available" ? (
                           <Button 
-                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="col-span-2"
                             onClick={handleTakeEquipment}
                             disabled={updateEquipmentMutation.isPending}
                             data-testid="button-take-equipment"
@@ -543,7 +543,7 @@ export function BarcodeScanner({
                         {canEdit && (
                         <Button 
                           variant="ghost"
-                          className="col-span-2 text-slate-600 dark:text-slate-400"
+                          className="col-span-2 text-muted-foreground"
                           onClick={() => {
                             if (onEquipmentFound) {
                               onEquipmentFound(equipment);
@@ -560,7 +560,7 @@ export function BarcodeScanner({
                     )}
 
                     {!canReserve && !canEdit && onEquipmentFound && (
-                      <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      <div className="mt-4 border-t border-border/50 pt-4">
                         <Button
                           variant="outline"
                           className="w-full"
@@ -593,4 +593,3 @@ export function BarcodeScanner({
     </Dialog>
   );
 }
-

@@ -164,23 +164,23 @@ export function EquipmentActivity({
   return (
     <div className="space-y-4">
       {!isConnected && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <div className="rounded-control border border-warning/30 bg-warning-muted px-3 py-2 text-xs text-warning">
           Realtime временно недоступен. История обновится после восстановления соединения.
         </div>
       )}
       {subscriptionDenied && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="rounded-control border border-error/30 bg-error-muted px-3 py-2 text-xs text-error">
           Realtime-подписка недоступна для этого оборудования.
         </div>
       )}
 
       {commentsQuery.isLoading ? (
-        <div className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <div className="rounded-control border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
           Загружаем историю...
         </div>
       ) : commentsQuery.isError ? (
-        <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
-          <p className="text-destructive">
+        <div className="space-y-2 rounded-control border border-error/30 bg-error-muted p-3 text-sm">
+          <p className="text-error">
             {permissionDenied ? "У вас нет доступа к активности этого оборудования." : "Не удалось загрузить активность оборудования."}
           </p>
           {!permissionDenied && (
@@ -191,7 +191,7 @@ export function EquipmentActivity({
           )}
         </div>
       ) : comments.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <div className="rounded-control border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
           Комментариев и файлов пока нет.
         </div>
       ) : (
@@ -199,17 +199,17 @@ export function EquipmentActivity({
           {comments.map((comment) => (
             <article
               key={comment.id}
-              className="rounded-md border border-slate-200/70 bg-white px-3 py-3 dark:border-slate-700 dark:bg-slate-900"
+              className="rounded-surface border border-border/50 bg-surface-raised px-3 py-3 shadow-xs"
             >
-              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-medium text-slate-700 dark:text-slate-200">
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
                   {comment.authorName || "Сотрудник"}
                 </span>
                 <time>{formatActivityTime(comment.createdAt)}</time>
                 {comment.legacy && <span>перенесено из старой истории</span>}
               </div>
               {comment.content && (
-                <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">
+                <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                   {comment.content}
                 </p>
               )}
@@ -224,7 +224,7 @@ export function EquipmentActivity({
                           href={href}
                           target="_blank"
                           rel="noreferrer"
-                          className="group overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"
+                          className="group overflow-hidden rounded-control border border-border/50 bg-surface-subtle"
                         >
                           <img
                             src={href}
@@ -232,7 +232,7 @@ export function EquipmentActivity({
                             className="h-32 w-full object-cover transition-transform group-hover:scale-[1.02]"
                             loading="lazy"
                           />
-                          <span className="flex items-center gap-2 px-2 py-2 text-xs text-slate-600 dark:text-slate-300">
+                          <span className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
                             <ImageIcon className="h-3.5 w-3.5 shrink-0" />
                             <span className="min-w-0 flex-1 truncate">{attachment.fileName}</span>
                             <span>{formatFileSize(attachment.fileSize)}</span>
@@ -246,11 +246,11 @@ export function EquipmentActivity({
                         href={href}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 hover:border-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        className="flex min-w-0 items-center gap-2 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-xs text-foreground hover:border-primary/40"
                       >
                         <FileText className="h-4 w-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{attachment.fileName}</span>
-                        <span className="shrink-0 text-slate-500">{formatFileSize(attachment.fileSize)}</span>
+                        <span className="shrink-0 text-muted-foreground">{formatFileSize(attachment.fileSize)}</span>
                       </a>
                     );
                   })}
@@ -262,12 +262,12 @@ export function EquipmentActivity({
       )}
 
       {canComment && !permissionDenied ? (
-        <div className="space-y-3 border-t border-slate-200/80 pt-4 dark:border-slate-700">
+        <div className="space-y-3 border-t border-border/50 pt-4">
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Добавьте комментарий о состоянии, дефекте или использовании"
-            className="min-h-24 resize-y bg-white dark:bg-slate-950"
+            className="min-h-24 resize-y bg-surface-raised"
             maxLength={10_000}
             disabled={createMutation.isPending}
           />
@@ -291,7 +291,7 @@ export function EquipmentActivity({
               <Paperclip className="mr-1.5 h-3.5 w-3.5" />
               Добавить фото или файл
             </Button>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-xs text-muted-foreground">
               До 5 файлов по 10 МБ: JPG, PNG, WebP, PDF, DOCX, XLSX, TXT
             </span>
           </div>
@@ -300,12 +300,12 @@ export function EquipmentActivity({
               {files.map((file, index) => (
                 <span
                   key={`${file.name}-${file.lastModified}-${index}`}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/40 bg-surface-subtle px-2.5 py-1 text-xs text-foreground"
                 >
                   <span className="max-w-56 truncate">{file.name}</span>
                   <button
                     type="button"
-                    className="rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    className="rounded-full p-0.5 hover:bg-surface-overlay"
                     aria-label={`Убрать файл ${file.name}`}
                     onClick={() => removeFile(index)}
                   >
@@ -335,7 +335,7 @@ export function EquipmentActivity({
           </div>
         </div>
       ) : !commentsQuery.isLoading && !permissionDenied ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+        <div className="rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-xs text-muted-foreground">
           У вас нет права добавлять записи в историю оборудования.
         </div>
       ) : null}
