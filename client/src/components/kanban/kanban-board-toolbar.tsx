@@ -107,7 +107,7 @@ export function KanbanBoardToolbar({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="min-w-0 gap-2 rounded-xl border-border/35 px-3"
+                    className="min-w-0 gap-2 rounded-control border-border/50 bg-surface-base px-3"
                     aria-label="Сортировка карточек"
                   >
                     <ArrowUpDown className="h-4 w-4" />
@@ -145,18 +145,18 @@ export function KanbanBoardToolbar({
               <Button
                 variant="outline"
                 size="sm"
-                className="min-w-0 gap-2 rounded-xl border-border/35 px-3"
+                className="min-w-0 gap-2 rounded-control border-border/50 bg-surface-base px-3"
                 onClick={onOpenFilters}
               >
                 <Settings2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Фильтры</span>
                 {hasActiveFilters && <Badge variant="secondary" className="rounded-full">Активны</Badge>}
               </Button>
-              <div className="col-span-3 inline-flex w-full rounded-xl border border-border/45 bg-muted/40 p-1 lg:col-span-1 lg:w-auto">
+              <div className="col-span-3 inline-flex w-full rounded-control border border-border/45 bg-surface-subtle p-1 lg:col-span-1 lg:w-auto">
                 <Button
                   variant={viewMode === "kanban" ? "secondary" : "ghost"}
                   size="sm"
-                  className="flex-1 gap-2 rounded-lg lg:flex-none"
+                  className="flex-1 gap-2 rounded-control lg:flex-none"
                   onClick={() => onViewModeChange("kanban")}
                 >
                   <Layers3 className="h-4 w-4" />
@@ -165,7 +165,7 @@ export function KanbanBoardToolbar({
                 <Button
                   variant={viewMode === "list" ? "secondary" : "ghost"}
                   size="sm"
-                  className="flex-1 gap-2 rounded-lg lg:flex-none"
+                  className="flex-1 gap-2 rounded-control lg:flex-none"
                   onClick={() => onViewModeChange("list")}
                 >
                   <LayoutList className="h-4 w-4" />

@@ -133,21 +133,20 @@ export function KanbanBoardCard({
   return (
     <div
       className={[
-        "group w-full rounded-[20px] border p-3 sm:p-3.5 space-y-3 shadow-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out select-none text-card-foreground",
+        "group w-full select-none space-y-3 rounded-surface border p-3 text-card-foreground shadow-xs transition-[box-shadow,border-color,background-color] duration-150 ease-out sm:p-3.5",
         dueDateStatusClasses.card,
         isDragging
-          ? "border-border/70 shadow-xl shadow-black/10 ring-2 ring-border/35"
+          ? "border-primary/40 shadow-overlay ring-2 ring-primary/15"
           : isDropAnimating
-            ? "border-border/60 shadow-lg shadow-black/10"
-            : "hover:border-border hover:shadow-md dark:hover:border-border",
+            ? "border-primary/30 shadow-surface"
+            : "hover:border-border/80 hover:shadow-surface",
       ].join(" ").trim()}
       style={{
         background: isDragging
           ? `linear-gradient(180deg, var(--kanban-drag-card-start), ${listTint || "var(--kanban-card-end)"})`
           : `linear-gradient(180deg, var(--kanban-card-start), ${listCardTint || "var(--kanban-card-end)"})`,
-        borderColor: isDragging || isDropAnimating
-          ? undefined
-          : (list.color || "hsl(var(--app-border))"),
+        borderLeftColor: list.color || undefined,
+        borderLeftWidth: list.color ? 2 : undefined,
       }}
       onDoubleClick={(event) => {
         const target = event.target;
@@ -226,7 +225,7 @@ export function KanbanBoardCard({
               <a
                 href={`/locations?locationId=${encodeURIComponent(card.locationTopics![0].locationId)}&topicId=${encodeURIComponent(card.locationTopics![0].id)}`}
                 onClick={(event) => event.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-700 hover:bg-violet-500/20 dark:text-violet-200"
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs text-primary hover:bg-primary/15"
               >
                 <MessageSquare className="h-3 w-3" />
                 Темы: {card.locationTopics?.length}
@@ -298,11 +297,11 @@ export function KanbanBoardCard({
           )}
         </div>
 
-        <div className="flex shrink-0 flex-col items-center gap-1 border-l border-border/40 pl-2">
+        <div className="flex shrink-0 flex-col items-center gap-1 border-l border-border/35 pl-2">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="h-8 w-8 rounded-control text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label="Быстрое редактирование"
             title="Быстрое редактирование"
             onClick={(event) => {
@@ -321,7 +320,7 @@ export function KanbanBoardCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="h-8 w-8 rounded-control text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Действия с карточкой"
                 title="Действия с карточкой"
                 onClick={stopEventPropagation}

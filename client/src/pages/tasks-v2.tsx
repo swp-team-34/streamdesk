@@ -2784,7 +2784,7 @@ export default function TasksV2Page() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-[min(1520px,100%)] min-w-0 space-y-3 p-3 pt-4 [--kanban-card-end:var(--muted)] [--kanban-card-start:var(--card)] [--kanban-drag-card-start:var(--card)] [--kanban-lane-empty:var(--muted)] [--kanban-lane-fallback:var(--muted)] [--kanban-list-end:var(--muted)] [--kanban-list-header:var(--card)] [--kanban-list-over-end:var(--muted)] [--kanban-list-over-start:var(--muted)] [--kanban-list-start:var(--muted)] dark:[--kanban-card-end:var(--muted)] dark:[--kanban-card-start:var(--card)] dark:[--kanban-drag-card-start:var(--card)] dark:[--kanban-lane-empty:var(--muted)] dark:[--kanban-lane-fallback:var(--muted)] dark:[--kanban-list-end:var(--muted)] dark:[--kanban-list-header:var(--card)] dark:[--kanban-list-over-end:var(--muted)] dark:[--kanban-list-over-start:var(--muted)] dark:[--kanban-list-start:var(--muted)] sm:p-5 sm:pt-5">
+    <div className="mx-auto min-w-0 w-full max-w-[min(1600px,100%)] space-y-3 p-3 pt-4 [--kanban-card-end:var(--surface-raised)] [--kanban-card-start:var(--surface-raised)] [--kanban-drag-card-start:var(--surface-overlay)] [--kanban-lane-empty:var(--surface-subtle)] [--kanban-lane-fallback:var(--surface-subtle)] [--kanban-list-end:var(--surface-subtle)] [--kanban-list-header:var(--surface-raised)] [--kanban-list-over-end:var(--surface-subtle)] [--kanban-list-over-start:var(--surface-overlay)] [--kanban-list-start:var(--surface-raised)] sm:p-5 sm:pt-5">
       <KanbanBoardNavigation
         boards={boards}
         boardsLoading={boardsLoading}
@@ -2818,7 +2818,7 @@ export default function TasksV2Page() {
         }}
       />
 
-      <Card className="mt-2 min-w-0 overflow-visible border-border/40 bg-card shadow-sm">
+      <Card className="mt-2 min-w-0 overflow-visible border-border/50 bg-surface-base shadow-xs">
         <KanbanBoardToolbar
           selectedBoard={selectedBoard}
           search={cardFilters.search}
@@ -2837,7 +2837,7 @@ export default function TasksV2Page() {
         />
         <CardContent className="min-w-0 overflow-visible px-3 pb-3 sm:px-6 sm:pb-6">
           {!selectedBoard ? (
-	            <div className="rounded-[24px] border border-dashed border-border/40 bg-muted/30 px-5 py-10 text-sm leading-6 text-muted-foreground">
+	            <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-5 py-10 text-sm leading-6 text-muted-foreground">
 	              Выберите доску в верхнем списке или создайте новую через кнопку плюс.
             </div>
 	          ) : (
@@ -2860,9 +2860,9 @@ export default function TasksV2Page() {
 	                          >
                       {lists.map((list, listIndex) => {
 	                        const listCards = filteredCardsByListId.get(list.id) ?? [];
-	                        const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.16 : 0.12);
-	                        const listHeaderTint = toSoftColor(list.color, 0.2);
-	                        const listCardTint = toSoftColor(list.color, 0.05);
+	                        const listTint = toSoftColor(list.color, listCards.length > 0 ? 0.045 : 0.03);
+	                        const listHeaderTint = toSoftColor(list.color, 0.07);
+	                        const listCardTint = toSoftColor(list.color, 0.018);
 
                         return (
                           <Draggable
@@ -2891,10 +2891,10 @@ export default function TasksV2Page() {
                             {(provided, snapshot) => (
                               <Card
                                 className={[
-                                  "flex h-full min-h-[360px] w-full flex-col overflow-visible rounded-[24px] border border-border/45 shadow-sm transition-[box-shadow,border-color,background-color] duration-200",
+                                  "group/lane flex h-full min-h-[360px] w-full flex-col overflow-visible rounded-surface border border-border/50 bg-surface-subtle shadow-xs transition-[box-shadow,border-color,background-color] duration-150",
                                   snapshot.isDraggingOver || listDragSnapshot.isDragging
-                                    ? "border-border/70 shadow-lg shadow-black/5 ring-2 ring-border/35"
-                                    : "hover:border-border/70 hover:shadow-md",
+                                    ? "border-primary/40 shadow-surface ring-2 ring-primary/15"
+                                    : "hover:border-border/70 hover:shadow-surface",
                                 ].join(" ").trim()}
                                 style={{
                                   background: snapshot.isDraggingOver
@@ -2903,8 +2903,11 @@ export default function TasksV2Page() {
                                 }}
                               >
                                 <CardHeader
-                                  className="space-y-4 rounded-t-[24px] border-b border-border/35"
-                                  style={{ backgroundColor: listHeaderTint || listTint || "var(--kanban-list-header)" }}
+                                  className="space-y-3 rounded-t-surface border-b border-border/40 bg-surface-raised p-4"
+                                  style={{
+                                    backgroundColor: listHeaderTint || listTint || "var(--kanban-list-header)",
+                                    boxShadow: `inset 0 2px 0 ${list.color || "hsl(var(--app-border) / 0.45)"}`,
+                                  }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
@@ -2945,13 +2948,13 @@ export default function TasksV2Page() {
                                         )}
                                       </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                    <div className="flex flex-wrap items-center justify-end gap-1">
                                       {canEditSelectedBoard && (
                                         <>
                                           <div
                                             role="button"
                                             tabIndex={0}
-                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-control text-muted-foreground transition hover:bg-accent hover:text-foreground active:cursor-grabbing"
                                             aria-label="Перетащить список"
                                             title="Перетащить список"
                                             {...listDragProvided.dragHandleProps}
@@ -2961,7 +2964,7 @@ export default function TasksV2Page() {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                                            className="h-8 w-8 rounded-control text-muted-foreground hover:bg-accent hover:text-foreground"
                                             aria-label="Изменить список"
                                             title="Изменить список"
                                             onClick={() => handleEditList(list)}
@@ -2974,7 +2977,7 @@ export default function TasksV2Page() {
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                className="h-8 w-8 rounded-control text-muted-foreground hover:bg-accent hover:text-foreground"
                                                 aria-label="Настройки списка"
                                                 title="Настройки списка"
                                                 disabled={isListPending}
@@ -2986,11 +2989,11 @@ export default function TasksV2Page() {
 	                                              <DropdownMenuLabel>Позиция</DropdownMenuLabel>
 	                                              <DropdownMenuItem onClick={() => handleShiftList(list.id, "up")} disabled={isListPending || listIndex === 0}>
 	                                                <ArrowLeft className="mr-2 h-4 w-4" />
-	                                                Move left
+	                                                Переместить влево
 	                                              </DropdownMenuItem>
 	                                              <DropdownMenuItem onClick={() => handleShiftList(list.id, "down")} disabled={isListPending || listIndex === lists.length - 1}>
 	                                                <ArrowDown className="mr-2 h-4 w-4 rotate-[-90deg]" />
-	                                                Move right
+	                                                Переместить вправо
 	                                              </DropdownMenuItem>
 	                                              <DropdownMenuSeparator />
 	                                              <DropdownMenuLabel>Тип списка</DropdownMenuLabel>
@@ -3051,7 +3054,7 @@ export default function TasksV2Page() {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                            className="h-8 w-8 rounded-control text-error hover:bg-error-muted hover:text-error"
                                             aria-label="Удалить список"
                                             title="Удалить список"
                                             onClick={async () => {
@@ -3064,25 +3067,24 @@ export default function TasksV2Page() {
                                           </Button>
                                         </>
                                       )}
-                                      <Badge variant="secondary" className="rounded-full border border-border/35 bg-muted/30 px-2.5 text-muted-foreground">
+                                      <Badge variant="secondary" className="rounded-full border border-border/35 bg-surface-subtle px-2.5 text-muted-foreground">
                                         {listCards.length}
                                       </Badge>
-                                      <Badge variant={list.type === "active" ? "default" : "outline"} className="rounded-full px-2.5 shadow-sm">
+                                      <Badge
+                                        variant="outline"
+                                        className={[
+                                          "rounded-full px-2.5 shadow-none",
+                                          list.type === "active"
+                                            ? "border-primary/20 bg-primary/10 text-primary"
+                                            : "border-border/40 bg-surface-subtle text-muted-foreground",
+                                        ].join(" ")}
+                                      >
                                         {LIST_TYPE_LABELS[list.type]}
                                       </Badge>
                                     </div>
                                   </div>
                                 </CardHeader>
-                                <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 p-4">
-                                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
-                                      Тип: {LIST_TYPE_LABELS[list.type]}
-                                    </span>
-                                    <span className={KANBAN_BOARD_GHOST_BADGE_CLASS}>
-                                      {list.color ? "С цветом" : "Без цвета"}
-                                    </span>
-                                  </div>
-
+                                <CardContent className="flex min-h-0 flex-1 flex-col space-y-3 p-3">
                                   {canEditSelectedBoard && (
                                     <KanbanInlineCardComposer
                                       open={inlineCardListId === list.id}
@@ -3108,10 +3110,10 @@ export default function TasksV2Page() {
 	                                  <div
 	                                    ref={provided.innerRef}
 	                                    {...provided.droppableProps}
-	                                    className={["task-drop-zone min-h-[180px] flex-1 space-y-3 overflow-y-auto pr-1 transition-[background-color,border-color] duration-150", snapshot.isDraggingOver ? "rounded-2xl bg-muted/30" : ""].join(" ")}
+	                                    className={["task-drop-zone min-h-[180px] flex-1 space-y-2.5 overflow-y-auto pr-1 transition-[background-color,border-color] duration-150", snapshot.isDraggingOver ? "rounded-surface bg-primary/5" : ""].join(" ")}
 	                                  >
                                     {listCards.length === 0 && !snapshot.isDraggingOver && (
-                                      <div className="rounded-[18px] border border-dashed border-border/45 bg-muted/20 px-3 py-5 text-sm leading-6 text-muted-foreground">
+                                      <div className="rounded-control border border-dashed border-border/50 bg-surface-raised px-3 py-5 text-sm leading-6 text-muted-foreground">
                                         {canEditSelectedBoard
                                           ? "Перетащите сюда карточку или добавьте задачу выше."
                                           : "В этом списке пока нет карточек."}

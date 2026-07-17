@@ -35,7 +35,7 @@ export function KanbanInlineCardComposer({
   onSubmit,
 }: KanbanInlineCardComposerProps) {
   return (
-    <div className="rounded-[18px] border border-border/40 bg-muted/20 p-2">
+    <div className="rounded-control border border-border/40 bg-surface-raised p-2 shadow-xs">
       {open ? (
         <div className="space-y-2">
           <Input
@@ -102,7 +102,7 @@ export function KanbanInlineCardComposer({
             </Button>
             <Button
               size="sm"
-              className="rounded-xl"
+            className="rounded-control"
               onMouseDown={(event) => event.preventDefault()}
               onClick={onSubmit}
               disabled={!smartInput.title.trim() || smartInput.errors.length > 0 || pending}
@@ -114,7 +114,7 @@ export function KanbanInlineCardComposer({
       ) : (
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          className="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground"
           onClick={onOpen}
           disabled={pending}
         >

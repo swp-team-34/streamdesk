@@ -152,7 +152,7 @@ body::-webkit-scrollbar,
   transition: height 180ms ease, width 180ms ease, margin 180ms ease !important;
 }
 .task-board-column {
-  border-radius: 1.5rem;
+  border-radius: var(--radius-surface);
   height: clamp(380px, calc(100vh - 260px), 760px);
   overflow: visible;
 }
