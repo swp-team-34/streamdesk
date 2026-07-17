@@ -348,8 +348,8 @@ export default function EstimatesPage() {
     <div className="w-full max-w-full space-y-4 p-3 sm:p-4 lg:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-normal text-slate-900 dark:text-white">Смета</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <h1 className="text-2xl font-bold tracking-normal text-foreground">Смета</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Соберите комплект по ТЗ, цены и коэффициенты пересчитаются автоматически.
           </p>
         </div>
@@ -391,14 +391,14 @@ export default function EstimatesPage() {
       </div>
 
       <div className="grid gap-4">
-        <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <section className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,260px)_1fr]">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Название</label>
+              <label className="text-sm font-medium text-foreground">Название</label>
               <Input value={title} onChange={(event) => setTitle(event.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Файл ТЗ</label>
+              <label className="text-sm font-medium text-foreground">Файл ТЗ</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -412,9 +412,9 @@ export default function EstimatesPage() {
                   Загрузить
                 </Button>
                 {file && (
-                  <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex min-w-0 items-center gap-2 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-sm">
                     <span className="max-w-[280px] truncate">{file.name}</span>
-                    <button type="button" className="text-slate-500 hover:text-red-600" onClick={() => setFile(null)}>
+                    <button type="button" className="text-muted-foreground transition-colors hover:text-error" onClick={() => setFile(null)}>
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -424,19 +424,19 @@ export default function EstimatesPage() {
           </div>
 
           <div className="mt-4 space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Текст ТЗ</label>
+            <label className="text-sm font-medium text-foreground">Текст ТЗ</label>
             <Textarea
               value={tzText}
               onChange={(event) => setTzText(event.target.value)}
               placeholder="Вставьте ТЗ: формат мероприятия, количество камер, звук, свет, экраны, трансляция, запись..."
-              className="min-h-44 resize-y bg-white dark:bg-slate-950"
+              className="min-h-44 resize-y"
             />
           </div>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">Склад: {equipment.length}</span>
-              <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">С ценой: {pricedCount}</span>
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full border border-border/40 bg-surface-subtle px-2.5 py-1">Склад: {equipment.length}</span>
+              <span className="rounded-full border border-border/40 bg-surface-subtle px-2.5 py-1">С ценой: {pricedCount}</span>
             </div>
             <Button type="button" disabled={!canAnalyze} onClick={() => analyzeMutation.mutate()}>
               {analyzeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
@@ -445,25 +445,25 @@ export default function EstimatesPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <section className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-slate-900 dark:text-white">История смет</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Откройте прошлую версию, поправьте строки и сохраните новую.</p>
+              <h2 className="font-semibold text-foreground">История смет</h2>
+              <p className="text-sm text-muted-foreground">Откройте прошлую версию, поправьте строки и сохраните новую.</p>
             </div>
             <Badge variant="secondary">{estimateHistory.length} версий</Badge>
           </div>
           {estimateHistory.length === 0 ? (
-            <div className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700">
+            <div className="mt-3 rounded-control border border-dashed border-border/60 bg-surface-subtle px-3 py-6 text-center text-sm text-muted-foreground">
               История появится после первой сборки сметы или ручного сохранения версии.
             </div>
           ) : (
             <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {estimateHistory.slice(0, 9).map((entry) => (
-                <div key={entry.id} className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+                <div key={entry.id} className="rounded-control border border-border/50 bg-surface-subtle/60 p-3">
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-slate-900 dark:text-white">{entry.title}</div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="truncate font-medium text-foreground">{entry.title}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {new Date(entry.savedAt).toLocaleString("ru-RU")} · {entry.estimate.items.length} поз. · {formatMoney(entry.estimate.totals.subtotal)}
                     </div>
                   </div>
@@ -481,12 +481,12 @@ export default function EstimatesPage() {
           )}
         </section>
 
-        <aside className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <aside className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)_minmax(320px,420px)]">
-          <div className="border-b border-slate-200 pb-4 dark:border-slate-800 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+          <div className="border-b border-border/50 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
             <div className="flex items-center gap-2">
               <Clock3 className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold text-slate-900 dark:text-white">Смены</h2>
+              <h2 className="font-semibold text-foreground">Смены</h2>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -507,71 +507,71 @@ export default function EstimatesPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Смен вручную</label>
+                <label className="text-xs text-muted-foreground">Смен вручную</label>
                 <Input type="number" min="0.25" step="0.25" value={manualShiftCount} onChange={(event) => setManualShiftCount(event.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Часов/смена</label>
+                <label className="text-xs text-muted-foreground">Часов/смена</label>
                 <Input type="number" min="1" max="24" step="0.5" value={shiftHours} onChange={(event) => setShiftHours(event.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">День с</label>
+                <label className="text-xs text-muted-foreground">День с</label>
                 <Input type="number" min="0" max="23" step="1" value={dayStartHour} onChange={(event) => setDayStartHour(event.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Ночь с</label>
+                <label className="text-xs text-muted-foreground">Ночь с</label>
                 <Input type="number" min="0" max="23" step="1" value={nightStartHour} onChange={(event) => setNightStartHour(event.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Округление</label>
+                <label className="text-xs text-muted-foreground">Округление</label>
                 <Input type="number" min="0.25" max="24" step="0.25" value={roundingStep} onChange={(event) => setRoundingStep(event.target.value)} className="h-9" />
               </div>
               <div className="hidden space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Буд. день</label>
+                <label className="text-xs text-muted-foreground">Буд. день</label>
                 <Input type="number" min="0" step="0.1" value={weekdayDayCoefficient} onChange={(event) => setWeekdayDayCoefficient(event.target.value)} className="h-9" />
               </div>
               <div className="hidden space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Буд. ночь</label>
+                <label className="text-xs text-muted-foreground">Буд. ночь</label>
                 <Input type="number" min="0" step="0.1" value={weekdayNightCoefficient} onChange={(event) => setWeekdayNightCoefficient(event.target.value)} className="h-9" />
               </div>
               <div className="hidden space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Вых. день</label>
+                <label className="text-xs text-muted-foreground">Вых. день</label>
                 <Input type="number" min="0" step="0.1" value={weekendDayCoefficient} onChange={(event) => setWeekendDayCoefficient(event.target.value)} className="h-9" />
               </div>
               <div className="hidden space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Вых. ночь</label>
+                <label className="text-xs text-muted-foreground">Вых. ночь</label>
                 <Input type="number" min="0" step="0.1" value={weekendNightCoefficient} onChange={(event) => setWeekendNightCoefficient(event.target.value)} className="h-9" />
               </div>
               <div className="col-span-2 space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Доп. выходные даты</label>
+                <label className="text-xs text-muted-foreground">Доп. выходные даты</label>
                 <Input value={holidayDates} onChange={(event) => setHolidayDates(event.target.value)} placeholder="2026-05-25, 12.06.2026" className="h-9" />
               </div>
               <div className="col-span-2 space-y-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Рабочие выходные</label>
+                <label className="text-xs text-muted-foreground">Рабочие выходные</label>
                 <Input value={workdayDates} onChange={(event) => setWorkdayDates(event.target.value)} placeholder="2026-05-23, 23.05.2026" className="h-9" />
               </div>
             </div>
           </div>
 
-          <div className="border-b border-slate-200 pb-4 dark:border-slate-800 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+          <div className="border-b border-border/50 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
             <div className="flex items-center gap-2">
               <Network className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold text-slate-900 dark:text-white">Доставка</h2>
+              <h2 className="font-semibold text-foreground">Доставка</h2>
             </div>
             <div className="mt-3 space-y-2">
-              <label className="text-xs text-slate-500 dark:text-slate-400">Дальность, км в одну сторону</label>
+              <label className="text-xs text-muted-foreground">Дальность, км в одну сторону</label>
               <Input type="number" min="0" step="1" value={deliveryDistanceKm} onChange={(event) => setDeliveryDistanceKm(event.target.value)} className="h-9" />
               <div className="grid grid-cols-3 gap-2 text-sm">
-                <div className="rounded-md bg-slate-50 p-2 dark:bg-slate-800">
-                  <div className="text-xs text-slate-500">Авто</div>
+                <div className="rounded-control bg-surface-subtle p-2">
+                  <div className="text-xs text-muted-foreground">Авто</div>
                   <div className="font-semibold">{delivery.vehicles}</div>
                 </div>
-                <div className="rounded-md bg-slate-50 p-2 dark:bg-slate-800">
-                  <div className="text-xs text-slate-500">Время</div>
+                <div className="rounded-control bg-surface-subtle p-2">
+                  <div className="text-xs text-muted-foreground">Время</div>
                   <div className="font-semibold">{delivery.hours} ч</div>
                 </div>
-                <div className="rounded-md bg-slate-50 p-2 dark:bg-slate-800">
-                  <div className="text-xs text-slate-500">Сумма</div>
+                <div className="rounded-control bg-surface-subtle p-2">
+                  <div className="text-xs text-muted-foreground">Сумма</div>
                   <div className="font-semibold">{formatMoney(delivery.total)}</div>
                 </div>
               </div>
@@ -580,27 +580,27 @@ export default function EstimatesPage() {
           <div>
           <div className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-slate-900 dark:text-white">Готовность склада</h2>
+            <h2 className="font-semibold text-foreground">Готовность склада</h2>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-              <div className="text-xs text-slate-500 dark:text-slate-400">Позиций</div>
+            <div className="rounded-control bg-surface-subtle p-3">
+              <div className="text-xs text-muted-foreground">Позиций</div>
               <div className="mt-1 text-xl font-semibold">{catalog.length}</div>
             </div>
-            <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-              <div className="text-xs text-slate-500 dark:text-slate-400">С ценой</div>
+            <div className="rounded-control bg-surface-subtle p-3">
+              <div className="text-xs text-muted-foreground">С ценой</div>
               <div className="mt-1 text-xl font-semibold">{pricedCount}</div>
             </div>
           </div>
           {missingPriceCount > 0 && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+            <div className="mt-3 rounded-control border border-warning/30 bg-warning-muted px-3 py-2 text-sm text-warning">
               Без цены: {missingPriceCount}. Эти позиции попадут в смету с нулевой стоимостью.
             </div>
           )}
           <div className="mt-4 space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Добавить позицию</label>
+            <label className="text-sm font-medium text-foreground">Добавить позицию</label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={catalogSearch}
                 onChange={(event) => setCatalogSearch(event.target.value)}
@@ -610,12 +610,12 @@ export default function EstimatesPage() {
             </div>
             <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
               {equipmentLoading ? (
-                <div className="flex items-center justify-center py-6 text-slate-500">
+                <div className="flex items-center justify-center py-6 text-muted-foreground">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Загрузка
                 </div>
               ) : visibleCatalog.length === 0 ? (
-                <div className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700">
+                <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle px-3 py-6 text-center text-sm text-muted-foreground">
                   Ничего не найдено
                 </div>
               ) : (
@@ -623,13 +623,13 @@ export default function EstimatesPage() {
                   <button
                     key={item.id}
                     type="button"
-                    className="flex w-full items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 dark:border-slate-800"
+                    className="flex w-full items-start gap-2 rounded-control border border-border/50 bg-surface-subtle/50 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                     onClick={() => addCatalogLine(item)}
                   >
                     <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-white">{item.name}</span>
-                      <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                      <span className="block truncate text-sm font-medium text-foreground">{item.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
                         {[getTypeText(item.type), item.model, formatMoney(item.unitPrice)].filter(Boolean).join(" · ")}
                       </span>
                     </span>
@@ -644,53 +644,53 @@ export default function EstimatesPage() {
       </div>
 
       {estimate && (
-        <section className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-slate-800 lg:flex-row lg:items-start lg:justify-between">
+        <section className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
+          <div className="flex flex-col gap-3 border-b border-border/50 p-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{estimate.title}</h2>
+                <h2 className="text-lg font-semibold text-foreground">{estimate.title}</h2>
                 <Badge variant="secondary">{estimate.source === "ai" ? "ИИ" : "Локальный анализ"}</Badge>
               </div>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{estimate.summary}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{estimate.summary}</p>
               {estimate.document && (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Файл: {estimate.document.name}, извлечено {estimate.document.extractedChars} символов
                 </p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:w-[620px]">
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Итого</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Итого</div>
                 <div className="mt-1 font-semibold">{formatMoney(estimateGrandTotal)}</div>
-                {delivery.total > 0 && <div className="mt-1 text-[11px] text-slate-500">оборудование {formatMoney(estimate.totals.subtotal)} + доставка</div>}
+                {delivery.total > 0 && <div className="mt-1 text-[11px] text-muted-foreground">оборудование {formatMoney(estimate.totals.subtotal)} + доставка</div>}
               </div>
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Смены</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Смены</div>
                 <div className="mt-1 font-semibold">{estimate.shiftCalculation?.chargeableShifts ?? 1}</div>
               </div>
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Коэфф.</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Коэфф.</div>
                 <div className="mt-1 font-semibold">x{estimate.shiftCalculation?.chargeFactor ?? 1}</div>
               </div>
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Строк</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Строк</div>
                 <div className="mt-1 font-semibold">{estimate.totals.lines}</div>
               </div>
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Без цены</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Без цены</div>
                 <div className="mt-1 font-semibold">{estimate.totals.missingPrices}</div>
               </div>
-              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-slate-500 dark:text-slate-400">Дефицит</div>
+              <div className="rounded-control bg-surface-subtle p-3">
+                <div className="text-xs text-muted-foreground">Дефицит</div>
                 <div className="mt-1 font-semibold">{estimate.totals.availabilityIssues}</div>
               </div>
             </div>
           </div>
 
           {estimate.warnings.length > 0 && (
-            <div className="space-y-2 border-b border-slate-200 p-4 dark:border-slate-800">
+            <div className="space-y-2 border-b border-border/50 p-4">
               {estimate.warnings.map((warning, index) => (
-                <div key={`${warning}-${index}`} className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                <div key={`${warning}-${index}`} className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-muted px-3 py-2 text-sm text-warning">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span className="min-w-0 break-words">{warning}</span>
                 </div>
@@ -699,12 +699,12 @@ export default function EstimatesPage() {
           )}
 
           {estimate.shiftCalculation && (
-            <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+            <div className="border-b border-border/50 p-4">
               <div className="grid gap-2 md:grid-cols-4">
                 {estimate.shiftCalculation.segments.map((segment) => (
-                  <div key={segment.kind} className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-800">
-                    <div className="font-medium text-slate-900 dark:text-white">{segment.label}</div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <div key={segment.kind} className="rounded-control bg-surface-subtle p-3 text-sm">
+                    <div className="font-medium text-foreground">{segment.label}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {segment.hours} ч · {segment.shifts} см · x{segment.coefficient}
                     </div>
                   </div>
@@ -715,7 +715,7 @@ export default function EstimatesPage() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              <thead className="bg-surface-subtle text-left text-xs uppercase tracking-normal text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Позиция</th>
                   <th className="px-4 py-3">Кол-во</th>
@@ -727,26 +727,26 @@ export default function EstimatesPage() {
                   <th className="px-4 py-3 text-right"> </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-border/50">
                 {estimate.items.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                       Позиции пока не добавлены
                     </td>
                   </tr>
                 ) : (
                   estimateGroups.map((group) => (
                     <Fragment key={group.key}>
-                      <tr className="bg-slate-100 dark:bg-slate-800/80">
-                        <td className="px-4 py-2 font-semibold text-slate-900 dark:text-white" colSpan={5}>{group.title}</td>
-                        <td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{formatMoney(group.total)}</td>
+                      <tr className="bg-surface-subtle/80">
+                        <td className="px-4 py-2 font-semibold text-foreground" colSpan={5}>{group.title}</td>
+                        <td className="px-4 py-2 font-semibold text-foreground">{formatMoney(group.total)}</td>
                         <td colSpan={2} />
                       </tr>
                       {group.items.map((line) => (
                     <tr key={line.lineId} className="align-top">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900 dark:text-white">{line.name}</div>
-                        <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="font-medium text-foreground">{line.name}</div>
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                           <span>{getTypeText(line.type)}</span>
                           {line.model && <span>· {line.model}</span>}
                           {line.locations.length > 0 && <span>· {line.locations.join(", ")}</span>}
@@ -768,16 +768,16 @@ export default function EstimatesPage() {
                           step="0.01"
                           value={line.unitPrice}
                           onChange={(event) => updateLine(line.lineId, { unitPrice: Number(event.target.value) })}
-                          className={cn("h-9 w-32", !line.unitPrice && "border-amber-300")}
+                          className={cn("h-9 w-32", !line.unitPrice && "border-warning/60")}
                         />
                       </td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                      <td className="px-4 py-3 text-foreground/80">
                         {formatMoney(line.baseTotal ?? line.quantity * line.unitPrice)}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                      <td className="px-4 py-3 text-foreground/80">
                         x{line.shiftFactor ?? 1}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                      <td className="px-4 py-3 font-semibold text-foreground">
                         {formatMoney(line.total ?? line.quantity * line.unitPrice)}
                       </td>
                       <td className="px-4 py-3">
@@ -789,7 +789,7 @@ export default function EstimatesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(line.lineId)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-error" />
                         </Button>
                       </td>
                     </tr>
@@ -798,7 +798,7 @@ export default function EstimatesPage() {
                   ))
                 )}
               </tbody>
-              <tfoot className="border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800">
+              <tfoot className="border-t border-border/50 bg-surface-subtle">
                 <tr>
                   <td className="px-4 py-3 font-semibold" colSpan={5}>Итого</td>
                   <td className="px-4 py-3 font-semibold">{formatMoney(estimate.totals.subtotal)}</td>
@@ -809,11 +809,11 @@ export default function EstimatesPage() {
           </div>
 
           {estimate.missing.length > 0 && (
-            <div className="border-t border-slate-200 p-4 dark:border-slate-800">
-              <h3 className="font-semibold text-slate-900 dark:text-white">Не найдено на складе</h3>
+            <div className="border-t border-border/50 p-4">
+              <h3 className="font-semibold text-foreground">Не найдено на складе</h3>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 {estimate.missing.map((item, index) => (
-                  <div key={`${item.name}-${index}`} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+                  <div key={`${item.name}-${index}`} className="rounded-control border border-error/30 bg-error-muted px-3 py-2 text-sm text-error">
                     <div className="font-medium">{item.name} x{item.quantity}</div>
                     <div className="mt-1 text-xs">{item.reason}</div>
                   </div>
