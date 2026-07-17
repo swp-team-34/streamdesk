@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -182,9 +183,9 @@ export default function Production() {
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
   return (
-    <div className="space-y-4 sm:space-y-6 w-full min-w-0 max-w-full">
+    <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-5 px-4 py-4 sm:py-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Продакшн / Шоу</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Продакшн / Шоу</h1>
       </div>
 
       <Card>
@@ -314,7 +315,7 @@ export default function Production() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-surface border border-border/50">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -599,8 +600,8 @@ function ParticipantForm({
         </div>
         <div className="grid gap-2">
           <Label>Навыки</Label>
-          <textarea
-            className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Textarea
+            className="min-h-[60px]"
             value={skills}
             onChange={(e) => setSkills(e.target.value)}
             placeholder="Навыки, компетенции (каждый с новой строки или через запятую)"
@@ -608,8 +609,8 @@ function ParticipantForm({
         </div>
         <div className="grid gap-2">
           <Label>Характеристики</Label>
-          <textarea
-            className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Textarea
+            className="min-h-[60px]"
             value={characteristics}
             onChange={(e) => setCharacteristics(e.target.value)}
             placeholder="Характеристики, особенности для эфира"
@@ -617,8 +618,8 @@ function ParticipantForm({
         </div>
         <div className="grid gap-2">
           <Label>О себе</Label>
-          <textarea
-            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Textarea
+            className="min-h-[80px]"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="Краткая биография"
