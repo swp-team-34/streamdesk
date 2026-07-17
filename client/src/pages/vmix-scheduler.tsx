@@ -33,43 +33,26 @@ import {
   ArrowRight,
   Info
 } from "lucide-react";
-import { format, parseISO, isPast, isToday, isTomorrow, addMinutes, differenceInMinutes } from "date-fns";
-import { ru } from "date-fns/locale";
+import { parseISO, differenceInMinutes } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { VmixStatusCards } from "@/components/vmix/vmix-status-cards";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  asVmixRecord as asRecord,
+  buildVmixEventActions,
+  findSelectedVmixAgent,
+  formatVmixEventDate as formatEventDate,
+  getTimeUntilVmixEvent as getTimeUntilEvent,
+  getVmixAgentState,
+  getVmixEventStatusClass as getEventStatusColor,
+  getVmixEventStatusLabel as getEventStatusText,
+  selectUpcomingVmixEvents,
+  selectVmixAgents,
+  type VmixConnection,
+  type VmixEvent,
+  type VmixTargetMode,
+} from "@/lib/vmix-scheduler-model";
 import { cn } from "@/lib/utils";
-
-interface VmixEvent {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime?: string;
-  status: "scheduled" | "live" | "completed" | "error";
-  actions: string[];
-  input?: string;
-  preset?: string;
-  channel?: string;
-  vmixHost?: string | null;
-  vmixPort?: number | null;
-  executedAt?: string;
-  errorMessage?: string | null;
-}
-
-interface VmixConnection {
-  connected: boolean;
-  host: string;
-  port: number;
-  inputs: Array<{ number: number; title: string; state: string }>;
-  preview: number;
-  program: number;
-  recording: boolean;
-  streaming: boolean;
-}
-
-type VmixTargetMode = "agent" | "direct";
-
-const asRecord = (value: unknown): Record<string, any> =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
 
 export default function VmixScheduler() {
   const [vmixHost, setVmixHost] = useState(localStorage.getItem("vmix_host") || "localhost");
@@ -84,22 +67,9 @@ export default function VmixScheduler() {
     refetchInterval: 10000,
   });
 
-  const vmixAgents = systems.filter((system: any) => {
-    const spec = asRecord(system.specifications);
-    const agent = asRecord(spec.agent);
-    const vmix = asRecord(spec.vmix);
-    const caps = Array.isArray(agent.capabilities) ? agent.capabilities : [];
-    return agent.deviceType === "vmix" || caps.includes("vmix-scheduler") || vmix.enabled;
-  });
-  const selectedAgent = vmixAgents.find((system: any) => {
-    const spec = asRecord(system.specifications);
-    const agent = asRecord(spec.agent);
-    return String(agent.agentKey || spec.agentKey || "") === selectedAgentKey;
-  }) || vmixAgents[0];
-  const selectedAgentSpec = asRecord(selectedAgent?.specifications);
-  const selectedAgentInfo = asRecord(selectedAgentSpec.agent);
-  const selectedAgentVmix = asRecord(selectedAgentSpec.vmix);
-  const effectiveAgentKey = String(selectedAgentInfo.agentKey || selectedAgentSpec.agentKey || selectedAgentKey || "");
+  const vmixAgents = selectVmixAgents(systems);
+  const selectedAgent = findSelectedVmixAgent(vmixAgents, selectedAgentKey);
+  const { effectiveAgentKey, connection: agentConnection } = getVmixAgentState(selectedAgent, selectedAgentKey);
 
   // Проверка подключения только по кнопке «Подключиться» или «Обновить» — без авто-опросов и повторов
   const { data: directConnection, refetch: checkConnection, isFetching: isCheckingConnection } = useQuery<VmixConnection>({
@@ -112,16 +82,6 @@ export default function VmixScheduler() {
     retry: 0,
   });
 
-  const agentConnection: VmixConnection | undefined = selectedAgent ? {
-    connected: Boolean(selectedAgentVmix.connected),
-    host: selectedAgent?.name || "vMix agent",
-    port: 0,
-    inputs: Array.isArray(selectedAgentVmix.inputs) ? selectedAgentVmix.inputs : [],
-    preview: Number(selectedAgentVmix.preview || 0),
-    program: Number(selectedAgentVmix.active || selectedAgentVmix.program || 0),
-    recording: Boolean(selectedAgentVmix.recording),
-    streaming: Boolean(selectedAgentVmix.streaming),
-  } : undefined;
   const connection = targetMode === "agent" ? agentConnection : directConnection;
 
   // Получение событий расписания
@@ -293,15 +253,7 @@ export default function VmixScheduler() {
       return;
     }
 
-    const actions: string[] = [...newEventActions];
-    if (newEventInput) {
-      actions.push(`PreviewInput${newEventInput}`);
-      // Если Cut не выбран вручную, но выбран Fade - используем Fade
-      // Если ни Cut ни Fade не выбраны - используем Cut по умолчанию
-      if (!actions.includes("Cut") && !actions.includes("Fade")) {
-        actions.push("Cut");
-      }
-    }
+    const actions = buildVmixEventActions(newEventInput, newEventActions);
 
     createEventMutation.mutate({
       title: newEventTitle.trim(),
@@ -313,67 +265,6 @@ export default function VmixScheduler() {
     });
   };
 
-  const getEventStatusColor = (status: string) => {
-    switch (status) {
-      case "live":
-        return "bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50";
-      case "scheduled":
-        return "bg-blue-500 text-white dark:bg-blue-600";
-      case "completed":
-        return "bg-emerald-500 text-white dark:bg-emerald-600";
-      case "error":
-        return "bg-red-500 text-white dark:bg-red-600";
-      default:
-        return "bg-slate-500 text-white dark:bg-slate-600";
-    }
-  };
-
-  const getEventStatusText = (status: string) => {
-    switch (status) {
-      case "live":
-        return "В эфире";
-      case "scheduled":
-        return "Запланировано";
-      case "completed":
-        return "Завершено";
-      case "error":
-        return "Ошибка";
-      default:
-        return status;
-    }
-  };
-
-  const formatEventDate = (dateStr: string) => {
-    try {
-      const date = parseISO(dateStr);
-      if (isToday(date)) {
-        return `Сегодня, ${format(date, "HH:mm")}`;
-      } else if (isTomorrow(date)) {
-        return `Завтра, ${format(date, "HH:mm")}`;
-      } else {
-        return format(date, "d MMM, HH:mm", { locale: ru });
-      }
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const getTimeUntilEvent = (dateStr: string) => {
-    try {
-      const date = parseISO(dateStr);
-      const now = new Date();
-      const diff = differenceInMinutes(date, now);
-      
-      if (diff < 0) return null;
-      if (diff < 60) return `${diff} мин`;
-      const hours = Math.floor(diff / 60);
-      const mins = diff % 60;
-      return `${hours}ч ${mins}м`;
-    } catch {
-      return null;
-    }
-  };
-
   const events = eventsData?.events || [];
   const [eventInputs, setEventInputs] = useState<Record<string, string>>({});
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -383,13 +274,7 @@ export default function VmixScheduler() {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [executedEvents, setExecutedEvents] = useState<Set<string>>(new Set());
 
-  const upcomingEvents = events.filter((e) => {
-    try {
-      return !isPast(parseISO(e.startTime)) || e.status === "live";
-    } catch {
-      return true;
-    }
-  }).slice(0, 5);
+  const upcomingEvents = selectUpcomingVmixEvents(events);
 
   // Автоматическое выполнение событий по расписанию
   useEffect(() => {
@@ -678,77 +563,7 @@ export default function VmixScheduler() {
           </CardContent>
         </Card>
 
-        {/* Статус vMix */}
-        {connection?.connected && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Monitor className="w-5 h-5 text-blue-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Preview</p>
-                    <p className="text-lg font-bold">{connection.preview || "-"}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Play className="w-5 h-5 text-green-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Program</p>
-                    <p className="text-lg font-bold">{connection.program || "-"}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={cn(
-              "border-l-4",
-              connection.recording ? "border-l-red-500" : "border-l-slate-300"
-            )}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Film className={cn(
-                    "w-5 h-5",
-                    connection.recording ? "text-red-500" : "text-slate-400"
-                  )} />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Запись</p>
-                    <p className={cn(
-                      "text-lg font-bold",
-                      connection.recording ? "text-red-500" : "text-muted-foreground"
-                    )}>
-                      {connection.recording ? "ON" : "OFF"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={cn(
-              "border-l-4",
-              connection.streaming ? "border-l-purple-500" : "border-l-slate-300"
-            )}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Video className={cn(
-                    "w-5 h-5",
-                    connection.streaming ? "text-purple-500" : "text-slate-400"
-                  )} />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Стрим</p>
-                    <p className={cn(
-                      "text-lg font-bold",
-                      connection.streaming ? "text-purple-500" : "text-muted-foreground"
-                    )}>
-                      {connection.streaming ? "ON" : "OFF"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {connection?.connected && <VmixStatusCards connection={connection} />}
 
         <Tabs defaultValue="schedule" className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full grid-cols-3">

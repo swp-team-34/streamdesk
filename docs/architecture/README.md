@@ -36,6 +36,8 @@ The diagram shows three internal layers (Client, Server, Data) and the external 
 - **Warehouse taxonomy and storage model:** Company-scoped `equipment_categories` provide one category and one optional subcategory level, while `warehouse_storage_locations` provide an ordered physical hierarchy for rooms, zones, racks, shelves, cases, bins, and custom nodes. Equipment keeps stable category and storage identifiers plus synchronized legacy text for compatibility. Archived nodes remain readable on linked equipment but are unavailable for new selection, and a return clears the active physical destination before assigning the selected storage node or manual storage text.
 - **Editor autosave model:** Existing Warehouse equipment, equipment notes, and projects use a shared debounced client hook. Valid snapshots are serialized to suppress duplicate writes, queued changes are flushed before an editor closes, local progress is published to the header synchronization indicator, and successful REST mutations invalidate related React Query data. Server-published identifier-only company/project/equipment events keep other authorized sessions current; creation forms remain explicit.
 - **Location context model:** Company-scoped Location workspaces are linked to Kanban V2 cards and projects through dedicated many-to-many tables. Existing single-location card data remains readable through an additive runtime migration, while archived Locations stay visible on historical links but cannot be selected for new links. Location topics are stored separately from maintained workspace notes, support note/problem types and lifecycle audit, and publish identifier-only refresh events to authorized Location and company realtime scopes.
+- **Feature-module composition boundary:** Maintained React feature pages act as orchestration layers for queries, mutations, realtime subscriptions, autosave, and interaction state. Pure transformation and validation logic lives in focused `client/src/lib/` modules, while reusable controlled presentation lives under `client/src/components/`. Kanban V2, Warehouse, Calendar, Dashboard, Projects, Locations, Estimates, Connection Schemas, Admin, Platform Admin, and vMix follow this boundary; Legacy Task Manager remains outside the maintained feature set.
+- **Server route composition boundary:** The root Express registrar retains cross-domain and migration-coupled workflows, while independently testable Rooms, Notifications, and Push Notifications registrars live under `server/routes/`. Shared database timeout handling lives under `server/services/` so extracted route groups use the same failure contract without duplicating infrastructure logic.
 
 **Coupling and cohesion:**
 - **Coupling between layers is low.** The client talks to the server only through REST over HTTP/JSON and WebSocket. 
@@ -43,7 +45,8 @@ The diagram shows three internal layers (Client, Server, Data) and the external 
 
 **Maintainability implications:**
 - Centralizing business rules (e.g., permission evaluators) makes the system easier to reason about and modify without introducing regressions in unrelated modules.
-- The monolithic `routes.ts` file on the server remains a maintainability risk, as server-side authorization checks are currently route-local rather than centralized.
+- Feature entry pages keep stateful orchestration close to its owner while pure models and controlled components can be tested independently and reused without duplicating domain decisions.
+- `routes.ts` remains a maintainability risk because many authorization and runtime-migration workflows are still route-local; only route families with a characterized, low-coupling boundary are extracted incrementally.
 
 ### Dynamic View
 

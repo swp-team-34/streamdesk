@@ -3,25 +3,17 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Calendar as CalendarIcon,
-  Plus,
   Clock,
   MapPin,
   Users,
-  Edit,
-  Settings,
-  Trash2,
-  Check,
-  X,
   UserRound,
-  Flag,
-  FolderOpen,
-  Paperclip,
 } from "lucide-react";
 import { EventForm } from "@/components/forms/event-form";
+import { CalendarEntryDetailDialog } from "@/components/calendar/calendar-entry-detail-dialog";
+import { CalendarSettingsDialog } from "@/components/calendar/calendar-settings-dialog";
+import { CalendarToolbar } from "@/components/calendar/calendar-toolbar";
 import {
   format,
   startOfWeek,
@@ -37,7 +29,6 @@ import { ru } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { AuthService } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/use-websocket";
 import {
   getCalendarEntryDensity,
@@ -46,9 +37,7 @@ import {
   getCalendarResizeHandleClassName,
 } from "@/lib/calendar-layout";
 import {
-  buildQuarterHourOptions,
   combineDateWithTime,
-  formatDueDateLabel,
   getDueDateStatus,
   getDueDateStatusClasses,
   getDueDateStatusLabel,
@@ -65,281 +54,32 @@ import {
   getCalendarTimelineVisibleDayCount,
   type CalendarTimelineViewMode,
 } from "@/lib/calendar-timeline";
-
-type CalendarEvent = {
-  id: string;
-  title: string;
-  description?: string | null;
-  startTime: string | Date;
-  endTime: string | Date;
-  location?: string | null;
-  participants?: Array<{ id: string; userId: string; userName?: string; status?: string }>;
-  type?: string;
-  status?: string | null;
-  color?: string | null;
-};
-
-type CalendarTask = {
-  id: string;
-  title: string;
-  description?: string | null;
-  status?: string | null;
-  priority?: string | null;
-  assigneeId?: string | null;
-  dueDate?: string | Date | null;
-  startDate?: string | Date | null;
-  category?: string | null;
-  subtasks?: Array<{ id: string; title: string; completed?: boolean }> | null;
-  attachments?: Array<{ name?: string; url?: string }> | null;
-  links?: Array<{ title?: string; url?: string }> | null;
-};
-
-type CalendarKanbanCard = {
-  id: string;
-  boardId: string;
-  listId: string;
-  title: string;
-  description?: string | null;
-  priority?: string | null;
-  assigneeUserId?: string | null;
-  dueDate?: string | Date | null;
-  startDate?: string | Date | null;
-  listName?: string | null;
-  listType?: string | null;
-  listColor?: string | null;
-  boardName?: string | null;
-};
-
-type CalendarUser = {
-  id: string;
-  name?: string | null;
-  username?: string | null;
-};
-
-type EventEntry = CalendarEvent & {
-  kind: "event";
-  badgeText: string;
-  statusLabel: null;
-  responsibleLabel: null;
-};
-
-type TaskEntry = {
-  id: string;
-  title: string;
-  description?: string | null;
-  startTime: string;
-  endTime: string;
-  type: "task";
-  kind: "task";
-  badgeText: string;
-  statusLabel: string;
-  responsibleLabel: string | null;
-  task: CalendarTask;
-};
-
-type KanbanEntry = {
-  id: string;
-  title: string;
-  description?: string | null;
-  startTime: string;
-  endTime: string;
-  type: "kanban";
-  kind: "kanban";
-  badgeText: string;
-  statusLabel: string;
-  responsibleLabel: string | null;
-  task: CalendarKanbanCard;
-};
-
-type CalendarEntry = EventEntry | TaskEntry | KanbanEntry;
-
-type CalendarPointerPreview = {
-  entry: CalendarEntry;
-  startTime: string;
-  endTime: string;
-  mode: CalendarPointerMode;
-};
-
-type CalendarPointerMode = "move" | "resize-start" | "resize-end" | "all-day-move" | "all-day-resize-start" | "all-day-resize-end";
-
-const TASK_STATUS_LABELS: Record<string, string> = {
-  not_ready: "Бэклог",
-  todo: "К выполнению",
-  in_progress: "В работе",
-  review: "На проверке",
-  done: "Готово",
-  cancelled: "Отменено",
-};
-
-const TASK_PRIORITY_LABELS: Record<string, string> = {
-  low: "Низкий",
-  medium: "Средний",
-  high: "Высокий",
-  urgent: "Срочный",
-};
-const CALENDAR_TIME_SLOTS = buildQuarterHourOptions();
-const CALENDAR_SLOT_HEIGHT = 12;
-const CALENDAR_SETTINGS_STORAGE_KEY = "streamdesk_calendar_settings_v1";
-
-type CalendarSettings = {
-  workdayStart: number;
-  workdayEnd: number;
-  gridStep: 15 | 30 | 60;
-  showWeekends: boolean;
-  showAllDay: boolean;
-  compactMode: boolean;
-  timezoneLabel: string;
-};
-
-const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
-  workdayStart: 0,
-  workdayEnd: 24,
-  gridStep: 15,
-  showWeekends: true,
-  showAllDay: true,
-  compactMode: false,
-  timezoneLabel: "Moscow, GMT+3",
-};
-
-const EVENT_COLOR_PALETTES = [
-  {
-    card: "border-l-rose-400 border-rose-200/80 dark:border-rose-900/70 bg-rose-100/90 dark:bg-rose-950/45 text-rose-950 dark:text-rose-50",
-    inline: "border-l-rose-400 border-rose-200/80 dark:border-rose-900/70 bg-rose-100/95 dark:bg-rose-950/55 text-rose-950 dark:text-rose-50",
-    dot: "bg-rose-400",
-    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200",
-  },
-  {
-    card: "border-l-sky-400 border-sky-200/80 dark:border-sky-900/70 bg-sky-100/90 dark:bg-sky-950/45 text-sky-950 dark:text-sky-50",
-    inline: "border-l-sky-400 border-sky-200/80 dark:border-sky-900/70 bg-sky-100/95 dark:bg-sky-950/55 text-sky-950 dark:text-sky-50",
-    dot: "bg-sky-400",
-    badge: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200",
-  },
-  {
-    card: "border-l-emerald-400 border-emerald-200/80 dark:border-emerald-900/70 bg-emerald-100/90 dark:bg-emerald-950/45 text-emerald-950 dark:text-emerald-50",
-    inline: "border-l-emerald-400 border-emerald-200/80 dark:border-emerald-900/70 bg-emerald-100/95 dark:bg-emerald-950/55 text-emerald-950 dark:text-emerald-50",
-    dot: "bg-emerald-400",
-    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
-  },
-  {
-    card: "border-l-amber-400 border-amber-200/80 dark:border-amber-900/70 bg-amber-100/90 dark:bg-amber-950/45 text-amber-950 dark:text-amber-50",
-    inline: "border-l-amber-400 border-amber-200/80 dark:border-amber-900/70 bg-amber-100/95 dark:bg-amber-950/55 text-amber-950 dark:text-amber-50",
-    dot: "bg-amber-400",
-    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
-  },
-  {
-    card: "border-l-violet-400 border-violet-200/80 dark:border-violet-900/70 bg-violet-100/90 dark:bg-violet-950/45 text-violet-950 dark:text-violet-50",
-    inline: "border-l-violet-400 border-violet-200/80 dark:border-violet-900/70 bg-violet-100/95 dark:bg-violet-950/55 text-violet-950 dark:text-violet-50",
-    dot: "bg-violet-400",
-    badge: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-200",
-  },
-] as const;
-const EVENT_COLOR_STORAGE_KEY = "streamdesk_event_colors_v1";
-
-const readEventColorMap = () => {
-  if (typeof window === "undefined") return {};
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(EVENT_COLOR_STORAGE_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed as Record<string, string> : {};
-  } catch {
-    return {};
-  }
-};
-
-const normalizeHexColor = (value?: string | null) => {
-  const normalized = String(value || "").trim();
-  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : null;
-};
-
-function getEventTypeText(type?: string) {
-  switch (type) {
-    case "task":
-      return "Задача";
-    case "kanban":
-      return "Карточка";
-    case "stream":
-      return "Стрим";
-    case "meeting":
-      return "Встреча";
-    case "production":
-      return "Производство";
-    case "maintenance":
-      return "Обслуживание";
-    case "recording":
-      return "Запись";
-    default:
-      return type || "Событие";
-  }
-}
-
-function isTaskEntry(entry: CalendarEntry | null): entry is TaskEntry {
-  return !!entry && entry.kind === "task";
-}
-
-function isKanbanEntry(entry: CalendarEntry | null): entry is KanbanEntry {
-  return !!entry && entry.kind === "kanban";
-}
-
-function getCalendarEntryKey(entry: Pick<CalendarEntry, "kind" | "id">) {
-  return `${entry.kind}:${entry.id}`;
-}
-
-function slotNumberToTime(slot: number) {
-  const hour = Math.floor(slot);
-  const minute = Math.round((slot - hour) * 60);
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function roundDateToStep(value: Date, stepMinutes: number) {
-  const next = new Date(value);
-  const step = Math.max(1, stepMinutes);
-  const roundedMinutes = Math.floor(next.getMinutes() / step) * step;
-  next.setMinutes(roundedMinutes, 0, 0);
-  return next;
-}
-
-function addMinutesToDate(value: Date, minutes: number) {
-  return new Date(value.getTime() + minutes * 60 * 1000);
-}
-
-function loadCalendarSettings(): CalendarSettings {
-  if (typeof window === "undefined") return DEFAULT_CALENDAR_SETTINGS;
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(CALENDAR_SETTINGS_STORAGE_KEY) || "{}");
-    return {
-      ...DEFAULT_CALENDAR_SETTINGS,
-      ...parsed,
-      workdayStart: Number.isFinite(Number(parsed.workdayStart)) ? Number(parsed.workdayStart) : DEFAULT_CALENDAR_SETTINGS.workdayStart,
-      workdayEnd: Number.isFinite(Number(parsed.workdayEnd)) ? Number(parsed.workdayEnd) : DEFAULT_CALENDAR_SETTINGS.workdayEnd,
-      gridStep: [15, 30, 60].includes(Number(parsed.gridStep)) ? Number(parsed.gridStep) as 15 | 30 | 60 : DEFAULT_CALENDAR_SETTINGS.gridStep,
-    };
-  } catch {
-    return DEFAULT_CALENDAR_SETTINGS;
-  }
-}
-
-const isAllDayEntry = (entry: CalendarEntry) => {
-  const start = new Date(entry.startTime);
-  const end = new Date(entry.endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-  const durationHours = (end.getTime() - start.getTime()) / (60 * 60 * 1000);
-  return durationHours >= 23 || (
-    start.getHours() === 0 &&
-    start.getMinutes() === 0 &&
-    end.getHours() >= 23 &&
-    end.getMinutes() >= 45
-  );
-};
-
-const entryOverlapsDate = (entry: CalendarEntry, date: Date) => {
-  const start = new Date(entry.startTime);
-  const end = new Date(entry.endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
-  return start.getTime() <= dayEnd.getTime() && end.getTime() >= dayStart.getTime();
-};
+import {
+  CALENDAR_SETTINGS_STORAGE_KEY,
+  CALENDAR_SLOT_HEIGHT,
+  CALENDAR_TIME_SLOTS,
+  EVENT_COLOR_PALETTES,
+  TASK_PRIORITY_LABELS,
+  addMinutesToDate,
+  buildCalendarEntries,
+  entryOverlapsDate,
+  getCalendarEntryKey,
+  isAllDayEntry,
+  loadCalendarSettings,
+  normalizeHexColor,
+  readEventColorMap,
+  roundDateToStep,
+  slotNumberToTime,
+  type CalendarEntry,
+  type CalendarEvent,
+  type CalendarKanbanCard,
+  type CalendarPointerMode,
+  type CalendarPointerPreview,
+  type CalendarSettings,
+  type CalendarTask,
+  type CalendarUser,
+  type CalendarViewMode,
+} from "@/lib/calendar-page-model";
 
 export default function Calendar() {
   useWebSocket();
@@ -349,7 +89,7 @@ export default function Calendar() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null);
   const [draftSlot, setDraftSlot] = useState<{ startTime: string; endTime: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"week" | "day" | "month" | "3days" | "list">("week");
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>(() => loadCalendarSettings());
   const [calendarPointerPreview, setCalendarPointerPreview] = useState<CalendarPointerPreview | null>(null);
@@ -626,82 +366,10 @@ export default function Calendar() {
     }
   }, []);
 
-  const entries = useMemo<CalendarEntry[]>(() => {
-    const taskTitles = new Set(tasks.map((task) => String(task?.title || "").trim()).filter(Boolean));
-    const isLegacyTaskDeadlineEvent = (event: CalendarEvent) => {
-      const title = String(event?.title || "").trim();
-      if (!title.startsWith("Дедлайн: ")) return false;
-      const taskTitle = title.slice("Дедлайн: ".length).trim();
-      if (!taskTitle || !taskTitles.has(taskTitle)) return false;
-      const description = String(event.description || "");
-      return (
-        event.type === "meeting" &&
-        event.status === "scheduled" &&
-        event.location === "Офис" &&
-        (!description || description === `Задача: ${taskTitle}` || description.includes(taskTitle))
-      );
-    };
-
-    const taskEntries: TaskEntry[] = tasks
-      .filter((task) => task?.dueDate || task?.startDate)
-      .map((task) => {
-        const startTime = new Date(task.startDate || task.dueDate || new Date());
-        const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-        const endTime = dueDate && dueDate.getTime() > startTime.getTime()
-          ? dueDate
-          : new Date(startTime.getTime() + 60 * 60 * 1000);
-
-        return {
-          id: `task-${task.id}`,
-          title: task.title,
-          description: task.description,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          type: "task",
-          kind: "task",
-          badgeText: "Задача",
-          statusLabel: TASK_STATUS_LABELS[String(task.status || "")] || String(task.status || "Без статуса"),
-          responsibleLabel: task.assigneeId ? userNameById.get(String(task.assigneeId)) || "Назначен" : null,
-          task,
-        };
-      });
-
-    const kanbanEntries: KanbanEntry[] = kanbanCards
-      .filter((card) => card?.dueDate || card?.startDate)
-      .map((card) => {
-        const startTime = new Date(card.startDate || card.dueDate || new Date());
-        const dueDate = card.dueDate ? new Date(card.dueDate) : null;
-        const endTime = dueDate && dueDate.getTime() > startTime.getTime()
-          ? dueDate
-          : new Date(startTime.getTime() + 60 * 60 * 1000);
-
-        return {
-          id: `kanban-${card.id}`,
-          title: card.title,
-          description: card.description,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          type: "kanban",
-          kind: "kanban",
-          badgeText: "Карточка",
-          statusLabel: card.listName || "Список",
-          responsibleLabel: card.assigneeUserId ? userNameById.get(String(card.assigneeUserId)) || "Назначен" : null,
-          task: card,
-        };
-      });
-
-    const eventEntries: EventEntry[] = events
-      .filter((event) => !isLegacyTaskDeadlineEvent(event))
-      .map((event) => ({
-        ...event,
-        kind: "event",
-        badgeText: getEventTypeText(event.type),
-        statusLabel: null,
-        responsibleLabel: null,
-      }));
-
-    return [...eventEntries, ...taskEntries, ...kanbanEntries];
-  }, [events, kanbanCards, tasks, userNameById]);
+  const entries = useMemo(
+    () => buildCalendarEntries({ events, tasks, kanbanCards, userNameById }),
+    [events, kanbanCards, tasks, userNameById],
+  );
 
   const entriesForDateCache = useMemo(() => new Map<string, CalendarEntry[]>(), [entries]);
   const getEntriesForDate = useCallback((date: Date) => {
@@ -1148,16 +816,6 @@ export default function Calendar() {
       document.removeEventListener("pointerup", onPointerUp);
     };
   }, [calendarSettings.gridStep, timelineDays, updateCalendarEntryRangeMutation]);
-
-  const getTaskScheduleLabel = (task: { startDate?: string | Date | null; dueDate?: string | Date | null }) => {
-    if (task.startDate && task.dueDate) {
-      return `Период: ${format(new Date(task.startDate), "dd.MM.yyyy HH:mm", { locale: ru })} - ${format(new Date(task.dueDate), "dd.MM.yyyy HH:mm", { locale: ru })}`;
-    }
-    const sourceDate = task.startDate || task.dueDate;
-    if (!sourceDate) return null;
-    const label = task.startDate ? "Старт" : "Срок";
-    return `${label}: ${format(new Date(sourceDate), "dd.MM.yyyy HH:mm", { locale: ru })}`;
-  };
 
   const renderCardMeta = (entry: CalendarEntry, day?: Date) => (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 mt-1 text-xs opacity-90">
@@ -1800,56 +1458,18 @@ export default function Calendar() {
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">
-      <div className="mb-3 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full min-w-0">
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          <h2 className="text-base sm:text-lg font-bold text-foreground truncate">Календарь</h2>
-          <Button
-            size="sm"
-            className="h-8 rounded-lg text-xs shrink-0 bg-primary text-primary-foreground sm:order-3"
-            onClick={() => {
-              setSelectedEntry(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Событие</span>
-          </Button>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border/35 shrink-0" onClick={() => shiftSelectedDate(-1)}>←</Button>
-          <span className="text-xs sm:text-sm font-medium text-foreground min-w-[90px] sm:min-w-[100px] text-center truncate">
-            {toolbarPeriodLabel}
-          </span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border/35 shrink-0" onClick={() => shiftSelectedDate(1)}>→</Button>
-        </div>
-        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border/35 text-xs shrink-0" onClick={() => setSelectedDate(new Date())}>
-          Сегодня
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 rounded-lg border-border/35 text-xs shrink-0 hidden sm:flex" onClick={() => setSettingsOpen(true)} title="Настройки календаря">
-          <Settings className="h-4 w-4 mr-1.5" />
-          Настройки
-        </Button>
-        <div className="flex rounded-lg p-0.5 bg-muted/40 shrink-0 overflow-x-auto hide-scrollbar">
-          {(["month", "week", "3days", "day", "list"] as const).map((mode) => (
-            <Button
-              key={mode}
-              variant={viewMode === mode ? "default" : "ghost"}
-              size="sm"
-              className={cn(
-                "h-7 text-[10px] sm:text-xs px-2 sm:px-2.5 rounded-md shrink-0 border border-transparent",
-                viewMode === mode && "bg-primary text-primary-foreground border-primary/60 shadow-sm"
-              )}
-              onClick={() => setViewMode(mode)}
-            >
-              {mode === "month" && "Месяц"}
-              {mode === "week" && "Неделя"}
-              {mode === "3days" && "3 дня"}
-              {mode === "day" && "День"}
-              {mode === "list" && "Список"}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <CalendarToolbar
+        periodLabel={toolbarPeriodLabel}
+        viewMode={viewMode}
+        onCreateEvent={() => {
+          setSelectedEntry(null);
+          setIsFormOpen(true);
+        }}
+        onShiftDate={shiftSelectedDate}
+        onToday={() => setSelectedDate(new Date())}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onViewModeChange={setViewMode}
+      />
 
       {viewMode === "month" ? (
         <div className="space-y-1.5">
@@ -1987,317 +1607,31 @@ export default function Calendar() {
         </div>
       ) : null}
 
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-border/50 bg-card p-0 overflow-hidden gap-0">
-          {selectedEntry && (
-            <div className="p-4 sm:p-5 space-y-4">
-              {isTaskEntry(selectedEntry) || isKanbanEntry(selectedEntry) ? (
-                <>
-                  <div className="flex items-start gap-3">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} style={getEntryDotStyle(selectedEntry)} />
-                    <div className="space-y-2 min-w-0">
-                      <h3 className="text-lg font-semibold text-foreground leading-tight break-words pr-6">{selectedEntry.title}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")} style={getEntryColorStyle(selectedEntry, "badge")}>{selectedEntry.badgeText}</Badge>
-                        <Badge variant="secondary">{selectedEntry.statusLabel}</Badge>
-                      </div>
-                    </div>
-                  </div>
+      <CalendarEntryDetailDialog
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        entry={selectedEntry}
+        currentTime={currentTime}
+        getEventDotClass={getEventDotClass}
+        getEntryDotStyle={getEntryDotStyle}
+        getEventBadgeClasses={getEventBadgeClasses}
+        getEntryColorStyle={getEntryColorStyle}
+        onRespondParticipant={(response) => respondParticipantMutation.mutate(response)}
+        isResponding={respondParticipantMutation.isPending}
+        onEditEvent={() => {
+          setIsDetailOpen(false);
+          setIsFormOpen(true);
+        }}
+        onDeleteEvent={(eventId) => deleteEventMutation.mutate(eventId)}
+        isDeleting={deleteEventMutation.isPending}
+      />
 
-                  <div className="space-y-3 text-sm text-muted-foreground">
-                    {getTaskScheduleLabel(selectedEntry.task) && (
-                      <div className="flex items-start gap-3">
-                        <CalendarIcon className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <span className="text-foreground">{getTaskScheduleLabel(selectedEntry.task)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-start gap-3">
-                      <UserRound className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                      <span className="text-foreground">{selectedEntry.responsibleLabel || "Без исполнителя"}</span>
-                    </div>
-                    {selectedEntry.task.priority && (
-                      <div className="flex items-start gap-3">
-                        <Flag className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <span className="text-foreground">{TASK_PRIORITY_LABELS[selectedEntry.task.priority] || selectedEntry.task.priority}</span>
-                      </div>
-                    )}
-                    {isTaskEntry(selectedEntry) && selectedEntry.task.category && (
-                      <div className="flex items-start gap-3">
-                        <FolderOpen className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <span className="text-foreground">{selectedEntry.task.category}</span>
-                      </div>
-                    )}
-                    {isKanbanEntry(selectedEntry) && selectedEntry.task.boardName && (
-                      <div className="flex items-start gap-3">
-                        <FolderOpen className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <span className="text-foreground">{selectedEntry.task.boardName}</span>
-                      </div>
-                    )}
-                    {isKanbanEntry(selectedEntry) && (
-                      <>
-                        <div className="flex items-start gap-3">
-                          <Clock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                          <span className="text-foreground">
-                            Старт: {formatDueDateLabel(selectedEntry.task.startDate) || "Не задан"}
-                          </span>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <Clock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                          <span className="text-foreground">
-                            Срок: {formatDueDateLabel(selectedEntry.task.dueDate) || "Не задан"}
-                          </span>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <Flag className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                          <span className="text-foreground">
-                            Статус срока: {getDueDateStatusLabel(getDueDateStatus(selectedEntry.task.dueDate, {
-                              isComplete: selectedEntry.task.listType === "closed" || selectedEntry.task.listType === "archive" || selectedEntry.task.listType === "trash",
-                              now: currentTime,
-                            }))}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    {selectedEntry.description && (
-                      <div className="flex items-start gap-3">
-                        <Users className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <p className="text-foreground break-words">{selectedEntry.description}</p>
-                      </div>
-                    )}
-                    {isTaskEntry(selectedEntry) && Array.isArray(selectedEntry.task.subtasks) && selectedEntry.task.subtasks.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-foreground font-medium">Подзадачи</p>
-                        <div className="space-y-1.5">
-                          {selectedEntry.task.subtasks.map((subtask) => (
-                            <div key={subtask.id} className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-foreground">
-                              {subtask.completed ? "✓ " : ""}
-                              {subtask.title}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {isTaskEntry(selectedEntry) && Array.isArray(selectedEntry.task.links) && selectedEntry.task.links.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-foreground font-medium">Ссылки</p>
-                        <div className="space-y-1.5">
-                          {selectedEntry.task.links.map((link, index) => (
-                            <a key={`${link.url || index}`} href={link.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg border border-border/50 px-3 py-2 text-primary hover:underline">
-                              {link.title || link.url}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {isTaskEntry(selectedEntry) && Array.isArray(selectedEntry.task.attachments) && selectedEntry.task.attachments.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-foreground font-medium">Вложения</p>
-                        <div className="space-y-1.5">
-                          {selectedEntry.task.attachments.map((file, index) => (
-                            <div key={`${file.url || file.name || index}`} className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-foreground">
-                              <Paperclip className="w-4 h-4 text-primary shrink-0" />
-                              <span className="truncate">{file.name || file.url || "Файл"}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border/35">
-                    {isKanbanEntry(selectedEntry) && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          window.location.href = `/tasks?boardId=${encodeURIComponent(selectedEntry.task.boardId)}&cardId=${encodeURIComponent(selectedEntry.task.id)}`;
-                        }}
-                      >
-                        Открыть карточку
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
-                      Закрыть
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-start gap-3">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0 mt-1", getEventDotClass(selectedEntry))} style={getEntryDotStyle(selectedEntry)} />
-                    <h3 className="text-lg font-semibold text-foreground leading-tight break-words pr-6">{selectedEntry.title}</h3>
-                  </div>
-                  <div className="space-y-3 text-sm text-muted-foreground">
-                    <div className="flex items-start gap-3">
-                      <CalendarIcon className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                      <span className="text-foreground">
-                        {format(new Date(selectedEntry.startTime), "EEEE, d MMMM", { locale: ru })} {format(new Date(selectedEntry.startTime), "HH:mm")}–{format(new Date(selectedEntry.endTime), "HH:mm")}
-                      </span>
-                    </div>
-                    {selectedEntry.location && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <span className="text-foreground">{selectedEntry.location}</span>
-                      </div>
-                    )}
-                    {selectedEntry.description && (
-                      <div className="flex items-start gap-3">
-                        <Users className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <p className="text-foreground break-words">{selectedEntry.description}</p>
-                      </div>
-                    )}
-                    {selectedEntry.participants && selectedEntry.participants.length > 0 && (
-                      <div className="flex items-start gap-3">
-                        <Users className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                        <div className="space-y-1.5 flex-1 min-w-0">
-                          <p className="text-foreground font-medium text-sm">Участники</p>
-                          <ul className="space-y-1">
-                            {selectedEntry.participants.map((participant) => {
-                              const currentUserId = AuthService.getCurrentUser()?.id;
-                              const isMe = currentUserId && participant.userId === currentUserId;
-                              const isInvited = participant.status === "invited";
-                              return (
-                                <li key={participant.id} className="flex items-center justify-between gap-2 text-sm">
-                                  <span className="text-foreground truncate">{participant.userName ?? "?"}</span>
-                                  <span className={cn("shrink-0 text-xs", participant.status === "accepted" && "text-green-600 dark:text-green-400", participant.status === "declined" && "text-rose-600 dark:text-rose-400", participant.status === "invited" && "text-muted-foreground")}>
-                                    {participant.status === "accepted" && "Принято"}
-                                    {participant.status === "declined" && "Отклонено"}
-                                    {participant.status === "invited" && (isMe ? "Приглашение" : "Ожидает")}
-                                  </span>
-                                  {isMe && isInvited && (
-                                    <span className="flex items-center gap-0.5 shrink-0">
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10" onClick={() => respondParticipantMutation.mutate({ eventId: selectedEntry.id, participantId: participant.id, status: "accepted" })} disabled={respondParticipantMutation.isPending}>
-                                        <Check className="w-4 h-4" />
-                                      </Button>
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10" onClick={() => respondParticipantMutation.mutate({ eventId: selectedEntry.id, participantId: participant.id, status: "declined" })} disabled={respondParticipantMutation.isPending}>
-                                        <X className="w-4 h-4" />
-                                      </Button>
-                                    </span>
-                                  )}
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 pt-1">
-                      <Badge className={cn(getEventBadgeClasses(selectedEntry), "text-xs")} style={getEntryColorStyle(selectedEntry, "badge")}>{getEventTypeText(selectedEntry.type)}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border/35">
-                    <Button
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setIsDetailOpen(false);
-                        setIsFormOpen(true);
-                      }}
-                    >
-                      <Edit className="w-4 h-4" />
-                      Изменить
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-2"
-                      onClick={() => {
-                        if (confirm("Удалить это событие?")) {
-                          deleteEventMutation.mutate(selectedEntry.id);
-                        }
-                      }}
-                      disabled={deleteEventMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Удалить
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
-                      Закрыть
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-lg rounded-2xl border-border/50 bg-card">
-          <DialogHeader>
-            <DialogTitle>Настройки календаря</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm">
-                <span className="text-muted-foreground">Начало рабочего дня</span>
-                <select
-                  className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
-                  value={calendarSettings.workdayStart}
-                  onChange={(event) => setCalendarSettings((prev) => ({ ...prev, workdayStart: Number(event.target.value) }))}
-                >
-                  {Array.from({ length: 24 }, (_, hour) => (
-                    <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="text-muted-foreground">Конец рабочего дня</span>
-                <select
-                  className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
-                  value={calendarSettings.workdayEnd}
-                  onChange={(event) => setCalendarSettings((prev) => ({ ...prev, workdayEnd: Number(event.target.value) }))}
-                >
-                  {Array.from({ length: 24 }, (_, index) => index + 1).map((hour) => (
-                    <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-muted-foreground">Шаг сетки</span>
-              <select
-                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground"
-                value={calendarSettings.gridStep}
-                onChange={(event) => setCalendarSettings((prev) => ({ ...prev, gridStep: Number(event.target.value) as 15 | 30 | 60 }))}
-              >
-                <option value={15}>15 минут</option>
-                <option value={30}>30 минут</option>
-                <option value={60}>60 минут</option>
-              </select>
-            </label>
-
-            <div className="grid gap-2 rounded-xl border border-border/50 bg-muted/20 p-3">
-              {[
-                ["showWeekends", "Показывать выходные"],
-                ["showAllDay", "Показывать all-day зону"],
-                ["compactMode", "Компактный режим"],
-              ].map(([key, title]) => (
-                <label key={key} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{title}</span>
-                  <Checkbox
-                    checked={Boolean(calendarSettings[key as keyof CalendarSettings])}
-                    onCheckedChange={(checked) => setCalendarSettings((prev) => ({ ...prev, [key]: checked === true }))}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-muted-foreground">Timezone label</span>
-              <input
-                className="h-10 rounded-xl border border-border/50 bg-background px-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
-                value={calendarSettings.timezoneLabel}
-                onChange={(event) => setCalendarSettings((prev) => ({ ...prev, timezoneLabel: event.target.value }))}
-              />
-            </label>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCalendarSettings(DEFAULT_CALENDAR_SETTINGS)}>Сбросить</Button>
-            <Button onClick={() => setSettingsOpen(false)}>Готово</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CalendarSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={calendarSettings}
+        onSettingsChange={setCalendarSettings}
+      />
 
       <EventForm
         key={draftSlot ? "draft-slot" : selectedEntry?.kind === "event" ? selectedEntry.id : "new"}
