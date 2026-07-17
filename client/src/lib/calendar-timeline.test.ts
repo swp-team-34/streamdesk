@@ -7,6 +7,7 @@ import {
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
   getCalendarTimelineVisibleDayCount,
+  isCalendarTimelineNearBufferEdge,
 } from "./calendar-timeline";
 
 const dayKeys = (days: Date[]) => days.map((date) => date.toISOString().slice(0, 10));
@@ -81,16 +82,16 @@ describe("calendar timeline helpers", () => {
       viewportWidth: 756,
       dayWidth: 100,
       dayCount: 49,
-      bufferDays: 21,
+      bufferDays: 28,
       gutterWidth: 56,
-      thresholdDays: 7,
-      incrementDays: 14,
+      thresholdDays: 14,
+      incrementDays: 21,
       maxBufferDays: 49,
     };
 
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 2_100 })).toBe(21);
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 650 })).toBe(35);
-    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 3_600 })).toBe(35);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 2_100 })).toBe(28);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 650 })).toBe(49);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 3_600 })).toBe(49);
   });
 
   it("caps progressive timeline buffering", () => {
@@ -101,5 +102,19 @@ describe("calendar timeline helpers", () => {
       dayCount: 105,
       bufferDays: 49,
     })).toBe(49);
+  });
+
+  it("detects both prefetch edges before the viewport reaches the end", () => {
+    const input = {
+      viewportWidth: 756,
+      dayWidth: 100,
+      dayCount: 105,
+      gutterWidth: 56,
+      thresholdDays: 14,
+    };
+
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 1_500 })).toBe(false);
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 1_400 })).toBe(true);
+    expect(isCalendarTimelineNearBufferEdge({ ...input, scrollLeft: 8_400 })).toBe(true);
   });
 });

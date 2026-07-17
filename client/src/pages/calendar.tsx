@@ -53,6 +53,7 @@ import {
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
   getCalendarTimelineVisibleDayCount,
+  isCalendarTimelineNearBufferEdge,
   type CalendarTimelineViewMode,
 } from "@/lib/calendar-timeline";
 import {
@@ -109,8 +110,10 @@ export default function Calendar() {
   const timelineScrollTimerRef = useRef<number | null>(null);
   const commitTimelineScrollRef = useRef<() => void>(() => undefined);
   const timelineRecenteringRef = useRef(false);
+  const timelineLastScrollLeftRef = useRef(0);
   const timelineBufferDaysRef = useRef(CALENDAR_TIMELINE_BUFFER_DAYS);
   const timelinePendingBufferShiftRef = useRef(0);
+  const timelinePendingRebaseOffsetRef = useRef<number | null>(null);
   const timelinePanRef = useRef<{
     pointerId: number;
     startX: number;
@@ -407,14 +410,14 @@ export default function Calendar() {
       if (isTimelineView) scrollToCurrentHour(timelineScrollRef.current);
     }, 100);
     return () => clearTimeout(t);
-  }, [HOUR_START, ROW_HEIGHT, isTimelineView, viewMode]);
+  }, [ROW_HEIGHT, isTimelineView, viewMode, workdayStart]);
 
   useLayoutEffect(() => {
     if (!isTimelineView) return;
     const element = timelineScrollRef.current;
     if (!element) return;
 
-    const updateViewportWidth = () => setTimelineViewportWidth(element.clientWidth);
+    const updateViewportWidth = () => setTimelineViewportWidth(element.getBoundingClientRect().width);
     updateViewportWidth();
     const observer = new ResizeObserver(updateViewportWidth);
     observer.observe(element);
@@ -431,6 +434,24 @@ export default function Calendar() {
     if (pendingBufferShift > 0) {
       timelinePendingBufferShiftRef.current = 0;
       element.scrollLeft += pendingBufferShift * timelineDayWidth;
+      timelineLastScrollLeftRef.current = element.scrollLeft;
+      const frameId = window.requestAnimationFrame(() => {
+        timelineRecenteringRef.current = false;
+      });
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        timelineRecenteringRef.current = false;
+      };
+    }
+
+    const pendingRebaseOffset = timelinePendingRebaseOffsetRef.current;
+    if (pendingRebaseOffset != null) {
+      timelinePendingRebaseOffsetRef.current = null;
+      element.scrollLeft = getCalendarTimelineScrollLeft(
+        timelineBufferDays,
+        timelineDayWidth,
+      ) + pendingRebaseOffset;
+      timelineLastScrollLeftRef.current = element.scrollLeft;
       const frameId = window.requestAnimationFrame(() => {
         timelineRecenteringRef.current = false;
       });
@@ -444,6 +465,7 @@ export default function Calendar() {
       timelineBufferDays,
       timelineDayWidth,
     );
+    timelineLastScrollLeftRef.current = element.scrollLeft;
     const frameId = window.requestAnimationFrame(() => {
       timelineRecenteringRef.current = false;
     });
@@ -1046,10 +1068,11 @@ export default function Calendar() {
       timelineBufferDays,
       timelineDayWidth,
     );
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    element.scrollTo({
-      left: targetScrollLeft,
-      behavior: reducedMotion ? "auto" : "smooth",
+    timelineRecenteringRef.current = true;
+    element.scrollLeft = targetScrollLeft;
+    timelineLastScrollLeftRef.current = targetScrollLeft;
+    window.requestAnimationFrame(() => {
+      timelineRecenteringRef.current = false;
     });
   }, [selectedDate, timelineBufferDays, timelineDayWidth, timelineDays]);
   commitTimelineScrollRef.current = commitTimelineScroll;
@@ -1059,22 +1082,48 @@ export default function Calendar() {
     if (!element || timelineRecenteringRef.current) return;
 
     const currentBufferDays = timelineBufferDaysRef.current;
+    const viewportWidth = element.getBoundingClientRect().width;
+    const isNearEdge = isCalendarTimelineNearBufferEdge({
+      scrollLeft: element.scrollLeft,
+      viewportWidth,
+      dayWidth: timelineDayWidth,
+      dayCount: timelineDays.length,
+    });
+    if (!isNearEdge) return;
+
     const nextBufferDays = getCalendarTimelineNextBufferDays({
       scrollLeft: element.scrollLeft,
-      viewportWidth: element.clientWidth,
+      viewportWidth,
       dayWidth: timelineDayWidth,
       dayCount: timelineDays.length,
       bufferDays: currentBufferDays,
     });
-    if (nextBufferDays <= currentBufferDays) return;
+    if (nextBufferDays > currentBufferDays) {
+      timelineBufferDaysRef.current = nextBufferDays;
+      timelinePendingBufferShiftRef.current += nextBufferDays - currentBufferDays;
+      setTimelineBufferDays(nextBufferDays);
+      return;
+    }
 
-    timelineBufferDaysRef.current = nextBufferDays;
-    timelinePendingBufferShiftRef.current += nextBufferDays - currentBufferDays;
-    setTimelineBufferDays(nextBufferDays);
-  }, [timelineDayWidth, timelineDays.length]);
+    const firstVisibleIndex = Math.max(0, Math.min(
+      timelineDays.length - 1,
+      Math.floor(element.scrollLeft / timelineDayWidth),
+    ));
+    const nextAnchorDate = timelineDays[firstVisibleIndex];
+    if (!nextAnchorDate || isSameDay(nextAnchorDate, selectedDate)) return;
+
+    timelinePendingRebaseOffsetRef.current = element.scrollLeft - firstVisibleIndex * timelineDayWidth;
+    timelineRecenteringRef.current = true;
+    setSelectedDate(new Date(nextAnchorDate));
+  }, [selectedDate, timelineDayWidth, timelineDays]);
 
   const handleTimelineScroll = useCallback(() => {
     if (timelineRecenteringRef.current) return;
+    const element = timelineScrollRef.current;
+    if (!element) return;
+    const nextScrollLeft = element.scrollLeft;
+    if (Math.abs(nextScrollLeft - timelineLastScrollLeftRef.current) < 0.5) return;
+    timelineLastScrollLeftRef.current = nextScrollLeft;
     extendTimelineBufferIfNeeded();
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
@@ -1322,6 +1371,7 @@ export default function Calendar() {
     const endsAt = range === "before" ? workdayStart : 24;
     if (endsAt <= startsAt) return null;
     const isExpanded = expandedNonWorkingRanges[range];
+    if (isExpanded) return null;
 
     const entryCountByDay = days.map((day) =>
       getEntriesForDate(day).filter((entry) => {
@@ -1338,24 +1388,22 @@ export default function Calendar() {
     return (
       <button
         type="button"
-        aria-expanded={isExpanded}
-        aria-label={`${isExpanded ? "Свернуть" : "Развернуть"} часы с ${startsAtLabel} до ${endsAtLabel}${entriesInRange > 0 ? `. Событий внутри: ${entriesInRange}` : ""}`}
-        title={`${isExpanded ? "Свернуть" : "Развернуть"} ${startsAtLabel}–${endsAtLabel}`}
+        aria-expanded="false"
+        aria-label={`Развернуть часы с ${startsAtLabel} до ${endsAtLabel}${entriesInRange > 0 ? `. Событий внутри: ${entriesInRange}` : ""}`}
+        title={`Развернуть ${startsAtLabel}–${endsAtLabel}`}
         data-calendar-compressed-hours={range}
         className={cn(
           "group grid w-full cursor-pointer border-b border-border/35 bg-surface-subtle text-left text-[10px] text-muted-foreground transition-colors hover:bg-muted/55 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 sm:text-xs",
-          isExpanded ? "h-4" : "h-11",
+          "h-11",
         )}
         style={{ gridTemplateColumns }}
         onClick={() => setExpandedNonWorkingRanges((prev) => ({ ...prev, [range]: !prev[range] }))}
       >
         <span className="sticky left-0 z-20 block h-full border-r border-border/40 bg-surface-subtle group-hover:bg-muted/55">
-          {!isExpanded && (
-            <span className="relative block h-full pr-1 text-right">
-              <span className="absolute right-1 top-0.5">{startsAtLabel}</span>
-              <span className="absolute bottom-0.5 right-1">{endsAtLabel}</span>
-            </span>
-          )}
+          <span className="relative block h-full pr-1 text-right">
+            <span className="absolute right-1 top-0.5">{startsAtLabel}</span>
+            <span className="absolute bottom-0.5 right-1">{endsAtLabel}</span>
+          </span>
         </span>
         {days.map((day, index) => (
           <span
@@ -1363,7 +1411,7 @@ export default function Calendar() {
             className="relative block h-full border-r border-border/25 last:border-r-0"
           >
             <span className="absolute inset-x-0 top-1/2 border-t border-border/25" />
-            {!isExpanded && entryCountByDay[index] > 0 && (
+            {entryCountByDay[index] > 0 && (
               <span className="absolute left-2 top-1.5 h-1 w-8 max-w-[calc(100%-1rem)] rounded-full bg-primary/45" />
             )}
           </span>
@@ -1390,13 +1438,18 @@ export default function Calendar() {
         ? null
         : `${String(hour).padStart(2, "0")}:00`
     );
+    const getExpandedRangeForHour = (hour: number): "before" | "after" | null => {
+      if (expandedNonWorkingRanges.before && hour < workdayStart) return "before";
+      if (expandedNonWorkingRanges.after && hour >= workdayEnd) return "after";
+      return null;
+    };
 
     return (
       <div
         ref={timelineScrollRef}
         tabIndex={0}
         aria-label="Временная шкала календаря. Используйте стрелки для перехода по дням."
-        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-primary/30"
         style={{
           scrollSnapType: "x proximity",
           overscrollBehaviorX: "contain",
@@ -1467,9 +1520,7 @@ export default function Calendar() {
                 <div
                   className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/30 bg-surface-raised pr-1 text-[10px] text-muted-foreground sm:text-xs"
                   style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
-                >
-                  {renderTimelineHourLabel(hour)}
-                </div>
+                />
                 {timelineDays.map((day) => (
                   <div
                     key={`${hour}-${day.toISOString()}`}
@@ -1489,15 +1540,46 @@ export default function Calendar() {
                 className="pointer-events-none sticky left-0 z-40 border-r border-border/40 bg-surface-raised"
                 style={{ height: timelineHeight }}
               >
-                {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
-                  <div
-                    key={`timeline-hour-label-${hour}`}
-                    className="flex items-start justify-end border-b border-border/30 pr-1 text-[10px] text-muted-foreground sm:text-xs"
-                    style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
-                  >
-                    {renderTimelineHourLabel(hour)}
-                  </div>
-                ))}
+                {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => {
+                  const expandedRange = getExpandedRangeForHour(hour);
+                  const isRangeBoundary = expandedRange === "before"
+                    ? hour === workdayStart - 1
+                    : expandedRange === "after" && hour === workdayEnd;
+                  const className = "relative flex w-full items-start justify-end border-b border-border/30 pr-1 text-[10px] text-muted-foreground sm:text-xs";
+                  const style = { height: ROW_HEIGHT, minHeight: ROW_HEIGHT };
+
+                  if (!expandedRange) {
+                    return (
+                      <div key={`timeline-hour-label-${hour}`} className={className} style={style}>
+                        {renderTimelineHourLabel(hour)}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={`timeline-hour-label-${hour}`}
+                      type="button"
+                      className={`${className} pointer-events-auto transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60`}
+                      style={style}
+                      aria-label={`Скрыть часы ${expandedRange === "before" ? `до ${String(workdayStart).padStart(2, "0")}:00` : `после ${String(workdayEnd).padStart(2, "0")}:00`}`}
+                      onClick={() => setExpandedNonWorkingRanges((current) => ({
+                        ...current,
+                        [expandedRange]: false,
+                      }))}
+                    >
+                      {renderTimelineHourLabel(hour)}
+                      {isRangeBoundary && (
+                        <span className={cn(
+                          "absolute inset-x-1 border-t border-muted-foreground/50",
+                          expandedRange === "before" ? "bottom-0" : "top-0",
+                        )}>
+                          <span className="absolute left-1/2 top-0 h-1.5 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/60" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <div
                 className="relative"

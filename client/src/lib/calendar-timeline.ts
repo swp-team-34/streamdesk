@@ -3,10 +3,10 @@ import { addDays } from "date-fns";
 export type CalendarTimelineViewMode = "week" | "3days" | "day";
 
 export const CALENDAR_TIMELINE_GUTTER_WIDTH = 56;
-export const CALENDAR_TIMELINE_BUFFER_DAYS = 21;
-export const CALENDAR_TIMELINE_BUFFER_INCREMENT_DAYS = 14;
+export const CALENDAR_TIMELINE_BUFFER_DAYS = 28;
+export const CALENDAR_TIMELINE_BUFFER_INCREMENT_DAYS = 21;
 export const CALENDAR_TIMELINE_MAX_BUFFER_DAYS = 49;
-export const CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS = 7;
+export const CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS = 14;
 
 const MIN_DAY_WIDTH: Record<CalendarTimelineViewMode, number> = {
   day: 240,
@@ -99,6 +99,33 @@ export const getCalendarTimelineSnapIndex = ({
 export const getCalendarTimelineScrollLeft = (dayIndex: number, dayWidth: number) =>
   Math.max(0, dayIndex) * Math.max(0, dayWidth);
 
+export const isCalendarTimelineNearBufferEdge = ({
+  scrollLeft,
+  viewportWidth,
+  dayWidth,
+  dayCount,
+  gutterWidth = CALENDAR_TIMELINE_GUTTER_WIDTH,
+  thresholdDays = CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS,
+}: {
+  scrollLeft: number;
+  viewportWidth: number;
+  dayWidth: number;
+  dayCount: number;
+  gutterWidth?: number;
+  thresholdDays?: number;
+}) => {
+  if (dayWidth <= 0 || dayCount <= 0) return false;
+  const visibleDaysWidth = Math.max(0, viewportWidth - gutterWidth);
+  const firstVisibleDay = Math.max(0, scrollLeft / dayWidth);
+  const lastVisibleDay = Math.min(
+    dayCount - 1,
+    (scrollLeft + visibleDaysWidth) / dayWidth,
+  );
+  const remainingBefore = firstVisibleDay;
+  const remainingAfter = Math.max(0, dayCount - 1 - lastVisibleDay);
+  return remainingBefore <= thresholdDays || remainingAfter <= thresholdDays;
+};
+
 export const getCalendarTimelineNextBufferDays = ({
   scrollLeft,
   viewportWidth,
@@ -120,17 +147,13 @@ export const getCalendarTimelineNextBufferDays = ({
   incrementDays?: number;
   maxBufferDays?: number;
 }) => {
-  if (dayWidth <= 0 || dayCount <= 0 || bufferDays >= maxBufferDays) return bufferDays;
-
-  const visibleDaysWidth = Math.max(0, viewportWidth - gutterWidth);
-  const firstVisibleDay = Math.max(0, scrollLeft / dayWidth);
-  const lastVisibleDay = Math.min(
-    dayCount - 1,
-    (scrollLeft + visibleDaysWidth) / dayWidth,
-  );
-  const remainingBefore = firstVisibleDay;
-  const remainingAfter = Math.max(0, dayCount - 1 - lastVisibleDay);
-
-  if (remainingBefore > thresholdDays && remainingAfter > thresholdDays) return bufferDays;
+  if (bufferDays >= maxBufferDays || !isCalendarTimelineNearBufferEdge({
+    scrollLeft,
+    viewportWidth,
+    dayWidth,
+    dayCount,
+    gutterWidth,
+    thresholdDays,
+  })) return bufferDays;
   return Math.min(maxBufferDays, bufferDays + incrementDays);
 };
