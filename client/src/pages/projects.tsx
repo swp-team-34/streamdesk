@@ -9,11 +9,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { 
   Plus, HardDrive, Calendar,
   User, Edit, Trash2, Film, Clock, CheckCircle2,
   Columns, GripVertical, X, Settings2, MessageSquare, Link2, Github, ExternalLink,
-  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin
+  ArrowUp, ArrowDown, ListTodo, BarChart3, FileSpreadsheet as FileExcelIcon, MapPin, Search
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,12 +59,12 @@ const projectSchema = z.object({
 type ProjectFormData = z.infer<typeof projectSchema>;
 
 const statusConfig = {
-  planning: { label: "Планирование", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", progress: 10 },
-  filming: { label: "Съёмка", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", progress: 30 },
-  editing: { label: "Монтаж", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", progress: 50 },
-  review: { label: "На проверке", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400", progress: 80 },
-  completed: { label: "Завершён", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", progress: 100 },
-  archived: { label: "В архиве", color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400", progress: 100 },
+  planning: { label: "Планирование", color: "border-info/20 bg-info-muted text-info", progress: 10 },
+  filming: { label: "Съёмка", color: "border-primary/20 bg-primary/10 text-primary", progress: 30 },
+  editing: { label: "Монтаж", color: "border-warning/20 bg-warning-muted text-warning", progress: 50 },
+  review: { label: "На проверке", color: "border-warning/20 bg-warning-muted text-warning", progress: 80 },
+  completed: { label: "Завершён", color: "border-success/20 bg-success-muted text-success", progress: 100 },
+  archived: { label: "В архиве", color: "border-border/40 bg-muted text-muted-foreground", progress: 100 },
 };
 
 const categoryOptions = [
@@ -76,6 +77,19 @@ const categoryOptions = [
   { value: "stream_highlight", label: "Хайлайты стрима" },
   { value: "other", label: "Другое" },
 ];
+
+function getProjectStatus(project: { status?: string | null }) {
+  return statusConfig[project.status as keyof typeof statusConfig] ?? {
+    label: project.status || "Без статуса",
+    color: "border-border/40 bg-muted text-muted-foreground",
+    progress: 0,
+  };
+}
+
+function getProjectCategoryLabel(category: unknown) {
+  const value = String(category || "").trim();
+  return categoryOptions.find((option) => option.value === value)?.label || value;
+}
 
 interface ProjectColumn {
   id: string;
@@ -90,6 +104,13 @@ function formatDiscussionActivity(value: unknown) {
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return "";
   return format(date, "d MMM, HH:mm", { locale: ru });
+}
+
+function formatProjectDeadline(value: unknown) {
+  if (!value) return "";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "";
+  return format(date, "d MMMM yyyy", { locale: ru });
 }
 
 // Колонки для менеджера задач (сохраняются в localStorage, используются на странице «Задачи»)
@@ -176,10 +197,6 @@ function saveTaskManagerColumns(cols: { id: string; name: string; order: number 
 function normalizeParticipantIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map((item) => String(item || "").trim()).filter(Boolean)));
-}
-
-function toggleId(list: string[], id: string): string[] {
-  return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
 }
 
 export default function Projects() {
@@ -529,26 +546,27 @@ export default function Projects() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground mt-1">Управление файлами и устройствами для монтажа</p>
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 px-2 py-3 sm:px-4 sm:py-4">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">Проекты</h1>
+          <p className="text-sm text-muted-foreground">Команда, площадки, оборудование и Kanban-доски проектов.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportProjectsToExcel} disabled={filteredProjects.length === 0} title="Выгрузить текущий список в Excel">
+          <Button variant="outline" size="sm" className="border-border/50 bg-surface-raised" onClick={exportProjectsToExcel} disabled={filteredProjects.length === 0} title="Выгрузить текущий список в Excel">
             <FileExcelIcon className="w-4 h-4 mr-1.5" />
             В Excel
           </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button className="dark:neon-glow-purple" data-testid="button-add-project">
+            <Button data-testid="button-add-project">
               <Plus className="w-4 h-4 mr-2" />
               Новый проект
             </Button>
@@ -650,24 +668,20 @@ export default function Projects() {
                       <FormItem>
                         <FormLabel>Участники проекта</FormLabel>
                         <FormControl>
-                          <div className="max-h-48 overflow-y-auto rounded-lg border bg-background p-2 space-y-2">
-                            {(users as any[]).length === 0 ? (
-                              <p className="text-sm text-muted-foreground px-2 py-1">Пользователей пока нет</p>
-                            ) : (
-                              (users as any[]).map((user: any) => (
-                                <label key={user.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-                                  <Checkbox
-                                    checked={selected.includes(user.id)}
-                                    onCheckedChange={() => field.onChange(toggleId(selected, user.id))}
-                                  />
-                                  <span className="min-w-0">
-                                    <span className="block truncate">{user.name || user.username || user.id}</span>
-                                    {user.email && <span className="block truncate text-xs text-muted-foreground">{user.email}</span>}
-                                  </span>
-                                </label>
-                              ))
-                            )}
-                          </div>
+                          <StreamMultiSelect
+                            values={selected}
+                            options={(users as any[]).map((user: any) => ({
+                              value: String(user.id),
+                              label: user.name || user.username || user.id,
+                              description: user.email || undefined,
+                            }))}
+                            onValuesChange={field.onChange}
+                            placeholder={(users as any[]).length > 0 ? "Выберите участников" : "Пользователей пока нет"}
+                            ariaLabel="Участники проекта"
+                            title="Участники проекта"
+                            searchable
+                            disabled={(users as any[]).length === 0}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -679,7 +693,7 @@ export default function Projects() {
                   name="showInTaskManager"
                   render={({ field }) => (
                     <FormItem>
-                      <label className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+                      <label className="flex items-start gap-2 rounded-control border border-border/50 bg-surface-subtle p-3 text-sm">
                         <Checkbox checked={Boolean(field.value)} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
                         <span>
                           <span className="block font-medium">Показывать в таск-менеджере</span>
@@ -702,22 +716,19 @@ export default function Projects() {
                       <FormItem>
                         <FormLabel>Площадки проекта</FormLabel>
                         <FormControl>
-                          <div className="max-h-44 overflow-y-auto rounded-lg border bg-background p-2 space-y-2">
-                            {availableLocations.length === 0 ? (
-                              <p className="text-sm text-muted-foreground px-2 py-1">Активных площадок пока нет</p>
-                            ) : (
-                              availableLocations.map((location) => (
-                                <label key={location.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-                                  <Checkbox
-                                    checked={selected.includes(location.id)}
-                                    onCheckedChange={() => field.onChange(toggleId(selected, location.id))}
-                                  />
-                                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                                  <span className="truncate">{location.name}</span>
-                                </label>
-                              ))
-                            )}
-                          </div>
+                          <StreamMultiSelect
+                            values={selected}
+                            options={availableLocations.map((location) => ({
+                              value: String(location.id),
+                              label: location.name,
+                            }))}
+                            onValuesChange={field.onChange}
+                            placeholder={availableLocations.length > 0 ? "Выберите площадки" : "Активных площадок пока нет"}
+                            ariaLabel="Площадки проекта"
+                            title="Площадки проекта"
+                            searchable
+                            disabled={availableLocations.length === 0}
+                          />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">Можно выбрать несколько площадок; дубли автоматически исключаются.</p>
                         <FormMessage />
@@ -730,7 +741,7 @@ export default function Projects() {
                   name="createYougileBoard"
                   render={({ field }) => (
                     <FormItem>
-                      <label className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+                      <label className="flex items-start gap-2 rounded-control border border-border/50 bg-surface-subtle p-3 text-sm">
                         <Checkbox checked={Boolean(field.value)} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
                         <span>
                           <span className="block font-medium">Создать доску в YouGile</span>
@@ -751,9 +762,19 @@ export default function Projects() {
       </div>
 
       {/* Фильтры и статистика */}
-      <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border">
+      <div className="flex flex-wrap items-center gap-2 rounded-surface border border-border/50 bg-surface-raised p-3 shadow-xs">
+        <div className="relative min-w-[220px] flex-1 sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Название или клиент"
+            aria-label="Поиск проектов"
+            className="bg-surface-base pl-9"
+          />
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] bg-background">
+          <SelectTrigger className="w-full bg-surface-base sm:w-[160px]">
             <SelectValue placeholder="Статус" />
           </SelectTrigger>
           <SelectContent>
@@ -764,7 +785,7 @@ export default function Projects() {
           </SelectContent>
         </Select>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px] bg-background">
+          <SelectTrigger className="w-full bg-surface-base sm:w-[180px]">
             <SelectValue placeholder="Категория" />
           </SelectTrigger>
           <SelectContent>
@@ -775,7 +796,7 @@ export default function Projects() {
           </SelectContent>
         </Select>
         <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-          <SelectTrigger className="w-[180px] bg-background">
+          <SelectTrigger className="w-full bg-surface-base sm:w-[180px]">
             <SelectValue placeholder="Сотрудник" />
           </SelectTrigger>
           <SelectContent>
@@ -785,12 +806,12 @@ export default function Projects() {
             ))}
           </SelectContent>
         </Select>
-        <span className="text-sm text-muted-foreground">Найдено: {filteredProjects.length}</span>
+        <span className="ml-auto text-xs text-muted-foreground">Найдено: {filteredProjects.length}</span>
       </div>
 
       {/* Проекты из YouGile — добавляются именно проекты; новые проекты из YouGile подтягиваются синхронизацией */}
       {yougileProjects.length > 0 && (
-        <Card className="border-dashed border-primary/40 bg-muted/20">
+        <Card className="border-dashed border-primary/30 bg-primary/5">
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -818,7 +839,7 @@ export default function Projects() {
               {yougileProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm"
+                  className="flex items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm shadow-xs"
                 >
                   <span className="font-medium truncate max-w-[180px]" title={project.title || project.id}>
                     {project.title || "Без названия"}
@@ -841,52 +862,86 @@ export default function Projects() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredProjects.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <Film className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Проекты не найдены</p>
-            <p className="text-sm text-muted-foreground mt-1">Создайте первый видеопроект</p>
+          <div className="col-span-full rounded-surface border border-dashed border-border/60 bg-surface-raised px-4 py-12 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Film className="h-5 w-5" />
+            </div>
+            <p className="font-medium text-foreground">Проекты не найдены</p>
+            <p className="mt-1 text-sm text-muted-foreground">Измените фильтры или создайте первый проект.</p>
           </div>
         ) : (
           filteredProjects.map((project: any) => (
               <Card 
                 key={project.id} 
-                className="dark:border-border/50 dark:hover:border-primary/50 transition-all hover:shadow-lg"
+                className="group border-border/50 bg-surface-raised shadow-xs transition-[border-color,box-shadow,background-color] duration-150 hover:border-border/80 hover:bg-surface-overlay hover:shadow-surface"
                 data-testid={`project-card-${project.id}`}
               >
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shrink-0">
-                      <Film className="w-5 h-5 text-white" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-primary/10 text-primary">
+                      <Film className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
-                      {equipmentCountByProject[project.id] > 0 && (
-                        <div className="mt-2">
-                          <Badge variant="secondary" className="inline-flex items-center gap-1">
-                            <HardDrive className="h-3.5 w-3.5" />
-                            Связано оборудования: {equipmentCountByProject[project.id]}
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="line-clamp-2 text-lg">{project.name}</CardTitle>
+                        <Badge className={cn("shrink-0 rounded-full border text-[11px]", getProjectStatus(project).color)}>
+                          {getProjectStatus(project).label}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {equipmentCountByProject[project.id] > 0 && (
+                          <Badge variant="secondary" className="inline-flex items-center gap-1 rounded-full text-[11px]">
+                            <HardDrive className="h-3 w-3" />
+                            {equipmentCountByProject[project.id]} ед.
                           </Badge>
-                        </div>
-                      )}
-                      {(project.commentCount ?? 0) > 0 && (
-                        <div className="mt-2 space-y-1">
-                          <Badge variant="outline" className="inline-flex items-center gap-1">
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            {project.commentCount} в обсуждении
+                        )}
+                        {(project.commentCount ?? 0) > 0 && (
+                          <Badge variant="outline" className="inline-flex items-center gap-1 rounded-full border-border/40 text-[11px]">
+                            <MessageSquare className="h-3 w-3" />
+                            {project.commentCount}
                           </Badge>
-                          {project.latestCommentAt && (
-                            <div className="text-xs text-muted-foreground">
-                              Последняя активность: {formatDiscussionActivity(project.latestCommentAt)}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {project.yougileBoardId && (
+                          <Badge variant="outline" className="inline-flex items-center gap-1 rounded-full border-border/40 text-[11px] text-muted-foreground">
+                            <Link2 className="h-3 w-3" />
+                            YouGile
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {project.description && (
                     <p className="text-sm text-muted-foreground line-clamp-3">{project.description}</p>
+                  )}
+                  {(project.category || project.deadline || project.assignedTo || project.latestCommentAt) && (
+                    <div className="space-y-2 rounded-control border border-border/40 bg-surface-subtle p-3 text-sm">
+                      {project.category && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Film className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate text-foreground/85">{getProjectCategoryLabel(project.category)}</span>
+                        </div>
+                      )}
+                      {formatProjectDeadline(project.deadline) && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5 shrink-0" />
+                          <span>{formatProjectDeadline(project.deadline)}</span>
+                        </div>
+                      )}
+                      {project.assignedTo && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <User className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate text-foreground/85">{getUserName(project.assignedTo)}</span>
+                        </div>
+                      )}
+                      {project.latestCommentAt && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                          Последняя активность: {formatDiscussionActivity(project.latestCommentAt)}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {Array.isArray(project.locations) && project.locations.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
@@ -908,8 +963,8 @@ export default function Projects() {
                     </div>
                   )}
                   {Array.isArray(project.locationTopics) && project.locationTopics.length > 0 && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
-                      <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-200">
+                    <div className="rounded-control border border-warning/20 bg-warning-muted p-2.5">
+                      <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-warning">
                         <MessageSquare className="h-3.5 w-3.5" />
                         Активные темы площадок: {project.locationTopics.length}
                       </div>
@@ -926,107 +981,86 @@ export default function Projects() {
                       </div>
                     </div>
                   )}
-                  {project.assignedTo && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <span>{getUserName(project.assignedTo)}</span>
-                    </div>
-                  )}
                   {normalizeParticipantIds(project.participants).length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {normalizeParticipantIds(project.participants).slice(0, 4).map((userId) => (
-                        <Badge key={userId} variant="secondary" className="text-[11px]">
+                        <Badge key={userId} variant="secondary" className="rounded-full text-[11px]">
                           {getUserName(userId)}
                         </Badge>
                       ))}
                       {normalizeParticipantIds(project.participants).length > 4 && (
-                        <Badge variant="outline" className="text-[11px]">
+                        <Badge variant="outline" className="rounded-full text-[11px]">
                           +{normalizeParticipantIds(project.participants).length - 4}
                         </Badge>
                       )}
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="shrink-0 min-w-[7rem]"
-                      onClick={() => setSelectedProject(project)}
-                    >
-                      <Edit className="w-4 h-4 mr-1 shrink-0" />
-                      Изменить
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="shrink-0 min-w-[7rem]"
-                      title="Статистика по задачам"
-                      onClick={() => setProjectForStats(project)}
-                    >
-                      <BarChart3 className="w-4 h-4 mr-1 shrink-0" />
-                      Статистика
-                    </Button>
+                  <div className="flex items-center gap-1 border-t border-border/40 pt-3">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-                      className="shrink-0 min-w-[5rem]"
-                      title="Открыть доску проекта в Task Manager"
+                      className="mr-auto min-w-0"
+                      title="Открыть доску проекта в Kanban V2"
                       disabled={openProjectKanbanBoardMutation.isPending}
                       onClick={() => openProjectKanbanBoardMutation.mutate(project.id)}
                     >
-                      <ListTodo className="w-4 h-4 mr-1 shrink-0" />
+                      <ListTodo className="h-4 w-4 shrink-0" />
                       {openProjectKanbanBoardMutation.isPending && openProjectKanbanBoardMutation.variables === project.id
                         ? "Открытие..."
-                        : "Таск"}
+                        : "Открыть доску"}
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 min-w-[7rem]"
-                      title="Открыть обсуждение проекта"
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-11 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                      aria-label="Изменить проект"
+                      title="Изменить проект"
+                      onClick={() => setSelectedProject(project)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-11 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                      aria-label="Статистика проекта"
+                      title="Статистика проекта"
+                      onClick={() => setProjectForStats(project)}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="relative h-11 w-11 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                      aria-label="Обсуждение проекта"
+                      title="Обсуждение проекта"
                       onClick={() => setProjectForDiscussion(project)}
                     >
-                      <MessageSquare className="w-4 h-4 mr-1 shrink-0" />
-                      Обсуждение{(project.commentCount ?? 0) > 0 ? ` · ${project.commentCount}` : ""}
+                      <MessageSquare className="h-4 w-4" />
+                      {(project.commentCount ?? 0) > 0 && (
+                        <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-primary" />
+                      )}
                     </Button>
-                    {project.yougileBoardId ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0 min-w-[7rem]"
-                          title="Добавить колонку на доску YouGile"
-                          disabled={addColumnMutation.isPending}
-                          onClick={() => setProjectForAddColumn(project)}
-                        >
-                          <Columns className="w-4 h-4 mr-1 shrink-0" />
-                          Колонка
-                        </Button>
-                        <Badge variant="outline" className="h-8 px-2 inline-flex items-center gap-1">
-                          <Link2 className="w-3.5 h-3.5" />
-                          YouGile
-                        </Badge>
-                      </>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="shrink-0 min-w-[7rem]"
-                        title="Создать и привязать доску YouGile"
-                        disabled={linkBoardMutation.isPending}
-                        onClick={() => linkBoardMutation.mutate(project.id)}
-                      >
-                        {linkBoardMutation.isPending ? (
-                          <span className="inline-flex items-center gap-1"><span className="animate-pulse">…</span>YouGile</span>
-                        ) : (
-                          <><Link2 className="w-4 h-4 mr-1 shrink-0" />YouGile</>
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-11 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                      aria-label={project.yougileBoardId ? "Добавить колонку YouGile" : "Создать доску YouGile"}
+                      title={project.yougileBoardId ? "Добавить колонку YouGile" : "Создать доску YouGile"}
+                      disabled={project.yougileBoardId ? addColumnMutation.isPending : linkBoardMutation.isPending}
+                      onClick={() => project.yougileBoardId
+                        ? setProjectForAddColumn(project)
+                        : linkBoardMutation.mutate(project.id)}
+                    >
+                      {project.yougileBoardId ? <Columns className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                    </Button>
                     <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="shrink-0 min-w-[2.5rem] text-destructive hover:bg-destructive/10"
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-11 text-error hover:bg-error-muted hover:text-error sm:h-8 sm:w-8"
+                      aria-label="Удалить проект"
+                      title="Удалить проект"
                       onClick={async () => {
                         const confirmed = await confirmAction({
                           title: `Удалить проект «${project.name || "без названия"}»?`,
@@ -1037,7 +1071,7 @@ export default function Projects() {
                         if (confirmed) deleteMutation.mutate(project.id);
                       }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

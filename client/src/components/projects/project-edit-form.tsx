@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent, type MutableRefObject } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { useToast } from "@/hooks/use-toast";
@@ -176,26 +176,22 @@ export function ProjectEditForm({
       </div>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Участники проекта</label>
-        <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border bg-background p-2">
-          {safeUsers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Пользователей пока нет</p>
-          ) : (
-            safeUsers.map((user) => (
-              <label key={user.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-                <Checkbox
-                  checked={participants.includes(user.id)}
-                  onCheckedChange={() => setParticipants((current) => toggleProjectSelection(current, user.id))}
-                />
-                <span className="min-w-0">
-                  <span className="block truncate">{user.name ?? user.username ?? user.id}</span>
-                  {user.email && <span className="block truncate text-xs text-muted-foreground">{user.email}</span>}
-                </span>
-              </label>
-            ))
-          )}
-        </div>
+        <StreamMultiSelect
+          values={participants}
+          options={safeUsers.map((user) => ({
+            value: user.id,
+            label: user.name ?? user.username ?? user.id,
+            description: user.email ?? undefined,
+          }))}
+          onValuesChange={setParticipants}
+          placeholder={safeUsers.length > 0 ? "Выберите участников" : "Пользователей пока нет"}
+          ariaLabel="Участники проекта"
+          title="Участники проекта"
+          searchable
+          disabled={safeUsers.length === 0}
+        />
       </div>
-      <label className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+      <label className="flex items-start gap-2 rounded-control border border-border/50 bg-surface-subtle p-3 text-sm">
         <Checkbox checked={showInTaskManager} onCheckedChange={(checked) => setShowInTaskManager(Boolean(checked))} />
         <span>
           <span className="block font-medium">Показывать в таск-менеджере</span>
@@ -204,29 +200,22 @@ export function ProjectEditForm({
       </label>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Площадки проекта</label>
-        <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border bg-background p-2">
-          {locations.filter((location) => !location.archivedAt || locationIds.includes(location.id)).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Активных площадок пока нет</p>
-          ) : (
-            locations
-              .filter((location) => !location.archivedAt || locationIds.includes(location.id))
-              .map((location) => (
-                <label
-                  key={location.id}
-                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      checked={locationIds.includes(location.id)}
-                      onCheckedChange={() => setLocationIds((current) => toggleProjectSelection(current, location.id))}
-                    />
-                    <span className="truncate">{location.name}</span>
-                  </span>
-                  {location.archivedAt && <Badge variant="secondary">Архив</Badge>}
-                </label>
-              ))
-          )}
-        </div>
+        <StreamMultiSelect
+          values={locationIds}
+          options={locations
+            .filter((location) => !location.archivedAt || locationIds.includes(location.id))
+            .map((location) => ({
+              value: location.id,
+              label: location.name,
+              description: location.archivedAt ? "Архив" : undefined,
+            }))}
+          onValuesChange={setLocationIds}
+          placeholder={locations.length > 0 ? "Выберите площадки" : "Активных площадок пока нет"}
+          ariaLabel="Площадки проекта"
+          title="Площадки проекта"
+          searchable
+          disabled={locations.length === 0}
+        />
         <p className="text-xs text-muted-foreground">Площадки карточек Kanban добавляются в сводку проекта автоматически.</p>
       </div>
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
