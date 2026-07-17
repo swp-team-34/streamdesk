@@ -1,7 +1,6 @@
 import type { Equipment } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import {
   Select,
   SelectContent,
@@ -127,24 +127,21 @@ export function EquipmentCheckoutRequestDialog({
     ));
   };
 
-  const toggleCard = (card: EquipmentCheckoutCardOption, checked: boolean) => {
-    const cardProjectId = getCardProjectId(card);
-    if (checked && projectId === "none" && cardProjectId) {
+  const changeCards = (nextCardIds: string[]) => {
+    const addedCardId = nextCardIds.find((cardId) => !selectedCardIds.has(cardId));
+    const addedCard = addedCardId ? cards.find((card) => card.id === addedCardId) : null;
+    const cardProjectId = addedCard ? getCardProjectId(addedCard) : "";
+    if (addedCard && projectId === "none" && cardProjectId) {
       onProjectIdChange(cardProjectId);
       onSelectedCardIdsChange(new Set([
-        ...[...selectedCardIds].filter((cardId) => {
+        ...nextCardIds.filter((cardId) => {
           const selectedCard = cards.find((entry) => entry.id === cardId);
           return selectedCard && getCardProjectId(selectedCard) === cardProjectId;
         }),
-        card.id,
       ]));
       return;
     }
-
-    const next = new Set(selectedCardIds);
-    if (checked) next.add(card.id);
-    else next.delete(card.id);
-    onSelectedCardIdsChange(next);
+    onSelectedCardIdsChange(new Set(nextCardIds));
   };
 
   const submit = () => {
@@ -189,14 +186,14 @@ export function EquipmentCheckoutRequestDialog({
 
   return (
     <Dialog open={Boolean(equipment)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto bg-white dark:bg-slate-900">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-slate-900 dark:text-white">
+          <DialogTitle>
             {requestType === "transfer"
               ? "Запросить перенос оборудования"
               : "Запросить выдачу оборудования"}
           </DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogDescription>
             {requestType === "transfer"
               ? "Запрос уйдёт главному по компании. После подтверждения оборудование будет перенесено на вас."
               : "Запрос уйдёт главному по компании. После подтверждения оборудование закрепится за вами."}
@@ -205,10 +202,10 @@ export function EquipmentCheckoutRequestDialog({
 
         {equipment && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-              <div className="font-medium text-slate-900 dark:text-white">{equipment.name}</div>
+            <div className="rounded-control border border-border/50 bg-surface-subtle px-4 py-3">
+              <div className="font-medium text-foreground">{equipment.name}</div>
               {equipment.model && (
-                <div className="text-sm text-slate-500 dark:text-slate-400">{equipment.model}</div>
+                <div className="text-sm text-muted-foreground">{equipment.model}</div>
               )}
               <Badge className={`mt-2 ${getEquipmentOperabilityClass(getEquipmentOperabilityStatus(equipment))}`}>
                 {getEquipmentOperabilityLabel(getEquipmentOperabilityStatus(equipment))}
@@ -216,13 +213,13 @@ export function EquipmentCheckoutRequestDialog({
             </div>
 
             {requestType === "transfer" && assignedUserName && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
+              <div className="rounded-control border border-info/30 bg-info/10 px-4 py-3 text-sm text-info">
                 Сейчас у сотрудника: {assignedUserName}
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="text-sm font-medium text-foreground">
                 {requestType === "transfer" ? "Куда переносите" : "Куда берёте"}
               </label>
               <Select
@@ -232,7 +229,7 @@ export function EquipmentCheckoutRequestDialog({
                   if (value !== "manual") onManualLocationChange("");
                 }}
               >
-                <SelectTrigger aria-label="Место назначения" className="bg-white dark:bg-slate-800">
+                <SelectTrigger aria-label="Место назначения">
                   <SelectValue placeholder="Выберите площадку или ручной ввод" />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,14 +249,14 @@ export function EquipmentCheckoutRequestDialog({
                   placeholder="Например: выездная площадка, монтажная 2"
                 />
               )}
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Площадка и ручное место — взаимоисключающие варианты.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="checkout-quantity">
+                <label className="text-sm font-medium text-foreground" htmlFor="checkout-quantity">
                   Количество *
                 </label>
                 <Input
@@ -275,9 +272,9 @@ export function EquipmentCheckoutRequestDialog({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Проект</label>
+                <label className="text-sm font-medium text-foreground">Проект</label>
                 <Select value={projectId} onValueChange={changeProject}>
-                  <SelectTrigger aria-label="Проект запроса" className="bg-white dark:bg-slate-800">
+                  <SelectTrigger aria-label="Проект запроса">
                     <SelectValue placeholder="Без проекта" />
                   </SelectTrigger>
                   <SelectContent>
@@ -293,39 +290,33 @@ export function EquipmentCheckoutRequestDialog({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Карточки Kanban V2</label>
-              <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                {visibleCards.length > 0 ? visibleCards.slice(0, 100).map((card) => (
-                  <label key={card.id} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <Checkbox
-                      aria-label={`Выбрать карточку «${card.title || "Карточка"}»`}
-                      checked={selectedCardIds.has(card.id)}
-                      onCheckedChange={(checked) => toggleCard(card, checked === true)}
-                    />
-                    <span className="min-w-0 text-sm">
-                      <span className="block break-words font-medium text-slate-800 dark:text-slate-200">
-                        {card.title || "Карточка"}
-                      </span>
-                      <span className="block text-xs text-slate-500 dark:text-slate-400">
-                        {[card.boardName, card.listName].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
-                  </label>
-                )) : (
-                  <div className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
-                    {projectId === "none"
-                      ? "В компании нет доступных карточек Kanban V2"
-                      : "У проекта нет доступных карточек Kanban V2"}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <label className="text-sm font-medium text-foreground" htmlFor="checkout-kanban-cards">Карточки Kanban V2</label>
+              <StreamMultiSelect
+                id="checkout-kanban-cards"
+                ariaLabel="Карточки Kanban V2"
+                title="Выберите карточки Kanban V2"
+                values={[...selectedCardIds]}
+                options={visibleCards.slice(0, 100).map((card) => ({
+                  value: card.id,
+                  label: card.title || "Карточка",
+                  description: [card.boardName, card.listName].filter(Boolean).join(" · "),
+                }))}
+                onValuesChange={changeCards}
+                placeholder={projectId === "none"
+                  ? "Выберите карточки компании"
+                  : "Выберите карточки проекта"}
+                searchPlaceholder="Поиск по карточкам"
+                emptyMessage={projectId === "none"
+                  ? "В компании нет доступных карточек Kanban V2"
+                  : "У проекта нет доступных карточек Kanban V2"}
+              />
+              <p className="text-xs text-muted-foreground">
                 Можно выбрать несколько карточек. Проект карточки подставляется автоматически.
               </p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="checkout-note">
+              <label className="text-sm font-medium text-foreground" htmlFor="checkout-note">
                 Комментарий
               </label>
               <Input

@@ -53,13 +53,13 @@ export function EquipmentKitSafetyDialog({
 
   return (
     <Dialog open={entries.length > 0} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg bg-white dark:bg-slate-900">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
-            <ShieldAlert className="h-5 w-5 text-amber-500" />
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-warning" />
             Компонент входит в комплект
           </DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogDescription>
             Для действия «{actionLabel}» сначала нужно явно извлечь компонент. Состав и автор операции будут записаны в историю.
           </DialogDescription>
         </DialogHeader>
@@ -68,17 +68,17 @@ export function EquipmentKitSafetyDialog({
           <div className="max-h-52 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {entries.map((entry) => (
               <div key={entry.item.id} className={cn(
-                "rounded-lg border px-3 py-2 text-sm",
+                "rounded-control border px-3 py-2 text-sm",
                 entry.active
-                  ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/25"
-                  : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/25",
+                  ? "border-error/30 bg-error-muted"
+                  : "border-warning/30 bg-warning-muted",
               )}>
-                <div className="font-medium text-slate-900 dark:text-white">{entry.item.name}</div>
-                <div className="mt-1 text-slate-600 dark:text-slate-300">
+                <div className="font-medium text-foreground">{entry.item.name}</div>
+                <div className="mt-1 text-muted-foreground">
                   Комплект: <span className="font-medium">{entry.bundle.name}</span>
                 </div>
                 {entry.active && (
-                  <div className="mt-1 flex items-start gap-1.5 font-medium text-red-700 dark:text-red-300">
+                  <div className="mt-1 flex items-start gap-1.5 font-medium text-error">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
                       Комплект используется{entry.projectName || entry.projectId
@@ -92,7 +92,7 @@ export function EquipmentKitSafetyDialog({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="kit-safety-reason">
+            <label className="text-sm font-medium text-foreground" htmlFor="kit-safety-reason">
               Причина или контекст
             </label>
             <Textarea
@@ -105,8 +105,8 @@ export function EquipmentKitSafetyDialog({
           </div>
 
           {hasActiveEntries && canOverrideActiveKit && (
-            <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/25">
-              <label className="text-sm font-medium text-red-800 dark:text-red-200" htmlFor="kit-safety-override">
+            <div className="space-y-2 rounded-control border border-error/30 bg-error-muted p-3">
+              <label className="text-sm font-medium text-error" htmlFor="kit-safety-override">
                 Для override активного комплекта введите ИЗВЛЕЧЬ
               </label>
               <Input
@@ -121,7 +121,7 @@ export function EquipmentKitSafetyDialog({
 
           {hasActiveEntries && !canOverrideActiveKit ? (
             <div className="space-y-3">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <div className="rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-sm text-muted-foreground">
                 Активный комплект может изменить только менеджер или администратор. До решения состав останется без изменений.
               </div>
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
