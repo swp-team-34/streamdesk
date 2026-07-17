@@ -498,7 +498,7 @@ export default function ChatGPT() {
   if (!currentUser?.id) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md border-border/50 bg-surface-raised shadow-lg">
+        <Card className="w-full max-w-md border-border/50 bg-surface-raised shadow-surface">
           <CardContent className="pt-8 pb-8 text-center">
             <AlertCircle className="mx-auto mb-4 h-12 w-12 text-warning" />
             <h3 className="mb-2 text-xl font-bold text-foreground">Требуется авторизация</h3>
@@ -530,7 +530,7 @@ export default function ChatGPT() {
           </div>
         </div>
 
-        <div className="relative flex h-[calc(100vh-11rem)] min-h-[320px] flex-1 flex-col overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-lg sm:flex-row">
+        <div className="relative flex h-[calc(100vh-11rem)] min-h-[320px] flex-1 flex-col overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs sm:flex-row">
       {/* Боковая панель с чатами */}
       <div className={`${sidebarOpen ? 'block' : 'hidden'} absolute z-50 flex h-full min-h-0 w-full flex-shrink-0 flex-col border-r border-border/50 bg-surface-subtle sm:relative sm:z-auto sm:block sm:w-72`}>
         <div className="flex min-w-0 flex-nowrap items-center gap-2 border-b border-border/50 p-3 sm:p-4">
@@ -823,7 +823,7 @@ export default function ChatGPT() {
                       
                       {/* Текст сообщения */}
                     <div className={cn(
-                      "leading-relaxed whitespace-pre-wrap text-sm sm:text-base break-words rounded-2xl px-4 py-3 shadow-sm",
+                      "break-words whitespace-pre-wrap rounded-surface px-4 py-3 text-sm leading-relaxed shadow-xs sm:text-base",
                       message.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "border border-border/50 bg-surface-raised text-foreground"
@@ -840,7 +840,7 @@ export default function ChatGPT() {
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-foreground/80 shadow-sm sm:h-10 sm:w-10">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex-1 rounded-2xl border border-border/50 bg-surface-raised px-4 py-3 shadow-sm">
+                <div className="flex-1 rounded-surface border border-border/50 bg-surface-raised px-4 py-3 shadow-xs">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     <span className="text-sm text-muted-foreground">Печатает...</span>
@@ -853,7 +853,7 @@ export default function ChatGPT() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-border/50 bg-surface-raised/95 shadow-lg backdrop-blur-sm">
+        <div className="border-t border-border/50 bg-surface-raised/95 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
             {attachedFiles.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">

@@ -457,7 +457,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+      <DialogContent className="hide-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {event?.id ? "Редактировать событие" : "Создать событие"}
@@ -467,12 +467,12 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {!event?.id && (
-              <div className="inline-flex rounded-xl border border-border/35 bg-muted/30 p-1">
+              <div className="inline-flex rounded-control border border-border/50 bg-muted/30 p-1">
                 <Button
                   type="button"
                   variant={formMode === "event" ? "secondary" : "ghost"}
                   size="sm"
-                  className="rounded-lg"
+                  className="rounded-md"
                   onClick={() => setFormMode("event")}
                 >
                   Событие
@@ -481,7 +481,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                   type="button"
                   variant={formMode === "kanban" ? "secondary" : "ghost"}
                   size="sm"
-                  className="rounded-lg"
+                  className="rounded-md"
                   onClick={() => setFormMode("kanban")}
                 >
                   Задача Kanban
@@ -504,7 +504,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
             />
 
             {formMode === "kanban" && !event?.id && (
-              <div className="grid grid-cols-1 gap-4 rounded-xl border border-border/35 bg-muted/20 p-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 rounded-surface border border-border/50 bg-muted/20 p-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <FormLabel>Доска</FormLabel>
                   <StreamSelect
@@ -615,7 +615,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
               />
 
               <div className="md:col-span-2">
-                <label className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm">
+                <label className="flex items-center gap-2 rounded-control border border-border/50 bg-muted/30 px-3 py-2 text-sm">
                   <Checkbox checked={allDay} onCheckedChange={(checked) => setAllDayRange(checked === true)} />
                   Весь день
                 </label>
@@ -677,13 +677,13 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
             {formMode === "event" && (
               <div className="space-y-2">
                 <FormLabel>Цвет события</FormLabel>
-                <div className="flex flex-wrap gap-2 rounded-xl border border-border/35 bg-muted/20 p-3">
+                <div className="flex flex-wrap gap-2 rounded-surface border border-border/50 bg-muted/20 p-3">
                   {EVENT_COLOR_OPTIONS.map((color) => (
                     <button
                       key={color.value}
                       type="button"
                       className={[
-                        "h-9 w-9 rounded-xl border transition hover:scale-105",
+                        "h-9 w-9 rounded-full border transition hover:scale-105",
                         eventColor === color.value ? "border-primary/70 ring-2 ring-primary/30" : "border-border/50",
                       ].join(" ")}
                       style={{ backgroundColor: color.value }}
@@ -793,7 +793,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                       <SelectItem key={user.id} value={user.id}>
                         <div className="flex flex-col">
                           <span>{user.name}</span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {user.position} - {user.department}
                           </span>
                         </div>
