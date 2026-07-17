@@ -381,7 +381,7 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
           <TabsContent value="stock" className="flex-1 flex flex-col min-h-0 mt-4">
             <div className="space-y-4">
               {/* Быстрое добавление: беспроводные блоки */}
-              <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                 <Label className="text-xs font-medium text-muted-foreground mb-2 block">Беспроводная связь</Label>
                 <div className="flex gap-2">
                   <Button
@@ -437,7 +437,7 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                 />
                 {stockDropdownOpen && stockDropdownSuggestions.length > 0 && (
                   <div
-                    className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md max-h-[280px] overflow-auto"
+                    className="absolute z-50 mt-1 max-h-[280px] w-full overflow-auto rounded-control border border-border/60 bg-surface-overlay text-foreground shadow-overlay"
                     onMouseDown={(e) => e.preventDefault()}
                   >
                     {stockDropdownSuggestions.map((item) => {
@@ -529,7 +529,7 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                         return (
                           <div
                             key={item.id}
-                            className="p-4 border rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer bg-card"
+                            className="cursor-pointer rounded-surface border border-border/50 bg-surface-raised p-4 transition-colors hover:bg-surface-overlay"
                             onClick={() => handleAddFromStock(item)}
                           >
                             <div className="flex items-start justify-between gap-3">
@@ -601,7 +601,7 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                   />
                   {searchSuggestionsOpen && searchTerm.trim().length >= 1 && searchSuggestions.length > 0 && (
                     <div
-                      className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md max-h-[240px] overflow-auto"
+                      className="absolute z-50 mt-1 max-h-[240px] w-full overflow-auto rounded-control border border-border/60 bg-surface-overlay text-foreground shadow-overlay"
                       onMouseDown={(e) => e.preventDefault()}
                     >
                       {searchSuggestions.map((s, idx) => (
@@ -645,7 +645,7 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                     {searchResults.map((result, index) => (
                       <div
                         key={index}
-                        className="p-4 border rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 bg-card"
+                        className="rounded-surface border border-border/50 bg-surface-raised p-4 transition-colors hover:bg-surface-overlay"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
