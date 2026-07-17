@@ -1,6 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Calendar } from "lucide-react";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 
 interface QuickCalendarProps {
   events?: any[];
@@ -15,16 +19,16 @@ export default function QuickCalendar({ events }: QuickCalendarProps) {
 
   const getEventTypeColor = (type: string) => {
     switch (type) {
-      case "stream": return "bg-blue-500";
-      case "recording": return "bg-green-500";
-      case "maintenance": return "bg-yellow-500";
-      case "meeting": return "bg-purple-500";
-      default: return "bg-gray-500";
+      case "stream": return "bg-info";
+      case "recording": return "bg-success";
+      case "maintenance": return "bg-warning";
+      case "meeting": return "bg-chart-4";
+      default: return "bg-muted-foreground";
     }
   };
 
   return (
-    <Card className="bg-card border-border rounded-xl overflow-hidden min-w-0 shadow-sm">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="py-2 px-3 pb-1">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-foreground">Календарь на сегодня</CardTitle>
@@ -37,22 +41,22 @@ export default function QuickCalendar({ events }: QuickCalendarProps) {
       </CardHeader>
       <CardContent className="px-3 pb-2.5 pt-0">
         {todayEvents.length === 0 ? (
-          <div className="text-center py-3 text-slate-500 dark:text-slate-400">
-            <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+          <div className="py-3 text-center text-muted-foreground">
+            <Calendar className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
             <p className="text-xs">На сегодня событий нет</p>
           </div>
         ) : (
           <div className="space-y-1">
             {todayEvents.map((event) => (
-              <div key={event.id} className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-muted/50">
+              <div key={event.id} className={`flex items-center space-x-2 p-1.5 hover:bg-muted/50 ${DASHBOARD_WIDGET_ROW_CLASS}`}>
                 <div className="w-10 text-center shrink-0">
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  <p className="text-[10px] text-muted-foreground">
                     {new Date(event.startTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{event.title}</p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate">
+                  <p className="truncate text-xs font-medium text-foreground">{event.title}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
                     {event.location} • {event.userId ? 'Назначено' : 'Свободное'}
                   </p>
                 </div>

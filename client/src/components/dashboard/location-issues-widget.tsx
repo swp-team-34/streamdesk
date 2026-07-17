@@ -4,6 +4,12 @@ import { AlertTriangle, MapPin, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_WARNING_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { queryClient } from "@/lib/queryClient";
 
@@ -55,10 +61,10 @@ export default function LocationIssuesWidget() {
     .slice(0, 5);
 
   return (
-    <Card className="h-full border-l-4 border-l-amber-500/80">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="flex flex-row items-center justify-between px-3 py-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTriangle className="h-4 w-4 text-warning" />
           Обновления площадок
         </CardTitle>
         <div className="flex items-center gap-1">
@@ -80,7 +86,7 @@ export default function LocationIssuesWidget() {
       </CardHeader>
       <CardContent className="space-y-2 px-3 pb-3 pt-0">
         {(issuesQuery.isError || locationsQuery.isError) && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <div className={DASHBOARD_WIDGET_WARNING_CLASS}>
             Не удалось обновить данные. Показаны последние доступные значения.
           </div>
         )}
@@ -89,14 +95,14 @@ export default function LocationIssuesWidget() {
             <div key={index} className="h-12 animate-pulse rounded-md bg-muted/60" />
           ))
         ) : active.length === 0 ? (
-          <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+          <div className={DASHBOARD_WIDGET_EMPTY_CLASS}>
             Активных проблем нет
           </div>
         ) : active.map((topic) => (
           <Link
             key={topic.id}
             href={`/locations?locationId=${encodeURIComponent(topic.locationId)}&topicId=${encodeURIComponent(topic.id)}`}
-            className="flex items-center justify-between gap-2 rounded-md border px-2 py-2 transition hover:bg-muted/40"
+            className={`flex items-center justify-between gap-2 px-2 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{topic.title}</div>

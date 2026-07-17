@@ -13,6 +13,12 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_WARNING_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 import { apiRequest } from "@/lib/queryClient";
 import {
   buildActiveProjectRows,
@@ -51,13 +57,8 @@ function OperationalWidgetShell({
   onRefresh: () => void;
   children: ReactNode;
 }) {
-  const border =
-    tone === "danger" ? "border-l-red-500/80" :
-    tone === "amber" ? "border-l-amber-500/80" :
-    tone === "green" ? "border-l-emerald-500/80" :
-    "border-l-primary/70";
   return (
-    <Card className={`h-full min-w-0 overflow-hidden rounded-xl border border-border border-l-4 bg-card/80 backdrop-blur-sm dark:bg-card/90 ${border}`}>
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS} data-tone={tone}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           {icon}
@@ -94,7 +95,7 @@ function LoadingRows({ count = 3 }: { count?: number }) {
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+    <div className={DASHBOARD_WIDGET_EMPTY_CLASS}>
       {text}
     </div>
   );
@@ -102,7 +103,7 @@ function EmptyState({ text }: { text: string }) {
 
 function ErrorState() {
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+    <div className={DASHBOARD_WIDGET_WARNING_CLASS}>
       Не удалось обновить данные. Показаны последние доступные значения.
     </div>
   );
@@ -140,7 +141,7 @@ export function ActiveProjectsOperationalWidget() {
   return (
     <OperationalWidgetShell
       title="Активные проекты"
-      icon={<BriefcaseBusiness className="h-4 w-4 shrink-0 text-emerald-500" />}
+      icon={<BriefcaseBusiness className="h-4 w-4 shrink-0 text-success" />}
       href="/projects"
       tone="green"
       isRefreshing={projectsQuery.isFetching || cardsQuery.isFetching}
@@ -154,19 +155,19 @@ export function ActiveProjectsOperationalWidget() {
           key={row.id}
           href="/projects"
           className={row.atRisk
-            ? "block rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 transition hover:bg-amber-500/15"
-            : "block rounded-lg border border-border/60 bg-background/60 px-3 py-2 transition hover:bg-muted/40"}
+            ? "block rounded-control border border-warning/35 bg-warning-muted px-3 py-2 transition hover:bg-warning/10"
+            : `block px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-sm font-medium">{row.name}</span>
             <div className="flex shrink-0 items-center gap-1">
               {row.blocked && <Badge variant="destructive" className="rounded-full">Блок</Badge>}
-              {row.overdue > 0 && <Badge variant="outline" className="rounded-full border-amber-500/50 text-amber-600">{row.overdue} проср.</Badge>}
+              {row.overdue > 0 && <Badge variant="outline" className="rounded-full border-warning/50 text-warning">{row.overdue} проср.</Badge>}
               <Badge variant="outline" className="rounded-full">{row.percent}%</Badge>
             </div>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${row.percent}%` }} />
+            <div className="h-full rounded-full bg-success" style={{ width: `${row.percent}%` }} />
           </div>
           <div className="mt-1 text-xs text-muted-foreground">{row.completed}/{row.total} карточек готово</div>
         </Link>
@@ -230,7 +231,7 @@ export function EquipmentForTasksWidget({ user }: { user?: any }) {
         <select
           value={scope}
           onChange={(event) => setScope(event.target.value as "mine" | "team")}
-          className="h-7 rounded-md border border-border bg-background px-2 text-xs"
+          className="h-7 rounded-control border border-input/60 bg-surface-raised px-2 text-xs"
           aria-label="Область задач для оборудования"
         >
           <option value="mine">Мои задачи</option>
@@ -244,7 +245,7 @@ export function EquipmentForTasksWidget({ user }: { user?: any }) {
         <Link
           key={row.id}
           href={`/tasks-v2?boardId=${encodeURIComponent(row.boardId)}&cardId=${encodeURIComponent(row.cardId)}`}
-          className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2 transition hover:bg-muted/40"
+          className={`flex items-center justify-between gap-3 px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.equipmentName}</div>
@@ -280,7 +281,7 @@ export function UpcomingReturnsOperationalWidget() {
   return (
     <OperationalWidgetShell
       title="Ближайшие возвраты"
-      icon={<CalendarClock className="h-4 w-4 shrink-0 text-amber-500" />}
+      icon={<CalendarClock className="h-4 w-4 shrink-0 text-warning" />}
       href="/equipment"
       tone="amber"
       isRefreshing={assignmentsQuery.isFetching || equipmentQuery.isFetching}
@@ -294,8 +295,8 @@ export function UpcomingReturnsOperationalWidget() {
           key={row.id}
           href="/equipment"
           className={row.overdue
-            ? "flex items-center justify-between gap-3 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2"
-            : "flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2"}
+            ? "flex items-center justify-between gap-3 rounded-control border border-error/35 bg-error-muted px-3 py-2"
+            : `flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.equipmentName}</div>
@@ -317,7 +318,7 @@ export function UnassignedTasksWidget() {
   return (
     <OperationalWidgetShell
       title="Задачи без исполнителя"
-      icon={<UserRoundCheck className="h-4 w-4 shrink-0 text-amber-500" />}
+      icon={<UserRoundCheck className="h-4 w-4 shrink-0 text-warning" />}
       href="/tasks-v2"
       tone="amber"
       isRefreshing={cardsQuery.isFetching}
@@ -330,7 +331,7 @@ export function UnassignedTasksWidget() {
         <Link
           key={row.id}
           href={`/tasks-v2?boardId=${encodeURIComponent(row.boardId)}&cardId=${encodeURIComponent(row.id)}`}
-          className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2 transition hover:bg-muted/40"
+          className={`flex items-center justify-between gap-3 px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.title}</div>
@@ -371,7 +372,7 @@ export function TeamWorkloadOperationalWidget() {
       {cardsQuery.isLoading || usersQuery.isLoading ? <LoadingRows /> : rows.length === 0 ? (
         <EmptyState text="Назначенных активных карточек нет" />
       ) : rows.map((row) => (
-        <div key={row.userId} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+        <div key={row.userId} className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS}`}>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.name}</div>
             <div className="text-xs text-muted-foreground">Активных: {row.active}</div>

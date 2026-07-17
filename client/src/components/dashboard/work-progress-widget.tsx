@@ -3,6 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock3, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_WARNING_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
 import { isTaskDeadlineOverdue } from "@shared/task-deadlines";
@@ -183,7 +189,7 @@ export default function WorkProgressWidget() {
   const hasError = cardsQuery.isError || tasksQuery.isError;
 
   return (
-    <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border rounded-xl overflow-hidden min-w-0 border-l-4 border-l-primary/70">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="flex flex-row items-center justify-between gap-3 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Activity className="h-4 w-4 shrink-0 text-primary" />
@@ -192,7 +198,7 @@ export default function WorkProgressWidget() {
         <select
           value={groupMode}
           onChange={(event) => setGroupMode(event.target.value as GroupMode)}
-          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+          className="h-8 rounded-control border border-input/60 bg-surface-raised px-2 text-xs text-foreground"
           aria-label="Группировка хода работ"
         >
           <option value="assignee">По сотрудникам</option>
@@ -210,7 +216,7 @@ export default function WorkProgressWidget() {
         ) : (
           <>
             {hasError && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <div className={DASHBOARD_WIDGET_WARNING_CLASS}>
                 Не удалось обновить часть данных, показаны последние доступные значения.
               </div>
             )}
@@ -222,12 +228,12 @@ export default function WorkProgressWidget() {
             </div>
             <div className="space-y-1.5">
               {groups.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                <div className={DASHBOARD_WIDGET_EMPTY_CLASS}>
                   Задач пока нет
                 </div>
               ) : (
                 groups.map((group) => (
-                  <div key={group.key} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+                  <div key={group.key} className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS}`}>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-foreground">{group.label}</div>
                       <div className="text-xs text-muted-foreground">В работе: {group.inProgress} · Готово: {group.completed}</div>
@@ -249,12 +255,12 @@ export default function WorkProgressWidget() {
 
 function Metric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: LucideIcon; tone?: "danger" }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+    <div className={`${DASHBOARD_WIDGET_ROW_CLASS} px-3 py-2`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className={tone === "danger" ? "h-4 w-4 text-red-500" : "h-4 w-4 text-primary"} />
+        <Icon className={tone === "danger" ? "h-4 w-4 text-error" : "h-4 w-4 text-primary"} />
       </div>
-      <div className={tone === "danger" ? "mt-1 text-xl font-bold text-red-500" : "mt-1 text-xl font-bold text-foreground"}>{value}</div>
+      <div className={tone === "danger" ? "mt-1 text-xl font-bold text-error" : "mt-1 text-xl font-bold text-foreground"}>{value}</div>
     </div>
   );
 }

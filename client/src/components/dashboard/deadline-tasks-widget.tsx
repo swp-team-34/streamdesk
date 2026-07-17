@@ -3,6 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ERROR_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -119,13 +125,13 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
   const hasError = cardsQuery.isError || tasksQuery.isError;
 
   return (
-    <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border rounded-xl overflow-hidden min-w-0 border-l-4 border-l-amber-500/80">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="flex flex-row items-center justify-between gap-3 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <CalendarClock className="h-4 w-4 shrink-0 text-amber-500" />
+          <CalendarClock className="h-4 w-4 shrink-0 text-warning" />
           <CardTitle className="truncate text-sm font-semibold text-foreground">Задачи по срокам</CardTitle>
         </div>
-        {hasError && <Badge variant="outline" className="rounded-full text-amber-600">Ошибка обновления</Badge>}
+        {hasError && <Badge variant="outline" className="rounded-full text-warning">Ошибка обновления</Badge>}
       </CardHeader>
       <CardContent className="space-y-2 px-3 pb-3 pt-0">
         {isLoading ? (
@@ -133,7 +139,7 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
             <div key={index} className="h-14 animate-pulse rounded-lg bg-muted/60" />
           ))
         ) : tasks.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
+          <div className={`${DASHBOARD_WIDGET_EMPTY_CLASS} py-5`}>
             Активных задач со сроками пока нет
           </div>
         ) : (
@@ -144,8 +150,8 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
               <div
                 key={task.id}
                 className={overdue
-                  ? "rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2"
-                  : "rounded-lg border border-border/60 bg-background/60 px-3 py-2"}
+                  ? `${DASHBOARD_WIDGET_ERROR_CLASS} text-foreground`
+                  : `${DASHBOARD_WIDGET_ROW_CLASS} px-3 py-2`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
