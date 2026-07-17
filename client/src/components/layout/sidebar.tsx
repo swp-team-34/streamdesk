@@ -33,11 +33,12 @@ import {
   FileSpreadsheet,
   Users,
 } from "lucide-react";
-import { useState, useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tabPermission, PERMISSIONS } from "@shared/schema";
 import { apiUrl } from "@/lib/queryClient";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { useTheme } from "@/components/theme-provider";
 
 interface SidebarProps {
   user?: any;
@@ -122,6 +123,7 @@ function SidebarLink({
 export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
   const [location] = useLocation();
   const { workspace } = useWorkspace();
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed } = useTheme();
   const touchStartX = useRef(0);
   const { data: terminalAccess } = useQuery({
     queryKey: ["/api/terminal/access"],
@@ -132,11 +134,6 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       return { allowedRoles: Array.isArray(data?.allowedRoles) ? data.allowedRoles : [] };
     },
     staleTime: 60_000,
-  });
-
-  const [collapsed, setCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebar_collapsed");
-    return saved === "true";
   });
 
   const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
@@ -198,10 +195,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       );
 
   const toggleCollapse = () => {
-    const nextCollapsed = !collapsed;
-    setCollapsed(nextCollapsed);
-    localStorage.setItem("sidebar_collapsed", String(nextCollapsed));
-    window.dispatchEvent(new Event("sidebar-collapse-change"));
+    setSidebarCollapsed(!collapsed);
   };
   const closeAndSyncPlatformTab = (href: string) => {
     onClose();

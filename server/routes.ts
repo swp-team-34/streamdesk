@@ -58,6 +58,7 @@ import {
 import { registerNotificationRoutes } from "./routes/notifications";
 import { registerPushNotificationRoutes } from "./routes/push-notifications";
 import { registerRoomRoutes } from "./routes/rooms";
+import { registerUserPreferenceRoutes } from "./routes/user-preferences";
 import { withDbTimeout } from "./services/db-timeout";
 
 /** Парсит заголовок x-user: поддерживает JSON и Base64 (для кириллицы в имени). */
@@ -8799,6 +8800,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   registerRoomRoutes(app);
   registerNotificationRoutes(app, storage);
+  registerUserPreferenceRoutes(app, storage);
 
   const requireEquipmentPhotoWorkspace = async (
     req: express.Request,

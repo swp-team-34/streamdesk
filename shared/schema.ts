@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   workspaceMode: text("workspace_mode").default("pending"),
   activeWorkspaceType: text("active_workspace_type"),
   activeCompanyId: varchar("active_company_id"),
+  uiPreferences: jsonb("ui_preferences").default('{}'),
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
 });

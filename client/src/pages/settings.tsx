@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Smartphone, Languages, Sun, Moon, Sparkles, Camera, ChevronRight, Link2, CheckCircle2, XCircle, Loader2, Terminal } from "lucide-react";
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Smartphone, Languages, Camera, ChevronRight, Link2, CheckCircle2, XCircle, Loader2, Terminal } from "lucide-react";
 import {
   getBottomNavTabKeys,
   setBottomNavTabKeys,
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 import { apiUrl, encodeUserHeader } from "@/lib/queryClient";
+import { AppearanceSettings } from "@/components/settings/appearance-settings";
 
 const API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) || "";
 
@@ -761,67 +762,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="appearance">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Palette className="w-5 h-5 mr-2" />
-                Внешний вид
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-semibold mb-3 block">Выбор темы</Label>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Используйте переключатель темы в правом верхнем углу для выбора темы
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div className={cn(
-                      "p-3 rounded-lg border-2 cursor-pointer transition-all",
-                      "bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-primary"
-                    )}>
-                      <Sun className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
-                      <p className="text-xs text-center font-medium">Светлая</p>
-                    </div>
-                    <div className={cn(
-                      "p-3 rounded-lg border-2 cursor-pointer transition-all",
-                      "bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 hover:border-primary"
-                    )}>
-                      <Moon className="w-6 h-6 mx-auto mb-2 text-blue-300" />
-                      <p className="text-xs text-center font-medium text-white">Тёмная</p>
-                    </div>
-                    <div className={cn(
-                      "p-3 rounded-lg border-2 cursor-pointer transition-all neon-rainbow",
-                      "bg-gradient-to-br from-cyan-900/50 via-purple-900/50 to-pink-900/50 border-cyan-500/50 hover:border-cyan-400"
-                    )}>
-                      <Sparkles className="w-6 h-6 mx-auto mb-2 text-cyan-400 animate-pulse" />
-                      <p className="text-xs text-center font-medium text-cyan-300">Rainbow</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div>
-                    <Label htmlFor="compact-mode">Компактный вид</Label>
-                    <p className="text-sm text-muted-foreground">Уменьшить отступы и размеры элементов</p>
-                  </div>
-                  <Switch id="compact-mode" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="animations">Анимации</Label>
-                    <p className="text-sm text-muted-foreground">Включить анимации интерфейса</p>
-                  </div>
-                  <Switch id="animations" defaultChecked />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button>Применить настройки</Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AppearanceSettings />
         </TabsContent>
 
         <TabsContent value="language">

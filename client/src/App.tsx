@@ -368,7 +368,7 @@ function App() {
   const isFullWidthWorkspace = isTasksWorkspace;
 
   return (
-    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
+    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme" userId={user.id}>
       <QueryClientProvider client={queryClient}>
         <WorkspaceProvider>
           <WorkspaceBoundary>

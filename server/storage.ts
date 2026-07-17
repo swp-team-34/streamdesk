@@ -81,6 +81,7 @@ export class MemStorage implements IStorage {
       workspaceMode: "pending",
       activeWorkspaceType: null,
       activeCompanyId: null,
+      uiPreferences: {},
       lastLogin: null,
       createdAt: new Date(),
       ...user,
