@@ -32,8 +32,8 @@ export function LocationCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition hover:border-primary/40",
-        issueCount > 0 && "border-amber-500/50",
+        "cursor-pointer border-border/50 bg-surface-raised shadow-xs transition hover:border-primary/40 hover:bg-surface-overlay",
+        issueCount > 0 && "border-warning/40",
         location.archivedAt && "border-dashed opacity-80",
       )}
       onClick={onOpen}
@@ -64,7 +64,7 @@ export function LocationCard({
           <p className="line-clamp-2 text-sm text-muted-foreground">{location.description}</p>
         )}
         {issueCount > 0 && (
-          <div className="flex items-center gap-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-sm text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 rounded-control bg-warning-muted px-2 py-1.5 text-sm text-warning">
             <AlertTriangle className="h-4 w-4" />
             Активные проблемы: {issueCount}
           </div>

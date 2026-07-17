@@ -151,12 +151,12 @@ function formatFileSize(value?: number | null) {
 }
 
 function topicTone(topic: LocationTopic) {
-  if (topic.status === "archived") return "border-muted bg-muted/20 opacity-75";
-  if (topic.status === "resolved") return "border-emerald-500/30 bg-emerald-500/5";
-  if (topic.type === "note") return "border-sky-500/30 bg-sky-500/5";
-  if (topic.severity === "critical") return "border-red-500/40 bg-red-500/5";
-  if (topic.severity === "high") return "border-orange-500/40 bg-orange-500/5";
-  return "border-amber-500/30";
+  if (topic.status === "archived") return "border-border/40 bg-surface-subtle opacity-75";
+  if (topic.status === "resolved") return "border-success/30 bg-success-muted";
+  if (topic.type === "note") return "border-info/30 bg-info-muted";
+  if (topic.severity === "critical") return "border-error/35 bg-error-muted";
+  if (topic.severity === "high") return "border-warning/35 bg-warning-muted";
+  return "border-warning/30 bg-surface-raised";
 }
 
 export function LocationTopicsWorkspace({
@@ -301,12 +301,12 @@ export function LocationTopicsWorkspace({
 
   return (
     <>
-      <Card>
+      <Card className="border-border/50 bg-surface-raised shadow-xs">
         <CardHeader className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <MessageSquare className="h-4 w-4 text-violet-500" />
+                <MessageSquare className="h-4 w-4 text-primary" />
                 Темы площадок
               </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -351,7 +351,7 @@ export function LocationTopicsWorkspace({
               Загрузка тем...
             </div>
           ) : visibleTopics.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
               Тем по выбранным условиям нет.
             </div>
           ) : (
@@ -363,7 +363,7 @@ export function LocationTopicsWorkspace({
                     key={topic.id}
                     type="button"
                     className={cn(
-                      "rounded-lg border p-4 text-left transition hover:border-violet-500/60 hover:bg-muted/30",
+                      "rounded-surface border p-4 text-left transition hover:border-primary/50 hover:bg-surface-overlay",
                       topicTone(topic),
                     )}
                     onClick={() => onTopicChange(topic.id, topic.locationId)}
@@ -372,8 +372,8 @@ export function LocationTopicsWorkspace({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           {topic.type === "issue"
-                            ? <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            : <StickyNote className="h-4 w-4 text-sky-500" />}
+                            ? <AlertTriangle className="h-4 w-4 text-warning" />
+                            : <StickyNote className="h-4 w-4 text-info" />}
                           <span className="font-medium">{topic.title}</span>
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">
@@ -396,7 +396,7 @@ export function LocationTopicsWorkspace({
                         </span>
                       )}
                       {(topic.project || topic.kanbanCard) && (
-                        <span className="text-xs text-violet-600 dark:text-violet-300">Есть рабочая связь</span>
+                        <span className="text-xs text-primary">Есть рабочая связь</span>
                       )}
                     </div>
                   </button>
@@ -576,7 +576,7 @@ export function LocationTopicsWorkspace({
               </DialogHeader>
 
               <div className="space-y-4">
-                <p className="whitespace-pre-wrap rounded-lg border bg-muted/20 p-3 text-sm">
+                <p className="whitespace-pre-wrap rounded-control border border-border/50 bg-surface-subtle p-3 text-sm">
                   {selectedTopic.description}
                 </p>
 
@@ -603,7 +603,7 @@ export function LocationTopicsWorkspace({
                   <div className="flex flex-wrap gap-2">
                     {selectedTopic.photos.map((photo) => (
                       <a key={photo} href={apiUrl(photo)} target="_blank" rel="noreferrer">
-                        <img src={apiUrl(photo)} alt="" className="h-20 w-20 rounded-md object-cover" />
+                        <img src={apiUrl(photo)} alt="" className="h-20 w-20 rounded-control border border-border/50 object-cover" />
                       </a>
                     ))}
                   </div>
@@ -612,11 +612,11 @@ export function LocationTopicsWorkspace({
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">Обсуждение</h3>
                   {(selectedTopic.comments?.length ?? 0) === 0 ? (
-                    <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+                    <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-5 text-center text-sm text-muted-foreground">
                       Ответов пока нет.
                     </div>
                   ) : selectedTopic.comments?.map((comment) => (
-                    <div key={comment.id} className="rounded-lg border p-3">
+                    <div key={comment.id} className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">{comment.authorName}</span>
                         <span>{formatDateTime(comment.createdAt)}</span>
@@ -630,7 +630,7 @@ export function LocationTopicsWorkspace({
                               href={apiUrl(attachment.fileUrl)}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-2 text-sm hover:bg-muted"
+                              className="flex items-center gap-2 rounded-control bg-surface-overlay px-2.5 py-2 text-sm hover:bg-surface-raised"
                             >
                               <FileText className="h-4 w-4 shrink-0" />
                               <span className="min-w-0 flex-1 truncate">{attachment.fileName}</span>
@@ -645,7 +645,7 @@ export function LocationTopicsWorkspace({
                 </div>
 
                 {selectedTopic.canReply && (
-                  <div className="space-y-2 rounded-lg border p-3">
+                  <div className="space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
                     <Textarea
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
@@ -657,7 +657,7 @@ export function LocationTopicsWorkspace({
                       </div>
                     )}
                     <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                      <Label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
+                      <Label className="flex h-9 cursor-pointer items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 text-sm">
                         <Paperclip className="h-4 w-4" />
                         Файлы
                         <input

@@ -165,15 +165,15 @@ export function LocationArchiveDialog({
         </DialogHeader>
         {target && (
           <div className="space-y-3">
-            <div className="rounded-lg border p-3 font-medium">{target.name}</div>
+            <div className="rounded-control border border-border/50 bg-surface-subtle p-3 font-medium">{target.name}</div>
             {previewPending || !preview ? (
               <div className="flex items-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Проверяем активные связи...
               </div>
             ) : preview.activeLinks.total > 0 ? (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                <div className="mb-2 flex items-center gap-2 font-medium text-amber-800 dark:text-amber-200">
+              <div className="rounded-control border border-warning/30 bg-warning-muted p-3 text-sm">
+                <div className="mb-2 flex items-center gap-2 font-medium text-warning">
                   <AlertTriangle className="h-4 w-4" />
                   У площадки есть активные связи
                 </div>

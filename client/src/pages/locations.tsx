@@ -319,8 +319,8 @@ export default function LocationsPage() {
           Загрузка площадок...
         </div>
       ) : locationsQuery.isError ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-8 text-center">
-          <p className="text-sm text-red-700 dark:text-red-300">Не удалось загрузить площадки.</p>
+        <div className="rounded-surface border border-error/30 bg-error-muted p-8 text-center">
+          <p className="text-sm text-error">Не удалось загрузить площадки.</p>
           <Button className="mt-3" variant="outline" onClick={() => locationsQuery.refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Повторить
@@ -342,7 +342,7 @@ export default function LocationsPage() {
       )}
 
       {!locationsQuery.isLoading && !locationsQuery.isError && visibleLocations.length === 0 && (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
           Площадки по выбранным условиям не найдены.
         </div>
       )}
