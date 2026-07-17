@@ -43,7 +43,7 @@ export function KanbanCardDetailTabContent({
     <TabsContent
       value={value}
       className={cn(
-        "m-0 h-full min-h-0 overflow-y-auto px-4 py-4 focus-visible:ring-inset sm:px-5 sm:py-5",
+        "m-0 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-gutter:stable] focus-visible:ring-inset sm:px-5 sm:py-5",
         className,
       )}
     >
@@ -110,7 +110,7 @@ export function KanbanCardDetailDialog({
                   </TabsTrigger>
                 </TabsList>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
             </Tabs>
             <div className="flex shrink-0 flex-col gap-3 border-t border-border/50 bg-surface-overlay px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" role="status">

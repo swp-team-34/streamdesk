@@ -295,7 +295,18 @@ export function KanbanCardDetailFields({
             const normalized = normalizeDateRange(new Date(value), new Date(form.dueDate), 60);
             patchForm({ startDate: value, dueDate: toDateTimeLocalValue(normalized.end) });
           }}
-          onAllDayChange={(allDay) => patchForm({ startDateHasTime: !allDay })}
+          onAllDayChange={(allDay, nextValue) => {
+            if (allDay || !form.dueDate || !form.dueDateHasTime) {
+              patchForm({ startDate: nextValue, startDateHasTime: !allDay });
+              return;
+            }
+            const normalized = normalizeDateRange(new Date(nextValue), new Date(form.dueDate), 60);
+            patchForm({
+              startDate: nextValue,
+              startDateHasTime: true,
+              dueDate: toDateTimeLocalValue(normalized.end),
+            });
+          }}
           disabled={!canEdit}
         />
 
@@ -314,7 +325,17 @@ export function KanbanCardDetailFields({
             const normalized = normalizeDateRange(new Date(form.startDate), new Date(value), 60);
             patchForm({ dueDate: toDateTimeLocalValue(normalized.end) });
           }}
-          onAllDayChange={(allDay) => patchForm({ dueDateHasTime: !allDay })}
+          onAllDayChange={(allDay, nextValue) => {
+            if (allDay || !form.startDate || !form.startDateHasTime) {
+              patchForm({ dueDate: nextValue, dueDateHasTime: !allDay });
+              return;
+            }
+            const normalized = normalizeDateRange(new Date(form.startDate), new Date(nextValue), 60);
+            patchForm({
+              dueDate: toDateTimeLocalValue(normalized.end),
+              dueDateHasTime: true,
+            });
+          }}
           disabled={!canEdit}
         />
       </div>

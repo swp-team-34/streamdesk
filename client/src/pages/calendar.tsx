@@ -617,6 +617,13 @@ export default function Calendar() {
     days: Date[],
     columnCount: number,
   ) => {
+    if (
+      !slotSelectStart ||
+      !slotSelectEnd ||
+      (slotSelectStart.dayIndex === slotSelectEnd.dayIndex && slotSelectStart.hour === slotSelectEnd.hour)
+    ) {
+      return null;
+    }
     const range = getSlotSelectionRange(days);
     if (!range) return null;
     const dayIndex = days.findIndex((day) => isSameDay(day, range.start));
@@ -1031,16 +1038,8 @@ export default function Calendar() {
     timelineScrollTimerRef.current = window.setTimeout(() => {
       timelineScrollTimerRef.current = null;
       commitTimelineScroll();
-    }, 60);
+    }, 240);
   }, [commitTimelineScroll]);
-
-  useEffect(() => {
-    if (!isTimelineView) return;
-    const element = timelineScrollRef.current;
-    if (!element) return;
-    element.addEventListener("scrollend", commitTimelineScroll);
-    return () => element.removeEventListener("scrollend", commitTimelineScroll);
-  }, [commitTimelineScroll, isTimelineView]);
 
   const scrollTimelineByDays = useCallback((dayDelta: number) => {
     const element = timelineScrollRef.current;
@@ -1102,8 +1101,8 @@ export default function Calendar() {
     if (element?.hasPointerCapture(event.pointerId)) {
       element.releasePointerCapture(event.pointerId);
     }
-    commitTimelineScroll();
-  }, [commitTimelineScroll, finishTimelineDatePress]);
+    handleTimelineScroll();
+  }, [finishTimelineDatePress, handleTimelineScroll]);
 
   const handleTimelinePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     finishTimelineDatePress(event, false);
@@ -1114,8 +1113,8 @@ export default function Calendar() {
     if (element?.hasPointerCapture(event.pointerId)) {
       element.releasePointerCapture(event.pointerId);
     }
-    commitTimelineScroll();
-  }, [commitTimelineScroll, finishTimelineDatePress]);
+    handleTimelineScroll();
+  }, [finishTimelineDatePress, handleTimelineScroll]);
 
   const shiftSelectedDate = (direction: -1 | 1) => {
     const current = selectedDate;
@@ -1348,8 +1347,6 @@ export default function Calendar() {
       >
         <div className="min-w-max" style={{ width: timelineContentWidth }}>
           <div className="sticky top-0 z-50 border-b border-border/40 bg-surface-raised shadow-xs">
-            {renderAllDayZone(timelineDays, timelineViewMode)}
-            {renderCompressedHoursControl(timelineVisibleDays, "before", true)}
             <div className="grid bg-surface-raised" style={{ gridTemplateColumns }}>
               <div
                 data-calendar-horizontal-pan
@@ -1391,7 +1388,9 @@ export default function Calendar() {
                 );
               })}
             </div>
+            {renderAllDayZone(timelineDays, timelineViewMode)}
           </div>
+          {renderCompressedHoursControl(timelineVisibleDays, "before")}
           <div className="grid" style={{ gridTemplateColumns }}>
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
               <Fragment key={hour}>
@@ -1443,13 +1442,6 @@ export default function Calendar() {
                     const [hourPart, minutePart] = time.split(":").map(Number);
                     const slot = hourPart + minutePart / 60;
                     if (slot < HOUR_START || slot >= HOUR_END) return null;
-                    const isSelected = slotSelectStart && slotSelectEnd && (() => {
-                      const minDay = Math.min(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
-                      const maxDay = Math.max(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
-                      const minHour = Math.min(slotSelectStart.hour, slotSelectEnd.hour);
-                      const maxHour = Math.max(slotSelectStart.hour, slotSelectEnd.hour);
-                      return dayIndex >= minDay && dayIndex <= maxDay && slot >= minHour && slot <= maxHour;
-                    })();
                     return (
                       <div
                         key={`timeline-slot-${day.toISOString()}-${time}`}
@@ -1458,10 +1450,7 @@ export default function Calendar() {
                         data-date={day.toISOString()}
                         data-day-index={dayIndex}
                         data-hour={slot}
-                        className={cn(
-                          "absolute cursor-cell transition-colors duration-150 hover:bg-primary/10",
-                          isSelected && "bg-primary/40 ring-2 ring-inset ring-primary/60",
-                        )}
+                        className="absolute cursor-cell transition-colors duration-150 hover:bg-primary/10"
                         style={{
                           left: `${(100 / columnCount) * dayIndex}%`,
                           width: `${100 / columnCount}%`,
@@ -1549,7 +1538,7 @@ export default function Calendar() {
               </div>
             </div>
           </div>
-          {renderCompressedHoursControl(timelineVisibleDays, "after", true)}
+          {renderCompressedHoursControl(timelineVisibleDays, "after")}
         </div>
       </div>
     );

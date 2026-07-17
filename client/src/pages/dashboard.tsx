@@ -334,7 +334,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
+    <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden px-3 pb-6 pt-4 sm:px-4 sm:pb-8 sm:pt-5 lg:px-5">
       <section
         className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-2"
         aria-label="Пользователь и ближайшее событие"
