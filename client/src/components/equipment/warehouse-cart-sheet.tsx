@@ -101,7 +101,7 @@ export function WarehouseCartSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="relative min-w-0 flex-1 border-slate-300 dark:border-slate-600 sm:flex-none">
+        <Button variant="outline" size="sm" className="relative min-w-0 flex-1 border-border/50 bg-surface-raised sm:flex-none">
           <ShoppingCart className="mr-1.5 h-4 w-4 sm:mr-2" />
           Корзина
           {cart.length > 0 && (
@@ -151,7 +151,7 @@ export function WarehouseCartSheet({
                 <div>
                   <label className="mb-1 block text-sm font-medium">Отправить на проект</label>
                   <Select value={sendToProjectId} onValueChange={onSendToProjectIdChange}>
-                    <SelectTrigger aria-label="Проект для оборудования" className="bg-white dark:bg-slate-800">
+                    <SelectTrigger aria-label="Проект для оборудования" className="bg-surface-base">
                       <SelectValue placeholder={projects.length > 0 ? "Выберите проект" : "Нет доступных проектов"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -213,7 +213,7 @@ export function WarehouseCartSheet({
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Направление</label>
                       <Select value={passDirection} onValueChange={(value) => onPassDirectionChange(value === "in" ? "in" : "out")}>
-                        <SelectTrigger aria-label="Направление пропуска" className="bg-white dark:bg-slate-800">
+                        <SelectTrigger aria-label="Направление пропуска" className="bg-surface-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -229,7 +229,7 @@ export function WarehouseCartSheet({
                         value={passResponsiblePhone}
                         onChange={(event) => onPassResponsiblePhoneChange(event.target.value)}
                         placeholder="+7..."
-                        className="bg-white dark:bg-slate-800"
+                        className="bg-surface-base"
                       />
                     </div>
                   </div>
@@ -240,7 +240,7 @@ export function WarehouseCartSheet({
                       value={passBasis}
                       onChange={(event) => onPassBasisChange(event.target.value)}
                       placeholder="Например: работы по проекту"
-                      className="bg-white dark:bg-slate-800"
+                      className="bg-surface-base"
                     />
                   </div>
                   <Button

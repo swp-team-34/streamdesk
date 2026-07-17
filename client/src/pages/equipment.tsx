@@ -1594,17 +1594,17 @@ export default function EquipmentPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col gap-4 px-2 py-3 sm:px-4 sm:py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="h-8 w-48 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
-          <div className="h-10 w-32 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" />
+          <div className="h-8 w-48 animate-pulse rounded-control bg-muted" />
+          <div className="h-9 w-32 animate-pulse rounded-control bg-muted" />
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-900/[0.02] p-3 dark:border-slate-800 dark:bg-slate-900/40">
+        <div className="rounded-surface border border-border/50 bg-surface-raised p-3 shadow-xs">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={index}
-                className="h-56 animate-pulse rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                className="h-56 animate-pulse rounded-surface border border-border/40 bg-surface-subtle"
               />
             ))}
           </div>
@@ -1614,14 +1614,19 @@ export default function EquipmentPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-0 h-full gap-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col gap-4 px-2 py-3 sm:px-4 sm:py-4">
       {/* Header: фиксированная шапка и фильтры, скролл только у списка */}
       <div className="flex flex-col gap-3 flex-shrink-0">
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">Склад техники</h2>
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h2 className="truncate text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">Склад техники</h2>
+            <p className="text-sm text-muted-foreground">
+              Оборудование, комплекты, выдача и места хранения.
+            </p>
+          </div>
           {userCanCreate && (
-            <Button 
-              className="shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+            <Button
+              className="shrink-0"
               onClick={() => { setSelectedEquipment(null); setIsFormOpen(true); }} 
               data-testid="button-add-equipment"
             >
@@ -1634,7 +1639,7 @@ export default function EquipmentPage() {
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 min-w-0 sm:flex-none border-slate-300 dark:border-slate-600"
+            className="min-w-0 flex-1 border-border/50 bg-surface-raised sm:flex-none"
             onClick={() => setWarehouseSettingsOpen(true)}
           >
             <Settings className="w-4 h-4 mr-1.5 sm:mr-2" />
@@ -1643,7 +1648,7 @@ export default function EquipmentPage() {
           <Button 
             variant="outline" 
             size="sm"
-            className="flex-1 min-w-0 sm:flex-none border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="min-w-0 flex-1 border-border/50 bg-surface-raised sm:flex-none"
             onClick={() => setIsScannerOpen(true)}
             data-testid="button-scan-barcode"
           >
@@ -1753,7 +1758,7 @@ export default function EquipmentPage() {
         onCreateBundle={openBundleDialog}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           Показано: {filteredEquipment.length} из {equipment.length}
         </span>
@@ -1787,12 +1792,12 @@ export default function EquipmentPage() {
       )}
 
       {false && canApproveCheckout && Object.keys(equipmentByEmployee).length > 0 && (
-        <Card className="border-slate-200/80 bg-white/90 dark:border-slate-800 dark:bg-slate-900/70">
+        <Card className="border-border/50 bg-surface-raised">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-slate-900 dark:text-white">
+            <CardTitle className="text-base text-foreground">
               Что сейчас на руках у сотрудников
             </CardTitle>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted-foreground">
               Здесь видно, кто что забрал себе вне проектных наборов.
             </p>
           </CardHeader>
@@ -1800,15 +1805,15 @@ export default function EquipmentPage() {
             {Object.entries(equipmentByEmployee).map(([userId, items]) => (
               <div
                 key={userId}
-                className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/40"
+                className="rounded-control border border-border/40 bg-surface-subtle p-4"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="font-medium text-slate-900 dark:text-white">
+                  <div className="font-medium text-foreground">
                     {getAssignedUserName(userId) || "Сотрудник"}
                   </div>
                   <Badge variant="outline">{items.length}</Badge>
                 </div>
-                <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
+                <div className="space-y-1.5 text-sm text-muted-foreground">
                   {items.map((item) => (
                     <div key={item.id} className="break-words">
                       {item.name}
@@ -1823,13 +1828,15 @@ export default function EquipmentPage() {
       )}
 
       {/* Equipment Grid: скролл только здесь, контент не съезжает за края */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredEquipment.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <Package className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-            <p className="text-slate-500 dark:text-slate-400">Оборудование не найдено</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+          <div className="col-span-full rounded-surface border border-dashed border-border/60 bg-surface-raised px-4 py-12 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Package className="h-5 w-5" />
+            </div>
+            <p className="font-medium text-foreground">Оборудование не найдено</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Показано: 0 из {equipment.length}
             </p>
           </div>
@@ -2212,7 +2219,7 @@ export default function EquipmentPage() {
           data-testid="floating-cart-button"
         >
           <ShoppingCart className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-semibold text-primary shadow dark:bg-slate-950">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-overlay px-1 text-[11px] font-semibold text-primary shadow-xs">
             {cart.length}
           </span>
         </Button>

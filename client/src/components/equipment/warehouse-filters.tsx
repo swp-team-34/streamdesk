@@ -89,19 +89,19 @@ export function WarehouseFilters({
   const renderFilterFields = (mobile: boolean) => (
     <>
       <div className={mobile ? "relative" : "relative w-full sm:min-w-[260px] sm:flex-1"}>
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           aria-label="Поиск оборудования"
           value={searchTerm}
           onChange={(event) => onSearchTermChange(event.target.value)}
           placeholder="Поиск: название, модель, серийник, штрихкод"
-          className="border-slate-200 bg-white pl-9 pr-9 dark:border-slate-700 dark:bg-slate-800"
+          className="border-input/50 bg-surface-base pl-9 pr-9"
         />
         {searchTerm && (
           <button
             type="button"
             onClick={() => onSearchTermChange("")}
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-control text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Очистить поиск"
           >
             <X className="h-4 w-4" />
@@ -111,8 +111,8 @@ export function WarehouseFilters({
 
       <Select value={status} onValueChange={onStatusChange}>
         <SelectTrigger className={mobile
-          ? "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-          : "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 sm:w-[150px]"}>
+          ? "w-full border-input/50 bg-surface-base"
+          : "w-full border-input/50 bg-surface-base sm:w-[150px]"}>
           <SelectValue placeholder="Статус" />
         </SelectTrigger>
         <SelectContent>
@@ -126,8 +126,8 @@ export function WarehouseFilters({
 
       <Select value={category} onValueChange={onCategoryChange}>
         <SelectTrigger className={mobile
-          ? "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-          : "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 sm:w-[140px]"}>
+          ? "w-full border-input/50 bg-surface-base"
+          : "w-full border-input/50 bg-surface-base sm:w-[140px]"}>
           <SelectValue placeholder="Тип" />
         </SelectTrigger>
         <SelectContent>
@@ -140,8 +140,8 @@ export function WarehouseFilters({
 
       <Select value={operability} onValueChange={onOperabilityChange}>
         <SelectTrigger className={mobile
-          ? "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-          : "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 sm:w-[155px]"}>
+          ? "w-full border-input/50 bg-surface-base"
+          : "w-full border-input/50 bg-surface-base sm:w-[155px]"}>
           <SelectValue placeholder="Исправность" />
         </SelectTrigger>
         <SelectContent>
@@ -155,8 +155,8 @@ export function WarehouseFilters({
       {canFilterByEmployee && (
         <Select value={employee} onValueChange={onEmployeeChange}>
           <SelectTrigger className={mobile
-            ? "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-            : "w-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 sm:w-[190px]"}>
+            ? "w-full border-input/50 bg-surface-base"
+            : "w-full border-input/50 bg-surface-base sm:w-[190px]"}>
             <SelectValue placeholder="Сотрудник" />
           </SelectTrigger>
           <SelectContent>
@@ -179,25 +179,30 @@ export function WarehouseFilters({
   );
 
   const renderActions = (mobile: boolean) => (
-    <div className={mobile ? "grid grid-cols-1 gap-2" : "contents"}>
+    <div className={mobile
+      ? "grid grid-cols-1 gap-2"
+      : "flex flex-wrap items-center gap-2 border-t border-border/40 pt-3"}>
       <Button
-        variant="outline"
-        className={mobile ? "border-slate-200 dark:border-slate-700" : "border-slate-300 dark:border-slate-600"}
+        variant="ghost"
+        size={mobile ? "default" : "sm"}
+        className="text-muted-foreground"
         onClick={onReset}
       >
+        <X className="mr-2 h-4 w-4" />
         Сбросить
       </Button>
       <Button
         variant="outline"
         size={mobile ? "default" : "sm"}
-        className={mobile ? "border-slate-200 dark:border-slate-700" : "border-slate-300 dark:border-slate-600"}
+        className="border-border/50 bg-surface-base"
         onClick={onToggleSelectAll}
       >
         {allSelected ? "Снять выбор" : "Выбрать все"}
       </Button>
       <Button
         variant="outline"
-        className={mobile ? "border-slate-200 dark:border-slate-700" : "border-slate-300 dark:border-slate-600"}
+        size={mobile ? "default" : "sm"}
+        className="border-border/50 bg-surface-base"
         onClick={onExport}
         disabled={exportCount === 0}
         title={selectedCount > 0 ? "Выгрузить отмеченное оборудование в Excel" : "Выгрузить текущий список оборудования в Excel"}
@@ -207,7 +212,8 @@ export function WarehouseFilters({
       </Button>
       <Button
         variant="outline"
-        className={mobile ? "border-slate-200 dark:border-slate-700" : "border-slate-300 dark:border-slate-600"}
+        size={mobile ? "default" : "sm"}
+        className="border-border/50 bg-surface-base"
         onClick={onPrint}
         disabled={printCount === 0 || printPending}
         title="Выберите карточки галочками, чтобы напечатать пачку этикеток"
@@ -217,7 +223,8 @@ export function WarehouseFilters({
       </Button>
       <Button
         variant="outline"
-        className={mobile ? "border-slate-200 dark:border-slate-700" : "border-slate-300 dark:border-slate-600"}
+        size={mobile ? "default" : "sm"}
+        className="border-border/50 bg-surface-base"
         onClick={onCreateBundle}
         disabled={bundleCount < 2 || bundlePending}
         title="Отметьте комплектующие и соберите их в одну складскую позицию"
@@ -235,18 +242,18 @@ export function WarehouseFilters({
           <SheetTrigger asChild>
             <Button
               variant="outline"
-              className="w-full justify-between border-slate-200 bg-slate-50 text-left dark:border-slate-700 dark:bg-slate-900/50"
+              className="w-full justify-between border-border/50 bg-surface-raised text-left"
             >
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4" />
                 Фильтры и поиск
               </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 {activeFilterCount > 0 ? `${activeFilterCount} активно` : "Все позиции"}
               </span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-2xl border-slate-200 bg-white px-4 pb-6 pt-4 dark:border-slate-700 dark:bg-slate-950">
+          <SheetContent side="bottom" className="rounded-t-dialog border-border/50 bg-surface-overlay px-4 pb-6 pt-4">
             <SheetHeader>
               <SheetTitle>Фильтры склада</SheetTitle>
             </SheetHeader>
@@ -258,8 +265,10 @@ export function WarehouseFilters({
         </Sheet>
       </div>
 
-      <div className="hidden flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50 sm:flex sm:flex-row sm:flex-wrap">
-        {renderFilterFields(false)}
+      <div className="hidden flex-col gap-3 rounded-surface border border-border/50 bg-surface-raised p-3 shadow-xs sm:flex">
+        <div className="flex flex-wrap items-center gap-2">
+          {renderFilterFields(false)}
+        </div>
         {renderActions(false)}
       </div>
     </>

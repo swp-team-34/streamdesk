@@ -198,7 +198,10 @@ export function EquipmentCard({
           onOpenDetails(item);
         }
       }}
-      className="cursor-pointer overflow-hidden border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700 dark:bg-slate-800/90 dark:hover:border-slate-600"
+      className={cn(
+        "group cursor-pointer overflow-hidden border bg-surface-raised shadow-xs transition-[background-color,border-color,box-shadow] duration-150 hover:border-border/80 hover:bg-surface-overlay hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        selected ? "border-primary/45 ring-1 ring-primary/20" : "border-border/50",
+      )}
     >
       <CardHeader className="space-y-3 p-3 pb-2">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -214,11 +217,11 @@ export function EquipmentCard({
             </div>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:w-auto sm:max-w-[248px] sm:justify-end">
+          <div className="flex w-full flex-wrap items-center justify-start gap-0.5 rounded-control bg-surface-subtle p-0.5 transition-opacity sm:w-auto sm:max-w-[248px] sm:justify-end sm:opacity-70 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+              className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenDetails(item);
@@ -226,12 +229,12 @@ export function EquipmentCard({
               title={hasDescription ? "Описание и тех. характеристики" : "Открыть описание"}
               data-testid={`button-details-${item.id}`}
             >
-              <FileText className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+              <FileText className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+              className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenBarcode(item);
@@ -239,12 +242,12 @@ export function EquipmentCard({
               title="Штрих-код"
               data-testid={`button-barcode-${item.id}`}
             >
-              <QrCode className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+              <QrCode className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+              className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
               onClick={(event) => {
                 event.stopPropagation();
                 onPrint(item);
@@ -253,12 +256,12 @@ export function EquipmentCard({
               disabled={printPending}
               data-testid={`button-print-label-${item.id}`}
             >
-              <Printer className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+              <Printer className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+              className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
               onClick={(event) => {
                 event.stopPropagation();
                 onCalibrate();
@@ -267,12 +270,12 @@ export function EquipmentCard({
               disabled={calibratePending}
               data-testid={`button-calibrate-label-${item.id}`}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+              className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
               onClick={(event) => {
                 event.stopPropagation();
                 onAddToCart(item);
@@ -280,13 +283,13 @@ export function EquipmentCard({
               title="В корзину"
               disabled={inCart || Boolean(projectInfo)}
             >
-              <ShoppingCart className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+              <ShoppingCart className="h-3.5 w-3.5" />
             </Button>
             {canReserve && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+                className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
                 onClick={(event) => {
                   event.stopPropagation();
                   onTakeReturn(item, returnViaParentBundle);
@@ -295,9 +298,9 @@ export function EquipmentCard({
                 data-testid={`button-take-return-${item.id}`}
               >
                 {returnViaParentBundle ? (
-                  <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <Package className="h-3.5 w-3.5 text-warning" />
                 ) : (
-                  <ArrowRightLeft className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
                 )}
               </Button>
             )}
@@ -305,7 +308,7 @@ export function EquipmentCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+                className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
                 onClick={(event) => {
                   event.stopPropagation();
                   onReturnOwn(item, returnViaParentBundle);
@@ -314,9 +317,9 @@ export function EquipmentCard({
                 disabled={returnPending}
               >
                 {returnViaParentBundle ? (
-                  <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <Package className="h-3.5 w-3.5 text-warning" />
                 ) : (
-                  <PackageCheck className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                  <PackageCheck className="h-3.5 w-3.5" />
                 )}
               </Button>
             )}
@@ -324,7 +327,7 @@ export function EquipmentCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+                className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
                 onClick={(event) => {
                   event.stopPropagation();
                   onRequest(item);
@@ -337,9 +340,9 @@ export function EquipmentCard({
                 disabled={Boolean(pendingRequest)}
               >
                 {pendingRequest ? (
-                  <Clock className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                  <Clock className="h-3.5 w-3.5" />
                 ) : (
-                  <Send className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                  <Send className="h-3.5 w-3.5" />
                 )}
               </Button>
             )}
@@ -347,7 +350,7 @@ export function EquipmentCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-7 sm:w-7"
+                className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-foreground sm:h-7 sm:w-7"
                 onClick={(event) => {
                   event.stopPropagation();
                   onEdit(item);
@@ -355,14 +358,14 @@ export function EquipmentCard({
                 title="Редактировать"
                 data-testid={`button-edit-${item.id}`}
               >
-                <Edit className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                <Edit className="h-3.5 w-3.5" />
               </Button>
             )}
             {canDelete && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950/30 sm:h-7 sm:w-7"
+                className="h-8 w-8 p-0 text-error hover:bg-error-muted hover:text-error sm:h-7 sm:w-7"
                 onClick={(event) => {
                   event.stopPropagation();
                   onDelete(item);
@@ -370,7 +373,7 @@ export function EquipmentCard({
                 title="Удалить"
                 disabled={deletePending}
               >
-                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
@@ -381,10 +384,10 @@ export function EquipmentCard({
             {getTypeIcon(item.type)}
           </div>
           <div className="min-w-0 flex-1">
-            <CardTitle className="break-words text-sm leading-tight text-slate-900 dark:text-white sm:text-base">
+            <CardTitle className="break-words text-sm leading-tight text-foreground sm:text-base">
               {item.name}
             </CardTitle>
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
+            <p className="mt-1 text-[11px] text-muted-foreground sm:text-xs">
               {getEquipmentCategoryLabel(item)}
             </p>
           </div>
@@ -408,27 +411,27 @@ export function EquipmentCard({
         )}
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0">
-        <div className="space-y-2.5 text-[12px] text-slate-700 dark:text-slate-300 sm:text-sm">
+        <div className="space-y-2.5 text-[12px] text-foreground/90 sm:text-sm">
           {projectInfo && (() => {
             const overdue = isReturnOverdue(projectInfo.returnDate, projectInfo.returnTime);
             return (
               <div className={cn(
                 "rounded-md p-2 space-y-1.5",
                 overdue
-                  ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
-                  : "bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800",
+                  ? "border border-error/20 bg-error-muted"
+                  : "border border-primary/20 bg-primary/5",
               )}>
-                <div className="flex items-start gap-1.5 text-violet-700 dark:text-violet-300">
+                <div className={cn("flex items-start gap-1.5", overdue ? "text-error" : "text-primary")}>
                   <User className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="min-w-0 break-words">Отправил: {projectInfo.assignedByName}</span>
                 </div>
                 {projectInfo.sentAt && (
-                  <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-400">
+                  <div className="flex items-start gap-1.5 text-muted-foreground">
                     <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 break-words">Выдано: {formatEquipmentDateTime(projectInfo.sentAt)}</span>
                   </div>
                 )}
-                <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-400">
+                <div className="flex items-start gap-1.5 text-muted-foreground">
                   <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="min-w-0 break-words">
                     Возврат: {formatEquipmentReturnDateTime(projectInfo.returnDate, projectInfo.returnTime)}
@@ -436,7 +439,7 @@ export function EquipmentCard({
                   </span>
                 </div>
                 {overdue && (
-                  <div className="flex items-start gap-1.5 font-medium text-red-600 dark:text-red-400">
+                  <div className="flex items-start gap-1.5 font-medium text-error">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 break-words">Просрочено возвращение</span>
                   </div>
@@ -446,26 +449,26 @@ export function EquipmentCard({
           })()}
           {item.model && (
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-              <span className="shrink-0 text-slate-500 dark:text-slate-400">Модель:</span>
+              <span className="shrink-0 text-muted-foreground">Модель:</span>
               <span className="max-w-full min-w-0 break-words text-left font-medium sm:max-w-[68%] sm:text-right">{item.model}</span>
             </div>
           )}
           {item.serialNumber && (
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-              <span className="shrink-0 text-slate-500 dark:text-slate-400">Серийный номер:</span>
+              <span className="shrink-0 text-muted-foreground">Серийный номер:</span>
               <span className="max-w-full min-w-0 break-all text-left font-mono text-xs font-medium sm:max-w-[68%] sm:text-right">{item.serialNumber}</span>
             </div>
           )}
           {item.inventoryNumber && (
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-              <span className="shrink-0 text-slate-500 dark:text-slate-400">Инв. номер:</span>
+              <span className="shrink-0 text-muted-foreground">Инв. номер:</span>
               <span className="max-w-full min-w-0 break-all text-left font-medium sm:max-w-[68%] sm:text-right">{item.inventoryNumber}</span>
             </div>
           )}
           {physicalDestination.displayName && (
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
-              <MapPin className="mt-1 h-3 w-3 shrink-0 text-violet-500" />
-              <span className="text-slate-500 dark:text-slate-400">Сейчас:</span>
+              <MapPin className="mt-1 h-3 w-3 shrink-0 text-primary" />
+              <span className="text-muted-foreground">Сейчас:</span>
               <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
                 {physicalDestination.displayName}{physicalDestination.archived ? " · архив" : ""}
               </span>
@@ -473,29 +476,29 @@ export function EquipmentCard({
           )}
           {storageLocation && (
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
-              <MapPin className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
-              <span className="text-slate-500 dark:text-slate-400">Хранение:</span>
+              <MapPin className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Хранение:</span>
               <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">{storageLocation}</span>
             </div>
           )}
           {(responsiblePerson || responsibleContact) && (
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-0.5 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
-              <User className="mt-1 h-3 w-3 shrink-0 text-slate-400" />
-              <span className="text-slate-500 dark:text-slate-400">Ответственный:</span>
+              <User className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Ответственный:</span>
               <span className="col-span-2 min-w-0 break-words font-medium sm:col-span-1 sm:text-right">
                 {[responsiblePerson, responsibleContact].filter(Boolean).join(" · ")}
               </span>
             </div>
           )}
           {contextProjectInfo && !projectInfo && (
-            <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-blue-700 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-300">
+            <div className="rounded-control border border-info/20 bg-info-muted px-3 py-2 text-info">
               <div className="min-w-0 break-words">
                 Рабочий контекст: {contextProjectInfo.projectName || contextProjectInfo.projectId}
               </div>
             </div>
           )}
           {activitySummary.commentCount > 0 && (
-            <div className="flex items-start gap-1.5 text-slate-500 dark:text-slate-400">
+            <div className="flex items-start gap-1.5 text-muted-foreground">
               <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 break-words">
                 {activitySummary.commentCount} зап.
@@ -506,21 +509,21 @@ export function EquipmentCard({
           )}
           {item.lastUsed && (
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-              <span className="shrink-0 text-slate-500 dark:text-slate-400">Последнее использование:</span>
+              <span className="shrink-0 text-muted-foreground">Последнее использование:</span>
               <span className="min-w-0 text-left font-medium sm:text-right">{new Date(item.lastUsed).toLocaleDateString("ru-RU")}</span>
             </div>
           )}
           {!projectInfo && takenByName && (
-            <div className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/20">
-              <div className="flex items-start gap-1.5 text-blue-700 dark:text-blue-300">
+            <div className="rounded-control border border-info/20 bg-info-muted px-3 py-2">
+              <div className="flex items-start gap-1.5 text-info">
                 <User className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span className="min-w-0 break-words">Забрал: {takenByName}</span>
               </div>
             </div>
           )}
           {pendingRequest && !projectInfo && (
-            <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/20">
-              <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300">
+            <div className="rounded-control border border-warning/20 bg-warning-muted px-3 py-2">
+              <div className="flex items-start gap-1.5 text-warning">
                 <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span className="min-w-0 break-words">
                   {requestedByCurrentUser
@@ -536,17 +539,17 @@ export function EquipmentCard({
           )}
           <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
             {projectInfo ? (
-              <Badge className="max-w-full rounded-full bg-violet-100 text-[11px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+              <Badge className="max-w-full rounded-full border border-primary/20 bg-primary/10 text-[11px] text-primary">
                 На проекте
               </Badge>
             ) : pendingRequest ? (
-              <Badge className="max-w-full rounded-full bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              <Badge className="max-w-full rounded-full border border-warning/20 bg-warning-muted text-[11px] text-warning">
                 {requestedByCurrentUser
                   ? requestType === "transfer" ? "Ждёт перенос" : "Ждёт апрув"
                   : requestType === "transfer" ? "Есть перенос" : "Есть запрос"}
               </Badge>
             ) : contextProjectInfo ? (
-              <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              <Badge className="max-w-full rounded-full border border-info/20 bg-info-muted text-[11px] text-info">
                 Контекст проекта
               </Badge>
             ) : (
@@ -555,7 +558,7 @@ export function EquipmentCard({
               </Badge>
             )}
             {isSuperPosition(item) && (
-              <Badge className="max-w-full rounded-full bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+              <Badge className="max-w-full rounded-full border border-success/20 bg-success-muted text-[11px] text-success">
                 Сборка
               </Badge>
             )}
@@ -563,7 +566,7 @@ export function EquipmentCard({
               {getEquipmentOperabilityLabel(operabilityStatus)}
             </Badge>
             {getParentBundleName(item) && (
-              <Badge className="max-w-full rounded-full bg-blue-100 text-[11px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              <Badge className="max-w-full rounded-full border border-info/20 bg-info-muted text-[11px] text-info">
                 В сборке
               </Badge>
             )}
