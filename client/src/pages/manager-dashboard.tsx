@@ -85,21 +85,21 @@ export default function ManagerDashboard() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
-      case 'high': return 'bg-red-500/20 text-red-400 border-red-500/50';
-      case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
-      case 'low': return 'bg-green-500/20 text-green-400 border-green-500/50';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
+      case 'high': return 'border-error/20 bg-error-muted text-error';
+      case 'medium': return 'border-warning/20 bg-warning-muted text-warning';
+      case 'low': return 'border-success/20 bg-success-muted text-success';
+      default: return 'border-border/40 bg-muted text-muted-foreground';
     }
   };
   const percent = (value: number) => `${Math.min(100, Math.round((value / Math.max(statsData.totalTasks, 1)) * 100))}%`;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">{t('managerDashboard.title')}</h1>
-        <p className="text-muted-foreground mt-1">{t('managerDashboard.teamOverview')}</p>
+    <div className="space-y-5 p-4 sm:p-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('managerDashboard.title')}</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">{t('managerDashboard.teamOverview')}</p>
         {isError && (
-          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+          <p className="mt-2 text-sm text-warning">
             Часть данных временно недоступна, показана последняя безопасная сводка.
           </p>
         )}
@@ -107,7 +107,7 @@ export default function ManagerDashboard() {
 
       {/* Основные метрики */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('managerDashboard.totalTasks')}</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -120,7 +120,7 @@ export default function ManagerDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('managerDashboard.inProgress')}</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -133,20 +133,20 @@ export default function ManagerDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('managerDashboard.overdue')}</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertCircle className="h-4 w-4 text-error" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{statsData.overdueTasks}</div>
+            <div className="text-2xl font-semibold text-error">{statsData.overdueTasks}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Требуют внимания
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('managerDashboard.averageCompletionTime')}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -218,9 +218,9 @@ export default function ManagerDashboard() {
                       <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className={cn("h-full rounded-full transition-all", {
-                            'bg-red-500': item.priority.toLowerCase() === 'high',
-                            'bg-yellow-500': item.priority.toLowerCase() === 'medium',
-                            'bg-green-500': item.priority.toLowerCase() === 'low',
+                            'bg-error': item.priority.toLowerCase() === 'high',
+                            'bg-warning': item.priority.toLowerCase() === 'medium',
+                            'bg-success': item.priority.toLowerCase() === 'low',
                           })}
                           style={{
                             width: percent(item.count),
@@ -255,7 +255,7 @@ export default function ManagerDashboard() {
               {(statsData.tasksByProject ?? []).map((project) => {
                 const donePercent = Math.round((project.done / Math.max(project.total, 1)) * 100);
                 return (
-                  <div key={project.projectId} className="rounded-xl border border-border bg-muted/25 p-3">
+                  <div key={project.projectId} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{project.projectName}</p>
@@ -300,14 +300,14 @@ export default function ManagerDashboard() {
                 {statsData.topPerformers.map((performer, index) => {
                   const place = index + 1;
                   const isPodium = place <= 3;
-                  const placeStyle = place === 1 ? "ring-2 ring-amber-400 bg-amber-500/10 dark:bg-amber-500/20" : place === 2 ? "ring-2 ring-slate-300 dark:ring-slate-500 bg-slate-500/10 dark:bg-slate-500/20" : place === 3 ? "ring-2 ring-amber-700 dark:ring-amber-600 bg-amber-700/10 dark:bg-amber-700/20" : "";
+                  const placeStyle = place === 1 ? "ring-1 ring-warning/60 bg-warning-muted" : place === 2 ? "ring-1 ring-info/40 bg-info-muted" : place === 3 ? "ring-1 ring-warning/30 bg-warning-muted/60" : "";
                   const placeLabel = place === 1 ? "1 место" : place === 2 ? "2 место" : place === 3 ? "3 место" : `${place} место`;
                   return (
                     <div
                       key={performer.userId}
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                        isPodium ? placeStyle : "border-border bg-muted/30"
+                        "flex items-center justify-between rounded-surface border border-border/50 p-3 transition-colors",
+                        isPodium ? placeStyle : "bg-muted/20"
                       )}
                     >
                       <div className="flex items-center space-x-3">
@@ -350,7 +350,7 @@ export default function ManagerDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-yellow-500" />
+              <AlertTriangle className="mr-2 h-5 w-5 text-warning" />
               {t('managerDashboard.needsAttention')}
             </CardTitle>
           </CardHeader>
@@ -358,7 +358,7 @@ export default function ManagerDashboard() {
             {statsData.needsAttention.length > 0 ? (
               <div className="space-y-3">
                 {statsData.needsAttention.slice(0, 5).map((task) => (
-                  <div key={task.id} className="p-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5">
+                  <div key={task.id} className="rounded-surface border border-warning/20 bg-warning-muted/40 p-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="font-medium text-sm">{task.title}</p>
@@ -394,8 +394,8 @@ export default function ManagerDashboard() {
           {statsData.recentActivity.length > 0 ? (
             <div className="space-y-3">
               {statsData.recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <div key={activity.id} className="flex items-center space-x-3 rounded-control p-2 transition-colors hover:bg-muted/50">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control bg-primary/10">
                     <Activity className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -423,4 +423,3 @@ export default function ManagerDashboard() {
     </div>
   );
 }
-

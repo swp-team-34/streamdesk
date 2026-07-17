@@ -290,7 +290,7 @@ export default function PlatformAdmin() {
       <div className="flex min-h-[60vh] items-center justify-center p-4">
         <Card className="max-w-lg">
           <CardContent className="py-8 text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
             <h2 className="mb-2 text-lg font-semibold">Доступ закрыт</h2>
             <p className="text-sm text-muted-foreground">Эта панель доступна только владельцу платформы.</p>
           </CardContent>
@@ -332,9 +332,9 @@ export default function PlatformAdmin() {
       </div>
 
       {(overviewQuery.error || telemetryQuery.error || incidentsQuery.error) && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
+        <Card className="border-warning/20 bg-warning-muted/40">
           <CardContent className="flex items-start gap-3 p-4">
-            <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-500" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-warning" />
             <div>
               <div className="font-medium">Часть данных не загрузилась</div>
               <div className="text-sm text-muted-foreground">Проверьте авторизацию owner-аккаунта и состояние API, затем обновите панель.</div>
@@ -369,7 +369,7 @@ export default function PlatformAdmin() {
                     ["RX/TX", `${num(telemetry.serverHost?.network?.rxMbps)} / ${num(telemetry.serverHost?.network?.txMbps)} Mbps`, Network],
                     ["Node RSS", `${num(telemetry.serverHost?.appMemory?.rssMb ?? overview?.server?.appMemory?.rssMb)} MB`, Activity],
                   ].map(([label, value, Icon]: any) => (
-                    <div key={label} className="rounded-lg border bg-background/60 p-3">
+                    <div key={label} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-xs text-muted-foreground">{label}</div>
@@ -380,7 +380,7 @@ export default function PlatformAdmin() {
                     </div>
                   ))}
                 </div>
-                <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">
+                <div className="rounded-surface border border-border/50 bg-muted/20 p-3 text-sm text-muted-foreground">
                   <div className="font-medium text-foreground">{telemetry.serverHost?.hostname || overview?.server?.hostname || "StreamDesk host"}</div>
                   <div>{telemetry.serverHost?.cpu?.model || overview?.server?.cpu?.model || "CPU не определен"}</div>
                   <div>RAM всего: {formatBytes(telemetry.serverHost?.memory?.total ?? overview?.server?.memory?.total)}</div>
@@ -408,11 +408,11 @@ export default function PlatformAdmin() {
               <div
                 key={`${advice.title}-${index}`}
                 className={cn(
-                  "rounded-lg border p-4",
-                  advice.severity === "critical" && "border-red-500/35 bg-red-500/10",
-                  advice.severity === "high" && "border-amber-500/35 bg-amber-500/10",
-                  advice.severity === "medium" && "border-violet-500/35 bg-violet-500/10",
-                  (!advice.severity || advice.severity === "low") && "bg-background/60",
+                  "rounded-surface border border-border/50 p-4",
+                  advice.severity === "critical" && "border-error/25 bg-error-muted/60",
+                  advice.severity === "high" && "border-warning/25 bg-warning-muted/60",
+                  advice.severity === "medium" && "border-primary/20 bg-primary/10",
+                  (!advice.severity || advice.severity === "low") && "bg-muted/20",
                 )}
               >
                 <div className="mb-2 flex items-center gap-2">
@@ -462,7 +462,7 @@ export default function PlatformAdmin() {
                     key={item.company.id}
                     type="button"
                     className={cn(
-                      "w-full rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5",
+                      "w-full rounded-surface border border-border/50 bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5",
                       selected && "border-primary/60 bg-primary/10",
                     )}
                     onClick={() => setSelectedCompanyId(item.company.id)}
@@ -527,7 +527,7 @@ export default function PlatformAdmin() {
                         ["CPU 24ч", pct(selectedCompanyLoad?.avgCpu24h)],
                         ["RAM 24ч", pct(selectedCompanyLoad?.avgMemory24h)],
                       ].map(([label, value]) => (
-                        <div key={label} className="rounded-lg border bg-background/60 p-3">
+                        <div key={label} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                           <div className="text-xs text-muted-foreground">{label}</div>
                           <div className="font-semibold">{value}</div>
                         </div>
@@ -535,7 +535,7 @@ export default function PlatformAdmin() {
                     </div>
 
                     {selectedCompanyIssues.length > 0 && (
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                      <div className="rounded-surface border border-warning/20 bg-warning-muted/40 p-3">
                         <div className="mb-2 font-medium">Что требует внимания</div>
                         <div className="space-y-1 text-sm text-muted-foreground">
                           {selectedCompanyIssues.map((issue) => <div key={issue.text}>• {issue.text}</div>)}
@@ -549,7 +549,7 @@ export default function PlatformAdmin() {
                         points={selectedCompanyActivity.activityHeatmap}
                       />
                     ) : (
-                      <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">
+                      <div className="rounded-surface border border-border/50 bg-muted/20 p-3 text-sm text-muted-foreground">
                         По компании пока нет событий для годового графика.
                       </div>
                     )}
@@ -557,10 +557,10 @@ export default function PlatformAdmin() {
                     <div className="space-y-2">
                       <div className="font-medium">Агенты и системы</div>
                       {(selectedCompany.systems?.samples || []).length === 0 ? (
-                        <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">Агенты еще не подключены.</div>
+                        <div className="rounded-surface border border-border/50 bg-muted/20 p-3 text-sm text-muted-foreground">Агенты еще не подключены.</div>
                       ) : (
                         selectedCompany.systems.samples.map((system: any) => (
-                          <div key={system.id} className="rounded-lg border bg-background/60 p-3">
+                          <div key={system.id} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <div className="font-medium">{system.name}</div>
@@ -592,7 +592,7 @@ export default function PlatformAdmin() {
             <CardContent className="space-y-3">
               {usersQuery.isLoading && <div className="text-sm text-muted-foreground">Загрузка пользователей...</div>}
               {!usersQuery.isLoading && platformUsers.length === 0 && (
-                <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">Пользователей пока нет.</div>
+                <div className="rounded-surface border border-border/50 bg-muted/20 p-4 text-sm text-muted-foreground">Пользователей пока нет.</div>
               )}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[860px] text-sm">
@@ -693,15 +693,15 @@ export default function PlatformAdmin() {
                   </Button>
                 </div>
                 {opsAiMutation.isPending && (
-                  <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">Нейросеть анализирует сервер, компании, метрики и инциденты...</div>
+                  <div className="rounded-surface border border-border/50 bg-muted/20 p-4 text-sm text-muted-foreground">Нейросеть анализирует сервер, компании, метрики и инциденты...</div>
                 )}
                 {!opsAiResult && !opsAiMutation.isPending && (
-                  <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-surface border border-border/50 bg-muted/20 p-4 text-sm text-muted-foreground">
                     Нажмите Qwen для быстрого анализа. Если модель недоступна в Hugging Face Router, сервер попробует несколько Qwen fallback-моделей.
                   </div>
                 )}
                 {opsAiResult && (
-                  <div className="rounded-lg border bg-background/60 p-4">
+                  <div className="rounded-surface border border-border/50 bg-muted/20 p-4">
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">{opsAiResult.mode === "deep" ? "DeepSeek" : "Qwen"}</Badge>
                       <Badge variant="outline">{opsAiResult.model}</Badge>
@@ -720,7 +720,7 @@ export default function PlatformAdmin() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {(telemetry.opsAdvisor || []).map((advice, index) => (
-                  <div key={`${advice.title}-${index}`} className="rounded-lg border bg-background/60 p-3">
+                  <div key={`${advice.title}-${index}`} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                     <div className="mb-2 flex items-center gap-2">
                       <Badge variant="outline">{severityLabel(advice.severity)}</Badge>
                     </div>
@@ -779,7 +779,7 @@ export default function PlatformAdmin() {
             {filteredIncidents.map((incident) => {
               const done = incident.status === "resolved" || incident.status === "closed";
               return (
-                <div key={incident.id} className={cn("rounded-lg border bg-card p-4 transition-colors", done && "bg-muted/40 opacity-70")}>
+                <div key={incident.id} className={cn("rounded-surface border border-border/50 bg-card p-4 transition-colors", done && "bg-muted/40 opacity-70")}>
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -828,10 +828,10 @@ export default function PlatformAdmin() {
                 <div
                   key={`${insight.title}-${insight.text}`}
                   className={cn(
-                    "rounded-lg border bg-background/70 p-3",
-                    insight.level === "critical" && "border-red-500/35 bg-red-500/10",
-                    insight.level === "warning" && "border-amber-500/35 bg-amber-500/10",
-                    insight.level === "good" && "border-emerald-500/30 bg-emerald-500/10",
+                    "rounded-surface border border-border/50 bg-muted/20 p-3",
+                    insight.level === "critical" && "border-error/25 bg-error-muted/60",
+                    insight.level === "warning" && "border-warning/25 bg-warning-muted/60",
+                    insight.level === "good" && "border-success/20 bg-success-muted/60",
                   )}
                 >
                   <div className="mb-2 flex items-center gap-2">
@@ -958,7 +958,7 @@ export default function PlatformAdmin() {
               <CardContent className="space-y-3">
                 {(telemetry.topSystems || []).length === 0 && <div className="text-sm text-muted-foreground">Нет систем с метриками.</div>}
                 {(telemetry.topSystems || []).map((system) => (
-                  <div key={system.id} className="rounded-lg border bg-background/60 p-3">
+                  <div key={system.id} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium">{system.name}</div>
