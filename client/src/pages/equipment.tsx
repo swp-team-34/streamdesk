@@ -2215,7 +2215,7 @@ export default function EquipmentPage() {
         <Button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-20 right-5 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 sm:bottom-6 sm:right-6"
+          className="fixed bottom-20 right-5 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-surface hover:bg-primary/90 sm:bottom-6 sm:right-6"
           data-testid="floating-cart-button"
         >
           <ShoppingCart className="h-5 w-5" />

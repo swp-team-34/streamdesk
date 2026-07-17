@@ -291,7 +291,7 @@ export function SystemForm({ isOpen, onClose, system }: SystemFormProps) {
                       {pingResult.isOnline ? "Онлайн" : "Офлайн"}
                     </Badge>
                     {pingResult.responseTime && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {pingResult.responseTime}мс
                       </span>
                     )}

@@ -857,7 +857,7 @@ export default function ConnectionSchemas() {
                             if (confirmed) deleteSchemaMutation.mutate(schema.id);
                           }}
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-error" />
                         </Button>
                       </div>
                     </div>

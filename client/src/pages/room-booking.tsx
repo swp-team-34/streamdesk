@@ -10,7 +10,7 @@ export default function RoomBookingPage() {
         Бронирование комнат
       </h2>
 
-      <Card className="bg-card border-border rounded-2xl overflow-hidden">
+      <Card className="overflow-hidden">
         <CardContent className="flex flex-col items-center justify-center py-16 px-6 text-center">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Construction className="h-8 w-8 text-primary" />

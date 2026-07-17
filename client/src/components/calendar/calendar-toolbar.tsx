@@ -90,7 +90,7 @@ export function CalendarToolbar({
                   setDatePickerOpen(false);
                 }}
                 initialFocus={false}
-                className="rounded-xl bg-card p-2"
+                className="rounded-surface bg-card p-2"
               />
             </PopoverContent>
           </Popover>

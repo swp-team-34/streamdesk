@@ -349,7 +349,7 @@ export default function AITranscription() {
                     {transcriptionResult.segments.map((segment, index) => (
                       <div key={index} className="p-2 bg-background rounded border text-sm">
                         {segment.speakerLabel && (
-                          <div className="font-semibold text-blue-600 mb-1">
+                          <div className="mb-1 font-semibold text-info">
                             {segment.speakerLabel}
                           </div>
                         )}

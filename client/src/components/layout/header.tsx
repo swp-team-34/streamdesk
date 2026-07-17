@@ -192,7 +192,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
                 {syncStatus === "error" ? (
                   <AlertCircle className="h-4 w-4 text-destructive" />
                 ) : syncStatus === "synced" && !isSyncCooldown ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success" />
                 ) : (
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
                 )}
@@ -239,7 +239,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
             >
               <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center leading-none">
+                <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-error text-xs leading-none text-white">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}

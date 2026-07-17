@@ -756,7 +756,7 @@ export default function ChatGPT() {
                   >
                     {/* Аватар */}
                     <div className={cn(
-                      "flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-md",
+                      "flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-xs",
                       message.role === "user" ? "bg-primary" : "bg-foreground/80"
                     )}>
                       {message.role === "user" ? (

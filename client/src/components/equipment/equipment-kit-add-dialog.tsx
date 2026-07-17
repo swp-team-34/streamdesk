@@ -140,7 +140,7 @@ export function EquipmentKitAddDialog({
                       <span className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
                         {item.name}
                         {isSuperPosition(item) && (
-                          <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          <Badge className="border border-success/20 bg-success-muted text-[10px] text-success">
                             Комплект
                           </Badge>
                         )}

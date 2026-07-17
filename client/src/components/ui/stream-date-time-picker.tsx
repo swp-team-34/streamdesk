@@ -127,7 +127,7 @@ export function StreamDateTimePicker({
             type="button"
             variant="outline"
             disabled={disabled}
-            className="h-10 w-full justify-start gap-2 rounded-xl border-border/35 bg-muted/20 text-left font-normal text-foreground hover:bg-accent/60 focus-visible:ring-ring"
+            className="h-10 w-full justify-start gap-2 rounded-control border-border/50 bg-muted/20 text-left font-normal text-foreground hover:bg-accent/60 focus-visible:ring-ring"
           >
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <span className={cn("min-w-0 truncate", !value && "text-muted-foreground")}>
@@ -160,12 +160,12 @@ export function StreamDateTimePicker({
               onSelect={handleDateSelect}
               disabled={minDate ? { before: new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) } : undefined}
               initialFocus={false}
-              className="rounded-xl border border-border/35 bg-card p-2"
+              className="rounded-surface border border-border/50 bg-card p-2"
             />
 
             <div className="grid gap-2 border-t border-border/35 pt-3">
               {showAllDay && (
-                <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/30 px-3 py-2 text-sm">
+                <label className="flex items-center gap-2 rounded-control border border-border/50 bg-muted/30 px-3 py-2 text-sm">
                   <Checkbox checked={allDay} onCheckedChange={(checked) => handleAllDayChange(checked === true)} />
                   Весь день
                 </label>
