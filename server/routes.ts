@@ -1881,13 +1881,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const buildKanbanCardResponses = async (cards: any[]) => {
-    const [labelEntries, locationEntries, commentEntries, allLocations, allIssues, allBoards] = await Promise.all([
+    const boardIds = Array.from(new Set(
+      cards.map((card) => String(card.boardId || "").trim()).filter(Boolean),
+    ));
+    const [labelEntries, labelDefinitions, locationEntries, commentEntries, allLocations, allIssues, allBoards] = await Promise.all([
       Promise.all(
       cards.map(async (card) => {
         const links = await storage.getKanbanCardLabels(card.id).catch(() => []);
         return [String(card.id), (links as any[]).map((link) => String(link.labelId))] as const;
       }),
       ),
+      Promise.all(boardIds.map(async (boardId) => [
+        boardId,
+        await storage.getKanbanLabelsByBoardId(boardId).catch(() => []),
+      ] as const)),
       Promise.all(cards.map(async (card) => [
         String(card.id),
         await getKanbanCardLocationIds(card),
@@ -1902,6 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ]);
 
     const labelIdsByCardId = new Map(labelEntries);
+    const labelsByBoardId = new Map(labelDefinitions);
     const locationIdsByCardId = new Map(locationEntries);
     const commentsByCardId = new Map(commentEntries);
     const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
@@ -1924,6 +1932,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             String(location.companyId || "") === String(board.companyId),
           );
         });
+      const labelIds = labelIdsByCardId.get(String(card.id)) ?? [];
+      const labelsById = new Map(
+        ((labelsByBoardId.get(String(card.boardId)) ?? []) as any[])
+          .map((label) => [String(label.id), label]),
+      );
       return {
       ...card,
       initiatorUserId: getKanbanCardInitiatorUserId(card),
@@ -1932,7 +1945,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || null,
       startDateHasTime: card.startDateHasTime !== false,
       dueDateHasTime: card.dueDateHasTime !== false,
-      labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
+      labelIds,
+      labels: labelIds
+        .map((labelId) => labelsById.get(labelId))
+        .filter(Boolean)
+        .map((label: any) => ({
+          id: label.id,
+          name: label.name,
+          color: label.color,
+          archivedAt: label.archivedAt ?? null,
+        })),
       commentCount: activeComments.length,
       latestCommentAt,
       locationIds,

@@ -3,8 +3,10 @@ import { Link } from "wouter";
 import { Calendar } from "lucide-react";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
+import { getCalendarEventHref } from "@/lib/entity-navigation";
 
 interface QuickCalendarProps {
   events?: any[];
@@ -48,7 +50,11 @@ export default function QuickCalendar({ events }: QuickCalendarProps) {
         ) : (
           <div className="space-y-1">
             {todayEvents.map((event) => (
-              <div key={event.id} className={`flex items-center space-x-2 p-1.5 hover:bg-muted/50 ${DASHBOARD_WIDGET_ROW_CLASS}`}>
+              <Link
+                key={event.id}
+                href={getCalendarEventHref(event.id, event.startTime)}
+                className={`flex items-center space-x-2 p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+              >
                 <div className="w-10 text-center shrink-0">
                   <p className="text-[10px] text-muted-foreground">
                     {new Date(event.startTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
@@ -61,7 +67,7 @@ export default function QuickCalendar({ events }: QuickCalendarProps) {
                   </p>
                 </div>
                 <div className={`w-2.5 h-2.5 shrink-0 ${getEventTypeColor(event.type)} rounded-full`}></div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

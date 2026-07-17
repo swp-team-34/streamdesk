@@ -46,7 +46,7 @@ export default function DashboardServicesSection({ user }: { user?: any }) {
           return (
             <Link key={service.href} href={service.href} className="min-w-0">
               <Card className="h-full cursor-pointer overflow-hidden border-border/50 bg-surface-raised transition-[border-color,background-color] hover:border-primary/40 hover:bg-primary/5">
-                <CardContent className="flex min-w-0 items-center gap-2.5 p-2.5">
+                <CardContent className="flex min-w-0 items-center gap-2.5 !p-2.5">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary/10">
                     <Icon className="h-4 w-4 text-primary" />
                   </div>

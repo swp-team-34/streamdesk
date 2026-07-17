@@ -16,12 +16,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StreamSelect } from "@/components/ui/stream-select";
 import {
   DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
   DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
   DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS,
   DASHBOARD_WIDGET_WARNING_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 import { apiRequest } from "@/lib/queryClient";
+import { getEquipmentHref, getKanbanCardHref, getProjectHref } from "@/lib/entity-navigation";
 import {
   buildActiveProjectRows,
   buildEquipmentForTaskRows,
@@ -157,10 +159,10 @@ export function ActiveProjectsOperationalWidget() {
       ) : rows.map((row) => (
         <Link
           key={row.id}
-          href="/projects"
+          href={getProjectHref(row.id)}
           className={row.atRisk
-            ? "block rounded-control border border-warning/35 bg-warning-muted px-3 py-2 transition hover:bg-warning/10"
-            : `block px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+            ? `block rounded-control border border-warning/35 bg-warning-muted px-3 py-2 hover:bg-warning/10 ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`
+            : `block px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-sm font-medium">{row.name}</span>
@@ -227,7 +229,7 @@ export function EquipmentForTasksWidget({ user }: { user?: any }) {
     <OperationalWidgetShell
       title="Оборудование текущих задач"
       icon={<Package className="h-4 w-4 shrink-0 text-primary" />}
-      href="/tasks-v2"
+      href="/tasks"
       isRefreshing={cardsQuery.isFetching || linksQuery.isFetching}
       onRefresh={refresh}
     >
@@ -249,8 +251,8 @@ export function EquipmentForTasksWidget({ user }: { user?: any }) {
       ) : rows.map((row) => (
         <Link
           key={row.id}
-          href={`/tasks-v2?boardId=${encodeURIComponent(row.boardId)}&cardId=${encodeURIComponent(row.cardId)}`}
-          className={`flex items-center justify-between gap-3 px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+          href={getKanbanCardHref(row.boardId, row.cardId)}
+          className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.equipmentName}</div>
@@ -298,10 +300,10 @@ export function UpcomingReturnsOperationalWidget() {
       ) : rows.map((row) => (
         <Link
           key={row.id}
-          href="/equipment"
+          href={getEquipmentHref(row.equipmentId)}
           className={row.overdue
-            ? "flex items-center justify-between gap-3 rounded-control border border-error/35 bg-error-muted px-3 py-2"
-            : `flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+            ? `flex items-center justify-between gap-3 rounded-control border border-error/35 bg-error-muted px-3 py-2 ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`
+            : `flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.equipmentName}</div>
@@ -324,7 +326,7 @@ export function UnassignedTasksWidget() {
     <OperationalWidgetShell
       title="Задачи без исполнителя"
       icon={<UserRoundCheck className="h-4 w-4 shrink-0 text-warning" />}
-      href="/tasks-v2"
+      href="/tasks"
       tone="amber"
       isRefreshing={cardsQuery.isFetching}
       onRefresh={() => cardsQuery.refetch()}
@@ -335,8 +337,8 @@ export function UnassignedTasksWidget() {
       ) : rows.map((row) => (
         <Link
           key={row.id}
-          href={`/tasks-v2?boardId=${encodeURIComponent(row.boardId)}&cardId=${encodeURIComponent(row.id)}`}
-          className={`flex items-center justify-between gap-3 px-3 py-2 transition hover:bg-muted/40 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+          href={getKanbanCardHref(row.boardId, row.id)}
+          className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.title}</div>
@@ -369,7 +371,7 @@ export function TeamWorkloadOperationalWidget() {
     <OperationalWidgetShell
       title="Нагрузка команды"
       icon={<UsersRound className="h-4 w-4 shrink-0 text-primary" />}
-      href="/tasks-v2"
+      href="/tasks"
       isRefreshing={cardsQuery.isFetching || usersQuery.isFetching}
       onRefresh={refresh}
     >
@@ -377,7 +379,11 @@ export function TeamWorkloadOperationalWidget() {
       {cardsQuery.isLoading || usersQuery.isLoading ? <LoadingRows /> : rows.length === 0 ? (
         <EmptyState text="Назначенных активных карточек нет" />
       ) : rows.map((row) => (
-        <div key={row.userId} className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS}`}>
+        <Link
+          key={row.userId}
+          href="/tasks"
+          className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+        >
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{row.name}</div>
             <div className="text-xs text-muted-foreground">Активных: {row.active}</div>
@@ -389,7 +395,7 @@ export function TeamWorkloadOperationalWidget() {
           ) : (
             <Badge variant="outline" className="shrink-0 rounded-full">В срок</Badge>
           )}
-        </div>
+        </Link>
       ))}
     </OperationalWidgetShell>
   );

@@ -114,6 +114,7 @@ export function WarehouseFilters({
           { value: "maintenance", label: "Обслуживание" },
           { value: "broken", label: "Сломано" },
         ]}
+        showSelectionChips={false}
         className={mobile ? "w-full" : "w-full sm:w-[170px]"}
       />
 
@@ -124,6 +125,7 @@ export function WarehouseFilters({
         placeholder="Все категории"
         options={categoryOptions}
         searchable
+        showSelectionChips={false}
         className={mobile ? "w-full" : "w-full sm:w-[180px]"}
       />
 
@@ -137,6 +139,7 @@ export function WarehouseFilters({
           { value: "broken", label: "Неисправно" },
           { value: "on_repair", label: "В ремонте" },
         ]}
+        showSelectionChips={false}
         className={mobile ? "w-full" : "w-full sm:w-[170px]"}
       />
 
@@ -158,6 +161,7 @@ export function WarehouseFilters({
               label: `${option.label} (${option.count})`,
             })),
           ]}
+          showSelectionChips={false}
           className={mobile ? "w-full" : "w-full sm:w-[210px]"}
         />
       )}

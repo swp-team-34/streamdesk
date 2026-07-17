@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Youtube } from "lucide-react";
 import { SiVk } from "react-icons/si";
+import { Link } from "wouter";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 
@@ -26,7 +28,10 @@ const PlatformRow = memo(function PlatformRow({ name, icon: Icon, stats, toneCla
   if (!stats) return null;
 
   return (
-    <div className={`flex items-center justify-between overflow-hidden ${DASHBOARD_WIDGET_ROW_CLASS}`}>
+    <Link
+      href="/streams"
+      className={`flex items-center justify-between overflow-hidden ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+    >
       <div className="flex items-center gap-3 p-3 w-full">
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-control ${toneClass}`}>
           <Icon className="h-5 w-5" />
@@ -40,7 +45,7 @@ const PlatformRow = memo(function PlatformRow({ name, icon: Icon, stats, toneCla
           <p className="text-xs text-muted-foreground">{stats.duration || "—"}</p>
         </div>
       </div>
-    </div>
+    </Link>
   );
 });
 

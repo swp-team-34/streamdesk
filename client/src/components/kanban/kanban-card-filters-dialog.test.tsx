@@ -115,4 +115,30 @@ describe("KanbanCardFiltersDialog", () => {
     expect(onReset).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it("does not render removable chips below filter dropdowns", () => {
+    render(
+      <KanbanCardFiltersDialog
+        open
+        filters={{
+          ...EMPTY_KANBAN_CARD_FILTERS,
+          priorities: ["high", "medium"],
+        }}
+        lists={[]}
+        users={[]}
+        locations={[]}
+        labels={[]}
+        labelGroups={[]}
+        customFields={[]}
+        hasActiveFilters
+        onOpenChange={vi.fn()}
+        onChange={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Приоритет" })).toHaveTextContent("Выбрано: 2");
+    expect(screen.queryByRole("button", { name: "Убрать Высокий" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Убрать Средний" })).not.toBeInTheDocument();
+  });
 });

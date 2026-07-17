@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Monitor, Video, Zap, Calendar } from "lucide-react";
+import { Link } from "wouter";
 import { tabPermission } from "@shared/schema";
 
 interface StatusCardsProps {
@@ -18,10 +19,10 @@ function canAccessTab(user: any, tabKey: string): boolean {
 export default function StatusCards({ stats, user }: StatusCardsProps) {
   if (!stats) {
     return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+    <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
       {[...Array(4)].map((_, i) => (
-          <Card key={i} className="animate-pulse border-border/50 bg-surface-raised">
-            <CardContent className="p-3">
+          <Card key={i} className="h-full animate-pulse border-border/50 bg-surface-raised">
+            <CardContent className="flex h-full items-center !p-3">
               <div className="h-10 rounded-control bg-muted" />
             </CardContent>
           </Card>
@@ -34,6 +35,7 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
     {
       title: "Системы",
       tabKey: "monitoring",
+      href: "/monitoring",
       value: stats.onlineSystems,
       icon: Monitor,
       iconColor: "text-success",
@@ -43,6 +45,7 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
     {
       title: "Стримы", 
       tabKey: "streams",
+      href: "/streams",
       value: stats.activeStreams,
       icon: Video,
       iconColor: "text-info",
@@ -53,6 +56,7 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
     {
       title: "Сеть",
       tabKey: "monitoring",
+      href: "/monitoring",
       value: stats.networkMbps ?? 0,
       icon: Zap,
       iconColor: "text-warning",
@@ -62,6 +66,7 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
     {
       title: "Событий",
       tabKey: "calendar",
+      href: "/calendar",
       value: stats.todayEvents,
       icon: Calendar,
       iconColor: "text-primary",
@@ -71,6 +76,7 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
     ...(stats.kanbanCompletion ? [{
       title: "Задачи",
       tabKey: "tasks",
+      href: "/tasks",
       value: `${stats.kanbanCompletion.percent ?? 0}%`,
       icon: CheckCircle2,
       iconColor: "text-primary",
@@ -82,33 +88,38 @@ export default function StatusCards({ stats, user }: StatusCardsProps) {
   const visibleCards = cards.filter((card) => canAccessTab(user, card.tabKey));
 
   return (
-    <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+    <div className="grid h-full w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
       {visibleCards.map((card, index) => {
         const Icon = card.icon;
         return (
-          <Card
+          <Link
             key={index}
-            className="relative min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs"
-            data-testid={`status-card-${index}`}
+            href={card.href}
+            className="block h-full min-w-0 rounded-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <CardContent className="min-w-0 p-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control ${card.bgColor}`}>
-                  <Icon className={`h-4 w-4 ${card.iconColor}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate text-xl font-semibold tabular-nums text-foreground">{card.value}</span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{card.description}</span>
+            <Card
+              className="relative h-full min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs transition-colors hover:border-primary/30 hover:bg-surface-overlay"
+              data-testid={`status-card-${index}`}
+            >
+              <CardContent className="flex h-full min-w-0 items-center !p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control ${card.bgColor}`}>
+                    <Icon className={`h-4 w-4 ${card.iconColor}`} />
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{card.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      <span className="truncate text-xl font-semibold tabular-nums text-foreground">{card.value}</span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">{card.description}</span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{card.title}</p>
+                  </div>
+                  {card.indicator === "pulse" && (
+                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-success" aria-label="Активно" />
+                  )}
                 </div>
-                {card.indicator === "pulse" && (
-                  <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-success" aria-label="Активно" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         );
       })}
     </div>

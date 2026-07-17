@@ -5,8 +5,10 @@ import { Calendar, Clock, Video, RefreshCw, ExternalLink, AlertCircle, CheckCirc
 import { Button } from "@/components/ui/button";
 import { format, parseISO, isPast, isToday, isTomorrow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { Link } from "wouter";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 
@@ -139,7 +141,10 @@ export default function VmixScheduler() {
         ) : (
           <div className="space-y-1.5">
             {data?.nextEvent && (
-              <div className="rounded-control border border-primary/20 bg-primary/5 p-2">
+              <Link
+                href="/vmix-scheduler"
+                className={`block rounded-control border border-primary/20 bg-primary/5 p-2 ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] text-primary font-medium mb-0.5">Следующий эфир</div>
@@ -153,7 +158,7 @@ export default function VmixScheduler() {
                     {getEventStatusText(data.nextEvent.status)}
                   </Badge>
                 </div>
-              </div>
+              </Link>
             )}
 
             {data?.events && data.events.length > 0 ? (
@@ -162,9 +167,10 @@ export default function VmixScheduler() {
                   Расписание
                 </div>
                 {data.events.slice(0, 4).map((event) => (
-                  <div
+                  <Link
                     key={event.id}
-                    className={`flex items-center justify-between px-2 py-1.5 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+                    href="/vmix-scheduler"
+                    className={`flex items-center justify-between px-2 py-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted">
@@ -178,7 +184,7 @@ export default function VmixScheduler() {
                     <Badge className={`flex-shrink-0 text-[10px] py-0 px-1.5 ${getEventStatusColor(event.status)}`}>
                       {getEventStatusText(event.status)}
                     </Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

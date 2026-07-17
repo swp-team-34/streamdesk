@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ERROR_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
   DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
@@ -12,6 +14,7 @@ import {
 } from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
+import { getKanbanCardHref } from "@/lib/entity-navigation";
 import {
   getTaskDeadlineTimestamp,
   isTaskDeadlineOverdue,
@@ -20,15 +23,14 @@ import {
 interface DeadlineTask {
   id: string;
   title: string;
-  source: "kanban" | "legacy";
   dueDate?: string | Date | null;
   createdAt?: string | Date | null;
   priority?: string | null;
   completed: boolean;
   subtitle?: string;
+  href: string;
 }
 
-const COMPLETE_LEGACY_STATUSES = new Set(["done", "completed", "cancelled"]);
 const COMPLETE_KANBAN_LIST_TYPES = new Set(["closed", "archive", "trash"]);
 const PRIORITY_WEIGHT: Record<string, number> = {
   urgent: 0,
@@ -86,44 +88,26 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
     refetchIntervalInBackground: true,
   });
 
-  const tasksQuery = useQuery<any[]>({
-    queryKey: ["/api/tasks"],
-    retry: 1,
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
-  });
-
   const allActiveTasks = useMemo<DeadlineTask[]>(() => {
     const kanbanTasks = (cardsQuery.data ?? []).map((card) => ({
       id: `card:${card.id}`,
       title: String(card.title || "Карточка"),
-      source: "kanban" as const,
       dueDate: card.dueDate,
       createdAt: card.createdAt,
       priority: card.priority,
       completed: COMPLETE_KANBAN_LIST_TYPES.has(String(card.listType || "")),
       subtitle: [card.boardName, card.listName].filter(Boolean).join(" · "),
+      href: getKanbanCardHref(card.boardId, card.id),
     }));
 
-    const legacyTasks = (tasksQuery.data ?? []).map((task) => ({
-      id: `task:${task.id}`,
-      title: String(task.title || "Задача"),
-      source: "legacy" as const,
-      dueDate: task.dueDate,
-      createdAt: task.createdAt,
-      priority: task.priority,
-      completed: COMPLETE_LEGACY_STATUSES.has(String(task.status || "")),
-      subtitle: "Legacy tasks",
-    }));
-
-    return [...kanbanTasks, ...legacyTasks]
+    return kanbanTasks
       .filter((task) => !task.completed)
       .sort((left, right) => compareDeadlineTasks(left, right, now));
-  }, [cardsQuery.data, now, tasksQuery.data]);
+  }, [cardsQuery.data, now]);
   const tasks = allActiveTasks.slice(0, limit);
 
-  const isLoading = cardsQuery.isLoading || tasksQuery.isLoading;
-  const hasError = cardsQuery.isError || tasksQuery.isError;
+  const isLoading = cardsQuery.isLoading;
+  const hasError = cardsQuery.isError;
 
   return (
     <Card className={DASHBOARD_WIDGET_SCROLL_CARD_CLASS}>
@@ -148,11 +132,12 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
             const overdue = isOverdue(task, now);
             const hasDeadline = Number.isFinite(getDueTime(task.dueDate));
             return (
-              <div
+              <Link
                 key={task.id}
+                href={task.href}
                 className={overdue
-                  ? `${DASHBOARD_WIDGET_ERROR_CLASS} text-foreground`
-                  : `${DASHBOARD_WIDGET_ROW_CLASS} px-3 py-2`}
+                  ? `block ${DASHBOARD_WIDGET_ERROR_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS} text-foreground`
+                  : `block px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -171,9 +156,9 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>Приоритет: {task.priority || "medium"}</span>
-                  {task.source === "kanban" && <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Kanban</span>}
+                  <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Kanban</span>
                 </div>
-              </div>
+              </Link>
             );
           })
         )}

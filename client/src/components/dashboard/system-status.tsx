@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Server, Wifi, WifiOff } from "lucide-react";
+import { Link } from "wouter";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 
@@ -29,9 +31,10 @@ export default function SystemStatus({ systems }: SystemStatusProps) {
       <CardContent className="px-3 sm:px-4 pb-3 pt-0">
         <div className="space-y-1.5">
           {systems?.slice(0, 5).map((system) => (
-            <div 
+            <Link
               key={system.id} 
-              className={`flex items-center justify-between p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+              href="/monitoring"
+              className={`flex items-center justify-between p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
               data-testid={`system-${system.id}`}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -63,7 +66,7 @@ export default function SystemStatus({ systems }: SystemStatusProps) {
               `}>
                 {system.status === 'online' ? 'Online' : 'Offline'}
               </div>
-            </div>
+            </Link>
           ))}
           {(!systems || systems.length === 0) && (
             <div className="py-3 text-center text-muted-foreground">

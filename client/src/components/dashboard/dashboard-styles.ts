@@ -10,6 +10,9 @@ export const DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS =
 export const DASHBOARD_WIDGET_ROW_CLASS =
   "rounded-control border border-border/50 bg-surface-subtle";
 
+export const DASHBOARD_WIDGET_ENTITY_LINK_CLASS =
+  "transition-colors hover:border-primary/30 hover:bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+
 export const DASHBOARD_WIDGET_EMPTY_CLASS =
   "rounded-control border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground";
 

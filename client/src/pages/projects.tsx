@@ -789,6 +789,7 @@ export default function Projects() {
           ariaLabel="Статусы проектов"
           placeholder="Все статусы"
           options={Object.entries(statusConfig).map(([value, config]) => ({ value, label: config.label }))}
+          showSelectionChips={false}
           className="w-full sm:w-[170px]"
         />
         <StreamMultiSelect
@@ -798,6 +799,7 @@ export default function Projects() {
           placeholder="Все категории"
           options={categoryOptions}
           searchable
+          showSelectionChips={false}
           className="w-full sm:w-[190px]"
         />
         <StreamMultiSelect
@@ -810,6 +812,7 @@ export default function Projects() {
             label: user.name || user.username || user.id,
           }))}
           searchable
+          showSelectionChips={false}
           className="w-full sm:w-[200px]"
         />
         <span className="ml-auto text-xs text-muted-foreground">Найдено: {filteredProjects.length}</span>

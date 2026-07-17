@@ -117,6 +117,7 @@ export function KanbanCardFiltersDialog({
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-status">Статус / список</label>
             <StreamMultiSelect
               id="kanban-mobile-filter-status"
+              showSelectionChips={false}
               values={filters.statuses}
               options={[
                 ...Object.entries(LIST_TYPE_LABELS).map(([value, label]) => ({ value: `type:${value}`, label })),
@@ -133,6 +134,7 @@ export function KanbanCardFiltersDialog({
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-assignee">Исполнитель</label>
             <StreamMultiSelect
               id="kanban-mobile-filter-assignee"
+              showSelectionChips={false}
               values={filters.assigneeUserIds}
               options={userOptions}
               onValuesChange={(assigneeUserIds) => update({ assigneeUserIds })}
@@ -145,6 +147,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-responsible">Ответственный</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-responsible"
+                showSelectionChips={false}
                 values={filters.responsibleUserIds}
                 options={userOptions}
                 onValuesChange={(responsibleUserIds) => update({ responsibleUserIds })}
@@ -156,6 +159,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-initiator">Инициатор</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-initiator"
+                showSelectionChips={false}
                 values={filters.initiatorUserIds}
                 options={userOptions}
                 onValuesChange={(initiatorUserIds) => update({ initiatorUserIds })}
@@ -169,6 +173,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-priority">Приоритет</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-priority"
+                showSelectionChips={false}
                 values={filters.priorities}
                 options={Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
                 onValuesChange={(priorities) => update({ priorities })}
@@ -179,6 +184,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-due">Срок</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-due"
+                showSelectionChips={false}
                 values={filters.dueStatuses}
                 options={[
                   { value: "overdue", label: "Просрочено" },
@@ -197,6 +203,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-workload">Нагрузка</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-workload"
+                showSelectionChips={false}
                 values={filters.workloads}
                 options={[
                   { value: "overdue", label: "Просроченные" },
@@ -214,6 +221,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-location">Локация</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-location"
+                showSelectionChips={false}
                 values={filters.locations}
                 options={locations.length === 0
                     ? [{ value: "__empty", label: "Локации не найдены", disabled: true }]
@@ -228,6 +236,7 @@ export function KanbanCardFiltersDialog({
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label">Метка</label>
             <StreamMultiSelect
               id="kanban-mobile-filter-label"
+              showSelectionChips={false}
               values={filters.labelIds}
               options={labels.filter((label) => !label.archivedAt).map((label) => ({ value: label.id, label: label.name }))}
               onValuesChange={(labelIds) => update({ labelIds })}
@@ -240,6 +249,7 @@ export function KanbanCardFiltersDialog({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label-group">Группа меток</label>
               <StreamMultiSelect
                 id="kanban-mobile-filter-label-group"
+                showSelectionChips={false}
                 values={filters.labelGroupIds}
                 options={labelGroups.map((group) => ({ value: group.id, label: group.name }))}
                 onValuesChange={(labelGroupIds) => update({ labelGroupIds })}
@@ -271,6 +281,7 @@ export function KanbanCardFiltersDialog({
                     {field.type === "multi-select" ? (
                       <StreamMultiSelect
                         id={`kanban-filter-field-${field.id}`}
+                        showSelectionChips={false}
                         values={Array.isArray(filters.customFieldValues[field.id])
                           ? filters.customFieldValues[field.id] as string[]
                           : filters.customFieldValues[field.id]

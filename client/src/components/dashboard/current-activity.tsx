@@ -1,10 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Video, Camera, Radio } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
+import { getCalendarEventHref } from "@/lib/entity-navigation";
 
 interface CurrentActivityProps {
   streams?: any[];
@@ -58,11 +61,13 @@ export default function CurrentActivity({ streams, events }: CurrentActivityProp
               const Icon = activity.icon;
               const isStream = activity.type === 'stream';
               return (
-                <div
-                  key={index}
+                <Link
+                  key={`${activity.type}:${activity.id || index}`}
+                  href={isStream ? "/streams" : getCalendarEventHref(activity.id, activity.startTime)}
                   className={cn(
                     "flex min-w-0 items-center justify-between overflow-hidden",
                     DASHBOARD_WIDGET_ROW_CLASS,
+                    DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
                   )}
                   data-testid={`activity-${index}`}
                 >
@@ -84,7 +89,7 @@ export default function CurrentActivity({ streams, events }: CurrentActivityProp
                       <p className="text-xs text-muted-foreground">{activity.duration || activity.timeLeft}</p>
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

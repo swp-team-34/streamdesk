@@ -4,8 +4,10 @@ import { Mic, Camera, Lightbulb, Monitor, Package, MapPin } from "lucide-react";
 import { Link } from "wouter";
 import {
   DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
 } from "@/components/dashboard/dashboard-styles";
+import { getEquipmentHref } from "@/lib/entity-navigation";
 
 interface EquipmentStatusProps {
   equipment?: any[];
@@ -50,9 +52,10 @@ export default function EquipmentStatus({ equipment }: EquipmentStatusProps) {
         ) : (
           <div className="space-y-1.5">
             {equipmentInUse.slice(0, 4).map((item) => (
-              <div 
+              <Link
                 key={item.id} 
-                className={`flex items-center justify-between p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS}`}
+                href={getEquipmentHref(item.id)}
+                className={`flex items-center justify-between p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
                 data-testid={`equipment-${item.id}`}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -70,7 +73,7 @@ export default function EquipmentStatus({ equipment }: EquipmentStatusProps) {
                   </div>
                 </div>
                 <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
-              </div>
+              </Link>
             ))}
             {equipmentInUse.length > 4 && (
               <p className="pt-1 text-center text-xs text-muted-foreground">

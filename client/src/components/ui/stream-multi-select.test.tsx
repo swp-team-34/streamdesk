@@ -61,4 +61,26 @@ describe("StreamMultiSelect", () => {
     expect(screen.getByText("+1")).toBeInTheDocument();
     expect(screen.queryByText("Option 6")).not.toBeInTheDocument();
   });
+
+  it("keeps filter selections inside the dropdown when external chips are disabled", () => {
+    render(
+      <StreamMultiSelect
+        ariaLabel="Статусы"
+        values={["maintenance", "broken"]}
+        options={[
+          { value: "maintenance", label: "Обслуживание" },
+          { value: "broken", label: "Сломано" },
+        ]}
+        onValuesChange={vi.fn()}
+        showSelectionChips={false}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Статусы" })).toHaveTextContent("Выбрано: 2");
+    expect(screen.queryByRole("button", { name: "Убрать Обслуживание" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Статусы" }));
+    expect(screen.getByRole("option", { name: "Обслуживание" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Сломано" })).toBeInTheDocument();
+  });
 });

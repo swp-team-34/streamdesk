@@ -36,6 +36,7 @@ interface StreamMultiSelectProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   maxVisibleChips?: number;
+  showSelectionChips?: boolean;
   className?: string;
   contentClassName?: string;
 }
@@ -54,6 +55,7 @@ export function StreamMultiSelect({
   searchPlaceholder = "Поиск…",
   emptyMessage = "Ничего не найдено",
   maxVisibleChips = 5,
+  showSelectionChips = true,
   className,
   contentClassName,
 }: StreamMultiSelectProps) {
@@ -182,7 +184,7 @@ export function StreamMultiSelect({
           </PopoverContent>
         </Popover>
       )}
-      {selectionChips}
+      {showSelectionChips && selectionChips}
     </div>
   );
 }

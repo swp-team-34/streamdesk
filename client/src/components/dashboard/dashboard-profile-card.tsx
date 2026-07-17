@@ -19,7 +19,7 @@ export default function DashboardProfileCard() {
 
   return (
     <Card className="min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs">
-      <CardContent className="min-w-0 p-3">
+      <CardContent className="min-w-0 !p-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 shrink-0 border border-border/60">
             <AvatarImage src={user.avatar} />

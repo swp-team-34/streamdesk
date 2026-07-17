@@ -4,9 +4,10 @@ import { CalendarClock } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { getCalendarEventHref } from "@/lib/entity-navigation";
 
 interface DashboardCountdownWidgetProps {
-  nextEvent?: { startTime: string; title: string } | null;
+  nextEvent?: { id?: string; startTime: string; title: string } | null;
 }
 
 export default function DashboardCountdownWidget({ nextEvent }: DashboardCountdownWidgetProps) {
@@ -24,7 +25,7 @@ export default function DashboardCountdownWidget({ nextEvent }: DashboardCountdo
 
   return (
     <Card className="min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs">
-      <CardContent className="min-w-0 p-3">
+      <CardContent className="min-w-0 !p-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-warning-muted">
             <CalendarClock className="h-5 w-5 text-warning" />
@@ -35,7 +36,7 @@ export default function DashboardCountdownWidget({ nextEvent }: DashboardCountdo
             <p className="mt-0.5 text-xs font-medium tabular-nums text-primary">{distance}</p>
           </div>
           <div className="shrink-0">
-            <Link href="/calendar">
+            <Link href={nextEvent?.id ? getCalendarEventHref(nextEvent.id, nextEvent.startTime) : "/calendar"}>
               <span className="inline-flex min-h-9 cursor-pointer items-center rounded-control px-2 text-xs font-medium text-primary hover:bg-primary/10">
                 Календарь →
               </span>

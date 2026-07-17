@@ -30,6 +30,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { readCalendarRouteState } from "@/lib/entity-navigation";
 import {
   getCalendarEntryDensity,
   getCalendarEntryLaneLayout,
@@ -90,12 +91,19 @@ import {
 export default function Calendar() {
   useWebSocket();
 
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const initialRouteStateRef = useRef(readCalendarRouteState(
+    typeof window === "undefined" ? "" : window.location.search,
+  ));
+  const [selectedDate, setSelectedDate] = useState(
+    () => initialRouteStateRef.current.date ?? new Date(),
+  );
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null);
   const [draftSlot, setDraftSlot] = useState<{ startTime: string; endTime: string } | null>(null);
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    () => initialRouteStateRef.current.view ?? "week",
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>(() => loadCalendarSettings());
   const [calendarPointerPreview, setCalendarPointerPreview] = useState<CalendarPointerPreview | null>(null);
@@ -135,6 +143,7 @@ export default function Calendar() {
     startX: number;
     startY: number;
   } | null>(null);
+  const routeEventOpenedRef = useRef(false);
 
   const openAllDayEventForm = useCallback((date: Date) => {
     setDraftSlot(buildCalendarAllDayDraftSlot(date));
@@ -471,6 +480,17 @@ export default function Calendar() {
     () => buildCalendarEntries({ events, tasks, kanbanCards, userNameById }),
     [events, kanbanCards, tasks, userNameById],
   );
+
+  useEffect(() => {
+    if (routeEventOpenedRef.current || !initialRouteStateRef.current.eventId) return;
+    const eventEntry = entries.find((entry) =>
+      entry.kind === "event" && String(entry.id) === initialRouteStateRef.current.eventId,
+    );
+    if (!eventEntry) return;
+    routeEventOpenedRef.current = true;
+    setSelectedEntry(eventEntry);
+    setIsDetailOpen(true);
+  }, [entries]);
 
   const entriesForDateCache = useMemo(() => new Map<string, CalendarEntry[]>(), [entries]);
   const getEntriesForDate = useCallback((date: Date) => {
