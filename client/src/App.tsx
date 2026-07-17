@@ -312,7 +312,7 @@ function App() {
 
   if (isLoading && user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -338,10 +338,10 @@ function App() {
         <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <div className="flex min-h-screen items-center justify-center bg-background">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-gray-600">Загрузка...</p>
+                  <p className="text-muted-foreground">Загрузка...</p>
                 </div>
               </div>
               <Toaster />

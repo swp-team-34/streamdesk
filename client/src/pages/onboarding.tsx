@@ -271,9 +271,9 @@ export default function Onboarding() {
       </div>
 
       {state.pendingCompanies.length > 0 && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
+        <Card className="border-warning/20 bg-warning-muted/40">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-200">
+            <CardTitle className="flex items-center gap-2 text-warning">
               <CheckCircle2 className="h-5 w-5" />
               Заявка отправлена
             </CardTitle>
@@ -283,7 +283,7 @@ export default function Onboarding() {
           </CardHeader>
           <CardContent className="space-y-3">
             {state.pendingCompanies.map((item) => (
-              <div key={item.membership.id} className="rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+              <div key={item.membership.id} className="rounded-surface border border-border/50 bg-card px-4 py-3">
                 <div className="font-medium">{item.company.name}</div>
                 <div className="text-sm text-muted-foreground">Статус: ожидает подтверждения</div>
               </div>
@@ -293,7 +293,7 @@ export default function Onboarding() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-border/60 bg-card/90">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserCircle2 className="h-5 w-5" />
@@ -315,7 +315,7 @@ export default function Onboarding() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/90">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -336,11 +336,11 @@ export default function Onboarding() {
             </div>
             <div className="space-y-2">
               <Label>Что пригодится сразу</Label>
-              <div className="grid gap-2 rounded-2xl border border-border/60 bg-background/60 p-3">
+              <div className="grid gap-2 rounded-surface border border-border/50 bg-muted/20 p-3">
                 {COMPANY_NEED_OPTIONS.map((need) => (
                   <label
                     key={need.id}
-                    className="flex items-start gap-3 rounded-xl border border-transparent px-2 py-2 transition-colors hover:border-primary/20 hover:bg-muted/40"
+                    className="flex items-start gap-3 rounded-control border border-transparent px-2 py-2 transition-colors hover:border-primary/20 hover:bg-muted/40"
                   >
                     <Checkbox
                       checked={companyNeeds.includes(need.id)}
@@ -366,7 +366,7 @@ export default function Onboarding() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/90">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
@@ -378,12 +378,12 @@ export default function Onboarding() {
           </CardHeader>
           <CardContent className="space-y-3">
             {inviteDetailsLoading && normalizedInviteToken && (
-              <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm text-muted-foreground">
+              <div className="rounded-surface border border-border/50 bg-muted/20 p-3 text-sm text-muted-foreground">
                 Проверяю приглашение компании...
               </div>
             )}
             {inviteDetails?.company && (
-              <div className={`rounded-2xl border p-4 ${inviteDetails.valid ? "border-primary/30 bg-primary/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+              <div className={`rounded-surface border p-4 ${inviteDetails.valid ? "border-primary/30 bg-primary/5" : "border-warning/20 bg-warning-muted/40"}`}>
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Приглашение в компанию</div>
                   <div className="text-base font-semibold">{inviteDetails.company.name}</div>
@@ -396,7 +396,7 @@ export default function Onboarding() {
                     {!inviteDetails.valid && !inviteDetails.expired && <Badge variant="secondary">Недоступно</Badge>}
                   </div>
                   {inviteDetails.invite.note && (
-                    <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm text-muted-foreground">
+                    <div className="rounded-control border border-border/50 bg-card px-3 py-2 text-sm text-muted-foreground">
                       {inviteDetails.invite.note}
                     </div>
                   )}
@@ -434,7 +434,7 @@ export default function Onboarding() {
       </div>
 
       {companyData?.companies?.length ? (
-        <Card className="border-border/60 bg-card/90">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
@@ -446,7 +446,7 @@ export default function Onboarding() {
           </CardHeader>
           <CardContent className="space-y-4">
             {companyData.companies.map((item) => (
-              <div key={item.company.id} className="rounded-2xl border border-border/60 bg-background/70 p-4">
+              <div key={item.company.id} className="rounded-surface border border-border/50 bg-muted/20 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-medium">{item.company.name}</div>
@@ -504,7 +504,7 @@ export default function Onboarding() {
       ) : null}
 
       {companyData?.pendingApprovals?.length ? (
-        <Card className="border-border/60 bg-card/90">
+        <Card>
           <CardHeader>
             <CardTitle>Ожидают подтверждения</CardTitle>
             <CardDescription>
@@ -513,7 +513,7 @@ export default function Onboarding() {
           </CardHeader>
           <CardContent className="space-y-3">
             {companyData.pendingApprovals.map((item) => (
-              <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div key={item.id} className="flex flex-col gap-3 rounded-surface border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-medium">{item.user?.name || "Новый сотрудник"}</div>
                   <div className="text-sm text-muted-foreground">

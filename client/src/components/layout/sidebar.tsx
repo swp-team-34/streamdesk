@@ -113,7 +113,7 @@ function SidebarLink({
       <Icon className={cn("w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0", isActive && "text-primary")} />
       {!collapsed && <span className="font-medium truncate">{label}</span>}
       {collapsed && (
-        <div className="absolute left-full ml-2 px-2 py-1 bg-popover border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+        <div className="pointer-events-none invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-control border border-border/50 bg-popover px-2 py-1 opacity-0 shadow-surface transition-all group-hover:visible group-hover:opacity-100">
           {label}
         </div>
       )}
@@ -211,7 +211,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       <div
         className={cn(
           "fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-in-out lg:translate-x-0 flex flex-col overflow-hidden",
-          "bg-card border-r border-border/40 shadow-xl dark:shadow-none dark:backdrop-blur-md",
+          "border-r border-border/50 bg-card shadow-overlay lg:shadow-none",
           isOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-14 sm:w-16 lg:w-14 xl:w-16" : "w-[200px] sm:w-56 lg:w-[200px] xl:w-56 max-w-[80vw] lg:max-w-none"
         )}
@@ -288,7 +288,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
                   </>
                 )}
                 {collapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-popover border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+                  <div className="pointer-events-none invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-control border border-border/50 bg-popover px-2 py-1 opacity-0 shadow-surface transition-all group-hover:visible group-hover:opacity-100">
                     расписатель vMix
                   </div>
                 )}

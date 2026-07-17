@@ -77,17 +77,17 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="fixed inset-0 relative flex min-h-screen items-center justify-center overflow-auto bg-gradient-to-br from-gray-950 via-gray-900 to-black p-3 sm:p-4">
+    <div className="fixed inset-0 relative flex min-h-screen items-center justify-center overflow-auto bg-background p-3 text-foreground sm:p-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-cyan-500/20 blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute left-1/2 top-1/2 h-96 w-96 rounded-full bg-pink-500/10 blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
+        <div className="absolute left-[12%] top-[10%] h-80 w-80 animate-pulse rounded-full bg-primary/10 blur-3xl motion-reduce:animate-none" />
+        <div className="absolute bottom-[8%] right-[10%] h-96 w-96 animate-pulse rounded-full bg-primary/15 blur-3xl motion-reduce:animate-none" style={{ animationDelay: "1s" }} />
+        <div className="absolute left-[48%] top-[48%] h-72 w-72 animate-pulse rounded-full bg-primary/5 blur-3xl motion-reduce:animate-none" style={{ animationDelay: "2s" }} />
       </div>
 
       {isAnimating && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative animate-in zoom-in-95 duration-500">
-            <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-cyan-500/30 via-purple-500/30 to-pink-500/30 blur-2xl animate-pulse" />
+        <div className="animate-in fade-in absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 duration-300 backdrop-blur-md motion-reduce:animate-none">
+          <div className="animate-in zoom-in-95 relative duration-500 motion-reduce:animate-none">
+            <div className="absolute -inset-4 animate-pulse rounded-dialog bg-primary/20 blur-2xl motion-reduce:animate-none" />
             <div className="relative overflow-hidden rounded-2xl border-[12px] border-gray-800 bg-gray-900 shadow-[0_0_40px_rgba(6,182,212,0.25),0_0_80px_rgba(139,92,246,0.15)] sm:border-[16px]">
               <div
                 className="relative h-[180px] w-[300px] sm:h-[228px] sm:w-[380px] md:h-[264px] md:w-[440px]"
@@ -100,15 +100,15 @@ export default function Login({ onLogin }: LoginProps) {
               <div className="-mt-0.5 mx-auto h-4 w-28 rounded-b-full bg-gray-700/90 shadow-inner sm:h-5 sm:w-36" />
             </div>
           </div>
-          <p className="mt-8 animate-pulse text-base font-medium text-gray-400">Загрузка...</p>
+          <p className="mt-8 animate-pulse text-base font-medium text-muted-foreground motion-reduce:animate-none">Загрузка...</p>
         </div>
       )}
 
-      <div className={cn("relative z-10 w-full max-w-md transition-all duration-500", isAnimating && "scale-95 opacity-0")}>
+      <div className={cn("relative z-10 w-full max-w-md transition-all duration-500 motion-reduce:transition-none", isAnimating && "scale-95 opacity-0")}>
         <div className="mb-6 text-center sm:mb-8">
           <div className="relative mb-4 inline-block">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 blur-xl opacity-50 animate-pulse" />
-            <div className="absolute -inset-1 rounded-[1.35rem] bg-[conic-gradient(from_0deg,transparent_0deg,#22d3ee_70deg,#8b5cf6_170deg,#ec4899_260deg,transparent_360deg)] opacity-90 animate-logo-frame" />
+            <div className="absolute inset-0 animate-pulse rounded-2xl bg-primary/40 opacity-50 blur-xl motion-reduce:animate-none" />
+            <div className="absolute -inset-1 animate-logo-frame rounded-[1.35rem] bg-[conic-gradient(from_0deg,transparent_0deg,#22d3ee_70deg,#8b5cf6_170deg,#ec4899_260deg,transparent_360deg)] opacity-90 motion-reduce:animate-none" />
             <div className="relative inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-purple-500 to-pink-500 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/20">
               <Tv className="h-10 w-10 text-white drop-shadow-lg" />
             </div>
@@ -116,18 +116,18 @@ export default function Login({ onLogin }: LoginProps) {
           <h1 className="mb-2 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-4xl font-bold text-transparent">
             StreamDesk
           </h1>
-          <p className="text-sm text-gray-400">Платформа для команд, проектов и вещания</p>
+          <p className="text-sm text-muted-foreground">Платформа для команд, проектов и вещания</p>
         </div>
 
-        <Card className="border border-cyan-500/30 bg-gray-900/90 shadow-2xl shadow-cyan-500/20 backdrop-blur-xl ring-1 ring-cyan-500/10">
+        <Card className="border-border/60 bg-card/90 shadow-overlay backdrop-blur-xl">
           <CardHeader className="pb-2 text-center">
-            <CardTitle className="text-2xl text-white">Вход в систему</CardTitle>
-            <CardDescription className="text-gray-400">Введите почту или логин</CardDescription>
+            <CardTitle className="text-2xl">Вход в систему</CardTitle>
+            <CardDescription>Введите почту или логин</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-gray-300">Почта или логин</Label>
+                <Label htmlFor="username">Почта или логин</Label>
                 <Input
                   id="username"
                   autoComplete="username"
@@ -135,11 +135,10 @@ export default function Login({ onLogin }: LoginProps) {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="name@company.ru"
                   required
-                  className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:ring-cyan-500/50"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-300">Пароль</Label>
+                <Label htmlFor="password">Пароль</Label>
                 <Input
                   id="password"
                   type="password"
@@ -148,12 +147,11 @@ export default function Login({ onLogin }: LoginProps) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Введите пароль"
                   required
-                  className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:ring-cyan-500/50"
                 />
               </div>
               <Button
                 type="submit"
-                className="h-12 w-full overflow-hidden border-0 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 font-semibold text-white shadow-lg shadow-purple-500/30 transition-all hover:from-cyan-600 hover:via-purple-600 hover:to-pink-600"
+                className="h-12 w-full font-semibold"
                 disabled={loginMutation.isPending}
               >
                 {loginMutation.isPending ? (
@@ -170,11 +168,11 @@ export default function Login({ onLogin }: LoginProps) {
               </Button>
             </form>
 
-            <div className="border-t border-gray-700 pt-4">
+            <div className="border-t border-border/50 pt-4">
               {!showRegister ? (
                 <div className="space-y-3 text-center">
-                  <p className="text-sm font-medium text-gray-400">Нет аккаунта?</p>
-                  <Button type="button" variant="outline" className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white" onClick={() => setShowRegister(true)}>
+                  <p className="text-sm font-medium text-muted-foreground">Нет аккаунта?</p>
+                  <Button type="button" variant="outline" className="w-full" onClick={() => setShowRegister(true)}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     Зарегистрироваться
                   </Button>
@@ -182,8 +180,8 @@ export default function Login({ onLogin }: LoginProps) {
               ) : (
                 <div className="space-y-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="font-medium text-white">Регистрация</p>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowRegister(false)} className="h-6 w-6 p-0 text-gray-400 hover:text-white">
+                    <p className="font-medium">Регистрация</p>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowRegister(false)} className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -202,17 +200,17 @@ export default function Login({ onLogin }: LoginProps) {
                     }}
                   >
                     <div className="grid grid-cols-2 gap-2">
-                      <Input name="reg_name" placeholder="Имя *" required className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500" />
-                      <Input name="reg_username" placeholder="Логин *" required className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500" />
+                      <Input name="reg_name" placeholder="Имя *" required />
+                      <Input name="reg_username" placeholder="Логин *" required />
                     </div>
-                    <Input name="reg_email" type="email" placeholder="Почта *" required className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500" />
-                    <Input name="reg_password" type="password" placeholder="Пароль *" required className="border-gray-700 bg-gray-800/50 text-white placeholder:text-gray-500" />
-                    <Button type="submit" className="w-full bg-gray-800 text-white hover:bg-gray-700" disabled={registerMutation.isPending}>
+                    <Input name="reg_email" type="email" placeholder="Почта *" required />
+                    <Input name="reg_password" type="password" placeholder="Пароль *" required />
+                    <Button type="submit" variant="secondary" className="w-full" disabled={registerMutation.isPending}>
                       {registerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                       Создать аккаунт
                     </Button>
                   </form>
-                  <p className="text-center text-xs text-gray-500">
+                  <p className="text-center text-xs text-muted-foreground">
                     После регистрации вы сразу выберете: работать лично, создать компанию или вступить по приглашению.
                   </p>
                 </div>
@@ -221,7 +219,7 @@ export default function Login({ onLogin }: LoginProps) {
           </CardContent>
         </Card>
 
-        <p className="mt-6 text-center text-sm text-gray-500">StreamDesk Platform</p>
+        <p className="mt-6 text-center text-sm text-muted-foreground">StreamDesk Platform</p>
       </div>
     </div>
   );

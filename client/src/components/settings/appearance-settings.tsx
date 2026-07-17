@@ -145,7 +145,7 @@ export function AppearanceSettings() {
                   role="radio"
                   aria-checked={selected}
                   className={cn(
-                    "group flex min-h-[76px] items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors",
+                    "group flex min-h-[76px] items-start gap-3 rounded-surface border bg-card p-3 text-left transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     selected ? "border-primary bg-primary/5" : "border-border/60 hover:bg-muted/60",
                   )}
@@ -170,7 +170,7 @@ export function AppearanceSettings() {
           </div>
         </section>
 
-        <section className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/25 p-4">
+        <section className="flex items-center justify-between gap-4 rounded-surface border border-border/50 bg-muted/20 p-4">
           <div>
             <Label htmlFor="auto-theme" className="flex items-center gap-2 font-medium">
               <Clock3 className="h-4 w-4 text-muted-foreground" />
@@ -225,7 +225,7 @@ export function AppearanceSettings() {
               presets={ACCENT_PRESETS}
             />
             {accentAnalysis && !accentAnalysis.valid && (
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <div className="rounded-control border border-warning/20 bg-warning-muted/60 p-3 text-sm">
                 <p className="text-foreground">Этот оттенок недостаточно контрастный.</p>
                 <Button
                   type="button"
@@ -241,7 +241,7 @@ export function AppearanceSettings() {
         </section>
 
         {preferencesError && (
-          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="rounded-control border border-error/20 bg-error-muted/60 px-3 py-2 text-sm text-error">
             {preferencesError}
           </p>
         )}
