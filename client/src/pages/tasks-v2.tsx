@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import {
   KanbanBoardFormDialog,
   type BoardVisibility,
@@ -91,7 +92,6 @@ import {
   LIST_COLOR_PRESETS,
   LIST_VIEW_ALL_DROPPABLE_ID,
   asRecord,
-  confirmDelete,
   getDraggableCardStyle,
   type CompaniesResponse,
   type KanbanBoardView,
@@ -211,6 +211,7 @@ import {
 export default function TasksV2Page() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm: confirmDelete } = useAppDialog();
   const { workspace } = useWorkspace();
   const deadlineNow = useDeadlineNow();
   const currentUser = useMemo(() => {
@@ -2675,8 +2676,8 @@ export default function TasksV2Page() {
           });
         }}
         onOpen={() => handleOpenCardDetail(card.id)}
-        onDelete={() => {
-          if (!confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
+        onDelete={async () => {
+          if (!await confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
           deleteCardMutation.mutate(card.id);
         }}
       />
@@ -2810,9 +2811,9 @@ export default function TasksV2Page() {
         onOpenStats={() => setBoardStatsOpen(true)}
         onOpenSmartInputHelp={() => setSmartInputHelpOpen(true)}
         onEditBoard={() => selectedBoard && handleEditBoard(selectedBoard)}
-        onDeleteBoard={() => {
+        onDeleteBoard={async () => {
           if (!selectedBoard) return;
-          if (!confirmDelete(`Удалить доску "${selectedBoard.name}"? Это действие нельзя отменить.`)) return;
+          if (!await confirmDelete(`Удалить доску "${selectedBoard.name}"? Это действие нельзя отменить.`)) return;
           deleteBoardMutation.mutate(selectedBoard.id);
         }}
       />
@@ -3053,8 +3054,8 @@ export default function TasksV2Page() {
                                             className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
                                             aria-label="Удалить список"
                                             title="Удалить список"
-                                            onClick={() => {
-                                              if (!confirmDelete(`Удалить список "${list.name}"? Все карточки внутри списка тоже будут удалены.`)) return;
+                                            onClick={async () => {
+                                              if (!await confirmDelete(`Удалить список "${list.name}"? Все карточки внутри списка тоже будут удалены.`)) return;
                                               deleteListMutation.mutate(list.id);
                                             }}
                                             disabled={isListPending}
@@ -3166,8 +3167,8 @@ export default function TasksV2Page() {
                                                 }}
                                                 onDuplicate={() => handleDuplicateCard(card)}
                                                 onMove={(targetListId) => handleMoveCardFromMenu(card, targetListId)}
-                                                onDelete={() => {
-                                                  if (!confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
+                                                onDelete={async () => {
+                                                  if (!await confirmDelete(`Удалить карточку "${card.title}"? Это действие нельзя отменить.`)) return;
                                                   deleteCardMutation.mutate(card.id);
                                                 }}
                                               />
@@ -3508,8 +3509,8 @@ export default function TasksV2Page() {
                 onCancelEdit={handleCancelMemberEdit}
                 onSave={() => saveMemberMutation.mutate()}
                 onEdit={handleEditMember}
-                onDelete={(member, userName) => {
-                  if (!confirmDelete(`Удалить участника "${userName}" из доски?`)) return;
+                onDelete={async (member, userName) => {
+                  if (!await confirmDelete(`Удалить участника "${userName}" из доски?`)) return;
                   deleteMemberMutation.mutate(member.id);
                 }}
               />
@@ -3533,8 +3534,8 @@ export default function TasksV2Page() {
                 }}
                 onSave={() => saveLabelGroupMutation.mutate(undefined)}
                 onEdit={handleEditLabelGroup}
-                onDelete={(group) => {
-                  if (!confirmDelete(`Архивировать группу "${group.name}"? Метки останутся.`)) return;
+                onDelete={async (group) => {
+                  if (!await confirmDelete(`Архивировать группу "${group.name}"? Метки останутся.`)) return;
                   deleteLabelGroupMutation.mutate(group.id);
                 }}
               />
@@ -3570,8 +3571,8 @@ export default function TasksV2Page() {
                   color,
                   groupId: label.groupId || null,
                 })}
-                onDelete={(label) => {
-                  if (!confirmDelete(`Удалить метку "${label.name}"?`)) return;
+                onDelete={async (label) => {
+                  if (!await confirmDelete(`Удалить метку "${label.name}"?`)) return;
                   deleteLabelMutation.mutate(label.id);
                 }}
               />
@@ -3595,8 +3596,8 @@ export default function TasksV2Page() {
                 onCreateDefaults={handleCreateDefaultCustomFieldTemplates}
                 onSave={() => saveCustomFieldMutation.mutate(undefined)}
                 onEdit={handleEditCustomField}
-                onDelete={(field) => {
-                  if (!confirmDelete(`Архивировать поле "${field.name}"? Значения останутся в данных карточек.`)) return;
+                onDelete={async (field) => {
+                  if (!await confirmDelete(`Архивировать поле "${field.name}"? Значения останутся в данных карточек.`)) return;
                   deleteCustomFieldMutation.mutate(field.id);
                 }}
               />

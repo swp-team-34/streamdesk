@@ -43,7 +43,7 @@ export interface KanbanCardAdvancedSectionsProps {
   historyExpanded: boolean;
   getUserName: (userId: string) => string;
   getHistoryChangeLines: (entry: KanbanCardHistoryView) => string[];
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
   onEquipmentSelectionChange: (equipmentId: string) => void;
   onAttachEquipment: (equipmentId: string) => void;
   onDetachEquipment: (equipmentId: string) => void;

@@ -13,6 +13,7 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type AgentMetricPoint = {
   timestamp: string;
@@ -67,6 +68,7 @@ const fmtGbPair = (used: unknown, total: unknown, fallbackPercent?: unknown) => 
 };
 
 export default function Monitoring() {
+  const { confirm: confirmAction } = useAppDialog();
   const [selectedAgentSystemId, setSelectedAgentSystemId] = useState<string>("");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("none");
   const [selectedRange, setSelectedRange] = useState<MonitoringRange>("24h");
@@ -124,8 +126,14 @@ export default function Monitoring() {
     },
   });
 
-  const handleDeleteSystem = (system: any) => {
-    if (!confirm(`Удалить "${system.name || "устройство"}" из мониторинга?`)) return;
+  const handleDeleteSystem = async (system: any) => {
+    const confirmed = await confirmAction({
+      title: `Удалить «${system.name || "устройство"}»?`,
+      description: "Устройство исчезнет из мониторинга и его текущие метрики больше не будут отображаться.",
+      confirmLabel: "Удалить",
+      destructive: true,
+    });
+    if (!confirmed) return;
     deleteSystemMutation.mutate(system.id);
   };
 

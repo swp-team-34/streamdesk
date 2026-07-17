@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { COMPANY_NEED_OPTIONS } from "@/lib/company-workspace";
@@ -85,6 +86,7 @@ function normalizeInviteToken(value: string) {
 
 export default function Onboarding() {
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
   const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialInvite = search?.get("invite") || "";
   const [companyName, setCompanyName] = useState("");
@@ -477,11 +479,15 @@ export default function Onboarding() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200"
-                        onClick={() => {
-                          if (confirm(`Удалить компанию "${item.company.name}"?`)) {
-                            deleteCompanyMutation.mutate(item.company.id);
-                          }
+                        className="border-error/30 text-error hover:bg-error-muted hover:text-error"
+                        onClick={async () => {
+                          const confirmed = await confirmAction({
+                            title: `Удалить компанию «${item.company.name}»?`,
+                            description: "Компания и доступ к её данным будут удалены. Это действие нельзя отменить.",
+                            confirmLabel: "Удалить компанию",
+                            destructive: true,
+                          });
+                          if (confirmed) deleteCompanyMutation.mutate(item.company.id);
                         }}
                         disabled={deleteCompanyMutation.isPending}
                       >

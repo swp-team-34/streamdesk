@@ -47,6 +47,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { PERMISSIONS } from "@shared/schema";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WorkspaceBoundary } from "@/components/workspace/workspace-boundary";
+import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
 
 function StubModeBanner() {
   const { data } = useQuery<{ stubMode?: boolean }>({
@@ -372,7 +373,8 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <WorkspaceProvider>
           <WorkspaceBoundary>
-            <TooltipProvider>
+            <AppDialogProvider>
+              <TooltipProvider>
               <div
             className={cn(
               "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
@@ -460,7 +462,8 @@ function App() {
             </div>
               </div>
               <Toaster />
-            </TooltipProvider>
+              </TooltipProvider>
+            </AppDialogProvider>
           </WorkspaceBoundary>
         </WorkspaceProvider>
       </QueryClientProvider>

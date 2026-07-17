@@ -164,9 +164,6 @@ export const getDraggableCardStyle = (
   style: DraggableStyle | undefined,
 ): CSSProperties | undefined => style as CSSProperties | undefined;
 
-export const confirmDelete = (message: string) =>
-  typeof window !== "undefined" && window.confirm(message);
-
 export interface KanbanCardMoveInput {
   boardId: string;
   cardId: string;

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { MessageSquareReply, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeSubscription } from "@/hooks/use-websocket";
 import { apiRequest } from "@/lib/queryClient";
@@ -46,6 +47,7 @@ export function DiscussionThread({
   onActivity,
 }: DiscussionThreadProps) {
   const queryClient = useQueryClient();
+  const { confirm: confirmAction } = useAppDialog();
   const [draft, setDraft] = useState("");
   const [replyRootId, setReplyRootId] = useState<string | null>(null);
   const [subscriptionDenied, setSubscriptionDenied] = useState(false);
@@ -150,8 +152,14 @@ export function DiscussionThread({
               size="icon"
               className="h-8 w-8 text-destructive"
               aria-label="Удалить комментарий"
-              onClick={() => {
-                if (window.confirm("Удалить комментарий?")) deleteMutation.mutate(comment.id);
+              onClick={async () => {
+                const confirmed = await confirmAction({
+                  title: "Удалить комментарий?",
+                  description: "Комментарий будет удалён из этой ветки обсуждения.",
+                  confirmLabel: "Удалить",
+                  destructive: true,
+                });
+                if (confirmed) deleteMutation.mutate(comment.id);
               }}
               disabled={deleteMutation.isPending}
             >

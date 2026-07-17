@@ -83,6 +83,7 @@ import {
 import { buildBarcodeLabelBitmapPayload, renderCompactBarcodeLabel } from "@/lib/barcode-label";
 import { apiRequest, apiUrl, encodeUserHeader } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
 import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import type { Equipment } from "@shared/schema";
@@ -105,6 +106,7 @@ type KitExtractionPayload = {
 };
 
 export default function EquipmentPage() {
+  const { confirm: confirmAction } = useAppDialog();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [operabilityFilter, setOperabilityFilter] = useState("all");
@@ -1933,8 +1935,14 @@ export default function EquipmentPage() {
                   setFormMode("full");
                   setIsFormOpen(true);
                 }}
-                onDelete={(selected) => {
-                  if (!window.confirm("Удалить «" + selected.name + "» со склада?")) return;
+                onDelete={async (selected) => {
+                  const confirmed = await confirmAction({
+                    title: `Удалить «${selected.name}»?`,
+                    description: "Позиция будет удалена со склада. Связи с комплектами будут обработаны отдельно.",
+                    confirmLabel: "Удалить",
+                    destructive: true,
+                  });
+                  if (!confirmed) return;
                   runWithKitSafety(
                     [selected],
                     "Удалить со склада",

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StreamColorPicker } from "@/components/ui/stream-color-picker";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { 
   Network, 
@@ -39,6 +40,7 @@ import {
 
 export default function ConnectionSchemas() {
   const { toast } = useToast();
+  const { confirm: confirmAction, prompt: promptAction } = useAppDialog();
   const [selectedSchema, setSelectedSchema] = useState<string | null>(null);
   const [isCreatingSchema, setIsCreatingSchema] = useState(false);
   const [isAddingEquipment, setIsAddingEquipment] = useState(false);
@@ -495,12 +497,16 @@ export default function ConnectionSchemas() {
     updateDevicePosition.mutate({ id: deviceId, position });
   };
 
-  const handleDeleteComponent = (id: string) => {
+  const handleDeleteComponent = async (id: string) => {
     const component = selectedSchemaData?.components?.find((item) => item.id === id);
     const name = component?.name || "элемент";
-    if (window.confirm(`Удалить "${name}" из схемы?`)) {
-      deleteComponentMutation.mutate(id);
-    }
+    const confirmed = await confirmAction({
+      title: `Удалить «${name}» из схемы?`,
+      description: "Элемент и связанные с ним соединения будут удалены.",
+      confirmLabel: "Удалить",
+      destructive: true,
+    });
+    if (confirmed) deleteComponentMutation.mutate(id);
   };
 
   const handleAddZone = (zone: Omit<Zone, "id">) => {
@@ -654,8 +660,15 @@ export default function ConnectionSchemas() {
                   size="sm"
                   variant="outline"
                   disabled={aiGenerateMutation.isPending}
-                  onClick={() => {
-                    const prompt = window.prompt("Что нужно собрать на схеме? Например: 4 камеры SDI, ATEM Mini, vMix, роутер, 2 микрофона");
+                  onClick={async () => {
+                    const prompt = await promptAction({
+                      title: "Собрать схему с помощью AI",
+                      description: "Опишите оборудование, количество и нужные типы соединений.",
+                      label: "Описание схемы",
+                      placeholder: "Например: 4 камеры SDI, ATEM Mini, vMix, роутер, 2 микрофона",
+                      confirmLabel: "Собрать",
+                      required: true,
+                    });
                     if (prompt) aiGenerateMutation.mutate(prompt);
                   }}
                   className="border-slate-600 text-white hover:bg-slate-700"
@@ -833,11 +846,15 @@ export default function ConnectionSchemas() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm("Удалить схему?")) {
-                              deleteSchemaMutation.mutate(schema.id);
-                            }
+                            const confirmed = await confirmAction({
+                              title: `Удалить схему «${schema.name}»?`,
+                              description: "Схема, её оборудование, зоны и соединения будут удалены.",
+                              confirmLabel: "Удалить",
+                              destructive: true,
+                            });
+                            if (confirmed) deleteSchemaMutation.mutate(schema.id);
                           }}
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
@@ -885,8 +902,15 @@ export default function ConnectionSchemas() {
                         variant="outline"
                         className="h-9 touch-manipulation"
                         disabled={aiGenerateMutation.isPending}
-                        onClick={() => {
-                          const prompt = window.prompt("Опишите схему: оборудование, количество, SDI/HDMI/LAN/звук");
+                        onClick={async () => {
+                          const prompt = await promptAction({
+                            title: "Собрать схему с помощью AI",
+                            description: "Опишите оборудование, количество и нужные типы соединений.",
+                            label: "Описание схемы",
+                            placeholder: "Оборудование, количество, SDI/HDMI/LAN/звук",
+                            confirmLabel: "Собрать",
+                            required: true,
+                          });
                           if (prompt) aiGenerateMutation.mutate(prompt);
                         }}
                       >

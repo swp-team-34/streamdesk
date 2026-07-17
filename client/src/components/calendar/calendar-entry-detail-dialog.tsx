@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AuthService } from "@/lib/auth";
 import {
@@ -78,6 +79,8 @@ export function CalendarEntryDetailDialog({
   onDeleteEvent: (eventId: string) => void;
   isDeleting: boolean;
 }) {
+  const { confirm: confirmAction } = useAppDialog();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
@@ -341,8 +344,14 @@ export function CalendarEntryDetailDialog({
                     size="sm"
                     variant="destructive"
                     className="gap-2"
-                    onClick={() => {
-                      if (window.confirm("Удалить это событие?")) onDeleteEvent(entry.id);
+                    onClick={async () => {
+                      const confirmed = await confirmAction({
+                        title: "Удалить событие?",
+                        description: "Событие исчезнет из календаря у всех его участников.",
+                        confirmLabel: "Удалить",
+                        destructive: true,
+                      });
+                      if (confirmed) onDeleteEvent(entry.id);
                     }}
                     disabled={isDeleting}
                   >

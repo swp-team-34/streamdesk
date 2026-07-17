@@ -51,7 +51,7 @@ const baseProps = {
   historyExpanded: false,
   getUserName: (id: string) => id,
   getHistoryChangeLines: () => [],
-  confirmDelete: () => true,
+  confirmDelete: async () => true,
   onEquipmentSelectionChange: vi.fn(),
   onAttachEquipment: vi.fn(),
   onDetachEquipment: vi.fn(),

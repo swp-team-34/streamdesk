@@ -15,7 +15,7 @@ interface KanbanCardAttachmentsSectionProps {
   getUserName: (userId: string) => string;
   onUpload: (file: File) => void;
   onDelete: (attachmentId: string) => void;
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
 }
 
 export function KanbanCardAttachmentsSection({
@@ -84,8 +84,8 @@ export function KanbanCardAttachmentsSection({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        if (!confirmDelete(`Удалить вложение "${attachment.fileName}"?`)) return;
+                      onClick={async () => {
+                        if (!await confirmDelete(`Удалить вложение "${attachment.fileName}"?`)) return;
                         onDelete(attachment.id);
                       }}
                       disabled={deletePending}

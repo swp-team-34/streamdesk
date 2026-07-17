@@ -15,7 +15,7 @@ interface KanbanCardSubtasksSectionProps {
   pending: boolean;
   onDraftChange: (value: string) => void;
   onSave: (subtasks: KanbanSubtask[], clearDraftOnSuccess?: boolean) => void;
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
 }
 
 export function KanbanCardSubtasksSection({
@@ -82,8 +82,8 @@ export function KanbanCardSubtasksSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (!confirmDelete(`Удалить подзадачу "${subtask.title}"?`)) return;
+                  onClick={async () => {
+                    if (!await confirmDelete(`Удалить подзадачу "${subtask.title}"?`)) return;
                     onSave(normalizedSubtasks.filter((item) => item.id !== subtask.id));
                   }}
                   disabled={pending}

@@ -19,6 +19,7 @@ import {
 import { UserLogsTab } from "@/components/admin/user-logs-tab";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import type { User, Role } from "@shared/schema";
 import { PERMISSIONS, TAB_KEYS, TAB_LABELS, tabPermission } from "@shared/schema";
 
@@ -92,6 +93,7 @@ export default function Admin() {
   const [repositoryDescription, setRepositoryDescription] = useState("");
   const [inviteLinks, setInviteLinks] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
 
   const currentUser = JSON.parse(localStorage.getItem('streamstudio_user') || '{}');
 
@@ -645,7 +647,13 @@ export default function Admin() {
                         size="icon"
                         className="h-8 w-8 text-red-500 hover:text-red-700"
                         onClick={async () => {
-                          if (confirm(`Удалить репозиторий "${repo.name}"?`)) {
+                          const confirmed = await confirmAction({
+                            title: `Удалить репозиторий «${repo.name}»?`,
+                            description: "Ссылка на репозиторий будет удалена из пространства компании.",
+                            confirmLabel: "Удалить",
+                            destructive: true,
+                          });
+                          if (confirmed) {
                             try {
                               await apiRequest("DELETE", `/api/repositories/${repo.id}`);
                               refetchRepositories();

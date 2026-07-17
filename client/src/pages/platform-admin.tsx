@@ -43,6 +43,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
@@ -83,6 +84,7 @@ export default function PlatformAdmin() {
 
   const isPlatformAdmin = Array.isArray(currentUser?.permissions) && currentUser.permissions.includes(PERMISSIONS.PLATFORM_ADMIN);
   const { toast } = useToast();
+  const { confirm: confirmAction, prompt: promptAction } = useAppDialog();
   const [activeTab, setActiveTab] = useState<PlatformTab>(() => readPlatformTabFromUrl());
   const [companySearch, setCompanySearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -629,8 +631,15 @@ export default function PlatformAdmin() {
                                 size="sm"
                                 variant="outline"
                                 disabled={resetPasswordMutation.isPending}
-                                onClick={() => {
-                                  const password = window.prompt(`Новый пароль для ${user.username}`);
+                                onClick={async () => {
+                                  const password = await promptAction({
+                                    title: `Новый пароль для ${user.username}`,
+                                    description: "Введите временный пароль и передайте его пользователю безопасным способом.",
+                                    label: "Новый пароль",
+                                    inputType: "password",
+                                    confirmLabel: "Сбросить пароль",
+                                    required: true,
+                                  });
                                   if (password) resetPasswordMutation.mutate({ id: user.id, password });
                                 }}
                               >
@@ -640,10 +649,14 @@ export default function PlatformAdmin() {
                                 size="sm"
                                 variant="destructive"
                                 disabled={deleteUserMutation.isPending}
-                                onClick={() => {
-                                  if (window.confirm(`Удалить ${user.username}? Пользователь потеряет доступ к компаниям.`)) {
-                                    deleteUserMutation.mutate(user.id);
-                                  }
+                                onClick={async () => {
+                                  const confirmed = await confirmAction({
+                                    title: `Удалить пользователя ${user.username}?`,
+                                    description: "Пользователь потеряет доступ ко всем связанным компаниям.",
+                                    confirmLabel: "Удалить",
+                                    destructive: true,
+                                  });
+                                  if (confirmed) deleteUserMutation.mutate(user.id);
                                 }}
                               >
                                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />

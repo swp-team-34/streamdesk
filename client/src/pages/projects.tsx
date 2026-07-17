@@ -18,6 +18,7 @@ import {
 import { Link, useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DiscussionThread } from "@/components/discussion-thread";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { ProjectEditForm } from "@/components/projects/project-edit-form";
 import { ProjectTaskStats } from "@/components/projects/project-task-stats";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -191,6 +192,7 @@ export default function Projects() {
   const projectEditorCloseRef = useRef<(() => Promise<void>) | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["/api/projects"],
@@ -1025,10 +1027,14 @@ export default function Projects() {
                       variant="outline" 
                       size="sm"
                       className="shrink-0 min-w-[2.5rem] text-destructive hover:bg-destructive/10"
-                      onClick={() => {
-                        if (confirm(`Точно удалить проект "${project.name || "без названия"}"?`)) {
-                          deleteMutation.mutate(project.id);
-                        }
+                      onClick={async () => {
+                        const confirmed = await confirmAction({
+                          title: `Удалить проект «${project.name || "без названия"}»?`,
+                          description: "Проект и его рабочие связи будут удалены. Это действие нельзя отменить.",
+                          confirmLabel: "Удалить",
+                          destructive: true,
+                        });
+                        if (confirmed) deleteMutation.mutate(project.id);
                       }}
                     >
                       <Trash2 className="w-4 h-4" />

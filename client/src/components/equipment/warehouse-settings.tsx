@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -96,6 +97,7 @@ export function WarehouseSettings({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [categoryParentId, setCategoryParentId] = useState("root");
@@ -252,7 +254,15 @@ export function WarehouseSettings({
         affected ? `используется в ${affected} карточках` : "",
         children ? `дочерних элементов: ${children}` : "",
       ].filter(Boolean).join(", ");
-      if (!window.confirm(`Архивировать «${row.name}»${suffix ? ` (${suffix})` : ""}?`)) return;
+      const confirmed = await confirmAction({
+        title: `Архивировать «${row.name}»?`,
+        description: suffix
+          ? `Связанные данные: ${suffix}. Элемент можно будет восстановить позже.`
+          : "Элемент можно будет восстановить позже.",
+        confirmLabel: "Архивировать",
+        destructive: true,
+      });
+      if (!confirmed) return;
     }
     await settingsMutation.mutateAsync({
       method: "PUT",
