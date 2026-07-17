@@ -49,6 +49,7 @@ import {
   CALENDAR_TIMELINE_BUFFER_DAYS,
   CALENDAR_TIMELINE_GUTTER_WIDTH,
   getCalendarTimelineDayWidth,
+  getCalendarTimelineNextBufferDays,
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
   getCalendarTimelineVisibleDayCount,
@@ -101,11 +102,15 @@ export default function Calendar() {
   const [slotSelectStart, setSlotSelectStart] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [slotSelectEnd, setSlotSelectEnd] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [expandedNonWorkingRanges, setExpandedNonWorkingRanges] = useState<{ before: boolean; after: boolean }>({ before: false, after: false });
+  const [timelineBufferDays, setTimelineBufferDays] = useState(CALENDAR_TIMELINE_BUFFER_DAYS);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const { toast } = useToast();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineScrollTimerRef = useRef<number | null>(null);
+  const commitTimelineScrollRef = useRef<() => void>(() => undefined);
   const timelineRecenteringRef = useRef(false);
+  const timelineBufferDaysRef = useRef(CALENDAR_TIMELINE_BUFFER_DAYS);
+  const timelinePendingBufferShiftRef = useRef(0);
   const timelinePanRef = useRef<{
     pointerId: number;
     startX: number;
@@ -238,12 +243,13 @@ export default function Calendar() {
       anchorDate: selectedDate,
       viewMode: timelineViewMode,
       showWeekends: calendarSettings.showWeekends,
+      bufferDays: timelineBufferDays,
     }),
-    [calendarSettings.showWeekends, selectedDate, timelineViewMode],
+    [calendarSettings.showWeekends, selectedDate, timelineBufferDays, timelineViewMode],
   );
   const timelineVisibleDays = timelineDays.slice(
-    CALENDAR_TIMELINE_BUFFER_DAYS,
-    CALENDAR_TIMELINE_BUFFER_DAYS + timelineVisibleDayCount,
+    timelineBufferDays,
+    timelineBufferDays + timelineVisibleDayCount,
   );
   const timelineDayWidth = getCalendarTimelineDayWidth({
     viewportWidth: timelineViewportWidth,
@@ -421,18 +427,35 @@ export default function Calendar() {
     if (!element) return;
 
     timelineRecenteringRef.current = true;
+    const pendingBufferShift = timelinePendingBufferShiftRef.current;
+    if (pendingBufferShift > 0) {
+      timelinePendingBufferShiftRef.current = 0;
+      element.scrollLeft += pendingBufferShift * timelineDayWidth;
+      const frameId = window.requestAnimationFrame(() => {
+        timelineRecenteringRef.current = false;
+      });
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        timelineRecenteringRef.current = false;
+      };
+    }
+
     element.scrollLeft = getCalendarTimelineScrollLeft(
-      CALENDAR_TIMELINE_BUFFER_DAYS,
+      timelineBufferDays,
       timelineDayWidth,
     );
     const frameId = window.requestAnimationFrame(() => {
       timelineRecenteringRef.current = false;
     });
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      timelineRecenteringRef.current = false;
+    };
   }, [
     calendarSettings.showWeekends,
     isTimelineView,
     selectedDate,
+    timelineBufferDays,
     timelineDayWidth,
     timelineViewportWidth,
     viewMode,
@@ -1020,7 +1043,7 @@ export default function Calendar() {
     }
 
     const targetScrollLeft = getCalendarTimelineScrollLeft(
-      CALENDAR_TIMELINE_BUFFER_DAYS,
+      timelineBufferDays,
       timelineDayWidth,
     );
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1028,18 +1051,39 @@ export default function Calendar() {
       left: targetScrollLeft,
       behavior: reducedMotion ? "auto" : "smooth",
     });
-  }, [selectedDate, timelineDayWidth, timelineDays]);
+  }, [selectedDate, timelineBufferDays, timelineDayWidth, timelineDays]);
+  commitTimelineScrollRef.current = commitTimelineScroll;
+
+  const extendTimelineBufferIfNeeded = useCallback(() => {
+    const element = timelineScrollRef.current;
+    if (!element || timelineRecenteringRef.current) return;
+
+    const currentBufferDays = timelineBufferDaysRef.current;
+    const nextBufferDays = getCalendarTimelineNextBufferDays({
+      scrollLeft: element.scrollLeft,
+      viewportWidth: element.clientWidth,
+      dayWidth: timelineDayWidth,
+      dayCount: timelineDays.length,
+      bufferDays: currentBufferDays,
+    });
+    if (nextBufferDays <= currentBufferDays) return;
+
+    timelineBufferDaysRef.current = nextBufferDays;
+    timelinePendingBufferShiftRef.current += nextBufferDays - currentBufferDays;
+    setTimelineBufferDays(nextBufferDays);
+  }, [timelineDayWidth, timelineDays.length]);
 
   const handleTimelineScroll = useCallback(() => {
     if (timelineRecenteringRef.current) return;
+    extendTimelineBufferIfNeeded();
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
     }
     timelineScrollTimerRef.current = window.setTimeout(() => {
       timelineScrollTimerRef.current = null;
-      commitTimelineScroll();
+      commitTimelineScrollRef.current();
     }, 240);
-  }, [commitTimelineScroll]);
+  }, [extendTimelineBufferIfNeeded]);
 
   const scrollTimelineByDays = useCallback((dayDelta: number) => {
     const element = timelineScrollRef.current;
@@ -1272,38 +1316,58 @@ export default function Calendar() {
   const renderCompressedHoursControl = (
     days: Date[],
     range: "before" | "after",
-    sticky = false,
+    gridTemplateColumns: string,
   ) => {
     const startsAt = range === "before" ? 0 : workdayEnd;
     const endsAt = range === "before" ? workdayStart : 24;
     if (endsAt <= startsAt) return null;
     const isExpanded = expandedNonWorkingRanges[range];
 
-    const entriesInRange = days.flatMap((day) =>
+    const entryCountByDay = days.map((day) =>
       getEntriesForDate(day).filter((entry) => {
         if (isAllDayEntry(entry)) return false;
         const start = new Date(entry.startTime);
         const hour = start.getHours() + start.getMinutes() / 60;
         return hour >= startsAt && hour < endsAt;
-      }),
+      }).length,
     );
+    const entriesInRange = entryCountByDay.reduce((sum, count) => sum + count, 0);
+    const startsAtLabel = `${String(startsAt).padStart(2, "0")}:00`;
+    const endsAtLabel = `${String(endsAt).padStart(2, "0")}:00`;
 
     return (
       <button
         type="button"
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? "Свернуть" : "Развернуть"} часы с ${startsAtLabel} до ${endsAtLabel}${entriesInRange > 0 ? `. Событий внутри: ${entriesInRange}` : ""}`}
+        title={`${isExpanded ? "Свернуть" : "Развернуть"} ${startsAtLabel}–${endsAtLabel}`}
+        data-calendar-compressed-hours={range}
         className={cn(
-          "flex w-full items-center justify-between gap-3 border-b border-border/30 bg-surface-subtle px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/60",
-          sticky && "sticky left-0 z-30",
+          "group grid w-full cursor-pointer border-b border-border/35 bg-surface-subtle text-left text-[10px] text-muted-foreground transition-colors hover:bg-muted/55 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 sm:text-xs",
+          isExpanded ? "h-4" : "h-11",
         )}
-        style={sticky && timelineViewportWidth > 0 ? { width: timelineViewportWidth } : undefined}
+        style={{ gridTemplateColumns }}
         onClick={() => setExpandedNonWorkingRanges((prev) => ({ ...prev, [range]: !prev[range] }))}
       >
-        <span>
-          {String(startsAt).padStart(2, "0")}:00 - {String(endsAt).padStart(2, "0")}:00 {isExpanded ? "раскрыто" : "сжато"}
+        <span className="sticky left-0 z-20 block h-full border-r border-border/40 bg-surface-subtle group-hover:bg-muted/55">
+          {!isExpanded && (
+            <span className="relative block h-full pr-1 text-right">
+              <span className="absolute right-1 top-0.5">{startsAtLabel}</span>
+              <span className="absolute bottom-0.5 right-1">{endsAtLabel}</span>
+            </span>
+          )}
         </span>
-        <span className="rounded-full bg-muted px-2 py-0.5">
-          {isExpanded ? "Свернуть" : entriesInRange.length > 0 ? `${entriesInRange.length} внутри` : "Показать"}
-        </span>
+        {days.map((day, index) => (
+          <span
+            key={`${range}-${day.toISOString()}`}
+            className="relative block h-full border-r border-border/25 last:border-r-0"
+          >
+            <span className="absolute inset-x-0 top-1/2 border-t border-border/25" />
+            {!isExpanded && entryCountByDay[index] > 0 && (
+              <span className="absolute left-2 top-1.5 h-1 w-8 max-w-[calc(100%-1rem)] rounded-full bg-primary/45" />
+            )}
+          </span>
+        ))}
       </button>
     );
   };
@@ -1321,6 +1385,11 @@ export default function Calendar() {
       ? (now.getHours() - HOUR_START + now.getMinutes() / 60) * ROW_HEIGHT
       : 0;
     const timelineWeekNumber = getISOWeek(timelineVisibleDays[0] || selectedDate);
+    const renderTimelineHourLabel = (hour: number) => (
+      hour === HOUR_START && workdayStart > 0 && !expandedNonWorkingRanges.before
+        ? null
+        : `${String(hour).padStart(2, "0")}:00`
+    );
 
     return (
       <div
@@ -1329,8 +1398,9 @@ export default function Calendar() {
         aria-label="Временная шкала календаря. Используйте стрелки для перехода по дням."
         className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         style={{
-          scrollSnapType: "x mandatory",
+          scrollSnapType: "x proximity",
           overscrollBehaviorX: "contain",
+          overflowAnchor: "none",
           touchAction: "pan-x pan-y",
         }}
         onScroll={handleTimelineScroll}
@@ -1390,7 +1460,7 @@ export default function Calendar() {
             </div>
             {renderAllDayZone(timelineDays, timelineViewMode)}
           </div>
-          {renderCompressedHoursControl(timelineVisibleDays, "before")}
+          {renderCompressedHoursControl(timelineDays, "before", gridTemplateColumns)}
           <div className="grid" style={{ gridTemplateColumns }}>
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
               <Fragment key={hour}>
@@ -1398,7 +1468,7 @@ export default function Calendar() {
                   className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/30 bg-surface-raised pr-1 text-[10px] text-muted-foreground sm:text-xs"
                   style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                 >
-                  {`${String(hour).padStart(2, "0")}:00`}
+                  {renderTimelineHourLabel(hour)}
                 </div>
                 {timelineDays.map((day) => (
                   <div
@@ -1425,7 +1495,7 @@ export default function Calendar() {
                     className="flex items-start justify-end border-b border-border/30 pr-1 text-[10px] text-muted-foreground sm:text-xs"
                     style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                   >
-                    {`${String(hour).padStart(2, "0")}:00`}
+                    {renderTimelineHourLabel(hour)}
                   </div>
                 ))}
               </div>
@@ -1538,7 +1608,7 @@ export default function Calendar() {
               </div>
             </div>
           </div>
-          {renderCompressedHoursControl(timelineVisibleDays, "after")}
+          {renderCompressedHoursControl(timelineDays, "after", gridTemplateColumns)}
         </div>
       </div>
     );
@@ -1556,6 +1626,7 @@ export default function Calendar() {
     <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-5">
       <CalendarToolbar
         periodLabel={toolbarPeriodLabel}
+        selectedDate={selectedDate}
         viewMode={viewMode}
         onCreateEvent={() => {
           setDraftSlot(null);
@@ -1565,6 +1636,7 @@ export default function Calendar() {
         onShiftDate={shiftSelectedDate}
         onToday={() => setSelectedDate(new Date())}
         onOpenSettings={() => setSettingsOpen(true)}
+        onDateSelect={(date) => setSelectedDate(new Date(date))}
         onViewModeChange={setViewMode}
       />
 

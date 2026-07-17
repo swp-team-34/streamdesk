@@ -4,10 +4,11 @@ import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DASHBOARD_WIDGET_CARD_CLASS,
   DASHBOARD_WIDGET_EMPTY_CLASS,
   DASHBOARD_WIDGET_ERROR_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
@@ -125,15 +126,15 @@ export default function DeadlineTasksWidget({ limit = 5 }: { limit?: number }) {
   const hasError = cardsQuery.isError || tasksQuery.isError;
 
   return (
-    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
-      <CardHeader className="flex flex-row items-center justify-between gap-3 px-3 py-2">
+    <Card className={DASHBOARD_WIDGET_SCROLL_CARD_CLASS}>
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <CalendarClock className="h-4 w-4 shrink-0 text-warning" />
           <CardTitle className="truncate text-sm font-semibold text-foreground">Задачи по срокам</CardTitle>
         </div>
         {hasError && <Badge variant="outline" className="rounded-full text-warning">Ошибка обновления</Badge>}
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3 pt-0">
+      <CardContent className={`${DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS} space-y-2 px-3 pb-3 pt-0`}>
         {isLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="h-14 animate-pulse rounded-lg bg-muted/60" />

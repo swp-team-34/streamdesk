@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DASHBOARD_WIDGET_CARD_CLASS,
   DASHBOARD_WIDGET_EMPTY_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS,
   DASHBOARD_WIDGET_WARNING_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 import { useRealtimeSubscriptions } from "@/hooks/use-websocket";
@@ -61,8 +62,8 @@ export default function LocationIssuesWidget() {
     .slice(0, 5);
 
   return (
-    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
-      <CardHeader className="flex flex-row items-center justify-between px-3 py-2">
+    <Card className={DASHBOARD_WIDGET_SCROLL_CARD_CLASS}>
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between px-3 py-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <AlertTriangle className="h-4 w-4 text-warning" />
           Обновления площадок
@@ -84,7 +85,7 @@ export default function LocationIssuesWidget() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3 pt-0">
+      <CardContent className={`${DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS} space-y-2 px-3 pb-3 pt-0`}>
         {(issuesQuery.isError || locationsQuery.isError) && (
           <div className={DASHBOARD_WIDGET_WARNING_CLASS}>
             Не удалось обновить данные. Показаны последние доступные значения.

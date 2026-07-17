@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Settings } from "lucide-react";
+import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { CalendarViewMode } from "@/lib/calendar-page-model";
 
@@ -13,21 +17,27 @@ const VIEW_MODE_LABELS: Record<CalendarViewMode, string> = {
 
 export function CalendarToolbar({
   periodLabel,
+  selectedDate,
   viewMode,
   onCreateEvent,
   onShiftDate,
   onToday,
   onOpenSettings,
+  onDateSelect,
   onViewModeChange,
 }: {
   periodLabel: string;
+  selectedDate: Date;
   viewMode: CalendarViewMode;
   onCreateEvent: () => void;
   onShiftDate: (direction: -1 | 1) => void;
   onToday: () => void;
   onOpenSettings: () => void;
+  onDateSelect: (date: Date) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
 }) {
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
   return (
     <div className="mb-3 flex w-full min-w-0 flex-col gap-2 border-b border-border/40 pb-3 xl:flex-row xl:items-center">
       <div className="flex min-w-0 items-center justify-between gap-2 xl:shrink-0">
@@ -52,9 +62,38 @@ export function CalendarToolbar({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[112px] truncate px-2 text-center text-xs font-medium text-foreground sm:min-w-[150px] sm:text-sm">
-            {periodLabel}
-          </span>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-w-[112px] rounded-none px-2 text-center text-xs font-medium text-foreground hover:bg-muted/55 sm:min-w-[150px] sm:text-sm"
+                aria-label={`Выбрать дату. ${periodLabel}`}
+              >
+                <span className="max-w-[180px] truncate">{periodLabel}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="z-[210] w-auto rounded-dialog border-border/60 bg-popover p-2 shadow-overlay"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              <Calendar
+                key={`${selectedDate.getFullYear()}-${selectedDate.getMonth()}`}
+                mode="single"
+                selected={selectedDate}
+                defaultMonth={selectedDate}
+                locale={ru}
+                onSelect={(date) => {
+                  if (!date) return;
+                  onDateSelect(date);
+                  setDatePickerOpen(false);
+                }}
+                initialFocus={false}
+                className="rounded-xl bg-card p-2"
+              />
+            </PopoverContent>
+          </Popover>
           <Button
             variant="ghost"
             size="icon"

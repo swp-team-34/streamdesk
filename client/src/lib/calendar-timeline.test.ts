@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCalendarTimelineDays,
   CALENDAR_TIMELINE_BUFFER_DAYS,
+  getCalendarTimelineNextBufferDays,
   getCalendarTimelineDayWidth,
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
@@ -26,7 +27,10 @@ describe("calendar timeline helpers", () => {
     });
 
     expect(days).toHaveLength(CALENDAR_TIMELINE_BUFFER_DAYS * 2 + 3);
-    expect(dayKeys(days).slice(6, 11)).toEqual([
+    expect(dayKeys(days).slice(
+      CALENDAR_TIMELINE_BUFFER_DAYS - 1,
+      CALENDAR_TIMELINE_BUFFER_DAYS + 4,
+    )).toEqual([
       "2026-07-14",
       "2026-07-15",
       "2026-07-16",
@@ -70,5 +74,32 @@ describe("calendar timeline helpers", () => {
     expect(getCalendarTimelineSnapIndex({ scrollLeft: 751, dayWidth: 100, dayCount: 20 })).toBe(8);
     expect(getCalendarTimelineSnapIndex({ scrollLeft: 9999, dayWidth: 100, dayCount: 20 })).toBe(19);
     expect(getCalendarTimelineScrollLeft(7, 100)).toBe(700);
+  });
+
+  it("extends the date buffer before the viewport reaches either edge", () => {
+    const baseInput = {
+      viewportWidth: 756,
+      dayWidth: 100,
+      dayCount: 49,
+      bufferDays: 21,
+      gutterWidth: 56,
+      thresholdDays: 7,
+      incrementDays: 14,
+      maxBufferDays: 49,
+    };
+
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 2_100 })).toBe(21);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 650 })).toBe(35);
+    expect(getCalendarTimelineNextBufferDays({ ...baseInput, scrollLeft: 3_600 })).toBe(35);
+  });
+
+  it("caps progressive timeline buffering", () => {
+    expect(getCalendarTimelineNextBufferDays({
+      scrollLeft: 0,
+      viewportWidth: 756,
+      dayWidth: 100,
+      dayCount: 105,
+      bufferDays: 49,
+    })).toBe(49);
   });
 });

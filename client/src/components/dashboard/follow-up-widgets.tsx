@@ -4,9 +4,10 @@ import { AlertTriangle, BriefcaseBusiness, CalendarClock, CheckCircle2, PackageC
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DASHBOARD_WIDGET_CARD_CLASS,
   DASHBOARD_WIDGET_EMPTY_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS,
 } from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
@@ -92,14 +93,16 @@ function WidgetShell({
   children: ReactNode;
 }) {
   return (
-    <Card className={DASHBOARD_WIDGET_CARD_CLASS} data-tone={tone}>
-      <CardHeader className="flex flex-row items-center justify-between gap-3 px-3 py-2">
+    <Card className={DASHBOARD_WIDGET_SCROLL_CARD_CLASS} data-tone={tone}>
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           {icon}
           <CardTitle className="truncate text-sm font-semibold text-foreground">{title}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3 pt-0">{children}</CardContent>
+      <CardContent className={`${DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS} space-y-2 px-3 pb-3 pt-0`}>
+        {children}
+      </CardContent>
     </Card>
   );
 }

@@ -9,8 +9,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { cn } from "@/lib/utils";
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher({ className }: { className?: string }) {
   const {
     data,
     workspace,
@@ -32,7 +33,10 @@ export function WorkspaceSwitcher() {
         <Button
           variant="outline"
           size="sm"
-          className="h-8 min-w-0 max-w-[180px] gap-1.5 px-2 sm:max-w-[240px]"
+          className={cn(
+            "h-8 min-w-0 max-w-[180px] gap-1.5 px-2 sm:max-w-[240px]",
+            className,
+          )}
           disabled={isSwitching}
           aria-label={`Рабочее пространство: ${activeName}`}
           data-testid="workspace-switcher"

@@ -1,6 +1,12 @@
 export const DASHBOARD_WIDGET_CARD_CLASS =
   "h-full min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs";
 
+export const DASHBOARD_WIDGET_SCROLL_CARD_CLASS =
+  `${DASHBOARD_WIDGET_CARD_CLASS} flex min-h-0 flex-col`;
+
+export const DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS =
+  "min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]";
+
 export const DASHBOARD_WIDGET_ROW_CLASS =
   "rounded-control border border-border/50 bg-surface-subtle";
 
