@@ -30,7 +30,6 @@ interface KanbanCustomFieldsSectionProps {
   deletePending: boolean;
   onFormChange: (form: KanbanCustomFieldFormState) => void;
   onCancelEdit: () => void;
-  onCreateDefaults: () => void;
   onSave: () => void;
   onEdit: (field: KanbanCustomFieldDefinition) => void;
   onDelete: (field: KanbanCustomFieldDefinition) => void;
@@ -46,7 +45,6 @@ export function KanbanCustomFieldsSection({
   deletePending,
   onFormChange,
   onCancelEdit,
-  onCreateDefaults,
   onSave,
   onEdit,
   onDelete,
@@ -140,16 +138,7 @@ export function KanbanCustomFieldsSection({
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/35 pt-3">
-            <Button
-              variant="outline"
-              className="h-10 rounded-control"
-              onClick={onCreateDefaults}
-              disabled={savePending}
-            >
-              Шаблон File / Recording
-            </Button>
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/35 pt-3">
               {editingFieldId && (
                 <Button variant="ghost" className="h-10 rounded-control" onClick={onCancelEdit}>
                   Отмена
@@ -162,7 +151,6 @@ export function KanbanCustomFieldsSection({
               >
                 {editingFieldId ? "Сохранить" : "Добавить поле"}
               </Button>
-            </div>
           </div>
         </div>
       )}

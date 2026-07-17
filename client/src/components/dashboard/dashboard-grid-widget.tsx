@@ -136,7 +136,7 @@ export function DashboardGridWidget({
             </Button>
           </div>
         </div>}
-        <div className="dashboard-widget-content min-h-[96px] min-w-0 flex-1 overflow-auto">
+        <div className="dashboard-widget-content min-h-[80px] min-w-0 flex-1 overflow-auto">
           {widget.render()}
         </div>
         {isEditing && <button

@@ -84,6 +84,7 @@ export const events = pgTable("events", {
   organizerId: varchar("organizer_id").references(() => users.id).notNull(),
   status: text("status").notNull().default("scheduled"),
   type: text("type").notNull().default("stream"),
+  color: text("color"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -383,6 +384,7 @@ export const projects = pgTable("projects", {
   category: text("category"),
   deadline: timestamp("deadline"),
   assignedTo: varchar("assigned_to").references(() => users.id),
+  responsibleUserIds: jsonb("responsible_user_ids").default('[]'),
   participants: jsonb("participants").default('[]'), // участники проекта: массив userId
   showInTaskManager: boolean("show_in_task_manager").default(false), // локальная доска в таск-менеджере без обязательного YouGile
   devices: jsonb("devices").default('[]'),

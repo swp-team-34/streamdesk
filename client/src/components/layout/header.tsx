@@ -157,7 +157,7 @@ export default function Header({ onMobileMenuClick, user, onLogout }: HeaderProp
       </div>
 
       <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 overflow-hidden">
-        <WorkspaceSwitcher className="mr-1.5 sm:mr-3 xl:mr-4" />
+        <WorkspaceSwitcher className="mr-3 sm:mr-5 xl:mr-6" />
 
         <div className="text-xs text-muted-foreground hidden 2xl:block text-right shrink-0">
           <div className="font-medium text-foreground">{currentTime.toLocaleTimeString("ru-RU")}</div>

@@ -118,7 +118,8 @@ describe("KanbanCardDetailFields", () => {
       assigneeUserId: "user-1",
     });
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Связать площадку «Studio»" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Площадки карточки" }));
+    fireEvent.click(screen.getByText("Studio"));
     expect(onChange).toHaveBeenNthCalledWith(3, { ...form, locationIds: ["location-1"] });
   });
 
@@ -162,7 +163,7 @@ describe("KanbanCardDetailFields", () => {
   it("keeps fields disabled for read-only board members", () => {
     render(<KanbanCardDetailFields {...baseProps} canEdit={false} />);
     expect(screen.getByLabelText("Название карточки")).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Связать площадку «Studio»" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Площадки карточки" })).toBeDisabled();
   });
 
   it("updates the all-day flag and date in one controlled change", () => {

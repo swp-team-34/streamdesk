@@ -77,7 +77,7 @@ export function KanbanBoardMembersSection({
       </div>
 
       {!personal && canManage && (
-        <div className="mt-4 grid gap-3 rounded-surface border border-border/50 bg-surface-subtle p-3 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
+        <div className="mt-4 grid gap-3 rounded-surface border border-border/50 bg-surface-subtle p-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_210px_auto]">
           <StreamSelect
             ariaLabel="Участник доски"
             value={form.userId}
@@ -108,7 +108,7 @@ export function KanbanBoardMembersSection({
             disabled={pending}
           />
 
-          <label htmlFor="kanban-member-can-comment" className="flex items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm">
+          <label htmlFor="kanban-member-can-comment" className="flex min-h-9 items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm sm:col-span-2 xl:col-span-1">
             <Checkbox
               id="kanban-member-can-comment"
               checked={form.role === "editor" ? true : form.canComment}
@@ -118,7 +118,7 @@ export function KanbanBoardMembersSection({
             Может комментировать
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex items-center justify-end gap-2 sm:col-span-2 xl:col-span-1">
             {editingMemberId && (
               <Button variant="ghost" size="sm" className="rounded-control" onClick={onCancelEdit} disabled={pending}>
                 Отмена

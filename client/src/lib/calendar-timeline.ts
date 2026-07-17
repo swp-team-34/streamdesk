@@ -3,10 +3,10 @@ import { addDays } from "date-fns";
 export type CalendarTimelineViewMode = "week" | "3days" | "day";
 
 export const CALENDAR_TIMELINE_GUTTER_WIDTH = 56;
-export const CALENDAR_TIMELINE_BUFFER_DAYS = 56;
+export const CALENDAR_TIMELINE_BUFFER_DAYS = 84;
 export const CALENDAR_TIMELINE_BUFFER_INCREMENT_DAYS = 56;
 export const CALENDAR_TIMELINE_MAX_BUFFER_DAYS = 336;
-export const CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS = 42;
+export const CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS = 32;
 
 const MIN_DAY_WIDTH: Record<CalendarTimelineViewMode, number> = {
   day: 240,

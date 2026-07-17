@@ -17,7 +17,7 @@ interface StreamColorPickerProps {
   ariaLabel?: string;
   label?: string;
   disabled?: boolean;
-  presets?: StreamColorPreset[];
+  presets?: readonly StreamColorPreset[];
   className?: string;
 }
 

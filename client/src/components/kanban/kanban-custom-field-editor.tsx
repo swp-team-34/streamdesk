@@ -108,9 +108,7 @@ export function KanbanCustomFieldEditor({
     );
   }
 
-  const inputType = field.type === "number"
-    ? "number"
-    : field.type === "email"
+  const inputType = field.type === "email"
       ? "email"
       : field.type === "url"
         ? "url"
@@ -120,8 +118,17 @@ export function KanbanCustomFieldEditor({
     <Input
       id={commonId}
       type={inputType}
+      inputMode={field.type === "number" ? "decimal" : undefined}
       value={String(value ?? "")}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        if (field.type === "number") {
+          if (!/^-?\d*(?:[.,]\d*)?$/.test(nextValue)) return;
+          onChange(nextValue.replace(",", "."));
+          return;
+        }
+        onChange(nextValue);
+      }}
       placeholder={placeholder}
       className={KANBAN_PANEL_INPUT_CLASS}
       disabled={disabled}

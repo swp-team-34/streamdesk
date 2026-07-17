@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { StreamSelect } from "@/components/ui/stream-select";
 import type {
   KanbanCustomFieldDefinition,
@@ -32,31 +33,31 @@ import {
 
 export interface KanbanCardFiltersState {
   search: string;
-  status: string;
-  assigneeUserId: string;
-  responsibleUserId: string;
-  initiatorUserId: string;
-  priority: string;
-  dueStatus: string;
-  workload: TaskManagerWorkloadFilter;
-  location: string;
-  labelId: string;
-  labelGroupId: string;
-  customFieldValues: Record<string, string>;
+  statuses: string[];
+  assigneeUserIds: string[];
+  responsibleUserIds: string[];
+  initiatorUserIds: string[];
+  priorities: string[];
+  dueStatuses: string[];
+  workloads: TaskManagerWorkloadFilter[];
+  locations: string[];
+  labelIds: string[];
+  labelGroupIds: string[];
+  customFieldValues: Record<string, string | string[]>;
 }
 
 export const EMPTY_KANBAN_CARD_FILTERS: KanbanCardFiltersState = {
   search: "",
-  status: "all",
-  assigneeUserId: "",
-  responsibleUserId: "",
-  initiatorUserId: "",
-  priority: "all",
-  dueStatus: "all",
-  workload: "all",
-  location: "",
-  labelId: "",
-  labelGroupId: "",
+  statuses: [],
+  assigneeUserIds: [],
+  responsibleUserIds: [],
+  initiatorUserIds: [],
+  priorities: [],
+  dueStatuses: [],
+  workloads: [],
+  locations: [],
+  labelIds: [],
+  labelGroupIds: [],
   customFieldValues: {},
 };
 
@@ -95,17 +96,14 @@ export function KanbanCardFiltersDialog({
   onReset,
 }: KanbanCardFiltersDialogProps) {
   const update = (patch: Partial<KanbanCardFiltersState>) => onChange({ ...filters, ...patch });
-  const updateCustomField = (fieldId: string, value: string) => onChange({
+  const updateCustomField = (fieldId: string, value: string | string[]) => onChange({
     ...filters,
     customFieldValues: {
       ...filters.customFieldValues,
       [fieldId]: value,
     },
   });
-  const userOptions = [
-    { value: "", label: "Все" },
-    ...users.map((user) => ({ value: user.id, label: user.name })),
-  ];
+  const userOptions = users.map((user) => ({ value: user.id, label: user.name }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,87 +115,90 @@ export function KanbanCardFiltersDialog({
         <div className="grid gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-status">Статус / список</label>
-            <StreamSelect
+            <StreamMultiSelect
               id="kanban-mobile-filter-status"
-              value={filters.status}
+              values={filters.statuses}
               options={[
-                { value: "all", label: "Все статусы" },
                 ...Object.entries(LIST_TYPE_LABELS).map(([value, label]) => ({ value: `type:${value}`, label })),
                 ...(lists.length > 0
                   ? [{ value: "__lists-divider__", label: "Списки доски", disabled: true }]
                   : []),
                 ...lists.map((list) => ({ value: `list:${list.id}`, label: list.name })),
               ]}
-              onValueChange={(status) => update({ status })}
+              onValuesChange={(statuses) => update({ statuses })}
+              placeholder="Все статусы"
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-assignee">Исполнитель</label>
-            <StreamSelect
+            <StreamMultiSelect
               id="kanban-mobile-filter-assignee"
-              value={filters.assigneeUserId}
+              values={filters.assigneeUserIds}
               options={userOptions}
-              onValueChange={(assigneeUserId) => update({ assigneeUserId })}
+              onValuesChange={(assigneeUserIds) => update({ assigneeUserIds })}
+              placeholder="Все исполнители"
+              searchable
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-responsible">Ответственный</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-responsible"
-                value={filters.responsibleUserId}
+                values={filters.responsibleUserIds}
                 options={userOptions}
-                onValueChange={(responsibleUserId) => update({ responsibleUserId })}
+                onValuesChange={(responsibleUserIds) => update({ responsibleUserIds })}
+                placeholder="Все ответственные"
+                searchable
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-initiator">Инициатор</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-initiator"
-                value={filters.initiatorUserId}
+                values={filters.initiatorUserIds}
                 options={userOptions}
-                onValueChange={(initiatorUserId) => update({ initiatorUserId })}
+                onValuesChange={(initiatorUserIds) => update({ initiatorUserIds })}
+                placeholder="Все инициаторы"
+                searchable
               />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-priority">Приоритет</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-priority"
-                value={filters.priority}
-                options={[
-                  { value: "all", label: "Все" },
-                  ...Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => ({ value, label })),
-                ]}
-                onValueChange={(priority) => update({ priority })}
+                values={filters.priorities}
+                options={Object.entries(CARD_PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
+                onValuesChange={(priorities) => update({ priorities })}
+                placeholder="Все приоритеты"
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-due">Срок</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-due"
-                value={filters.dueStatus}
+                values={filters.dueStatuses}
                 options={[
-                  { value: "all", label: "Все" },
                   { value: "overdue", label: "Просрочено" },
                   { value: "soon", label: "Скоро срок" },
                   { value: "upcoming", label: "Запланировано" },
                   { value: "complete", label: "Завершено" },
                   { value: "none", label: "Без срока" },
                 ]}
-                onValueChange={(dueStatus) => update({ dueStatus })}
+                onValuesChange={(dueStatuses) => update({ dueStatuses })}
+                placeholder="Любой срок"
               />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-workload">Нагрузка</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-workload"
-                value={filters.workload}
+                values={filters.workloads}
                 options={[
-                  { value: "all", label: "Любая нагрузка" },
                   { value: "overdue", label: "Просроченные" },
                   { value: "due-soon", label: "Горят в 24 часа" },
                   { value: "in-progress", label: "В работе" },
@@ -205,47 +206,44 @@ export function KanbanCardFiltersDialog({
                   { value: "unassigned", label: "Без исполнителя" },
                   { value: "no-deadline", label: "Без срока" },
                 ]}
-                onValueChange={(workload) => update({ workload: workload as TaskManagerWorkloadFilter })}
+                onValuesChange={(workloads) => update({ workloads: workloads as TaskManagerWorkloadFilter[] })}
+                placeholder="Любая нагрузка"
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-location">Локация</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-location"
-                value={filters.location}
-                options={[
-                  { value: "", label: "Все локации" },
-                  ...(locations.length === 0
+                values={filters.locations}
+                options={locations.length === 0
                     ? [{ value: "__empty", label: "Локации не найдены", disabled: true }]
-                    : locations.map((location) => ({ value: location, label: location }))),
-                ]}
-                onValueChange={(location) => update({ location })}
+                    : locations.map((location) => ({ value: location, label: location }))}
+                onValuesChange={(locations) => update({ locations })}
+                placeholder="Все локации"
+                searchable
               />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label">Метка</label>
-            <StreamSelect
+            <StreamMultiSelect
               id="kanban-mobile-filter-label"
-              value={filters.labelId}
-              options={[
-                { value: "", label: "Все" },
-                ...labels.filter((label) => !label.archivedAt).map((label) => ({ value: label.id, label: label.name })),
-              ]}
-              onValueChange={(labelId) => update({ labelId })}
+              values={filters.labelIds}
+              options={labels.filter((label) => !label.archivedAt).map((label) => ({ value: label.id, label: label.name }))}
+              onValuesChange={(labelIds) => update({ labelIds })}
+              placeholder="Все метки"
+              searchable
             />
           </div>
           {labelGroups.length > 0 && (
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="kanban-mobile-filter-label-group">Группа меток</label>
-              <StreamSelect
+              <StreamMultiSelect
                 id="kanban-mobile-filter-label-group"
-                value={filters.labelGroupId}
-                options={[
-                  { value: "", label: "Все группы" },
-                  ...labelGroups.map((group) => ({ value: group.id, label: group.name })),
-                ]}
-                onValueChange={(labelGroupId) => update({ labelGroupId })}
+                values={filters.labelGroupIds}
+                options={labelGroups.map((group) => ({ value: group.id, label: group.name }))}
+                onValuesChange={(labelGroupIds) => update({ labelGroupIds })}
+                placeholder="Все группы"
               />
             </div>
           )}
@@ -270,10 +268,27 @@ export function KanbanCardFiltersDialog({
                         </p>
                       </details>
                     </div>
-                    {field.type === "select" || field.type === "multi-select" || field.type === "checkbox" ? (
+                    {field.type === "multi-select" ? (
+                      <StreamMultiSelect
+                        id={`kanban-filter-field-${field.id}`}
+                        values={Array.isArray(filters.customFieldValues[field.id])
+                          ? filters.customFieldValues[field.id] as string[]
+                          : filters.customFieldValues[field.id]
+                            ? [String(filters.customFieldValues[field.id])]
+                            : []}
+                        options={[
+                          { value: KANBAN_EMPTY_FIELD_FILTER, label: "Без значения" },
+                          ...(field.options ?? []).map((option) => ({ value: option, label: option })),
+                        ]}
+                        onValuesChange={(value) => updateCustomField(field.id, value)}
+                        placeholder="Любые значения"
+                      />
+                    ) : field.type === "select" || field.type === "checkbox" ? (
                       <StreamSelect
                         id={`kanban-filter-field-${field.id}`}
-                        value={filters.customFieldValues[field.id] || ""}
+                        value={Array.isArray(filters.customFieldValues[field.id])
+                          ? ""
+                          : String(filters.customFieldValues[field.id] || "")}
                         options={[
                           { value: "", label: "Любое значение" },
                           { value: KANBAN_EMPTY_FIELD_FILTER, label: "Без значения" },
@@ -291,9 +306,10 @@ export function KanbanCardFiltersDialog({
                         <Input
                           id={`kanban-filter-field-${field.id}`}
                           value={
+                            !Array.isArray(filters.customFieldValues[field.id]) &&
                             filters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
                               ? ""
-                              : filters.customFieldValues[field.id] || ""
+                              : String(filters.customFieldValues[field.id] || "")
                           }
                           onChange={(event) => updateCustomField(field.id, event.target.value)}
                           placeholder={CUSTOM_FIELD_TYPE_LABELS[field.type]}
@@ -302,6 +318,7 @@ export function KanbanCardFiltersDialog({
                         <Button
                           type="button"
                           variant={
+                            !Array.isArray(filters.customFieldValues[field.id]) &&
                             filters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
                               ? "secondary"
                               : "outline"
@@ -309,6 +326,7 @@ export function KanbanCardFiltersDialog({
                           className="shrink-0 rounded-control"
                           onClick={() => updateCustomField(
                             field.id,
+                            !Array.isArray(filters.customFieldValues[field.id]) &&
                             filters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER
                               ? ""
                               : KANBAN_EMPTY_FIELD_FILTER,

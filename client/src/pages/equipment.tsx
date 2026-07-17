@@ -108,10 +108,10 @@ type KitExtractionPayload = {
 export default function EquipmentPage() {
   const { confirm: confirmAction } = useAppDialog();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [operabilityFilter, setOperabilityFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [operabilityFilter, setOperabilityFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [employeeFilter, setEmployeeFilter] = useState<string[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"full" | "take_return">("full");
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
@@ -510,10 +510,10 @@ export default function EquipmentPage() {
   const warehouseCategoryFilterOptions = buildWarehouseCategoryFilterOptions(warehouseCategories);
   const equipmentFilterState = {
     searchTerm,
-    status: statusFilter,
-    operability: operabilityFilter,
-    category: typeFilter,
-    employee: employeeFilter,
+    statuses: statusFilter,
+    operabilities: operabilityFilter,
+    categories: typeFilter,
+    employees: employeeFilter,
   };
   const equipmentMatchingBaseFilters = equipment.filter((item) =>
     matchesEquipmentBaseFilters(item, equipmentFilterState),
@@ -1747,10 +1747,10 @@ export default function EquipmentPage() {
         onEmployeeChange={setEmployeeFilter}
         onReset={() => {
           setSearchTerm("");
-          setStatusFilter("all");
-          setOperabilityFilter("all");
-          setTypeFilter("all");
-          setEmployeeFilter("all");
+          setStatusFilter([]);
+          setOperabilityFilter([]);
+          setTypeFilter([]);
+          setEmployeeFilter([]);
         }}
         onToggleSelectAll={toggleSelectAll}
         onExport={exportBarcodesToExcel}

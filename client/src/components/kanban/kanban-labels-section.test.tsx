@@ -67,11 +67,12 @@ describe("KanbanLabelsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Переименовать Live" }));
     chooseStreamSelectOption("Группа метки Live", "Production");
-    fireEvent.click(screen.getByRole("button", { name: "Цвет метки Rose" }));
+    fireEvent.click(screen.getByRole("button", { name: "Цвет метки Live" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Rose" }));
     fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
     expect(onBeginEdit).toHaveBeenCalledWith(label);
     expect(onGroupChange).toHaveBeenCalledWith(label, "group-1");
-    expect(onColorChange).toHaveBeenCalledWith(label, "#f43f5e");
+    expect(onColorChange).toHaveBeenCalledWith(label, "#F43F5E");
     expect(onDelete).toHaveBeenCalledWith(label);
   });
 

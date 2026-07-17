@@ -21,7 +21,7 @@ export const getKanbanCustomFieldFilterHelp = (field: KanbanFilterField): string
     case "select":
       return "Выберите один вариант или «Без значения».";
     case "multi-select":
-      return "Показывает карточки, содержащие выбранный вариант. Можно выбрать «Без значения».";
+      return "Можно выбрать несколько вариантов. Карточка попадёт в результат, если содержит хотя бы один из них.";
     case "checkbox":
       return "Выберите «Да», «Нет» или «Без значения».";
     case "number":
@@ -43,27 +43,37 @@ export const isKanbanCustomFieldValueEmpty = (value: unknown): boolean =>
 export const matchesKanbanCustomFieldFilter = (
   field: KanbanFilterField,
   rawValue: unknown,
-  rawFilter: string,
+  rawFilter: string | string[],
   formattedValue: string,
 ): boolean => {
-  const filter = rawFilter.trim();
-  if (!filter) return true;
-  if (filter === KANBAN_EMPTY_FIELD_FILTER) return isKanbanCustomFieldValueEmpty(rawValue);
+  const filters = (Array.isArray(rawFilter) ? rawFilter : [rawFilter])
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (filters.length === 0) return true;
+  if (filters.includes(KANBAN_EMPTY_FIELD_FILTER) && isKanbanCustomFieldValueEmpty(rawValue)) return true;
+  const nonEmptyFilters = filters.filter((filter) => filter !== KANBAN_EMPTY_FIELD_FILTER);
+  if (nonEmptyFilters.length === 0) return false;
 
   if (field.type === "checkbox") {
-    if (filter === "true") return rawValue === true;
-    if (filter === "false") return rawValue === false;
+    return nonEmptyFilters.some((filter) =>
+      filter === "true" ? rawValue === true : filter === "false" ? rawValue === false : false,
+    );
   }
 
-  if (field.type === "select") return String(rawValue ?? "") === filter;
+  if (field.type === "select") return nonEmptyFilters.includes(String(rawValue ?? ""));
   if (field.type === "multi-select") {
-    return Array.isArray(rawValue) && rawValue.map(String).includes(filter);
+    const values = Array.isArray(rawValue) ? rawValue.map(String) : [];
+    return nonEmptyFilters.some((filter) => values.includes(filter));
   }
   if (field.type === "date" || field.type === "number") {
-    const normalizedFilter = filter.toLocaleLowerCase("ru");
-    return String(rawValue ?? "").toLocaleLowerCase("ru").includes(normalizedFilter) ||
-      formattedValue.toLocaleLowerCase("ru").includes(normalizedFilter);
+    return nonEmptyFilters.some((filter) => {
+      const normalizedFilter = filter.toLocaleLowerCase("ru");
+      return String(rawValue ?? "").toLocaleLowerCase("ru").includes(normalizedFilter) ||
+        formattedValue.toLocaleLowerCase("ru").includes(normalizedFilter);
+    });
   }
 
-  return formattedValue.toLocaleLowerCase("ru").includes(filter.toLocaleLowerCase("ru"));
+  return nonEmptyFilters.some((filter) =>
+    formattedValue.toLocaleLowerCase("ru").includes(filter.toLocaleLowerCase("ru")),
+  );
 };

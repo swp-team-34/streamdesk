@@ -611,9 +611,6 @@ export function EquipmentForm({
               ? "Нет доступных карточек Kanban V2"
               : "У проекта нет доступных карточек Kanban V2"}
           />
-          <p className="text-xs text-muted-foreground">
-            Можно выбрать несколько карточек. Legacy Task Manager здесь не используется.
-          </p>
         </div>
       )}
     </div>

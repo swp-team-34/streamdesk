@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import {
   KanbanBoardFormDialog,
@@ -80,7 +81,6 @@ import { KanbanInlineListCreator } from "@/components/kanban/kanban-inline-list-
 import {
   BOARD_LIST_GROUPING_STORAGE_KEY,
   BOARD_VIEW_MODE_STORAGE_KEY,
-  DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES,
   DETAIL_AUTOSAVE_DELAY_MS,
   EMPTY_BOARD_FORM,
   EMPTY_CARD_FORM,
@@ -715,17 +715,19 @@ export default function TasksV2Page() {
   const hasActiveFilters = useMemo(
     () =>
       cardFilters.search.trim() !== "" ||
-      cardFilters.status !== "all" ||
-      cardFilters.assigneeUserId !== "" ||
-      cardFilters.responsibleUserId !== "" ||
-      cardFilters.initiatorUserId !== "" ||
-      cardFilters.priority !== "all" ||
-      cardFilters.dueStatus !== "all" ||
-      cardFilters.workload !== "all" ||
-      cardFilters.location !== "" ||
-      cardFilters.labelId !== "" ||
-      cardFilters.labelGroupId !== "" ||
-      Object.values(cardFilters.customFieldValues).some((value) => value.trim() !== ""),
+      cardFilters.statuses.length > 0 ||
+      cardFilters.assigneeUserIds.length > 0 ||
+      cardFilters.responsibleUserIds.length > 0 ||
+      cardFilters.initiatorUserIds.length > 0 ||
+      cardFilters.priorities.length > 0 ||
+      cardFilters.dueStatuses.length > 0 ||
+      cardFilters.workloads.length > 0 ||
+      cardFilters.locations.length > 0 ||
+      cardFilters.labelIds.length > 0 ||
+      cardFilters.labelGroupIds.length > 0 ||
+      Object.values(cardFilters.customFieldValues).some((value) =>
+        Array.isArray(value) ? value.length > 0 : value.trim() !== "",
+      ),
     [cardFilters],
   );
 
@@ -775,53 +777,56 @@ export default function TasksV2Page() {
         if (!haystack.includes(search)) return false;
       }
 
-      if (cardFilters.status !== "all") {
-        if (cardFilters.status.startsWith("list:")) {
-          if (card.listId !== cardFilters.status.slice(5)) return false;
-        } else if (cardFilters.status.startsWith("type:")) {
-          if (list?.type !== cardFilters.status.slice(5)) return false;
-        }
+      if (cardFilters.statuses.length > 0 && !cardFilters.statuses.some((status) => {
+        if (status.startsWith("list:")) return card.listId === status.slice(5);
+        if (status.startsWith("type:")) return list?.type === status.slice(5);
+        return false;
+      })) {
+        return false;
       }
 
       if (
-        cardFilters.assigneeUserId &&
-        !getKanbanCardAssigneeUserIds(card).includes(cardFilters.assigneeUserId)
+        cardFilters.assigneeUserIds.length > 0 &&
+        !getKanbanCardAssigneeUserIds(card).some((userId) => cardFilters.assigneeUserIds.includes(userId))
       ) {
         return false;
       }
 
       if (
-        cardFilters.responsibleUserId &&
-        String(card.responsibleUserId || "") !== cardFilters.responsibleUserId
+        cardFilters.responsibleUserIds.length > 0 &&
+        !cardFilters.responsibleUserIds.includes(String(card.responsibleUserId || ""))
       ) {
         return false;
       }
 
       if (
-        cardFilters.initiatorUserId &&
-        getKanbanCardInitiatorUserId(card) !== cardFilters.initiatorUserId
+        cardFilters.initiatorUserIds.length > 0 &&
+        !cardFilters.initiatorUserIds.includes(String(getKanbanCardInitiatorUserId(card) || ""))
       ) {
         return false;
       }
 
-      if (cardFilters.priority !== "all" && card.priority !== cardFilters.priority) {
+      if (cardFilters.priorities.length > 0 && !cardFilters.priorities.includes(card.priority)) {
         return false;
       }
 
-      if (cardFilters.labelId && !normalizeLabelIds(card.labelIds).includes(cardFilters.labelId)) {
+      if (
+        cardFilters.labelIds.length > 0 &&
+        !normalizeLabelIds(card.labelIds).some((labelId) => cardFilters.labelIds.includes(labelId))
+      ) {
         return false;
       }
 
-      if (cardFilters.labelGroupId) {
+      if (cardFilters.labelGroupIds.length > 0) {
         const hasGroup = normalizeLabelIds(card.labelIds).some((labelId) => {
           const label = labelById.get(labelId);
-          return String(label?.groupId || "") === cardFilters.labelGroupId;
+          return cardFilters.labelGroupIds.includes(String(label?.groupId || ""));
         });
         if (!hasGroup) return false;
       }
 
       for (const [fieldId, rawNeedle] of Object.entries(cardFilters.customFieldValues)) {
-        if (!rawNeedle.trim()) continue;
+        if (Array.isArray(rawNeedle) ? rawNeedle.length === 0 : !rawNeedle.trim()) continue;
         const field = activeCustomFields.find((item) => item.id === fieldId);
         if (!field) continue;
         const rawValue = card.customFieldValues?.[field.id];
@@ -829,26 +834,26 @@ export default function TasksV2Page() {
         if (!matchesKanbanCustomFieldFilter(field, rawValue, rawNeedle, value)) return false;
       }
 
-      if (cardFilters.dueStatus !== "all") {
+      if (cardFilters.dueStatuses.length > 0) {
         const dueStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList, now });
-        if (dueStatus !== cardFilters.dueStatus) return false;
+        if (!cardFilters.dueStatuses.includes(dueStatus)) return false;
       }
 
-      if (!matchesTaskManagerWorkloadFilter(
-        {
-          assigneeUserId: getKanbanCardWorkloadUserIds(card)[0] || null,
-          dueDate: card.dueDate,
-          listType: list?.type,
-        },
-        cardFilters.workload,
-        now,
-      )) {
+      const workloadCard = {
+        assigneeUserId: getKanbanCardWorkloadUserIds(card)[0] || null,
+        dueDate: card.dueDate,
+        listType: list?.type,
+      };
+      if (
+        cardFilters.workloads.length > 0 &&
+        !cardFilters.workloads.some((workload) => matchesTaskManagerWorkloadFilter(workloadCard, workload, now))
+      ) {
         return false;
       }
 
-      if (cardFilters.location) {
+      if (cardFilters.locations.length > 0) {
         const location = getTaskManagerLocationValue(card.customFieldValues, activeCustomFields);
-        if (location !== cardFilters.location) return false;
+        if (!cardFilters.locations.includes(location)) return false;
       }
 
       return true;
@@ -2516,19 +2521,6 @@ export default function TasksV2Page() {
     });
   };
 
-  const handleCreateDefaultCustomFieldTemplates = () => {
-    DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES
-      .filter((template) => !activeCustomFields.some((field) => field.name.toLowerCase() === template.name.toLowerCase()))
-      .forEach((template) => {
-        saveCustomFieldMutation.mutate({
-          form: {
-            ...EMPTY_CUSTOM_FIELD_FORM,
-            ...template,
-          },
-        });
-      });
-  };
-
   const handleSubmitListViewGroupCard = (groupId: string, listId?: string | null) => {
     const title = (listViewGroupDrafts[groupId] || "").trim();
     const targetListId = listId || listViewDraftListId || lists[0]?.id || "";
@@ -2784,7 +2776,7 @@ export default function TasksV2Page() {
   ]);
 
   return (
-    <div className="mx-auto min-w-0 w-full max-w-[min(1600px,100%)] space-y-3 p-3 pt-4 [--kanban-card-end:var(--surface-raised)] [--kanban-card-start:var(--surface-raised)] [--kanban-drag-card-start:var(--surface-overlay)] [--kanban-lane-empty:var(--surface-subtle)] [--kanban-lane-fallback:var(--surface-subtle)] [--kanban-list-end:var(--surface-subtle)] [--kanban-list-header:var(--surface-raised)] [--kanban-list-over-end:var(--surface-subtle)] [--kanban-list-over-start:var(--surface-overlay)] [--kanban-list-start:var(--surface-raised)] sm:p-5 sm:pt-5">
+    <div className="mx-auto min-w-0 w-full max-w-[min(1600px,100%)] space-y-4 px-3 pb-6 pt-6 [--kanban-card-end:var(--surface-raised)] [--kanban-card-start:var(--surface-raised)] [--kanban-drag-card-start:var(--surface-overlay)] [--kanban-lane-empty:var(--surface-subtle)] [--kanban-lane-fallback:var(--surface-subtle)] [--kanban-list-end:var(--surface-subtle)] [--kanban-list-header:var(--surface-raised)] [--kanban-list-over-end:var(--surface-subtle)] [--kanban-list-over-start:var(--surface-overlay)] [--kanban-list-start:var(--surface-raised)] sm:px-5 sm:pb-8 sm:pt-7">
       <KanbanBoardNavigation
         boards={boards}
         boardsLoading={boardsLoading}
@@ -2835,7 +2827,7 @@ export default function TasksV2Page() {
           onViewModeChange={setBoardViewMode}
           onListGroupingChange={setListGrouping}
         />
-        <CardContent className="min-w-0 overflow-visible px-3 pb-3 sm:px-6 sm:pb-6">
+        <CardContent className="min-w-0 overflow-visible px-3 pb-3 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
           {!selectedBoard ? (
 	            <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-5 py-10 text-sm leading-6 text-muted-foreground">
 	              Выберите доску в верхнем списке или создайте новую через кнопку плюс.
@@ -3026,28 +3018,24 @@ export default function TasksV2Page() {
                                               >
                                                 Без цвета{!list.color ? " ✓" : ""}
                                               </DropdownMenuItem>
-                                              <div className="grid grid-cols-4 gap-2 p-2">
-                                                {LIST_COLOR_PRESETS.map((preset) => (
-                                                  <button
-                                                    key={preset.value}
-                                                    type="button"
-                                                    className={[
-                                                      "h-8 rounded-lg border transition hover:scale-105",
-                                                      list.color === preset.value ? "border-primary/70 ring-2 ring-primary/30" : "border-border/50",
-                                                    ].join(" ")}
-                                                    style={{ backgroundColor: preset.value }}
-                                                    aria-label={`Выбрать цвет ${preset.label}`}
-                                                    title={preset.label}
-                                                    onClick={() =>
-                                                      saveListMutation.mutate({
-                                                        listId: list.id,
-                                                        name: list.name,
-                                                        color: preset.value,
-                                                        type: list.type,
-                                                      })
-                                                    }
-                                                  />
-                                                ))}
+                                              <div
+                                                className="p-2"
+                                                onPointerDown={(event) => event.stopPropagation()}
+                                                onKeyDown={(event) => event.stopPropagation()}
+                                              >
+                                                <StreamColorPicker
+                                                  value={list.color || LIST_COLOR_PRESETS[0].value}
+                                                  presets={LIST_COLOR_PRESETS}
+                                                  ariaLabel={`Цвет списка ${list.name}`}
+                                                  onChange={(color) =>
+                                                    saveListMutation.mutate({
+                                                      listId: list.id,
+                                                      name: list.name,
+                                                      color,
+                                                      type: list.type,
+                                                    })
+                                                  }
+                                                />
                                               </div>
                                             </DropdownMenuContent>
                                           </DropdownMenu>
@@ -3595,7 +3583,6 @@ export default function TasksV2Page() {
                   setEditingCustomFieldId(null);
                   setCustomFieldForm(EMPTY_CUSTOM_FIELD_FORM);
                 }}
-                onCreateDefaults={handleCreateDefaultCustomFieldTemplates}
                 onSave={() => saveCustomFieldMutation.mutate(undefined)}
                 onEdit={handleEditCustomField}
                 onDelete={async (field) => {

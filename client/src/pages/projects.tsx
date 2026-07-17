@@ -45,7 +45,7 @@ const projectSchema = z.object({
   status: z.string().default("planning"),
   category: z.string().optional(),
   deadline: z.string().optional(),
-  assignedTo: z.string().optional(),
+  responsibleUserIds: z.array(z.string()).optional(),
   participants: z.array(z.string()).optional(),
   showInTaskManager: z.boolean().default(false),
   createYougileBoard: z.boolean().default(false),
@@ -199,11 +199,18 @@ function normalizeParticipantIds(value: unknown): string[] {
   return Array.from(new Set(value.map((item) => String(item || "").trim()).filter(Boolean)));
 }
 
+function normalizeProjectResponsibleIds(project: any): string[] {
+  const ids = normalizeParticipantIds(project?.responsibleUserIds);
+  const legacyAssignedTo = String(project?.assignedTo || "").trim();
+  if (legacyAssignedTo && !ids.includes(legacyAssignedTo)) ids.push(legacyAssignedTo);
+  return ids;
+}
+
 export default function Projects() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [assignedFilter, setAssignedFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+  const [assignedFilter, setAssignedFilter] = useState<string[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const projectEditorCloseRef = useRef<(() => Promise<void>) | null>(null);
@@ -324,7 +331,7 @@ export default function Projects() {
       status: "planning",
       category: "",
       deadline: "",
-      assignedTo: "",
+      responsibleUserIds: [],
       participants: [],
       showInTaskManager: false,
       createYougileBoard: false,
@@ -490,11 +497,14 @@ export default function Projects() {
 
   const filteredProjects = (projects as any[]).filter((item) => {
     const participantIds = normalizeParticipantIds(item.participants);
+    const responsibleUserIds = normalizeProjectResponsibleIds(item);
     const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.client?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-    const matchesAssigned = assignedFilter === "all" || item.assignedTo === assignedFilter || participantIds.includes(assignedFilter);
+    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(String(item.status || ""));
+    const matchesCategory = categoryFilter.length === 0 || categoryFilter.includes(String(item.category || ""));
+    const matchesAssigned = assignedFilter.length === 0 || assignedFilter.some((userId) =>
+      responsibleUserIds.includes(userId) || participantIds.includes(userId),
+    );
     return matchesSearch && matchesStatus && matchesCategory && matchesAssigned;
   });
 
@@ -521,7 +531,7 @@ export default function Projects() {
       p.description ?? "",
       statusLabels[p.status] ?? p.status ?? "",
       p.category ?? "",
-      getUserName(p.assignedTo),
+      normalizeProjectResponsibleIds(p).map(getUserName).join(", "),
       p.deadline ? format(new Date(p.deadline), "dd.MM.yyyy", { locale: ru }) : "",
     ]);
     const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
@@ -635,26 +645,26 @@ export default function Projects() {
                 />
                 <FormField
                   control={form.control}
-                  name="assignedTo"
+                  name="responsibleUserIds"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Участник</FormLabel>
-                      <Select
-                        onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
-                        value={field.value || "__none__"}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Выберите участника" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">Не назначен</SelectItem>
-                          {(users as any[]).map((user: any) => (
-                            <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Ответственные</FormLabel>
+                      <FormControl>
+                        <StreamMultiSelect
+                          values={normalizeParticipantIds(field.value)}
+                          options={(users as any[]).map((user: any) => ({
+                            value: String(user.id),
+                            label: user.name || user.username || user.id,
+                            description: user.email || undefined,
+                          }))}
+                          onValuesChange={field.onChange}
+                          placeholder={(users as any[]).length > 0 ? "Выберите ответственных" : "Пользователей пока нет"}
+                          ariaLabel="Ответственные проекта"
+                          title="Ответственные проекта"
+                          searchable
+                          disabled={(users as any[]).length === 0}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -773,39 +783,35 @@ export default function Projects() {
             className="bg-surface-base pl-9"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full bg-surface-base sm:w-[160px]">
-            <SelectValue placeholder="Статус" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все статусы</SelectItem>
-            {Object.entries(statusConfig).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full bg-surface-base sm:w-[180px]">
-            <SelectValue placeholder="Категория" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все категории</SelectItem>
-            {categoryOptions.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-          <SelectTrigger className="w-full bg-surface-base sm:w-[180px]">
-            <SelectValue placeholder="Сотрудник" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все сотрудники</SelectItem>
-            {(users as any[]).map((u: any) => (
-              <SelectItem key={u.id} value={u.id}>{u.name || u.username || u.id}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <StreamMultiSelect
+          values={statusFilter}
+          onValuesChange={setStatusFilter}
+          ariaLabel="Статусы проектов"
+          placeholder="Все статусы"
+          options={Object.entries(statusConfig).map(([value, config]) => ({ value, label: config.label }))}
+          className="w-full sm:w-[170px]"
+        />
+        <StreamMultiSelect
+          values={categoryFilter}
+          onValuesChange={setCategoryFilter}
+          ariaLabel="Категории проектов"
+          placeholder="Все категории"
+          options={categoryOptions}
+          searchable
+          className="w-full sm:w-[190px]"
+        />
+        <StreamMultiSelect
+          values={assignedFilter}
+          onValuesChange={setAssignedFilter}
+          ariaLabel="Сотрудники проектов"
+          placeholder="Все сотрудники"
+          options={(users as any[]).map((user: any) => ({
+            value: String(user.id),
+            label: user.name || user.username || user.id,
+          }))}
+          searchable
+          className="w-full sm:w-[200px]"
+        />
         <span className="ml-auto text-xs text-muted-foreground">Найдено: {filteredProjects.length}</span>
       </div>
 
@@ -915,7 +921,7 @@ export default function Projects() {
                   {project.description && (
                     <p className="text-sm text-muted-foreground line-clamp-3">{project.description}</p>
                   )}
-                  {(project.category || project.deadline || project.assignedTo || project.latestCommentAt) && (
+                  {(project.category || project.deadline || normalizeProjectResponsibleIds(project).length > 0 || project.latestCommentAt) && (
                     <div className="space-y-2 rounded-control border border-border/40 bg-surface-subtle p-3 text-sm">
                       {project.category && (
                         <div className="flex items-center gap-2 text-muted-foreground">
@@ -929,10 +935,13 @@ export default function Projects() {
                           <span>{formatProjectDeadline(project.deadline)}</span>
                         </div>
                       )}
-                      {project.assignedTo && (
+                      {normalizeProjectResponsibleIds(project).length > 0 && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <User className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate text-foreground/85">{getUserName(project.assignedTo)}</span>
+                          <span className="truncate text-foreground/85">
+                            {normalizeProjectResponsibleIds(project).slice(0, 3).map(getUserName).join(", ")}
+                            {normalizeProjectResponsibleIds(project).length > 3 && ` +${normalizeProjectResponsibleIds(project).length - 3}`}
+                          </span>
                         </div>
                       )}
                       {project.latestCommentAt && (

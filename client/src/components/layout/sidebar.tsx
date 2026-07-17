@@ -345,8 +345,8 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           )}
         </nav>
 
-        <div className={cn("p-2 sm:p-3 border-t border-border/40", collapsed && "p-2")}>
-          <div className="bg-muted/50 rounded-lg p-3">
+        <div className={cn("border-t border-border/40 p-2 sm:p-3", collapsed && "p-1.5")}>
+          <div className={cn("w-full rounded-lg bg-muted/50 p-3", collapsed && "p-1")}>
             <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
               <Avatar className={cn("flex-shrink-0 touch-target", collapsed ? "w-8 h-8" : "w-10 h-10")}>
                 <AvatarImage src={user?.avatar || undefined} />
@@ -379,9 +379,10 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-full mt-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="mt-1.5 h-9 w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 onClick={onLogout}
                 title="Выйти"
+                aria-label="Выйти"
               >
                 <LogOut className="w-4 h-4" />
               </Button>

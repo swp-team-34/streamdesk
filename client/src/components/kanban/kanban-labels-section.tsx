@@ -2,6 +2,7 @@ import { Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanLabelGroupView, KanbanLabelView } from "@/lib/kanban-board-model";
 import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
@@ -169,25 +170,14 @@ export function KanbanLabelsSection({
                     onValueChange={(groupId) => onGroupChange(label, groupId || null)}
                     disabled={savePending}
                   />
-                  <div className="flex flex-wrap gap-2">
-                    {LABEL_COLOR_PRESETS.map((preset) => (
-                      <button
-                        key={preset.value}
-                        type="button"
-                        className={[
-                          "h-8 w-8 rounded-control border transition hover:scale-105",
-                          label.color === preset.value
-                            ? "border-primary/70 ring-2 ring-primary/30"
-                            : "border-border/50",
-                        ].join(" ")}
-                        style={{ backgroundColor: preset.value }}
-                        title={preset.label}
-                        aria-label={`Цвет метки ${preset.label}`}
-                        onClick={() => onColorChange(label, preset.value)}
-                        disabled={savePending}
-                      />
-                    ))}
-                  </div>
+                  <StreamColorPicker
+                    value={label.color || LABEL_COLOR_PRESETS[0].value}
+                    onChange={(color) => onColorChange(label, color)}
+                    ariaLabel={`Цвет метки ${label.name}`}
+                    presets={[...LABEL_COLOR_PRESETS]}
+                    disabled={savePending}
+                    className="max-w-[260px]"
+                  />
                 </div>
               )}
             </div>

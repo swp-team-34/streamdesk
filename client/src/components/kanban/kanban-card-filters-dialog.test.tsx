@@ -33,11 +33,11 @@ describe("KanbanCardFiltersDialog", () => {
     );
 
     chooseStreamSelectOption("Статус / список", "Active");
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ status: "list:list-1" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ statuses: ["list:list-1"] }));
     chooseStreamSelectOption("Исполнитель", "Tim");
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ assigneeUserId: "user-1" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ assigneeUserIds: ["user-1"] }));
     chooseStreamSelectOption("Локация", "Studio");
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ location: "Studio" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ locations: ["Studio"] }));
   });
 
   it("supports typed and empty custom-field filters", () => {
@@ -96,7 +96,7 @@ describe("KanbanCardFiltersDialog", () => {
     render(
       <KanbanCardFiltersDialog
         open
-        filters={{ ...EMPTY_KANBAN_CARD_FILTERS, priority: "high" }}
+        filters={{ ...EMPTY_KANBAN_CARD_FILTERS, priorities: ["high"] }}
         lists={[]}
         users={[]}
         locations={[]}

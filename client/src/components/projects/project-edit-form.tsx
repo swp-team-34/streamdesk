@@ -3,7 +3,6 @@ import { useEffect, useState, type FormEvent, type MutableRefObject } from "reac
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
@@ -18,6 +17,13 @@ export function normalizeProjectParticipantIds(value: unknown): string[] {
 
 export function toggleProjectSelection(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
+}
+
+export function normalizeProjectResponsibleIds(project: ProjectEditorValue | null | undefined): string[] {
+  const ids = normalizeProjectParticipantIds(project?.responsibleUserIds);
+  const legacyAssignedTo = String(project?.assignedTo || "").trim();
+  if (legacyAssignedTo && !ids.includes(legacyAssignedTo)) ids.push(legacyAssignedTo);
+  return ids;
 }
 
 interface ProjectEditorUser {
@@ -38,6 +44,7 @@ interface ProjectEditorValue {
   name?: string | null;
   description?: string | null;
   assignedTo?: string | null;
+  responsibleUserIds?: unknown;
   participants?: unknown;
   showInTaskManager?: boolean | null;
   directLocationIds?: unknown;
@@ -61,7 +68,7 @@ export function ProjectEditForm({
   const safeUsers = Array.isArray(users) ? users : [];
   const [name, setName] = useState(project?.name ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
-  const [assignedTo, setAssignedTo] = useState(project?.assignedTo ?? "");
+  const [responsibleUserIds, setResponsibleUserIds] = useState<string[]>(normalizeProjectResponsibleIds(project));
   const [participants, setParticipants] = useState<string[]>(normalizeProjectParticipantIds(project?.participants));
   const [showInTaskManager, setShowInTaskManager] = useState(Boolean(project?.showInTaskManager));
   const [locationIds, setLocationIds] = useState<string[]>(normalizeProjectParticipantIds(project?.directLocationIds));
@@ -71,7 +78,7 @@ export function ProjectEditForm({
     if (!project) return;
     setName(project.name ?? "");
     setDescription(project.description ?? "");
-    setAssignedTo(project.assignedTo ?? "");
+    setResponsibleUserIds(normalizeProjectResponsibleIds(project));
     setParticipants(normalizeProjectParticipantIds(project.participants));
     setShowInTaskManager(Boolean(project.showInTaskManager));
     setLocationIds(normalizeProjectParticipantIds(project.directLocationIds));
@@ -80,6 +87,7 @@ export function ProjectEditForm({
     project?.name,
     project?.description,
     project?.assignedTo,
+    project?.responsibleUserIds,
     project?.participants,
     project?.showInTaskManager,
     project?.directLocationIds,
@@ -92,7 +100,7 @@ export function ProjectEditForm({
     value: {
       name,
       description,
-      assignedTo,
+      responsibleUserIds: [...responsibleUserIds].sort(),
       participants: [...participants].sort(),
       showInTaskManager,
       locationIds: [...locationIds].sort(),
@@ -103,7 +111,7 @@ export function ProjectEditForm({
           payload: {
             name: snapshot.name.trim(),
             description: snapshot.description.trim(),
-            assignedTo: snapshot.assignedTo || null,
+            responsibleUserIds: snapshot.responsibleUserIds,
             participants: snapshot.participants,
             showInTaskManager: snapshot.showInTaskManager,
             locationIds: snapshot.locationIds,
@@ -160,19 +168,22 @@ export function ProjectEditForm({
           rows={3}
         />
       </div>
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">Участник</label>
-        <Select value={assignedTo || "_none"} onValueChange={(value) => setAssignedTo(value === "_none" ? "" : value)}>
-          <SelectTrigger className="bg-background text-foreground">
-            <SelectValue placeholder="Выберите участника" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">Не назначен</SelectItem>
-            {safeUsers.map((user) => (
-              <SelectItem key={user.id} value={user.id}>{user.name ?? user.username ?? user.id}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-2">
+        <label className="block text-sm font-medium">Ответственные</label>
+        <StreamMultiSelect
+          values={responsibleUserIds}
+          options={safeUsers.map((user) => ({
+            value: user.id,
+            label: user.name ?? user.username ?? user.id,
+            description: user.email ?? undefined,
+          }))}
+          onValuesChange={setResponsibleUserIds}
+          placeholder={safeUsers.length > 0 ? "Выберите ответственных" : "Пользователей пока нет"}
+          ariaLabel="Ответственные проекта"
+          title="Ответственные проекта"
+          searchable
+          disabled={safeUsers.length === 0}
+        />
       </div>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Участники проекта</label>

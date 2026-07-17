@@ -6,19 +6,22 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { StreamSelect } from "@/components/ui/stream-select";
 import { insertEventSchema } from "@shared/schema";
+import {
+  DEFAULT_CALENDAR_EVENT_TYPES,
+  type CalendarEventType,
+} from "@shared/calendar-event-types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AuthService } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { X, UserPlus } from "lucide-react";
 import { combineDateWithTime, normalizeDateRange, toDateTimeLocalValue } from "@/lib/task-dates";
 
 const eventFormSchema = insertEventSchema.extend({
@@ -105,6 +108,19 @@ interface KanbanListOption {
   type?: string;
 }
 
+interface LocationOption {
+  id: string;
+  name: string;
+  status?: string | null;
+  archivedAt?: string | null;
+}
+
+interface EventTypeSettings {
+  eventTypes: CalendarEventType[];
+  canManage: boolean;
+  scope: "company" | "personal";
+}
+
 export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormProps) {
   const fallbackStart = useMemo(
     () => selectedDate ? combineDateWithTime(selectedDate, "09:00") : combineDateWithTime(new Date(), "09:00"),
@@ -125,7 +141,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
   const [formMode, setFormMode] = useState<"event" | "kanban">("event");
   const [selectedKanbanBoardId, setSelectedKanbanBoardId] = useState("");
   const [selectedKanbanListId, setSelectedKanbanListId] = useState("");
-  const [eventColor, setEventColor] = useState(() => getStoredEventColor(event?.id));
+  const [eventColor, setEventColor] = useState(() => event?.color || getStoredEventColor(event?.id));
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [autosaveError, setAutosaveError] = useState("");
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,17 +151,27 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
   useEffect(() => {
     const p = event?.participants;
     if (event?.id) setFormMode("event");
-    setEventColor(getStoredEventColor(event?.id));
+    setEventColor(event?.color || getStoredEventColor(event?.id));
     if (!p || !Array.isArray(p)) {
       setSelectedParticipants([]);
       return;
     }
     setSelectedParticipants(p.map((x: any) => (typeof x === "string" ? x : x.userId)).filter(Boolean));
-  }, [event?.id, event?.participants]);
+  }, [event?.color, event?.id, event?.participants]);
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled: isOpen,
+  });
+
+  const { data: locations = [] } = useQuery<LocationOption[]>({
+    queryKey: ["/api/locations"],
+    enabled: isOpen && formMode === "event",
+  });
+
+  const { data: eventTypeSettings } = useQuery<EventTypeSettings>({
+    queryKey: ["/api/calendar/event-types"],
+    enabled: isOpen && formMode === "event",
   });
 
   const { data: kanbanBoards = [] } = useQuery<KanbanBoardOption[]>({
@@ -194,7 +220,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
       description: event?.description || "",
       startTime: toLocalDateTime(initialRange.start),
       endTime: toLocalDateTime(initialRange.end),
-      location: event?.location || "Студия А",
+      location: event?.location || "",
       customLocation: event?.customLocation || "",
       organizerId: event?.organizerId || AuthService.getCurrentUser()?.id || "admin",
       type: event?.type || "stream",
@@ -214,7 +240,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
       description: event?.description || "",
       startTime: toLocalDateTime(nextRange.start),
       endTime: toLocalDateTime(nextRange.end),
-      location: event?.location || "Студия А",
+      location: event?.location || "",
       customLocation: event?.customLocation || "",
       organizerId: event?.organizerId || AuthService.getCurrentUser()?.id || "admin",
       type: event?.type || "stream",
@@ -227,16 +253,46 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
     setAutosaveError("");
   }, [event?.customLocation, event?.description, event?.endTime, event?.id, event?.location, event?.organizerId, event?.startTime, event?.status, event?.title, event?.type, fallbackStart, form, isOpen]);
 
-  const predefinedLocations = [
-    "Студия А",
-    "Студия B", 
-    "Подкаст зона",
-    "Конференц-зал",
-    "Техническая",
-    "Серверная",
-    "Офис",
-    "Удаленно"
-  ];
+  const watchedLocation = form.watch("location");
+  const watchedEventType = form.watch("type");
+  const configuredEventTypes = eventTypeSettings?.eventTypes?.length
+    ? eventTypeSettings.eventTypes
+    : DEFAULT_CALENDAR_EVENT_TYPES;
+  const eventTypeOptions = useMemo(() => {
+    if (!watchedEventType || configuredEventTypes.some((option) => option.value === watchedEventType)) {
+      return configuredEventTypes;
+    }
+    return [
+      {
+        value: watchedEventType,
+        label: event?.id ? `${watchedEventType} · сохранено ранее` : watchedEventType,
+      },
+      ...configuredEventTypes,
+    ];
+  }, [configuredEventTypes, event?.id, watchedEventType]);
+
+  useEffect(() => {
+    if (
+      event?.id ||
+      !eventTypeSettings?.eventTypes?.length ||
+      eventTypeSettings.eventTypes.some((option) => option.value === watchedEventType)
+    ) return;
+    form.setValue("type", eventTypeSettings.eventTypes[0].value, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [event?.id, eventTypeSettings?.eventTypes, form, watchedEventType]);
+
+  const locationOptions = useMemo(() => {
+    const active = locations
+      .filter((location) => !location.archivedAt)
+      .map((location) => ({ value: location.name, label: location.name }));
+    const current = watchedLocation;
+    if (current && !active.some((option) => option.value === current)) {
+      active.unshift({ value: current, label: `${current} · сохранено ранее` });
+    }
+    return active;
+  }, [locations, watchedLocation]);
 
   const watchedStartTime = form.watch("startTime");
   const watchedEndTime = form.watch("endTime");
@@ -262,14 +318,31 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
     form.setValue("endTime", toLocalDateTime(dayEnd), { shouldValidate: true, shouldDirty: true });
   };
 
+  const resolveLocation = (data: z.infer<typeof eventFormSchema>) => String(
+    useCustomLocation ? data.customLocation || "" : data.location || "",
+  ).trim();
+
+  const validateLocation = (data: z.infer<typeof eventFormSchema>) => {
+    if (formMode !== "event" || resolveLocation(data)) {
+      form.clearErrors(["location", "customLocation"]);
+      return true;
+    }
+    const field = useCustomLocation ? "customLocation" : "location";
+    form.setError(field, { type: "required", message: "Укажите место проведения" });
+    return false;
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: z.infer<typeof eventFormSchema>) => {
+      const location = resolveLocation(data);
+      if (!location) throw new Error("Укажите место проведения");
       const eventData = {
         ...data,
         startTime: new Date(data.startTime).toISOString(),
         endTime: new Date(data.endTime).toISOString(),
-        location: useCustomLocation ? data.customLocation : data.location,
+        location,
         participants: selectedParticipants.length > 0 ? selectedParticipants : undefined,
+        color: eventColor,
       };
       
       const response = await apiRequest("POST", "/api/events", eventData);
@@ -353,12 +426,15 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
 
   const updateMutation = useMutation({
     mutationFn: async (data: z.infer<typeof eventFormSchema>) => {
+      const location = resolveLocation(data);
+      if (!location) throw new Error("Укажите место проведения");
       const eventData = {
         ...data,
         startTime: new Date(data.startTime).toISOString(),
         endTime: new Date(data.endTime).toISOString(),
-        location: useCustomLocation ? data.customLocation : data.location,
+        location,
         participants: selectedParticipants.length > 0 ? selectedParticipants : [],
+        color: eventColor,
       };
       
       const response = await apiRequest("PUT", `/api/events/${event.id}`, eventData);
@@ -390,6 +466,7 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
     if (event?.id) {
       return;
     } else {
+      if (!validateLocation(data)) return;
       createMutation.mutate(data);
     }
   };
@@ -419,7 +496,11 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
     if (signature === autosaveSignatureRef.current) return;
 
     const parsed = eventFormSchema.safeParse(watchedValues);
-    if (!parsed.success || !watchedValues.title?.trim()) {
+    if (
+      !parsed.success ||
+      !watchedValues.title?.trim() ||
+      (formMode === "event" && !resolveLocation(parsed.success ? parsed.data : watchedValues as z.infer<typeof eventFormSchema>))
+    ) {
       setAutosaveStatus("dirty");
       return;
     }
@@ -442,18 +523,6 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
       }
     };
   }, [event?.id, eventColor, isOpen, selectedParticipants, useCustomLocation, watchedValues]);
-
-  const addParticipant = (userId: string) => {
-    if (!selectedParticipants.includes(userId)) {
-      setSelectedParticipants([...selectedParticipants, userId]);
-    }
-  };
-
-  const removeParticipant = (userId: string) => {
-    setSelectedParticipants(selectedParticipants.filter(id => id !== userId));
-  };
-
-  const getSelectedUser = (userId: string) => users.find(u => u.id === userId);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -629,19 +698,15 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Тип события</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Выберите тип" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="stream">Стрим</SelectItem>
-                            <SelectItem value="recording">Запись</SelectItem>
-                            <SelectItem value="meeting">Встреча</SelectItem>
-                            <SelectItem value="maintenance">Обслуживание</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <StreamSelect
+                            ariaLabel="Тип события"
+                            value={field.value || "stream"}
+                            options={eventTypeOptions}
+                            onValueChange={field.onChange}
+                            searchable
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -653,19 +718,19 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Статус</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Выберите статус" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="scheduled">Запланировано</SelectItem>
-                            <SelectItem value="active">Активно</SelectItem>
-                            <SelectItem value="completed">Завершено</SelectItem>
-                            <SelectItem value="cancelled">Отменено</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <StreamSelect
+                            ariaLabel="Статус события"
+                            value={field.value || "scheduled"}
+                            options={[
+                              { value: "scheduled", label: "Запланировано" },
+                              { value: "active", label: "Активно" },
+                              { value: "completed", label: "Завершено" },
+                              { value: "cancelled", label: "Отменено" },
+                            ]}
+                            onValueChange={field.onChange}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -677,22 +742,12 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
             {formMode === "event" && (
               <div className="space-y-2">
                 <FormLabel>Цвет события</FormLabel>
-                <div className="flex flex-wrap gap-2 rounded-surface border border-border/50 bg-muted/20 p-3">
-                  {EVENT_COLOR_OPTIONS.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      className={[
-                        "h-9 w-9 rounded-full border transition hover:scale-105",
-                        eventColor === color.value ? "border-primary/70 ring-2 ring-primary/30" : "border-border/50",
-                      ].join(" ")}
-                      style={{ backgroundColor: color.value }}
-                      title={color.label}
-                      aria-label={color.label}
-                      onClick={() => setEventColor(color.value)}
-                    />
-                  ))}
-                </div>
+                <StreamColorPicker
+                  value={eventColor}
+                  onChange={setEventColor}
+                  ariaLabel="Цвет события"
+                  presets={EVENT_COLOR_OPTIONS}
+                />
               </div>
             )}
 
@@ -730,20 +785,16 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Место проведения *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Выберите место" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {predefinedLocations.map((location) => (
-                            <SelectItem key={location} value={location}>
-                              {location}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <StreamSelect
+                          ariaLabel="Место проведения"
+                          value={field.value || ""}
+                          options={locationOptions}
+                          onValueChange={field.onChange}
+                          placeholder={locationOptions.length ? "Выберите площадку" : "Нет активных площадок"}
+                          searchable
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -753,54 +804,21 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
 
             {/* Участники */}
             {formMode === "event" && <div className="space-y-4">
-              <FormLabel className="flex items-center">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Участники события
-              </FormLabel>
-              
-              {/* Выбранные участники */}
-              {selectedParticipants.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedParticipants.map((userId) => {
-                    const user = getSelectedUser(userId);
-                    return user ? (
-                      <Badge key={userId} variant="secondary" className="flex items-center gap-1">
-                        {user.name}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto p-0.5 hover:bg-transparent"
-                          onClick={() => removeParticipant(userId)}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
-
-              {/* Список доступных пользователей */}
-              <Select onValueChange={addParticipant}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Добавить участника" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users
-                    .filter(user => !selectedParticipants.includes(user.id))
-                    .map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <div className="flex flex-col">
-                          <span>{user.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {user.position} - {user.department}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <FormLabel>Участники события</FormLabel>
+              <StreamMultiSelect
+                values={selectedParticipants}
+                options={users.map((user) => ({
+                  value: user.id,
+                  label: user.name,
+                  description: [user.position, user.department].filter(Boolean).join(" · "),
+                }))}
+                onValuesChange={setSelectedParticipants}
+                placeholder="Добавить участников"
+                ariaLabel="Участники события"
+                title="Участники события"
+                searchable
+                maxVisibleChips={5}
+              />
             </div>}
 
             <div className="flex flex-wrap items-center justify-between gap-3">

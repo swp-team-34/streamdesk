@@ -1,9 +1,8 @@
 import { Building2, WandSparkles, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { StreamSelect } from "@/components/ui/stream-select";
 import { Textarea } from "@/components/ui/textarea";
 import { KanbanUserMultiSelect } from "@/components/kanban/kanban-user-multi-select";
@@ -237,32 +236,21 @@ export function KanbanCardDetailFields({
             <label className="text-sm font-medium">Площадки</label>
             <span className="text-xs text-muted-foreground">{selectedLocationIds.length || "Нет связей"}</span>
           </div>
-          <div className="max-h-36 space-y-1 overflow-y-auto rounded-control border border-border/50 bg-surface-raised p-2">
-            {companyLocations.map((location) => {
-              const checked = selectedLocationIds.includes(location.id);
-              return (
-                <label key={location.id} className="flex items-center justify-between gap-2 rounded-control px-2 py-1.5 text-sm hover:bg-surface-subtle">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      aria-label={`Связать площадку «${location.name}»`}
-                      checked={checked}
-                      disabled={!canEdit}
-                      onCheckedChange={() => patchForm({
-                        locationIds: checked
-                          ? selectedLocationIds.filter((locationId) => locationId !== location.id)
-                          : normalizeLocationIds([...selectedLocationIds, location.id]),
-                      })}
-                    />
-                    <span className="truncate">{location.name}</span>
-                  </span>
-                  {location.archivedAt && <Badge variant="secondary">Архив</Badge>}
-                </label>
-              );
-            })}
-            {companyLocations.length === 0 && (
-              <p className="px-2 py-3 text-sm text-muted-foreground">Для этой компании нет активных площадок.</p>
-            )}
-          </div>
+          <StreamMultiSelect
+            values={selectedLocationIds}
+            options={companyLocations.map((location) => ({
+              value: location.id,
+              label: location.name,
+              description: location.archivedAt ? "Архивная площадка" : undefined,
+              disabled: Boolean(location.archivedAt) && !selectedLocationIds.includes(location.id),
+            }))}
+            onValuesChange={(locationIds) => patchForm({ locationIds: normalizeLocationIds(locationIds) })}
+            placeholder={companyLocations.length ? "Выбрать площадки" : "Нет активных площадок"}
+            ariaLabel="Площадки карточки"
+            title="Площадки карточки"
+            searchable
+            disabled={!canEdit || companyLocations.length === 0}
+          />
           {linkedLocations.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {linkedLocations.map((location) => (

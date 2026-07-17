@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  calendarEventTypeListSchema,
+  DEFAULT_CALENDAR_EVENT_TYPES,
+  normalizeCalendarEventTypes,
+} from "./calendar-event-types";
 
 export const UI_THEME_MODES = [
   "system",
@@ -18,6 +23,7 @@ export const userUiPreferencesSchema = z.object({
   autoTheme: z.boolean(),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i),
   sidebarCollapsed: z.boolean(),
+  calendarEventTypes: calendarEventTypeListSchema.default(DEFAULT_CALENDAR_EVENT_TYPES),
 });
 
 export type UserUiPreferences = z.infer<typeof userUiPreferencesSchema>;
@@ -27,6 +33,7 @@ export const DEFAULT_USER_UI_PREFERENCES: UserUiPreferences = {
   autoTheme: false,
   accent: DEFAULT_UI_ACCENT,
   sidebarCollapsed: false,
+  calendarEventTypes: DEFAULT_CALENDAR_EVENT_TYPES,
 };
 
 export function normalizeUserUiPreferences(value: unknown): UserUiPreferences {
@@ -50,5 +57,6 @@ export function normalizeUserUiPreferences(value: unknown): UserUiPreferences {
     sidebarCollapsed: typeof input.sidebarCollapsed === "boolean"
       ? input.sidebarCollapsed
       : DEFAULT_USER_UI_PREFERENCES.sidebarCollapsed,
+    calendarEventTypes: normalizeCalendarEventTypes(input.calendarEventTypes),
   };
 }

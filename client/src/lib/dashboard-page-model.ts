@@ -6,7 +6,7 @@ import type {
   DashboardWidgetConstraints,
 } from "@/lib/dashboard-layout";
 
-export const DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetLayout.v2";
+export const DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetLayout.v3";
 export const LEGACY_DASHBOARD_WIDGET_LAYOUT_STORAGE_KEY = "streamdesk.dashboard.widgetOrder.v1";
 export const DASHBOARD_GRID_ROW_HEIGHT = 12;
 export const DASHBOARD_GRID_GAP = 8;

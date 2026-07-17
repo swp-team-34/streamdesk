@@ -3,10 +3,10 @@ import { getEquipmentOperabilityStatus } from "./equipment-view-model";
 
 export interface EquipmentFilterState {
   searchTerm: string;
-  status: string;
-  operability: string;
-  category: string;
-  employee: string;
+  statuses: string[];
+  operabilities: string[];
+  categories: string[];
+  employees: string[];
 }
 
 export interface EquipmentFilterUser {
@@ -37,32 +37,34 @@ export function matchesAssignedUser(
 
 export function matchesEquipmentEmployeeFilter(
   item: Equipment,
-  employeeFilter: string,
+  employeeFilters: string[],
   canFilterByEmployee: boolean,
   users: EquipmentFilterUser[],
 ) {
-  if (!canFilterByEmployee || employeeFilter === "all") return true;
+  if (!canFilterByEmployee || employeeFilters.length === 0) return true;
   const assignedTo = String(item.assignedTo ?? "").trim();
-  if (employeeFilter === "unassigned") return !assignedTo;
-  if (employeeFilter.startsWith("raw:")) return assignedTo === employeeFilter.slice(4);
-  const user = users.find((entry) => entry.id === employeeFilter);
-  return user ? matchesAssignedUser(assignedTo, user) : assignedTo === employeeFilter;
+  return employeeFilters.some((employeeFilter) => {
+    if (employeeFilter === "unassigned") return !assignedTo;
+    if (employeeFilter.startsWith("raw:")) return assignedTo === employeeFilter.slice(4);
+    const user = users.find((entry) => entry.id === employeeFilter);
+    return user ? matchesAssignedUser(assignedTo, user) : assignedTo === employeeFilter;
+  });
 }
 
 export function matchesEquipmentBaseFilters(
   item: Equipment,
-  filters: Pick<EquipmentFilterState, "searchTerm" | "status" | "operability" | "category">,
+  filters: Pick<EquipmentFilterState, "searchTerm" | "statuses" | "operabilities" | "categories">,
 ) {
   const searchLower = filters.searchTerm.toLowerCase();
   const matchesSearch = [item.name, item.model, item.serialNumber, item.inventoryNumber, item.barcode]
     .some((value) => String(value || "").toLowerCase().includes(searchLower));
-  const matchesStatus = filters.status === "all" || item.status === filters.status;
-  const matchesOperability = filters.operability === "all" ||
-    getEquipmentOperabilityStatus(item) === filters.operability;
-  const matchesCategory = filters.category === "all" || (
-    filters.category.startsWith("category:") &&
-    String(item.categoryId || "") === filters.category.slice("category:".length)
-  );
+  const matchesStatus = filters.statuses.length === 0 || filters.statuses.includes(String(item.status || ""));
+  const matchesOperability = filters.operabilities.length === 0 ||
+    filters.operabilities.includes(getEquipmentOperabilityStatus(item));
+  const matchesCategory = filters.categories.length === 0 || filters.categories.some((category) => (
+    category.startsWith("category:") &&
+    String(item.categoryId || "") === category.slice("category:".length)
+  ));
 
   return matchesSearch && matchesStatus && matchesOperability && matchesCategory;
 }
@@ -87,9 +89,9 @@ export function countActiveEquipmentFilters(
   filters: EquipmentFilterState,
   includeEmployee: boolean,
 ) {
-  return Number(filters.status !== "all") +
-    Number(filters.operability !== "all") +
-    Number(filters.category !== "all") +
+  return Number(filters.statuses.length > 0) +
+    Number(filters.operabilities.length > 0) +
+    Number(filters.categories.length > 0) +
     Number(Boolean(filters.searchTerm.trim())) +
-    Number(includeEmployee && filters.employee !== "all");
+    Number(includeEmployee && filters.employees.length > 0);
 }

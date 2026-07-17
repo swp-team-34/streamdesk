@@ -221,6 +221,15 @@ describe("active workspace isolation", () => {
       ownerId: secondUser.id,
       status: "planning",
     } as any);
+    const sharedPersonalProject = await storage.createProject({
+      name: "Shared through responsibility",
+      companyId: null,
+      visibility: "personal",
+      ownerId: secondUser.id,
+      responsibleUserIds: [firstUser.id, secondUser.id],
+      assignedTo: firstUser.id,
+      status: "planning",
+    } as any);
 
     const companyResponse = createJsonResponse();
     await listProjects!({
@@ -247,8 +256,90 @@ describe("active workspace isolation", () => {
     }, personalResponse);
     const personalIds = (personalResponse.body as any[]).map((project) => project.id);
     expect(personalIds).toContain(firstPersonalProject.id);
+    expect(personalIds).toContain(sharedPersonalProject.id);
     expect(personalIds).not.toContain(secondPersonalProject.id);
     expect(personalIds).not.toContain(firstCompanyProject.id);
+    expect((personalResponse.body as any[]).find((project) => project.id === sharedPersonalProject.id))
+      .toMatchObject({ responsibleUserIds: [firstUser.id, secondUser.id] });
+  });
+
+  it("keeps calendar event types scoped to the active workspace", async () => {
+    const app = await createAppWithRoutes();
+    const getEventTypes = routeHandler(app, "GET", "/api/calendar/event-types");
+    const putEventTypes = routeHandler(app, "PUT", "/api/calendar/event-types");
+    const owner = await createUser("calendar-type-owner");
+    const member = await createUser("calendar-type-member");
+    const personalUser = await createUser("calendar-type-personal");
+    const company = await createCompanyFor(owner.id, "Calendar type company");
+    await storage.createCompanyMember({
+      companyId: company.id,
+      userId: member.id,
+      role: "member",
+      status: "active",
+    } as any);
+
+    const companyTypes = [{ value: "rehearsal", label: "Репетиция" }];
+    const companyWriteResponse = createJsonResponse();
+    await putEventTypes!({
+      ...companyRequest(owner, company.id),
+      body: { eventTypes: companyTypes },
+    }, companyWriteResponse);
+    expect(companyWriteResponse.statusCode).toBe(200);
+    expect(companyWriteResponse.body).toMatchObject({
+      eventTypes: companyTypes,
+      canManage: true,
+      scope: "company",
+    });
+
+    const memberReadResponse = createJsonResponse();
+    await getEventTypes!({
+      ...companyRequest(member, company.id),
+    }, memberReadResponse);
+    expect(memberReadResponse.body).toMatchObject({
+      eventTypes: companyTypes,
+      canManage: false,
+      scope: "company",
+    });
+
+    const deniedWriteResponse = createJsonResponse();
+    await putEventTypes!({
+      ...companyRequest(member, company.id),
+      body: { eventTypes: [{ value: "meeting", label: "Встреча" }] },
+    }, deniedWriteResponse);
+    expect(deniedWriteResponse.statusCode).toBe(403);
+
+    const personalTypes = [{ value: "focus", label: "Фокус" }];
+    const personalRequest = {
+      user: {
+        ...personalUser,
+        activeWorkspaceType: "personal",
+        activeCompanyId: null,
+      },
+      workspace: {
+        type: "personal",
+        companyId: null,
+        requiresSelection: false,
+        source: "session",
+      },
+    };
+    const personalWriteResponse = createJsonResponse();
+    await putEventTypes!({
+      ...personalRequest,
+      body: { eventTypes: personalTypes },
+    }, personalWriteResponse);
+    expect(personalWriteResponse.body).toMatchObject({
+      eventTypes: personalTypes,
+      canManage: true,
+      scope: "personal",
+    });
+
+    const personalReadResponse = createJsonResponse();
+    await getEventTypes!(personalRequest, personalReadResponse);
+    expect(personalReadResponse.body).toMatchObject({
+      eventTypes: personalTypes,
+      canManage: true,
+      scope: "personal",
+    });
   });
 
   it("blocks direct task access and Warehouse reads across selected companies", async () => {

@@ -48,12 +48,11 @@ import {
   buildCalendarTimelineDays,
   CALENDAR_TIMELINE_BUFFER_DAYS,
   CALENDAR_TIMELINE_GUTTER_WIDTH,
+  CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS,
   getCalendarTimelineDayWidth,
-  getCalendarTimelineNextBufferDays,
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
   getCalendarTimelineVisibleDayCount,
-  isCalendarTimelineNearBufferEdge,
   type CalendarTimelineViewMode,
 } from "@/lib/calendar-timeline";
 import {
@@ -103,16 +102,18 @@ export default function Calendar() {
   const [slotSelectStart, setSlotSelectStart] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [slotSelectEnd, setSlotSelectEnd] = useState<{ dayIndex: number; hour: number } | null>(null);
   const [expandedNonWorkingRanges, setExpandedNonWorkingRanges] = useState<{ before: boolean; after: boolean }>({ before: false, after: false });
-  const [timelineBufferDays, setTimelineBufferDays] = useState(CALENDAR_TIMELINE_BUFFER_DAYS);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const { toast } = useToast();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineScrollTimerRef = useRef<number | null>(null);
+  const timelineSnapTimerRef = useRef<number | null>(null);
   const commitTimelineScrollRef = useRef<() => void>(() => undefined);
   const timelineRecenteringRef = useRef(false);
   const timelineLastScrollLeftRef = useRef(0);
-  const timelineBufferDaysRef = useRef(CALENDAR_TIMELINE_BUFFER_DAYS);
-  const timelinePendingBufferShiftRef = useRef(0);
+  const timelinePendingViewportRef = useRef<{
+    dateKey: string;
+    fractionalOffset: number;
+  } | null>(null);
   const timelinePanRef = useRef<{
     pointerId: number;
     startX: number;
@@ -245,13 +246,13 @@ export default function Calendar() {
       anchorDate: selectedDate,
       viewMode: timelineViewMode,
       showWeekends: calendarSettings.showWeekends,
-      bufferDays: timelineBufferDays,
+      bufferDays: CALENDAR_TIMELINE_BUFFER_DAYS,
     }),
-    [calendarSettings.showWeekends, selectedDate, timelineBufferDays, timelineViewMode],
+    [calendarSettings.showWeekends, selectedDate, timelineViewMode],
   );
   const timelineVisibleDays = timelineDays.slice(
-    timelineBufferDays,
-    timelineBufferDays + timelineVisibleDayCount,
+    CALENDAR_TIMELINE_BUFFER_DAYS,
+    CALENDAR_TIMELINE_BUFFER_DAYS + timelineVisibleDayCount,
   );
   const timelineDayWidth = getCalendarTimelineDayWidth({
     viewportWidth: timelineViewportWidth,
@@ -429,24 +430,16 @@ export default function Calendar() {
     if (!element) return;
 
     timelineRecenteringRef.current = true;
-    const pendingBufferShift = timelinePendingBufferShiftRef.current;
-    if (pendingBufferShift > 0) {
-      timelinePendingBufferShiftRef.current = 0;
-      element.scrollLeft += pendingBufferShift * timelineDayWidth;
-      timelineLastScrollLeftRef.current = element.scrollLeft;
-      const frameId = window.requestAnimationFrame(() => {
-        timelineRecenteringRef.current = false;
-      });
-      return () => {
-        window.cancelAnimationFrame(frameId);
-        timelineRecenteringRef.current = false;
-      };
-    }
+    const pendingViewport = timelinePendingViewportRef.current;
+    timelinePendingViewportRef.current = null;
+    const pendingDayIndex = pendingViewport
+      ? timelineDays.findIndex((day) => format(day, "yyyy-MM-dd") === pendingViewport.dateKey)
+      : -1;
+    const targetDayIndex = pendingDayIndex >= 0
+      ? pendingDayIndex + pendingViewport!.fractionalOffset
+      : CALENDAR_TIMELINE_BUFFER_DAYS;
 
-    element.scrollLeft = getCalendarTimelineScrollLeft(
-      timelineBufferDays,
-      timelineDayWidth,
-    );
+    element.scrollLeft = getCalendarTimelineScrollLeft(targetDayIndex, timelineDayWidth);
     timelineLastScrollLeftRef.current = element.scrollLeft;
     const frameId = window.requestAnimationFrame(() => {
       timelineRecenteringRef.current = false;
@@ -459,8 +452,8 @@ export default function Calendar() {
     calendarSettings.showWeekends,
     isTimelineView,
     selectedDate,
-    timelineBufferDays,
     timelineDayWidth,
+    timelineDays,
     timelineViewportWidth,
     viewMode,
   ]);
@@ -468,6 +461,9 @@ export default function Calendar() {
   useEffect(() => () => {
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
+    }
+    if (timelineSnapTimerRef.current != null) {
+      window.clearTimeout(timelineSnapTimerRef.current);
     }
   }, []);
 
@@ -1041,65 +1037,64 @@ export default function Calendar() {
     const targetDate = timelineDays[targetIndex];
     if (!targetDate) return;
 
-    const resetExpandedBuffer = () => {
-      timelineBufferDaysRef.current = CALENDAR_TIMELINE_BUFFER_DAYS;
-      timelinePendingBufferShiftRef.current = 0;
-      setTimelineBufferDays(CALENDAR_TIMELINE_BUFFER_DAYS);
+    const targetScrollLeft = getCalendarTimelineScrollLeft(targetIndex, timelineDayWidth);
+    const finishSnap = () => {
+      timelineSnapTimerRef.current = null;
+      if (!isSameDay(targetDate, selectedDate)) {
+        timelinePendingViewportRef.current = {
+          dateKey: format(targetDate, "yyyy-MM-dd"),
+          fractionalOffset: 0,
+        };
+        setSelectedDate(new Date(targetDate));
+        return;
+      }
+      timelinePendingViewportRef.current = null;
+      element.scrollLeft = targetScrollLeft;
+      timelineLastScrollLeftRef.current = targetScrollLeft;
+      window.requestAnimationFrame(() => {
+        timelineRecenteringRef.current = false;
+      });
     };
 
-    if (!isSameDay(targetDate, selectedDate)) {
-      resetExpandedBuffer();
-      setSelectedDate(new Date(targetDate));
-      return;
-    }
-
-    if (timelineBufferDaysRef.current !== CALENDAR_TIMELINE_BUFFER_DAYS) {
-      resetExpandedBuffer();
-      return;
-    }
-
-    const targetScrollLeft = getCalendarTimelineScrollLeft(
-      timelineBufferDays,
-      timelineDayWidth,
-    );
     timelineRecenteringRef.current = true;
-    element.scrollLeft = targetScrollLeft;
-    timelineLastScrollLeftRef.current = targetScrollLeft;
-    window.requestAnimationFrame(() => {
-      timelineRecenteringRef.current = false;
-    });
-  }, [selectedDate, timelineBufferDays, timelineDayWidth, timelineDays]);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || Math.abs(element.scrollLeft - targetScrollLeft) < 1) {
+      finishSnap();
+      return;
+    }
+
+    element.scrollTo({ left: targetScrollLeft, behavior: "smooth" });
+    timelineSnapTimerRef.current = window.setTimeout(finishSnap, 280);
+  }, [selectedDate, timelineDayWidth, timelineDays]);
   commitTimelineScrollRef.current = commitTimelineScroll;
 
-  const extendTimelineBufferIfNeeded = useCallback(() => {
+  const rebaseTimelineIfNeeded = useCallback(() => {
     const element = timelineScrollRef.current;
     if (!element || timelineRecenteringRef.current) return;
 
-    const currentBufferDays = timelineBufferDaysRef.current;
-    const viewportWidth = element.getBoundingClientRect().width;
-    const isNearEdge = isCalendarTimelineNearBufferEdge({
-      scrollLeft: element.scrollLeft,
-      viewportWidth,
-      dayWidth: timelineDayWidth,
-      dayCount: timelineDays.length,
-    });
-    if (!isNearEdge) return;
+    const firstVisibleDay = element.scrollLeft / timelineDayWidth;
+    const visibleDayWidth = Math.max(
+      1,
+      (element.getBoundingClientRect().width - CALENDAR_TIMELINE_GUTTER_WIDTH) / timelineDayWidth,
+    );
+    const lastVisibleDay = firstVisibleDay + visibleDayWidth;
+    const nearStart = firstVisibleDay <= CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS;
+    const nearEnd = timelineDays.length - 1 - lastVisibleDay <= CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS;
+    if (!nearStart && !nearEnd) return;
 
-    const nextBufferDays = getCalendarTimelineNextBufferDays({
-      scrollLeft: element.scrollLeft,
-      viewportWidth,
-      dayWidth: timelineDayWidth,
-      dayCount: timelineDays.length,
-      bufferDays: currentBufferDays,
-    });
-    if (nextBufferDays > currentBufferDays) {
-      timelineBufferDaysRef.current = nextBufferDays;
-      timelinePendingBufferShiftRef.current += nextBufferDays - currentBufferDays;
-      setTimelineBufferDays(nextBufferDays);
-      return;
-    }
+    const anchorIndex = Math.max(
+      0,
+      Math.min(timelineDays.length - 1, Math.floor(firstVisibleDay)),
+    );
+    const anchorDate = timelineDays[anchorIndex];
+    if (!anchorDate || isSameDay(anchorDate, selectedDate)) return;
 
-  }, [timelineDayWidth, timelineDays]);
+    timelinePendingViewportRef.current = {
+      dateKey: format(anchorDate, "yyyy-MM-dd"),
+      fractionalOffset: firstVisibleDay - anchorIndex,
+    };
+    setSelectedDate(new Date(anchorDate));
+  }, [selectedDate, timelineDayWidth, timelineDays]);
 
   const handleTimelineScroll = useCallback(() => {
     if (timelineRecenteringRef.current) return;
@@ -1108,15 +1103,15 @@ export default function Calendar() {
     const nextScrollLeft = element.scrollLeft;
     if (Math.abs(nextScrollLeft - timelineLastScrollLeftRef.current) < 0.5) return;
     timelineLastScrollLeftRef.current = nextScrollLeft;
-    extendTimelineBufferIfNeeded();
+    rebaseTimelineIfNeeded();
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
     }
     timelineScrollTimerRef.current = window.setTimeout(() => {
       timelineScrollTimerRef.current = null;
       commitTimelineScrollRef.current();
-    }, 240);
-  }, [extendTimelineBufferIfNeeded]);
+    }, 520);
+  }, [rebaseTimelineIfNeeded]);
 
   const scrollTimelineByDays = useCallback((dayDelta: number) => {
     const element = timelineScrollRef.current;
@@ -1435,7 +1430,7 @@ export default function Calendar() {
         aria-label="Временная шкала календаря. Используйте стрелки для перехода по дням."
         className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-primary/30"
         style={{
-          scrollSnapType: "x proximity",
+          scrollSnapType: "none",
           overscrollBehaviorX: "contain",
           overflowAnchor: "none",
           touchAction: "pan-x pan-y",

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { cn } from "@/lib/utils";
 import {
   combineDateWithTime,
@@ -178,35 +178,25 @@ export function StreamDateTimePicker({
                     Время
                   </span>
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                    <Select
+                    <StreamSelect
+                      ariaLabel="Часы"
                       value={selectedHour}
+                      options={HOUR_OPTIONS.map((hour) => ({ value: hour, label: hour }))}
                       onValueChange={handleHourChange}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="h-10" aria-label="Часы">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="z-[230]">
-                        {HOUR_OPTIONS.map((hour) => (
-                          <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className="h-10 sm:h-10"
+                      contentClassName="z-[240]"
+                    />
                     <span className="text-sm font-semibold text-muted-foreground">:</span>
-                    <Select
+                    <StreamSelect
+                      ariaLabel="Минуты"
                       value={selectedMinute}
+                      options={MINUTE_OPTIONS.map((minute) => ({ value: minute, label: minute }))}
                       onValueChange={handleMinuteChange}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="h-10" aria-label="Минуты">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="z-[230]">
-                        {MINUTE_OPTIONS.map((minute) => (
-                          <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className="h-10 sm:h-10"
+                      contentClassName="z-[240]"
+                    />
                   </div>
                 </label>
               )}

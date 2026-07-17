@@ -29,7 +29,6 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={onFormChange}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={vi.fn()}
         onSave={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -49,7 +48,6 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={onFormChange}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={vi.fn()}
         onSave={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -58,8 +56,7 @@ describe("KanbanCustomFieldsSection", () => {
     expect(screen.getByLabelText("Опции поля")).toBeEnabled();
   });
 
-  it("delegates default, save, edit and archive actions", () => {
-    const onCreateDefaults = vi.fn();
+  it("delegates save, edit and archive actions", () => {
     const onSave = vi.fn();
     const onEdit = vi.fn();
     const onDelete = vi.fn();
@@ -73,17 +70,14 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={vi.fn()}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={onCreateDefaults}
         onSave={onSave}
         onEdit={onEdit}
         onDelete={onDelete}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Шаблон File / Recording" }));
     fireEvent.click(screen.getByRole("button", { name: "Добавить поле" }));
     fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
     fireEvent.click(screen.getByRole("button", { name: "Архивировать" }));
-    expect(onCreateDefaults).toHaveBeenCalledOnce();
     expect(onSave).toHaveBeenCalledOnce();
     expect(onEdit).toHaveBeenCalledWith(field);
     expect(onDelete).toHaveBeenCalledWith(field);
@@ -101,7 +95,6 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={onFormChange}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={vi.fn()}
         onSave={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}

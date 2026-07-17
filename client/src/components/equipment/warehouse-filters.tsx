@@ -1,13 +1,7 @@
 import { FileSpreadsheet, Package, Printer, Search, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface FilterOption {
@@ -24,10 +18,10 @@ interface CategoryFilterOption {
 interface WarehouseFiltersProps {
   mobileOpen: boolean;
   searchTerm: string;
-  status: string;
-  category: string;
-  operability: string;
-  employee: string;
+  status: string[];
+  category: string[];
+  operability: string[];
+  employee: string[];
   activeFilterCount: number;
   canFilterByEmployee: boolean;
   categoryOptions: CategoryFilterOption[];
@@ -42,10 +36,10 @@ interface WarehouseFiltersProps {
   bundlePending: boolean;
   onMobileOpenChange: (open: boolean) => void;
   onSearchTermChange: (value: string) => void;
-  onStatusChange: (value: string) => void;
-  onCategoryChange: (value: string) => void;
-  onOperabilityChange: (value: string) => void;
-  onEmployeeChange: (value: string) => void;
+  onStatusChange: (value: string[]) => void;
+  onCategoryChange: (value: string[]) => void;
+  onOperabilityChange: (value: string[]) => void;
+  onEmployeeChange: (value: string[]) => void;
   onReset: () => void;
   onToggleSelectAll: () => void;
   onExport: () => void;
@@ -109,71 +103,63 @@ export function WarehouseFilters({
         )}
       </div>
 
-      <Select value={status} onValueChange={onStatusChange}>
-        <SelectTrigger className={mobile
-          ? "w-full border-input/50 bg-surface-base"
-          : "w-full border-input/50 bg-surface-base sm:w-[150px]"}>
-          <SelectValue placeholder="Статус" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все статусы</SelectItem>
-          <SelectItem value="available">Доступно</SelectItem>
-          <SelectItem value="in-use">Используется</SelectItem>
-          <SelectItem value="maintenance">Обслуживание</SelectItem>
-          <SelectItem value="broken">Сломано</SelectItem>
-        </SelectContent>
-      </Select>
+      <StreamMultiSelect
+        values={status}
+        onValuesChange={onStatusChange}
+        ariaLabel="Статусы оборудования"
+        placeholder="Все статусы"
+        options={[
+          { value: "available", label: "Доступно" },
+          { value: "in-use", label: "Используется" },
+          { value: "maintenance", label: "Обслуживание" },
+          { value: "broken", label: "Сломано" },
+        ]}
+        className={mobile ? "w-full" : "w-full sm:w-[170px]"}
+      />
 
-      <Select value={category} onValueChange={onCategoryChange}>
-        <SelectTrigger className={mobile
-          ? "w-full border-input/50 bg-surface-base"
-          : "w-full border-input/50 bg-surface-base sm:w-[140px]"}>
-          <SelectValue placeholder="Тип" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все категории</SelectItem>
-          {categoryOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <StreamMultiSelect
+        values={category}
+        onValuesChange={onCategoryChange}
+        ariaLabel="Категории оборудования"
+        placeholder="Все категории"
+        options={categoryOptions}
+        searchable
+        className={mobile ? "w-full" : "w-full sm:w-[180px]"}
+      />
 
-      <Select value={operability} onValueChange={onOperabilityChange}>
-        <SelectTrigger className={mobile
-          ? "w-full border-input/50 bg-surface-base"
-          : "w-full border-input/50 bg-surface-base sm:w-[155px]"}>
-          <SelectValue placeholder="Исправность" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{mobile ? "Любая исправность" : "Исправность"}</SelectItem>
-          <SelectItem value="working">Исправно</SelectItem>
-          <SelectItem value="broken">Неисправно</SelectItem>
-          <SelectItem value="on_repair">В ремонте</SelectItem>
-        </SelectContent>
-      </Select>
+      <StreamMultiSelect
+        values={operability}
+        onValuesChange={onOperabilityChange}
+        ariaLabel="Исправность оборудования"
+        placeholder={mobile ? "Любая исправность" : "Исправность"}
+        options={[
+          { value: "working", label: "Исправно" },
+          { value: "broken", label: "Неисправно" },
+          { value: "on_repair", label: "В ремонте" },
+        ]}
+        className={mobile ? "w-full" : "w-full sm:w-[170px]"}
+      />
 
       {canFilterByEmployee && (
-        <Select value={employee} onValueChange={onEmployeeChange}>
-          <SelectTrigger className={mobile
-            ? "w-full border-input/50 bg-surface-base"
-            : "w-full border-input/50 bg-surface-base sm:w-[190px]"}>
-            <SelectValue placeholder="Сотрудник" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все сотрудники</SelectItem>
-            <SelectItem value="unassigned">Без сотрудника</SelectItem>
-            {employeeOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label} ({option.count})
-              </SelectItem>
-            ))}
-            {unknownEmployeeOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label} ({option.count})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <StreamMultiSelect
+          values={employee}
+          onValuesChange={onEmployeeChange}
+          ariaLabel="Сотрудники оборудования"
+          placeholder="Все сотрудники"
+          searchable
+          options={[
+            { value: "unassigned", label: "Без сотрудника" },
+            ...employeeOptions.map((option) => ({
+              value: option.id,
+              label: `${option.label} (${option.count})`,
+            })),
+            ...unknownEmployeeOptions.map((option) => ({
+              value: option.id,
+              label: `${option.label} (${option.count})`,
+            })),
+          ]}
+          className={mobile ? "w-full" : "w-full sm:w-[210px]"}
+        />
       )}
     </>
   );

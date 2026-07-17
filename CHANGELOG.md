@@ -10,6 +10,9 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added workspace-scoped Calendar event types, persisted event colors,
+  Location-backed venues, multiple event participants, and multiple responsible
+  users for projects.
 - Added a shared active-workspace selector with remembered company choices and a separate personal workspace for Kanban V2, Calendar, and Projects.
 - Added company-scoped equipment destinations and work context: Warehouse checkout/edit flows can use an active Location or manual place, an optional project, and multiple project-consistent Kanban V2 cards without creating new Legacy Task Manager links.
 - Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
@@ -24,6 +27,9 @@ changes are collected under `Unreleased`.
 
 ### Changed
 
+- Unified supported screens and dialogs around semantic light/dark theme tokens,
+  custom searchable selectors, color pickers, compact responsive layouts, and
+  multi-value filters where the underlying data supports multiple choices.
 - Changed Calendar Day, 3 Days, and Week views to a continuously scrollable, day-snapping timeline with adjacent-date buffering, synchronized toolbar navigation, keyboard, mouse, trackpad, and touch controls, a sticky all-day/date header during vertical scrolling, and direct Month-to-Day navigation from date cells.
 - Changed workspace switching to flush registered autosaves, close feature state through a workspace remount, clear React Query data, and reconnect realtime subscriptions before loading the target workspace.
 - Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.

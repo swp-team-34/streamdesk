@@ -278,6 +278,7 @@ export class MemStorage implements IStorage {
       status: "scheduled",
       customLocation: null,
       type: "stream",
+      color: null,
       ...insertEvent,
       id: randomUUID(),
       createdAt: new Date(),
