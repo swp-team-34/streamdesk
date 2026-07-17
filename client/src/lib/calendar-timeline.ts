@@ -1,0 +1,97 @@
+import { addDays } from "date-fns";
+
+export type CalendarTimelineViewMode = "week" | "3days" | "day";
+
+export const CALENDAR_TIMELINE_GUTTER_WIDTH = 56;
+export const CALENDAR_TIMELINE_BUFFER_DAYS = 7;
+
+const MIN_DAY_WIDTH: Record<CalendarTimelineViewMode, number> = {
+  day: 240,
+  "3days": 144,
+  week: 96,
+};
+
+const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
+
+const shouldShowDate = (
+  date: Date,
+  viewMode: CalendarTimelineViewMode,
+  showWeekends: boolean,
+) => viewMode === "day" || showWeekends || !isWeekend(date);
+
+export const getCalendarTimelineVisibleDayCount = (
+  viewMode: CalendarTimelineViewMode,
+  showWeekends: boolean,
+) => {
+  if (viewMode === "day") return 1;
+  if (viewMode === "3days") return 3;
+  return showWeekends ? 7 : 5;
+};
+
+export const buildCalendarTimelineDays = ({
+  anchorDate,
+  viewMode,
+  showWeekends,
+  bufferDays = CALENDAR_TIMELINE_BUFFER_DAYS,
+}: {
+  anchorDate: Date;
+  viewMode: CalendarTimelineViewMode;
+  showWeekends: boolean;
+  bufferDays?: number;
+}) => {
+  const visibleDayCount = getCalendarTimelineVisibleDayCount(viewMode, showWeekends);
+  const normalizedAnchor = new Date(anchorDate);
+  normalizedAnchor.setHours(12, 0, 0, 0);
+
+  while (!shouldShowDate(normalizedAnchor, viewMode, showWeekends)) {
+    normalizedAnchor.setDate(normalizedAnchor.getDate() + 1);
+  }
+
+  const before: Date[] = [];
+  let cursor = normalizedAnchor;
+  while (before.length < bufferDays) {
+    cursor = addDays(cursor, -1);
+    if (shouldShowDate(cursor, viewMode, showWeekends)) before.unshift(cursor);
+  }
+
+  const after: Date[] = [normalizedAnchor];
+  cursor = normalizedAnchor;
+  while (after.length < visibleDayCount + bufferDays) {
+    cursor = addDays(cursor, 1);
+    if (shouldShowDate(cursor, viewMode, showWeekends)) after.push(cursor);
+  }
+
+  return before.concat(after);
+};
+
+export const getCalendarTimelineDayWidth = ({
+  viewportWidth,
+  viewMode,
+  showWeekends,
+  gutterWidth = CALENDAR_TIMELINE_GUTTER_WIDTH,
+}: {
+  viewportWidth: number;
+  viewMode: CalendarTimelineViewMode;
+  showWeekends: boolean;
+  gutterWidth?: number;
+}) => {
+  const visibleDayCount = getCalendarTimelineVisibleDayCount(viewMode, showWeekends);
+  const availableWidth = Math.max(0, viewportWidth - gutterWidth);
+  return Math.max(MIN_DAY_WIDTH[viewMode], availableWidth / visibleDayCount);
+};
+
+export const getCalendarTimelineSnapIndex = ({
+  scrollLeft,
+  dayWidth,
+  dayCount,
+}: {
+  scrollLeft: number;
+  dayWidth: number;
+  dayCount: number;
+}) => {
+  if (dayCount <= 0 || dayWidth <= 0) return 0;
+  return Math.max(0, Math.min(dayCount - 1, Math.round(scrollLeft / dayWidth)));
+};
+
+export const getCalendarTimelineScrollLeft = (dayIndex: number, dayWidth: number) =>
+  Math.max(0, dayIndex) * Math.max(0, dayWidth);

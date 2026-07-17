@@ -24,6 +24,7 @@ changes are collected under `Unreleased`.
 
 ### Changed
 
+- Changed Calendar Day, 3 Days, and Week views to a continuously scrollable, day-snapping timeline with adjacent-date buffering, synchronized toolbar navigation, keyboard, mouse, trackpad, and touch controls, a sticky all-day/date header during vertical scrolling, and direct Month-to-Day navigation from date cells.
 - Changed workspace switching to flush registered autosaves, close feature state through a workspace remount, clear React Query data, and reconnect realtime subscriptions before loading the target workspace.
 - Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.
 - Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
