@@ -53,7 +53,7 @@ import {
   type DashboardWidgetDefinition,
   type DashboardWidgetId,
 } from "@/lib/dashboard-page-model";
-import { RotateCcw, Settings2 } from "lucide-react";
+import { Check, RotateCcw, Settings2 } from "lucide-react";
 
 export default function Dashboard() {
   const currentUser = getCurrentUser();
@@ -76,7 +76,7 @@ export default function Dashboard() {
   } | null>(null);
   const [isInvalidTarget, setIsInvalidTarget] = useState(false);
   const [resetMode, setResetMode] = useState<"positions" | "positions-and-sizes" | null>(null);
-  const [isWidgetSettingsOpen, setIsWidgetSettingsOpen] = useState(false);
+  const [isEditingLayout, setIsEditingLayout] = useState(false);
   const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
     retry: 1,
@@ -116,6 +116,11 @@ export default function Dashboard() {
   useWebSocket();
 
   useEffect(() => () => interactionCleanupRef.current?.(), []);
+
+  useEffect(() => {
+    if (isEditingLayout) return;
+    interactionCleanupRef.current?.();
+  }, [isEditingLayout]);
 
   useEffect(() => {
     if (previousLayoutStorageKeyRef.current === layoutStorageKey) return;
@@ -228,7 +233,7 @@ export default function Dashboard() {
     mode: "move" | "resize",
     event: ReactPointerEvent<HTMLElement>,
   ) => {
-    if (event.button !== 0 || !window.matchMedia("(min-width: 1024px)").matches) return;
+    if (!isEditingLayout || event.button !== 0 || !window.matchMedia("(min-width: 1024px)").matches) return;
     const grid = gridRef.current;
     const initialPlacement = displayedWidgetLayout.items[widgetId];
     if (!grid || !initialPlacement) return;
@@ -329,84 +334,107 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-1.5 sm:space-y-2 w-full min-w-0 max-w-full overflow-hidden pt-0 sm:pt-0">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 w-full min-w-0">
+    <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
+      <section
+        className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-2"
+        aria-label="Пользователь и ближайшее событие"
+      >
         <DashboardProfileCard />
         <DashboardCountdownWidget nextEvent={nextEvent} />
-      </div>
+      </section>
 
-      <div className="rounded-xl border border-border/40 bg-background/35 p-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <section className="space-y-3" aria-labelledby="dashboard-workspace-title">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 id="dashboard-workspace-title" className="text-base font-semibold text-foreground">
+              Рабочая область
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Ключевые показатели и операционные виджеты команды.
+            </p>
+          </div>
           <Button
-            variant="outline"
+            variant={isEditingLayout ? "default" : "outline"}
             size="sm"
-            className="h-8 rounded-lg"
-            onClick={() => setIsWidgetSettingsOpen((value) => !value)}
+            onClick={() => setIsEditingLayout((value) => !value)}
+            aria-pressed={isEditingLayout}
           >
-            <Settings2 className="mr-2 h-4 w-4" />
-            Виджеты
+            {isEditingLayout ? <Check className="mr-2 h-4 w-4" /> : <Settings2 className="mr-2 h-4 w-4" />}
+            {isEditingLayout ? "Готово" : "Настроить виджеты"}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 rounded-lg">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Сбросить layout
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setResetMode("positions")}>
-                Сбросить только позиции
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setResetMode("positions-and-sizes")}>
-                Сбросить позиции и размеры
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
-        {isWidgetSettingsOpen && (
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {widgetDefinitions.map((widget) => {
-              const isVisible = !hiddenWidgetIds.includes(widget.id);
-              return (
-                <label
-                  key={widget.id}
-                  className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/60 px-3 py-2 text-sm"
-                >
-                  <span className="truncate font-medium">{widget.title}</span>
-                  <input
-                    type="checkbox"
-                    checked={isVisible}
-                    onChange={(event) => toggleWidgetVisibility(widget.id, event.target.checked)}
-                    className="h-4 w-4 accent-primary"
-                  />
-                </label>
-              );
-            })}
+
+        {isEditingLayout && (
+          <div className="rounded-surface border border-border/60 bg-surface-raised p-3 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Режим настройки</p>
+                <p className="text-xs text-muted-foreground">
+                  Перетаскивайте и изменяйте размер виджетов на широком экране.
+                </p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Сбросить расположение
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setResetMode("positions")}>
+                    Сбросить только позиции
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setResetMode("positions-and-sizes")}>
+                    Сбросить позиции и размеры
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {widgetDefinitions.map((widget) => {
+                const isVisible = !hiddenWidgetIds.includes(widget.id);
+                return (
+                  <label
+                    key={widget.id}
+                    className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-sm"
+                  >
+                    <span className="truncate font-medium">{widget.title}</span>
+                    <input
+                      type="checkbox"
+                      checked={isVisible}
+                      onChange={(event) => toggleWidgetVisibility(widget.id, event.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
-      </div>
 
-      <div ref={gridRef} className="dashboard-widget-grid">
-        {orderedWidgets.map((widget, index) => {
-          const placement = displayedWidgetLayout.items[widget.id];
-          if (!placement) return null;
-          const isCurrentInteraction = activeInteraction?.widgetId === widget.id;
-          return (
-            <DashboardGridWidget
-              key={widget.id}
-              widget={widget}
-              index={index}
-              total={orderedWidgets.length}
-              placement={placement}
-              isInteracting={isCurrentInteraction}
-              isInvalidTarget={isCurrentInteraction && isInvalidTarget}
-              onMove={moveWidgetByButton}
-              onPointerInteraction={startPointerInteraction}
-              onResizeStep={resizeWidgetByStep}
-            />
-          );
-        })}
-      </div>
+        <div ref={gridRef} className="dashboard-widget-grid">
+          {orderedWidgets.map((widget, index) => {
+            const placement = displayedWidgetLayout.items[widget.id];
+            if (!placement) return null;
+            const isCurrentInteraction = activeInteraction?.widgetId === widget.id;
+            return (
+              <DashboardGridWidget
+                key={widget.id}
+                widget={widget}
+                index={index}
+                total={orderedWidgets.length}
+                placement={placement}
+                isEditing={isEditingLayout}
+                isInteracting={isCurrentInteraction}
+                isInvalidTarget={isCurrentInteraction && isInvalidTarget}
+                onMove={moveWidgetByButton}
+                onPointerInteraction={startPointerInteraction}
+                onResizeStep={resizeWidgetByStep}
+              />
+            );
+          })}
+        </div>
+      </section>
 
       <DashboardServicesSection user={currentUser} />
 

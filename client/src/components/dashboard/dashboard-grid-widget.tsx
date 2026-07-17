@@ -23,12 +23,14 @@ import type {
   DashboardWidgetDefinition,
   DashboardWidgetId,
 } from "@/lib/dashboard-page-model";
+import { cn } from "@/lib/utils";
 
 export function DashboardGridWidget({
   widget,
   index,
   total,
   placement,
+  isEditing,
   isInteracting,
   isInvalidTarget,
   onMove,
@@ -39,6 +41,7 @@ export function DashboardGridWidget({
   index: number;
   total: number;
   placement: DashboardWidgetPlacement;
+  isEditing: boolean;
   isInteracting: boolean;
   isInvalidTarget: boolean;
   onMove: (index: number, direction: "up" | "down") => void;
@@ -63,8 +66,13 @@ export function DashboardGridWidget({
         "--dashboard-widget-h": placement.h,
       } as CSSProperties}
     >
-      <div className="relative flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/35 bg-background/30 p-1 shadow-sm transition-colors">
-        <div className="mb-1 flex items-center justify-between gap-2 px-1">
+      <div
+        className={cn(
+          "relative flex h-full min-w-0 flex-col overflow-hidden transition-colors",
+          isEditing && "rounded-surface border border-primary/30 bg-primary/5 p-1 shadow-xs",
+        )}
+      >
+        {isEditing && <div className="mb-1 flex items-center justify-between gap-2 px-1">
           <button
             type="button"
             className="dashboard-direct-drag-handle flex min-w-0 flex-1 touch-none items-center gap-1.5 rounded-md text-left text-xs font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -127,11 +135,11 @@ export function DashboardGridWidget({
               <ArrowDown className="h-3.5 w-3.5" />
             </Button>
           </div>
-        </div>
+        </div>}
         <div className="dashboard-widget-content min-h-[96px] min-w-0 flex-1 overflow-auto">
           {widget.render()}
         </div>
-        <button
+        {isEditing && <button
           type="button"
           className="dashboard-resize-handle absolute bottom-0 right-0 h-7 w-7 touch-none rounded-tl-lg text-muted-foreground outline-none transition hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/60"
           onPointerDown={(event) => onPointerInteraction(widget.id, "resize", event)}
@@ -150,7 +158,7 @@ export function DashboardGridWidget({
           title="Потяните для изменения размера"
         >
           <MoveDiagonal2 className="ml-auto mt-auto h-4 w-4" />
-        </button>
+        </button>}
       </div>
     </div>
   );
