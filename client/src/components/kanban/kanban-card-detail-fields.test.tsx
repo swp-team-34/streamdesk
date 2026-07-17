@@ -18,7 +18,12 @@ vi.mock("@/components/ui/stream-date-time-picker", () => ({
     <div>
       <label htmlFor={id}>
         {label}
-        <input id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+        <input
+          id={id}
+          value={value}
+          data-all-day={String(allDay)}
+          onChange={(event) => onChange(event.target.value)}
+        />
       </label>
       <button
         type="button"
@@ -176,6 +181,26 @@ describe("KanbanCardDetailFields", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       startDate: "2026-07-17T00:00",
       startDateHasTime: false,
+    }));
+  });
+
+  it("shows time for an unset date and marks the first selected value as timed", () => {
+    const onChange = vi.fn();
+    render(
+      <KanbanCardDetailFields
+        {...baseProps}
+        form={{ ...form, startDate: "", startDateHasTime: false }}
+        onChange={onChange}
+      />,
+    );
+
+    const startDateInput = screen.getByLabelText("Дата старта");
+    expect(startDateInput).toHaveAttribute("data-all-day", "false");
+    fireEvent.change(startDateInput, { target: { value: "2026-07-17T09:00" } });
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: "2026-07-17T09:00",
+      startDateHasTime: true,
     }));
   });
 });

@@ -281,16 +281,21 @@ export function KanbanCardDetailFields({
           id="kanban-detail-start-date"
           label="Дата старта"
           value={form.startDate}
-          allDay={!form.startDateHasTime}
+          allDay={Boolean(form.startDate) && !form.startDateHasTime}
           showAllDay
           minValue={null}
           onChange={(value) => {
-            if (!value || !form.dueDate || !form.startDateHasTime || !form.dueDateHasTime) {
-              patchForm({ startDate: value });
+            const startDateHasTime = value && !form.startDate ? true : form.startDateHasTime;
+            if (!value || !form.dueDate || !startDateHasTime || !form.dueDateHasTime) {
+              patchForm({ startDate: value, startDateHasTime });
               return;
             }
             const normalized = normalizeDateRange(new Date(value), new Date(form.dueDate), 60);
-            patchForm({ startDate: value, dueDate: toDateTimeLocalValue(normalized.end) });
+            patchForm({
+              startDate: value,
+              startDateHasTime,
+              dueDate: toDateTimeLocalValue(normalized.end),
+            });
           }}
           onAllDayChange={(allDay, nextValue) => {
             if (allDay || !form.dueDate || !form.dueDateHasTime) {
@@ -311,16 +316,20 @@ export function KanbanCardDetailFields({
           id="kanban-detail-due-date"
           label="Срок"
           value={form.dueDate}
-          allDay={!form.dueDateHasTime}
+          allDay={Boolean(form.dueDate) && !form.dueDateHasTime}
           showAllDay
           minValue={form.startDate || null}
           onChange={(value) => {
-            if (!value || !form.startDate || !form.startDateHasTime || !form.dueDateHasTime) {
-              patchForm({ dueDate: value });
+            const dueDateHasTime = value && !form.dueDate ? true : form.dueDateHasTime;
+            if (!value || !form.startDate || !form.startDateHasTime || !dueDateHasTime) {
+              patchForm({ dueDate: value, dueDateHasTime });
               return;
             }
             const normalized = normalizeDateRange(new Date(form.startDate), new Date(value), 60);
-            patchForm({ dueDate: toDateTimeLocalValue(normalized.end) });
+            patchForm({
+              dueDate: toDateTimeLocalValue(normalized.end),
+              dueDateHasTime,
+            });
           }}
           onAllDayChange={(allDay, nextValue) => {
             if (allDay || !form.startDate || !form.startDateHasTime) {

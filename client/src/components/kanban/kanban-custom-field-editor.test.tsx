@@ -77,11 +77,12 @@ describe("KanbanCustomFieldEditor", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Field name" }));
+    fireEvent.click(screen.getByRole("option", { name: "Beta" }));
     expect(onChange).toHaveBeenCalledWith(["Alpha", "Beta"]);
     expect(value).toEqual(["Alpha"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+    fireEvent.click(screen.getByRole("option", { name: "Alpha" }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
