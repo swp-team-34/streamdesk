@@ -52,7 +52,7 @@ export function KanbanUserMultiSelect({
             type="button"
             variant="outline"
             disabled={disabled}
-            className="h-10 w-full justify-between rounded-xl border-border/35 bg-muted/20 px-3 font-normal"
+            className="h-10 w-full justify-between rounded-control border-border/50 bg-surface-subtle px-3 font-normal"
           >
             <span className={selectedUsers.length ? "" : "text-muted-foreground"}>
               {selectedUsers.length ? `Выбрано: ${selectedUsers.length}` : placeholder}
@@ -68,7 +68,7 @@ export function KanbanUserMultiSelect({
                 <button
                   key={user.id}
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted/60"
+                  className="flex w-full items-center justify-between gap-3 rounded-control px-3 py-2 text-left text-sm hover:bg-surface-subtle"
                   onClick={() => toggle(user.id)}
                 >
                   <span className="min-w-0">

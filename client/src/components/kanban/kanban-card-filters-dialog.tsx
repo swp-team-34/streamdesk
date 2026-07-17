@@ -109,7 +109,7 @@ export function KanbanCardFiltersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
+      <DialogContent className="max-w-lg border-border/50 bg-surface-overlay text-foreground shadow-overlay">
         <DialogHeader>
           <DialogTitle>Фильтры</DialogTitle>
           <DialogDescription>Быстрые срезы по карточкам текущей доски.</DialogDescription>
@@ -250,7 +250,7 @@ export function KanbanCardFiltersDialog({
             </div>
           )}
           {customFields.length > 0 && (
-            <div className="space-y-2 rounded-2xl border border-border/30 bg-muted/15 p-3">
+            <div className="space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
               <div>
                 <h4 className="text-sm font-semibold">Поля карточек</h4>
                 <p className="text-xs text-muted-foreground">Фильтр ищет по значениям выбранных custom fields.</p>
@@ -261,11 +261,11 @@ export function KanbanCardFiltersDialog({
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-xs font-medium text-muted-foreground" htmlFor={`kanban-filter-field-${field.id}`}>{field.name}</label>
                       <details className="text-xs text-muted-foreground">
-                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50">
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-control px-1.5 py-0.5 hover:bg-surface-overlay">
                           <HelpCircle className="h-3.5 w-3.5" />
                           Как работает
                         </summary>
-                        <p className="mt-1 max-w-xs rounded-lg border border-border/35 bg-popover p-2 text-popover-foreground shadow-lg">
+                        <p className="mt-1 max-w-xs rounded-control border border-border/50 bg-surface-overlay p-2 text-foreground shadow-overlay">
                           {getKanbanCustomFieldFilterHelp(field)}
                         </p>
                       </details>
@@ -306,7 +306,7 @@ export function KanbanCardFiltersDialog({
                               ? "secondary"
                               : "outline"
                           }
-                          className="shrink-0 rounded-xl"
+                          className="shrink-0 rounded-control"
                           onClick={() => updateCustomField(
                             field.id,
                             filters.customFieldValues[field.id] === KANBAN_EMPTY_FIELD_FILTER

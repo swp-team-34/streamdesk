@@ -73,7 +73,7 @@ export function KanbanListViewGroup({
   ) : cards;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/30 bg-card/50">
+    <section className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/25 px-3 py-2.5">
         <h3 className="font-semibold">{group.title}</h3>
         <Badge variant="secondary" className="rounded-full">{group.cards.length}</Badge>
@@ -107,7 +107,7 @@ export function KanbanListViewGroup({
             disabled={Boolean(group.droppableListId) || savePending || lists.length === 0}
           />
           <Button
-            className="rounded-xl"
+            className="rounded-control"
             onClick={onSubmitDraft}
             disabled={!draftValue.trim() || !draftListId || savePending}
           >

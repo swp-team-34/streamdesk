@@ -237,11 +237,11 @@ export function KanbanCardDetailFields({
             <label className="text-sm font-medium">Площадки</label>
             <span className="text-xs text-muted-foreground">{selectedLocationIds.length || "Нет связей"}</span>
           </div>
-          <div className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border/40 bg-background/55 p-2">
+          <div className="max-h-36 space-y-1 overflow-y-auto rounded-control border border-border/50 bg-surface-raised p-2">
             {companyLocations.map((location) => {
               const checked = selectedLocationIds.includes(location.id);
               return (
-                <label key={location.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50">
+                <label key={location.id} className="flex items-center justify-between gap-2 rounded-control px-2 py-1.5 text-sm hover:bg-surface-subtle">
                   <span className="flex min-w-0 items-center gap-2">
                     <Checkbox
                       aria-label={`Связать площадку «${location.name}»`}

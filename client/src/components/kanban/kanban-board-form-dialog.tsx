@@ -80,7 +80,7 @@ export function KanbanBoardFormDialog({
 }: KanbanBoardFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl border-border/50 bg-card text-card-foreground">
+      <DialogContent className="max-w-2xl border-border/50 bg-surface-overlay text-foreground shadow-overlay">
         <DialogHeader>
           <DialogTitle>{editingBoardId ? "Изменить доску" : "Создать доску"}</DialogTitle>
           <DialogDescription>
@@ -110,7 +110,7 @@ export function KanbanBoardFormDialog({
                     companyId: value === "personal" ? "" : form.companyId || companies[0]?.id || "",
                   })}
                   className={[
-                    "rounded-2xl border p-3 text-left transition",
+                    "rounded-surface border p-3 text-left transition",
                     selected
                       ? "border-primary/60 bg-primary/10 text-foreground"
                       : "border-border/40 bg-background hover:bg-accent/60",

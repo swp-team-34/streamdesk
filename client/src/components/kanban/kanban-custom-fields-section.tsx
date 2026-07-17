@@ -69,7 +69,7 @@ export function KanbanCustomFieldsSection({
       </div>
 
       {canEdit && (
-        <div className="mt-4 space-y-4 rounded-control border border-border/40 bg-muted/15 p-4">
+        <div className="mt-4 space-y-4 rounded-surface border border-border/50 bg-surface-subtle p-4">
           <div>
             <h4 className="text-sm font-medium">{editingFieldId ? "Редактирование поля" : "Новое поле"}</h4>
             <p className="text-xs text-muted-foreground">Название, тип и правила отображения сохраняются для всей доски.</p>
@@ -169,12 +169,12 @@ export function KanbanCustomFieldsSection({
 
       <div className="mt-4 space-y-2">
         {fields.length === 0 ? (
-          <div className="rounded-control border border-dashed border-border/40 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
+          <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
             Полей пока нет.
           </div>
         ) : (
           fields.map((field) => (
-            <div key={field.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border/35 bg-muted/15 px-4 py-3">
+            <div key={field.id} className="flex flex-wrap items-center justify-between gap-3 rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
               <div className="min-w-0 space-y-1.5">
                 <div className="font-medium">{field.name}</div>
                 <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">

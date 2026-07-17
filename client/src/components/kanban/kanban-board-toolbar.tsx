@@ -94,7 +94,7 @@ export function KanbanBoardToolbar({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1 h-8 w-8 rounded-lg text-muted-foreground"
+                    className="absolute right-1 top-1 h-8 w-8 rounded-control text-muted-foreground"
                     onClick={() => onSearchChange("")}
                     aria-label="Очистить поиск"
                   >

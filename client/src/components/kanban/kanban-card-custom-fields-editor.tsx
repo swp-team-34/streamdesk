@@ -64,7 +64,7 @@ export function KanbanCardCustomFieldsEditor({
       </div>
 
       {fields.length === 0 ? (
-        <div className="rounded-control border border-dashed border-border/40 bg-muted/15 px-3 py-4 text-sm text-muted-foreground">
+        <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-3 py-4 text-sm text-muted-foreground">
           Полей пока нет. Создай первое поле здесь или в настройках доски.
         </div>
       ) : (
@@ -72,7 +72,7 @@ export function KanbanCardCustomFieldsEditor({
           {fields.map((field) => (
             <div
               key={field.id}
-              className="min-w-0 space-y-2 rounded-control border border-border/35 bg-muted/15 p-3"
+              className="min-w-0 space-y-2 rounded-surface border border-border/50 bg-surface-subtle p-3"
             >
               <label className="text-sm font-medium text-foreground" htmlFor={`kanban-detail-custom-field-${field.id}`}>
                 {field.name}{field.required ? <span className="text-error"> *</span> : null}
@@ -91,7 +91,7 @@ export function KanbanCardCustomFieldsEditor({
       )}
 
       {canEdit && (
-        <div className="space-y-3 rounded-control border border-border/35 bg-muted/15 p-3">
+        <div className="space-y-3 rounded-surface border border-border/50 bg-surface-subtle p-3">
           <div>
             <h4 className="text-sm font-medium">Добавить поле</h4>
             <p className="text-xs text-muted-foreground">Поле станет доступно на всех карточках этой доски.</p>

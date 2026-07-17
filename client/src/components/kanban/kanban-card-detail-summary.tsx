@@ -36,7 +36,7 @@ export function KanbanCardDetailHeader({ card, list }: KanbanCardDetailHeaderPro
   const dueDateStatus = getDueDateStatus(card.dueDate, { isComplete: isCompleteLikeList(list) });
   const dueDateStatusClasses = getDueDateStatusClasses(dueDateStatus);
   return (
-    <DialogHeader className="space-y-3 border-b border-border/35 bg-muted/20 px-6 py-5">
+    <DialogHeader className="space-y-3 border-b border-border/50 bg-surface-subtle px-6 py-5">
       <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
         <div className="space-y-1">
           <DialogTitle className="break-words text-xl font-semibold tracking-tight">{card.title}</DialogTitle>
@@ -49,7 +49,7 @@ export function KanbanCardDetailHeader({ card, list }: KanbanCardDetailHeaderPro
             {CARD_PRIORITY_LABELS[card.priority]}
           </Badge>
           {list && (
-            <Badge variant="outline" className="rounded-full border-border/40 bg-muted/30 text-muted-foreground">
+            <Badge variant="outline" className="rounded-full border-border/40 bg-surface-overlay text-muted-foreground">
               {list.name}
             </Badge>
           )}
@@ -68,7 +68,7 @@ export function KanbanCardLocationContext({ card }: { card: KanbanCardView }) {
   return (
     <>
       {issues.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-control border border-warning/30 bg-warning-muted px-3 py-2 text-sm text-warning">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             На связанных площадках есть проблемы высокой важности:{" "}
@@ -77,8 +77,8 @@ export function KanbanCardLocationContext({ card }: { card: KanbanCardView }) {
         </div>
       )}
       {topics.length > 0 && (
-        <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2">
-          <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-violet-800 dark:text-violet-200">
+        <div className="rounded-control border border-primary/25 bg-primary/5 px-3 py-2">
+          <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-primary">
             <MessageSquare className="h-4 w-4" />
             Активные темы связанных площадок
           </div>

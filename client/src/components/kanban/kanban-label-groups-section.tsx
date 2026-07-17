@@ -53,7 +53,7 @@ export function KanbanLabelGroupsSection({
       </div>
 
       {canEdit && (
-        <div className="mt-4 grid gap-2 rounded-2xl border border-border/30 bg-muted/15 p-3 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
+        <div className="mt-4 grid gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
           <Input
             aria-label="Название группы меток"
             value={form.name}
@@ -72,12 +72,12 @@ export function KanbanLabelGroupsSection({
           />
           <div className="flex gap-2">
             {editingGroupId && (
-              <Button variant="ghost" className="rounded-xl" onClick={onCancelEdit}>
+              <Button variant="ghost" className="rounded-control" onClick={onCancelEdit}>
                 Отмена
               </Button>
             )}
             <Button
-              className="rounded-xl"
+              className="rounded-control"
               onClick={onSave}
               disabled={!form.name.trim() || savePending}
             >
@@ -89,12 +89,12 @@ export function KanbanLabelGroupsSection({
 
       <div className="mt-4 space-y-2">
         {groups.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/30 bg-muted/15 px-4 py-5 text-sm text-muted-foreground">
+          <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
             Групп меток пока нет.
           </div>
         ) : (
           groups.map((group) => (
-            <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/30 bg-muted/15 px-4 py-3">
+            <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
               <div className="flex items-center gap-3">
                 <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color || "var(--primary)" }} />
                 <div>
@@ -111,13 +111,13 @@ export function KanbanLabelGroupsSection({
               </div>
               {canEdit && (
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => onEdit(group)}>
+                  <Button variant="ghost" size="sm" className="rounded-control" onClick={() => onEdit(group)}>
                     Изменить
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    className="rounded-control text-error hover:bg-error-muted hover:text-error"
                     onClick={() => onDelete(group)}
                     disabled={deletePending}
                   >

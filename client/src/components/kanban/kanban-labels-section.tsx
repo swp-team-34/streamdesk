@@ -71,7 +71,7 @@ export function KanbanLabelsSection({
       </div>
 
       {canEdit && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-border/35 bg-muted/20 p-3">
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
           <Input
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
@@ -84,7 +84,7 @@ export function KanbanLabelsSection({
               onCreate();
             }}
           />
-          <Button className="rounded-xl" onClick={onCreate} disabled={!draft.trim() || savePending}>
+          <Button className="rounded-control" onClick={onCreate} disabled={!draft.trim() || savePending}>
             <Plus className="mr-1 h-4 w-4" />
             Добавить метку
           </Button>
@@ -93,12 +93,12 @@ export function KanbanLabelsSection({
 
       <div className="mt-4 space-y-3">
         {labels.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+          <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
             Меток пока нет. Создай первую из detail modal карточки.
           </div>
         ) : (
           labels.map((label) => (
-            <div key={label.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4">
+            <div key={label.id} className="rounded-surface border border-border/50 bg-surface-subtle p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 {editingLabelId === label.id ? (
                   <Input
@@ -135,7 +135,7 @@ export function KanbanLabelsSection({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-xl"
+                      className="h-8 w-8 rounded-control"
                       onClick={() => onBeginEdit(label)}
                       disabled={savePending}
                       title="Переименовать"
@@ -146,7 +146,7 @@ export function KanbanLabelsSection({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      className="rounded-control text-error hover:bg-error-muted hover:text-error"
                       onClick={() => onDelete(label)}
                       disabled={deletePending}
                     >
@@ -175,7 +175,7 @@ export function KanbanLabelsSection({
                         key={preset.value}
                         type="button"
                         className={[
-                          "h-8 w-8 rounded-xl border transition hover:scale-105",
+                          "h-8 w-8 rounded-control border transition hover:scale-105",
                           label.color === preset.value
                             ? "border-primary/70 ring-2 ring-primary/30"
                             : "border-border/50",

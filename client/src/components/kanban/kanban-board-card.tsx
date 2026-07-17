@@ -164,7 +164,7 @@ export function KanbanBoardCard({
             <div className="flex min-w-0 gap-2">
               {canEdit && (
                 <div
-                  className="task-drag-handle shrink-0 self-center rounded-xl p-1.5 text-muted-foreground transition group-hover:text-foreground"
+                  className="task-drag-handle shrink-0 self-center rounded-control p-1.5 text-muted-foreground transition group-hover:text-foreground"
                   style={{ backgroundColor: listTint || "var(--muted)" }}
                 >
                   <GripVertical className="h-4 w-4" />

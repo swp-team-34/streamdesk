@@ -34,7 +34,7 @@ export function KanbanCustomFieldEditor({
     return (
       <label
         htmlFor={commonId}
-        className="flex min-h-10 items-center gap-2 rounded-control border border-border/40 bg-surface-raised px-3 py-2 text-sm transition-colors hover:bg-muted/35"
+        className="flex min-h-10 items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm transition-colors hover:bg-surface-overlay"
       >
         <Checkbox
           id={commonId}

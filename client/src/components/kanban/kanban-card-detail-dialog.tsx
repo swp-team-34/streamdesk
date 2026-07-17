@@ -78,7 +78,7 @@ export function KanbanCardDetailDialog({
       <DialogContent className="flex max-h-[92vh] w-[min(96vw,1080px)] max-w-6xl flex-col overflow-hidden border-border/60 bg-surface-overlay p-0 text-card-foreground shadow-overlay">
         {!card ? (
           <>
-            <DialogHeader className="border-b border-border/35 bg-muted/20 px-6 py-5">
+            <DialogHeader className="border-b border-border/50 bg-surface-subtle px-6 py-5">
               <DialogTitle>Карточка</DialogTitle>
               <DialogDescription>Загружаем детали карточки...</DialogDescription>
             </DialogHeader>

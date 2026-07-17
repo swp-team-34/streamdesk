@@ -60,12 +60,12 @@ export function KanbanInlineCardComposer({
             }}
           />
           {mentionSuggestions.length > 0 && (
-            <div className="rounded-xl border border-border/40 bg-popover p-1 shadow-lg">
+            <div className="rounded-control border border-border/50 bg-surface-overlay p-1 shadow-overlay">
               {mentionSuggestions.map((user) => (
                 <button
                   key={user.id}
                   type="button"
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted/60"
+                  className="flex w-full items-center justify-between rounded-control px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onChange(insertKanbanMention(value, user.username || user.name))}
                 >
