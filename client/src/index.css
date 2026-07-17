@@ -152,7 +152,7 @@ body::-webkit-scrollbar,
   transition: height 180ms ease, width 180ms ease, margin 180ms ease !important;
 }
 .task-board-column {
-  border-radius: 1.5rem;
+  border-radius: var(--radius-surface);
   height: clamp(380px, calc(100vh - 260px), 760px);
   overflow: visible;
 }
@@ -215,13 +215,13 @@ body::-webkit-scrollbar,
 }
 
 .dashboard-widget-dragging > div {
-  border-color: hsl(var(--primary) / 0.6);
+  border-color: color-mix(in srgb, var(--primary) 60%, transparent);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
 }
 
 .dashboard-widget-invalid-target > div {
-  border-color: hsl(var(--destructive));
-  box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 18%, transparent);
 }
 
 @media (min-width: 1024px) {
@@ -294,81 +294,185 @@ body::-webkit-scrollbar,
   border-radius: 0.5rem;
 }
 
-/* InNoHassle-style light theme: белая тема как у них, фиолетовый primary */
+/* StreamDesk semantic theme: warm Notion light, restrained Linear density. */
 :root,
 .light {
   color-scheme: light;
   --font-rubik: "Rubik Variable", sans-serif;
   --font-handwritten: "Fuzzy Bubbles", sans-serif;
-  --background: hsl(0, 0%, 100%);
-  --foreground: hsl(222, 47%, 11%);
-  --muted: hsl(220, 14%, 96%);
-  --muted-foreground: hsl(215, 16%, 47%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(222, 47%, 11%);
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(222, 47%, 11%);
-  --app-border: 220 13% 88%;
-  --input: 220 13% 88%;
-  --primary: hsl(270, 100%, 64%);
-  --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(220, 14%, 96%);
-  --secondary-foreground: hsl(222, 47%, 11%);
-  --accent: hsl(220, 14%, 96%);
-  --accent-foreground: hsl(222, 47%, 11%);
-  --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(210, 40%, 98%);
-  --ring: hsl(270, 100%, 64%);
-  --radius: 0.5rem;
-  
-  --surface: hsl(220, 14%, 98%);
-  --error: hsl(0, 72%, 51%);
-  --success: hsl(142, 76%, 36%);
-  --warning: hsl(38, 92%, 50%);
-  
-  --neon-cyan: hsl(180, 100%, 50%);
-  --neon-purple: hsl(270, 100%, 64%);
-  --neon-pink: hsl(320, 100%, 60%);
-  --neon-green: hsl(142, 76%, 36%);
-  --neon-blue: hsl(221, 83%, 53%);
-  --neon-orange: hsl(38, 92%, 50%);
+  --background: #f7f7f5;
+  --foreground: #242424;
+  --muted: #efefec;
+  --muted-foreground: #6f6f69;
+  --popover: #ffffff;
+  --popover-foreground: #242424;
+  --card: #ffffff;
+  --card-foreground: #242424;
+  --app-border: 50 7% 86%;
+  --input: 48 7% 80%;
+  --primary: #5e6ad2;
+  --primary-hover: #4a58cc;
+  --primary-muted: #e4e6f1;
+  --primary-foreground: #ffffff;
+  --secondary: #efefec;
+  --secondary-foreground: #34342f;
+  --accent: #eaeae6;
+  --accent-foreground: #242424;
+  --destructive: #c93c45;
+  --destructive-foreground: #ffffff;
+  --ring: #5e6ad2;
+  --radius: 0.625rem;
+
+  --surface: #ffffff;
+  --surface-base: #f7f7f5;
+  --surface-raised: #ffffff;
+  --surface-overlay: #ffffff;
+  --surface-subtle: #f1f1ee;
+  --text-primary: #242424;
+  --text-secondary: #6f6f69;
+  --text-tertiary: #92928b;
+  --border-subtle: #e5e5e0;
+  --border-strong: #d1d1ca;
+  --success: #18794e;
+  --success-muted: #e6f4ed;
+  --warning: #a15c00;
+  --warning-muted: #fff1d6;
+  --error: #c93c45;
+  --error-muted: #fbeaec;
+  --info: #3f66bd;
+  --info-muted: #e8eefb;
+  --chart-1: #5e6ad2;
+  --chart-2: #0f766e;
+  --chart-3: #a65316;
+  --chart-4: #a14f78;
+  --chart-5: #4f6bce;
+  --sidebar-background: #f3f3f0;
+  --sidebar-foreground: #34342f;
+  --sidebar-primary: #5e6ad2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8e8e4;
+  --sidebar-accent-foreground: #242424;
+  --sidebar-border: #deded8;
+  --sidebar-ring: #5e6ad2;
+
+  --control-height-sm: 2rem;
+  --control-height-md: 2.25rem;
+  --control-height-lg: 2.5rem;
+  --touch-target: 2.75rem;
+  --radius-control: 0.5rem;
+  --radius-surface: 0.75rem;
+  --radius-dialog: 0.875rem;
+  --shadow-xs: 0 1px 2px rgb(36 36 36 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(36 36 36 / 0.08), 0 1px 2px rgb(36 36 36 / 0.04);
+  --shadow-md: 0 12px 30px rgb(36 36 36 / 0.10);
+
+  /* Compatibility aliases while feature CSS migrates to semantic tokens. */
+  --neon-cyan: var(--info);
+  --neon-purple: var(--primary);
+  --neon-pink: var(--chart-4);
+  --neon-green: var(--success);
+  --neon-blue: var(--info);
+  --neon-orange: var(--warning);
 }
 
-/* InNoHassle-style dark: purple primary rgb(151 71 255) */
+/* StreamDesk semantic dark theme: Linear-inspired surfaces and hierarchy. */
 .dark,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: hsl(224, 47%, 4%);
-  --foreground: hsl(213, 31%, 91%);
-  --muted: hsl(223, 47%, 11%);
-  --muted-foreground: hsl(215, 20%, 65%);
-  --popover: hsl(224, 47%, 6%);
-  --popover-foreground: hsl(213, 31%, 91%);
-  --card: hsl(224, 34%, 9%);
-  --card-foreground: hsl(213, 31%, 91%);
-  --app-border: 218 28% 22%;
-  --input: 218 28% 22%;
-  --primary: hsl(270, 100%, 64%);
-  --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(223, 47%, 11%);
-  --secondary-foreground: hsl(213, 31%, 91%);
-  --accent: hsl(216, 34%, 17%);
-  --accent-foreground: hsl(213, 31%, 91%);
-  --destructive: hsl(0, 63%, 31%);
-  --destructive-foreground: hsl(210, 40%, 98%);
-  --ring: hsl(270, 100%, 64%);
-  
-  --surface: hsl(224, 47%, 8%);
-  --error: hsl(0, 72%, 51%);
-  --success: hsl(142, 76%, 36%);
-  --warning: hsl(38, 92%, 50%);
-  
-  --neon-cyan: hsl(180, 100%, 60%);
-  --neon-purple: hsl(270, 100%, 64%);
-  --neon-pink: hsl(320, 100%, 65%);
-  --neon-green: hsl(142, 76%, 50%);
-  --neon-blue: hsl(210, 100%, 65%);
-  --neon-orange: hsl(38, 92%, 55%);
+  --background: #0f1014;
+  --foreground: #f1f1f3;
+  --muted: #1b1c23;
+  --muted-foreground: #9a9ba5;
+  --popover: #191a21;
+  --popover-foreground: #f1f1f3;
+  --card: #15161c;
+  --card-foreground: #f1f1f3;
+  --app-border: 234 11% 18%;
+  --input: 234 11% 24%;
+  --secondary: #1b1c23;
+  --secondary-foreground: #e7e7ea;
+  --accent: #23242d;
+  --accent-foreground: #f1f1f3;
+  --destructive: #dc5960;
+  --destructive-foreground: #ffffff;
+
+  --surface: #15161c;
+  --surface-base: #0f1014;
+  --surface-raised: #15161c;
+  --surface-overlay: #191a21;
+  --surface-subtle: #1b1c23;
+  --text-primary: #f1f1f3;
+  --text-secondary: #9a9ba5;
+  --text-tertiary: #71727c;
+  --border-subtle: #292a33;
+  --border-strong: #3a3b46;
+  --success: #4db88a;
+  --success-muted: #17382c;
+  --warning: #e0a458;
+  --warning-muted: #3a2b18;
+  --error: #dc5960;
+  --error-muted: #3a1d22;
+  --info: #7c9ce6;
+  --info-muted: #1d2945;
+  --chart-1: #7c83e6;
+  --chart-2: #4db8a8;
+  --chart-3: #d49a58;
+  --chart-4: #cb739e;
+  --chart-5: #7394df;
+  --sidebar-background: #121318;
+  --sidebar-foreground: #dedee2;
+  --sidebar-accent: #202129;
+  --sidebar-accent-foreground: #f1f1f3;
+  --sidebar-border: #26272f;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / 0.22);
+  --shadow-md: 0 18px 50px rgb(0 0 0 / 0.35);
+
+  --neon-cyan: var(--info);
+  --neon-purple: var(--primary);
+  --neon-pink: var(--chart-4);
+  --neon-green: var(--success);
+  --neon-blue: var(--info);
+  --neon-orange: var(--warning);
+}
+
+.warm {
+  --background: #f8f4ec;
+  --card: #fffdf8;
+  --popover: #fffdf8;
+  --muted: #eee8dc;
+  --accent: #e9e1d3;
+  --app-border: 38 20% 82%;
+  --input: 38 16% 75%;
+  --sidebar-background: #f2ecdf;
+}
+
+.sepia {
+  --background: #f4ecd9;
+  --card: #fbf5e7;
+  --popover: #fbf5e7;
+  --foreground: #3d3428;
+  --muted: #e9dec7;
+  --muted-foreground: #746552;
+  --accent: #e3d5bb;
+  --app-border: 36 24% 76%;
+  --input: 36 22% 68%;
+  --sidebar-background: #eee3cf;
+}
+
+.high-contrast {
+  --app-border: 0 0% 42%;
+  --input: 0 0% 42%;
+  --border-subtle: #747474;
+  --border-strong: #4f4f4f;
+}
+
+.dark.high-contrast {
+  --app-border: 0 0% 62%;
+  --input: 0 0% 62%;
+  --border-subtle: #9a9a9a;
+  --border-strong: #c7c7c7;
 }
 
 /* Неоновая RGB тема - классическая */
@@ -740,8 +844,8 @@ body::-webkit-scrollbar,
   }
   
   .dark .task-card:hover {
-    border-color: hsl(var(--primary) / 0.5);
-    box-shadow: 0 0 15px rgba(var(--neon-cyan), 0.2);
+    border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--neon-cyan) 20%, transparent);
   }
 
   .scheduler-button {

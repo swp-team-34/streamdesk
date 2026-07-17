@@ -2,6 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Camera, Lightbulb, Monitor, Package, MapPin } from "lucide-react";
 import { Link } from "wouter";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
+import { getEquipmentHref } from "@/lib/entity-navigation";
 
 interface EquipmentStatusProps {
   equipment?: any[];
@@ -21,15 +27,15 @@ export default function EquipmentStatus({ equipment }: EquipmentStatusProps) {
   };
 
   return (
-    <Card className="bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="py-2.5 px-3 sm:px-4 pb-1.5">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
+          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
             <Package className="w-3.5 h-3.5" />
             Техника
           </CardTitle>
           <Link href="/equipment">
-            <Badge variant="outline" className="cursor-pointer text-[10px] py-0 px-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600">
+            <Badge variant="outline" className="cursor-pointer px-1.5 py-0 text-[10px] text-muted-foreground hover:bg-muted">
               Все →
             </Badge>
           </Link>
@@ -38,38 +44,39 @@ export default function EquipmentStatus({ equipment }: EquipmentStatusProps) {
       <CardContent className="px-3 sm:px-4 pb-3 pt-0">
         {equipmentInUse.length === 0 ? (
           <div className="text-center py-3">
-            <div className="w-7 h-7 mx-auto mb-1.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center">
-              <Package className="w-3.5 h-3.5 text-emerald-500" />
+            <div className="mx-auto mb-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-success-muted">
+              <Package className="h-3.5 w-3.5 text-success" />
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Вся техника доступна</p>
+            <p className="text-xs text-muted-foreground">Вся техника доступна</p>
           </div>
         ) : (
           <div className="space-y-1.5">
             {equipmentInUse.slice(0, 4).map((item) => (
-              <div 
+              <Link
                 key={item.id} 
-                className="flex items-center justify-between p-1.5 rounded-md bg-slate-50 dark:bg-slate-900/50"
+                href={getEquipmentHref(item.id)}
+                className={`flex items-center justify-between p-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
                 data-testid={`equipment-${item.id}`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 shrink-0 bg-amber-500/10 dark:bg-amber-500/20 rounded flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-warning-muted text-warning">
                     {getTypeIcon(item.type)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{item.name}</p>
+                    <p className="truncate text-xs font-medium text-foreground">{item.name}</p>
                     {item.location && (
-                      <p className="text-[10px] text-slate-500 dark:text-slate-500 flex items-center gap-0.5 truncate">
+                      <p className="flex items-center gap-0.5 truncate text-[10px] text-muted-foreground">
                         <MapPin className="w-2.5 h-2.5 shrink-0" />
                         {item.location}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0" />
-              </div>
+                <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+              </Link>
             ))}
             {equipmentInUse.length > 4 && (
-              <p className="text-xs text-center text-slate-500 dark:text-slate-400 pt-1">
+              <p className="pt-1 text-center text-xs text-muted-foreground">
                 +{equipmentInUse.length - 4} ещё
               </p>
             )}

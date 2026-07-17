@@ -4,9 +4,9 @@ import { Clock, FileText, History } from "lucide-react";
 import type { User } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
 import { apiRequest } from "@/lib/queryClient";
 
 export function formatUserLogDate(date: string) {
@@ -86,12 +86,22 @@ export function UserLogsTab() {
               </Select>
             </div>
             <div>
-              <Label>Начало периода</Label>
-              <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              <StreamDatePicker
+                id="user-log-start-date"
+                label="Начало периода"
+                value={startDate}
+                maxValue={endDate || null}
+                onChange={setStartDate}
+              />
             </div>
             <div>
-              <Label>Конец периода</Label>
-              <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+              <StreamDatePicker
+                id="user-log-end-date"
+                label="Конец периода"
+                value={endDate}
+                minValue={startDate || null}
+                onChange={setEndDate}
+              />
             </div>
           </div>
         </CardContent>
@@ -106,32 +116,32 @@ export function UserLogsTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="py-8 text-center text-gray-500">Загрузка...</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">Загрузка...</div>
           ) : logs.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">Нет записей</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">Нет записей</div>
           ) : (
             <div className="hide-scrollbar max-h-[600px] space-y-3 overflow-y-auto">
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className="flex items-start gap-4 rounded-lg border p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+                  className="flex items-start gap-4 rounded-surface border border-border/50 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
                 >
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-control bg-info-muted">
                     {log.type === "task_history" ? (
-                      <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <FileText className="h-5 w-5 text-info" />
                     ) : (
-                      <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <Clock className="h-5 w-5 text-info" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex items-center gap-2">
                       <span className="font-semibold">{getUserName(log.userId)}</span>
                       <Badge variant="outline">{getUserLogActionLabel(log.action)}</Badge>
-                      <span className="text-sm text-gray-500">{formatUserLogDate(log.timestamp)}</span>
+                      <span className="text-sm text-muted-foreground">{formatUserLogDate(log.timestamp)}</span>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{log.description}</p>
+                    <p className="text-sm text-muted-foreground">{log.description}</p>
                     {log.data?.taskId && (
-                      <p className="mt-1 text-xs text-gray-500">ID задачи: {log.data.taskId}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">ID задачи: {log.data.taskId}</p>
                     )}
                   </div>
                 </div>

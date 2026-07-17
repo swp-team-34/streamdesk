@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCustomFieldEditor } from "./kanban-custom-field-editor";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
 
@@ -76,11 +77,12 @@ describe("KanbanCustomFieldEditor", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Field name" }));
+    fireEvent.click(screen.getByRole("option", { name: "Beta" }));
     expect(onChange).toHaveBeenCalledWith(["Alpha", "Beta"]);
     expect(value).toEqual(["Alpha"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+    fireEvent.click(screen.getByRole("option", { name: "Alpha" }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
@@ -96,7 +98,7 @@ describe("KanbanCustomFieldEditor", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "user-1" } });
+    chooseStreamSelectOption("Field name", "Tim");
     expect(onChange).toHaveBeenCalledWith("user-1");
   });
 });

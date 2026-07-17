@@ -2,6 +2,7 @@ import { AlertTriangle, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import {
   getDueDateStatus,
   getDueDateStatusClasses,
@@ -17,7 +18,6 @@ import {
 import {
   KANBAN_BOARD_GHOST_BADGE_CLASS,
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
 } from "./kanban-styles";
 
 interface KanbanCardListLabel {
@@ -85,8 +85,8 @@ export function KanbanCardListRow({
   return (
     <div
       className={[
-        "grid gap-2 rounded-xl border border-l-4 px-3 py-2.5 text-sm shadow-sm transition-colors sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center",
-        dueDateStatusClasses.card || "border-border/35 bg-muted/10 hover:bg-muted/20",
+        "grid gap-2 rounded-surface border border-l-4 px-3 py-2.5 text-sm shadow-xs transition-colors sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.6fr)_minmax(140px,180px)_auto_minmax(120px,160px)_auto_auto] lg:items-center",
+        dueDateStatusClasses.card || "border-border/50 bg-surface-raised hover:bg-surface-overlay",
       ].join(" ")}
     >
       <div className="min-w-0 sm:col-span-2 lg:col-span-1">
@@ -121,12 +121,12 @@ export function KanbanCardListRow({
         )}
         {card.description && <div className="mt-1 truncate text-xs text-muted-foreground">{card.description}</div>}
         {equipmentLinkCount > 0 && (
-          <Badge variant="outline" className="mt-1.5 w-fit rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+          <Badge variant="outline" className="mt-1.5 w-fit rounded-full border-border/40 bg-surface-subtle text-xs text-muted-foreground">
             Оборудование: {formatPluralRu(equipmentLinkCount, "позиция", "позиции", "позиций")}
           </Badge>
         )}
         {(card.commentCount ?? 0) > 0 && (
-          <Badge variant="outline" className="mt-1.5 w-fit gap-1 rounded-full border-border/40 bg-muted/30 text-xs text-muted-foreground">
+          <Badge variant="outline" className="mt-1.5 w-fit gap-1 rounded-full border-border/40 bg-surface-subtle text-xs text-muted-foreground">
             <MessageSquare className="h-3 w-3" />
             {card.commentCount}
             {card.latestCommentAt && <span>· {formatDueDateLabel(card.latestCommentAt)}</span>}
@@ -136,7 +136,7 @@ export function KanbanCardListRow({
           <a
             href={`/locations?locationId=${encodeURIComponent(card.locationTopics![0].locationId)}&topicId=${encodeURIComponent(card.locationTopics![0].id)}`}
             onClick={(event) => event.stopPropagation()}
-            className="mt-1.5 flex w-fit items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 hover:bg-violet-500/20 dark:text-violet-200"
+            className="mt-1.5 flex w-fit items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/15"
           >
             <MessageSquare className="h-3 w-3" />
             Темы площадки: {card.locationTopics?.length}
@@ -158,19 +158,14 @@ export function KanbanCardListRow({
           </div>
         )}
       </div>
-      <select
-        aria-label={`Список для ${card.title}`}
-        className={`${KANBAN_PANEL_SELECT_CLASS} min-w-0`}
+      <StreamSelect
+        ariaLabel={`Список для ${card.title}`}
+        className="min-w-0"
         value={card.listId}
-        onChange={(event) => onMove(event.target.value)}
+        options={lists.map((item) => ({ value: item.id, label: item.name }))}
+        onValueChange={onMove}
         disabled={!canEdit || movePending}
-      >
-        {lists.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
+      />
       <Badge variant={CARD_PRIORITY_BADGE_VARIANTS[card.priority]} className="w-fit rounded-full">
         {CARD_PRIORITY_LABELS[card.priority]}
       </Badge>
@@ -190,7 +185,7 @@ export function KanbanCardListRow({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-xl"
+          className="h-8 w-8 rounded-control"
           onClick={onOpen}
           aria-label="Изменить карточку"
           title="Изменить карточку"
@@ -201,7 +196,7 @@ export function KanbanCardListRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            className="h-8 w-8 rounded-control text-error hover:bg-error-muted hover:text-error"
             onClick={onDelete}
             disabled={deletePending}
             aria-label="Удалить карточку"

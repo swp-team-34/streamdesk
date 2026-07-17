@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StreamSelect } from "@/components/ui/stream-select";
 
 export interface KanbanBoardMemberView {
   id: string;
@@ -76,35 +77,28 @@ export function KanbanBoardMembersSection({
       </div>
 
       {!personal && canManage && (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-border/35 bg-muted/20 p-3 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]">
-          <select
-            aria-label="Участник доски"
-            className={KANBAN_PANEL_SELECT_CLASS}
+        <div className="mt-4 grid gap-3 rounded-surface border border-border/50 bg-surface-subtle p-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_210px_auto]">
+          <StreamSelect
+            ariaLabel="Участник доски"
             value={form.userId}
-            onChange={(event) => onFormChange({ ...form, userId: event.target.value })}
+            options={editingMemberId
+              ? [{ value: form.userId, label: userById.get(form.userId)?.name || form.userId }]
+              : availableMembers.length === 0
+                ? [{ value: "", label: "Нет доступных участников", disabled: true }]
+                : availableMembers.map((user) => ({ value: user.id, label: user.name, description: user.email || undefined }))}
+            onValueChange={(userId) => onFormChange({ ...form, userId })}
             disabled={Boolean(editingMemberId) || pending}
-          >
-            {editingMemberId ? (
-              <option value={form.userId}>
-                {userById.get(form.userId)?.name || form.userId}
-              </option>
-            ) : availableMembers.length === 0 ? (
-              <option value="">Нет доступных участников</option>
-            ) : (
-              availableMembers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))
-            )}
-          </select>
+          />
 
-          <select
-            aria-label="Роль участника"
-            className={KANBAN_PANEL_SELECT_CLASS}
+          <StreamSelect
+            ariaLabel="Роль участника"
             value={form.role}
-            onChange={(event) => {
-              const role = event.target.value as MemberFormState["role"];
+            options={[
+              { value: "viewer", label: "viewer" },
+              { value: "editor", label: "editor" },
+            ]}
+            onValueChange={(value) => {
+              const role = value as MemberFormState["role"];
               onFormChange({
                 ...form,
                 role,
@@ -112,30 +106,27 @@ export function KanbanBoardMembersSection({
               });
             }}
             disabled={pending}
-          >
-            <option value="viewer">viewer</option>
-            <option value="editor">editor</option>
-          </select>
+          />
 
-          <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-sm">
-            <input
-              type="checkbox"
+          <label htmlFor="kanban-member-can-comment" className="flex min-h-9 items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm sm:col-span-2 xl:col-span-1">
+            <Checkbox
+              id="kanban-member-can-comment"
               checked={form.role === "editor" ? true : form.canComment}
-              onChange={(event) => onFormChange({ ...form, canComment: event.target.checked })}
+              onCheckedChange={(checked) => onFormChange({ ...form, canComment: checked === true })}
               disabled={form.role === "editor" || pending}
             />
-            can comment
+            Может комментировать
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex items-center justify-end gap-2 sm:col-span-2 xl:col-span-1">
             {editingMemberId && (
-              <Button variant="ghost" size="sm" className="rounded-xl" onClick={onCancelEdit} disabled={pending}>
+              <Button variant="ghost" size="sm" className="rounded-control" onClick={onCancelEdit} disabled={pending}>
                 Отмена
               </Button>
             )}
             <Button
               size="sm"
-              className="rounded-xl"
+              className="rounded-control"
               onClick={onSave}
               disabled={(!form.userId && !editingMemberId) || pending}
             >
@@ -148,7 +139,7 @@ export function KanbanBoardMembersSection({
       {!personal && (
         <div className="mt-4 space-y-2">
           {members.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+            <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
               В этой доске пока нет отдельных участников.
             </div>
           ) : (
@@ -159,7 +150,7 @@ export function KanbanBoardMembersSection({
               return (
                 <div
                   key={member.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/35 bg-muted/20 px-4 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-surface border border-border/50 bg-surface-subtle px-4 py-3"
                 >
                   <div className="min-w-0">
                     <div className="font-medium">{userName}</div>
@@ -173,13 +164,13 @@ export function KanbanBoardMembersSection({
                     {isCreator && <Badge variant="outline" className="rounded-full">creator</Badge>}
                     {canManage && (
                       <>
-                        <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => onEdit(member)} disabled={pending}>
+                        <Button variant="ghost" size="sm" className="rounded-control" onClick={() => onEdit(member)} disabled={pending}>
                           Изменить
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          className="rounded-control text-error hover:bg-error-muted hover:text-error"
                           onClick={() => onDelete(member, userName)}
                           disabled={pending || isCreator}
                         >

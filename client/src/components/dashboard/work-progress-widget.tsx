@@ -1,8 +1,18 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock3, type LucideIcon } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StreamSelect } from "@/components/ui/stream-select";
+import {
+  DASHBOARD_WIDGET_EMPTY_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CARD_CLASS,
+  DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS,
+  DASHBOARD_WIDGET_WARNING_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 import { useDeadlineNow } from "@/hooks/use-deadline-now";
 import { apiRequest } from "@/lib/queryClient";
 import { isTaskDeadlineOverdue } from "@shared/task-deadlines";
@@ -32,8 +42,6 @@ interface GroupSummary {
   inProgress: number;
 }
 
-const COMPLETE_LEGACY_STATUSES = new Set(["done", "completed", "cancelled"]);
-const IN_PROGRESS_LEGACY_STATUSES = new Set(["in_progress", "review"]);
 const COMPLETE_KANBAN_LIST_TYPES = new Set(["closed", "archive", "trash"]);
 const LOCATION_KEYS = ["location", "мест", "локац", "студ", "room", "zone"];
 
@@ -58,6 +66,20 @@ function normalizeTag(value: unknown) {
     return String(record.name || record.title || record.label || record.id || "").trim();
   }
   return String(value ?? "").trim();
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function resolveWorkItemTags(card: Record<string, unknown>) {
+  const labels = Array.isArray(card.labels)
+    ? card.labels.map(normalizeTag).filter(Boolean)
+    : [];
+  if (labels.length > 0) return labels;
+
+  if (!Array.isArray(card.labelIds)) return [];
+  return card.labelIds
+    .map(normalizeTag)
+    .filter((tag) => tag && !UUID_PATTERN.test(tag));
 }
 
 function buildGroups(items: WorkItem[], mode: GroupMode, now: Date): GroupSummary[] {
@@ -113,13 +135,6 @@ export default function WorkProgressWidget() {
     refetchIntervalInBackground: true,
   });
 
-  const tasksQuery = useQuery<any[]>({
-    queryKey: ["/api/tasks"],
-    retry: 1,
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
-  });
-
   const usersQuery = useQuery<Array<{ id: string; name?: string | null; username?: string | null }>>({
     queryKey: ["/api/users"],
     retry: 1,
@@ -134,7 +149,7 @@ export default function WorkProgressWidget() {
   const items = useMemo<WorkItem[]>(() => {
     const kanbanItems = (cardsQuery.data ?? []).map((card) => {
       const completed = COMPLETE_KANBAN_LIST_TYPES.has(String(card.listType || ""));
-      const labelIds = Array.isArray(card.labelIds) ? card.labelIds.map(normalizeTag).filter(Boolean) : [];
+      const tags = resolveWorkItemTags(card);
       const assignee = card.assigneeUserId ? userById.get(String(card.assigneeUserId)) : undefined;
       return {
         id: `card:${card.id}`,
@@ -147,60 +162,41 @@ export default function WorkProgressWidget() {
         completed,
         inProgress: !completed && String(card.listType || "active") === "active",
         location: readLocationFromCustomFields(card.customFieldValues),
-        tags: labelIds,
-      };
-    });
-
-    const legacyItems = (tasksQuery.data ?? []).map((task) => {
-      const status = String(task.status || "");
-      const completed = COMPLETE_LEGACY_STATUSES.has(status);
-      const assignee = task.assigneeId ? userById.get(String(task.assigneeId)) : undefined;
-      const tags = Array.isArray(task.tags) ? task.tags.map(normalizeTag).filter(Boolean) : [];
-      return {
-        id: `task:${task.id}`,
-        title: String(task.title || "Задача"),
-        assigneeId: task.assigneeId || null,
-        assigneeName: assignee?.name || assignee?.username || (task.assigneeId ? String(task.assigneeId) : null),
-        dueDate: task.dueDate,
-        createdAt: task.createdAt,
-        priority: task.priority,
-        completed,
-        inProgress: IN_PROGRESS_LEGACY_STATUSES.has(status),
-        location: "",
         tags,
       };
     });
 
-    return [...kanbanItems, ...legacyItems];
-  }, [cardsQuery.data, tasksQuery.data, userById]);
+    return kanbanItems;
+  }, [cardsQuery.data, userById]);
 
   const active = items.filter((item) => !item.completed).length;
   const completed = items.filter((item) => item.completed).length;
   const overdue = items.filter((item) => isOverdue(item, now)).length;
   const inProgress = items.filter((item) => item.inProgress).length;
   const groups = buildGroups(items, groupMode, now);
-  const isLoading = cardsQuery.isLoading || tasksQuery.isLoading;
-  const hasError = cardsQuery.isError || tasksQuery.isError;
+  const isLoading = cardsQuery.isLoading;
+  const hasError = cardsQuery.isError;
 
   return (
-    <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border rounded-xl overflow-hidden min-w-0 border-l-4 border-l-primary/70">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 px-3 py-2">
+    <Card className={DASHBOARD_WIDGET_SCROLL_CARD_CLASS}>
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Activity className="h-4 w-4 shrink-0 text-primary" />
           <CardTitle className="truncate text-sm font-semibold text-foreground">Ход работ</CardTitle>
         </div>
-        <select
+        <StreamSelect
+          ariaLabel="Группировка хода работ"
           value={groupMode}
-          onChange={(event) => setGroupMode(event.target.value as GroupMode)}
-          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
-          aria-label="Группировка хода работ"
-        >
-          <option value="assignee">По сотрудникам</option>
-          <option value="location">По локациям</option>
-          <option value="tags">По тегам</option>
-        </select>
+          options={[
+            { value: "assignee", label: "По сотрудникам" },
+            { value: "location", label: "По локациям" },
+            { value: "tags", label: "По тегам" },
+          ]}
+          onValueChange={(value) => setGroupMode(value as GroupMode)}
+          className="h-8 w-auto min-w-40 px-2 text-xs sm:h-8"
+        />
       </CardHeader>
-      <CardContent className="space-y-3 px-3 pb-3 pt-0">
+      <CardContent className={`${DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS} space-y-3 px-3 pb-3 pt-0`}>
         {isLoading ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -210,7 +206,7 @@ export default function WorkProgressWidget() {
         ) : (
           <>
             {hasError && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <div className={DASHBOARD_WIDGET_WARNING_CLASS}>
                 Не удалось обновить часть данных, показаны последние доступные значения.
               </div>
             )}
@@ -222,12 +218,16 @@ export default function WorkProgressWidget() {
             </div>
             <div className="space-y-1.5">
               {groups.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                <div className={DASHBOARD_WIDGET_EMPTY_CLASS}>
                   Задач пока нет
                 </div>
               ) : (
                 groups.map((group) => (
-                  <div key={group.key} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+                  <Link
+                    key={group.key}
+                    href="/tasks"
+                    className={`flex items-center justify-between gap-3 px-3 py-2 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+                  >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-foreground">{group.label}</div>
                       <div className="text-xs text-muted-foreground">В работе: {group.inProgress} · Готово: {group.completed}</div>
@@ -236,7 +236,7 @@ export default function WorkProgressWidget() {
                       {group.overdue > 0 && <Badge variant="destructive" className="rounded-full">{group.overdue}</Badge>}
                       <Badge variant="outline" className="rounded-full">{group.active}</Badge>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -249,12 +249,12 @@ export default function WorkProgressWidget() {
 
 function Metric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: LucideIcon; tone?: "danger" }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+    <div className={`${DASHBOARD_WIDGET_ROW_CLASS} px-3 py-2`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className={tone === "danger" ? "h-4 w-4 text-red-500" : "h-4 w-4 text-primary"} />
+        <Icon className={tone === "danger" ? "h-4 w-4 text-error" : "h-4 w-4 text-primary"} />
       </div>
-      <div className={tone === "danger" ? "mt-1 text-xl font-bold text-red-500" : "mt-1 text-xl font-bold text-foreground"}>{value}</div>
+      <div className={tone === "danger" ? "mt-1 text-xl font-bold text-error" : "mt-1 text-xl font-bold text-foreground"}>{value}</div>
     </div>
   );
 }

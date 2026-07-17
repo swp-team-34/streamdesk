@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Youtube } from "lucide-react";
 import { SiVk } from "react-icons/si";
+import { Link } from "wouter";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 
 interface PlatformStats {
   viewers: number;
@@ -15,28 +21,31 @@ interface PlatformRowProps {
   name: string;
   icon: any;
   stats?: PlatformStats;
-  gradient?: string;
+  toneClass?: string;
 }
 
-const PlatformRow = memo(function PlatformRow({ name, icon: Icon, stats, gradient = "from-slate-400 to-slate-500" }: PlatformRowProps) {
+const PlatformRow = memo(function PlatformRow({ name, icon: Icon, stats, toneClass = "bg-muted text-muted-foreground" }: PlatformRowProps) {
   if (!stats) return null;
 
   return (
-    <div className="flex items-center justify-between rounded-xl overflow-hidden bg-white dark:bg-slate-800/90 shadow-sm">
+    <Link
+      href="/streams"
+      className={`flex items-center justify-between overflow-hidden ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+    >
       <div className="flex items-center gap-3 p-3 w-full">
-        <div className={`flex items-center justify-center w-12 h-12 rounded-lg shadow bg-gradient-to-br ${gradient}`}>
-          <Icon className="text-white w-5 h-5" />
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-control ${toneClass}`}>
+          <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white truncate">{name}</p>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{stats.viewers?.toLocaleString()} зрит.</p>
+          <p className="truncate text-sm font-semibold text-foreground sm:text-base">{name}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">{stats.viewers?.toLocaleString()} зрит.</p>
         </div>
         <div className="text-right flex flex-col items-end justify-center gap-0.5">
-          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{stats.status || "Активно"}</span>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{stats.duration || "—"}</p>
+          <span className="text-sm font-semibold text-success">{stats.status || "Активно"}</span>
+          <p className="text-xs text-muted-foreground">{stats.duration || "—"}</p>
         </div>
       </div>
-    </div>
+    </Link>
   );
 });
 
@@ -57,32 +66,32 @@ export default function StreamingStats() {
   const avgBitrate = Math.round(((youtubeStats?.bitrate || 0) + (vkStats?.bitrate || 0)) / 2 / 1000 * 10) / 10;
 
   return (
-    <Card className="bg-transparent border-0">
-      <CardHeader className="py-2.5 px-0 sm:px-0 pb-1.5">
-        <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">Статистика стримов</CardTitle>
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
+      <CardHeader className="px-3 pb-1.5 pt-2.5">
+        <CardTitle className="text-sm font-semibold text-foreground">Статистика стримов</CardTitle>
       </CardHeader>
-      <CardContent className="px-0 pb-0 pt-0">
+      <CardContent className="px-3 pb-3 pt-0">
         <div className="space-y-2">
-          <PlatformRow name="YouTube" icon={Youtube} stats={youtubeStats} gradient="from-red-500 to-pink-500" />
-          <PlatformRow name="ВКонтакте" icon={SiVk} stats={vkStats} gradient="from-blue-500 to-indigo-500" />
+          <PlatformRow name="YouTube" icon={Youtube} stats={youtubeStats} toneClass="bg-error-muted text-error" />
+          <PlatformRow name="ВКонтакте" icon={SiVk} stats={vkStats} toneClass="bg-info-muted text-info" />
 
           {(youtubeStats || vkStats) && (
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1 px-1">
+            <div className="space-y-1 border-t border-border/50 px-1 pt-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-600 dark:text-slate-400">Общие просмотры</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{totalViewers.toLocaleString()}</span>
+                <span className="text-muted-foreground">Общие просмотры</span>
+                <span className="font-semibold text-foreground">{totalViewers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-600 dark:text-slate-400">Средний битрейт</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{avgBitrate} Mbps</span>
+                <span className="text-muted-foreground">Средний битрейт</span>
+                <span className="font-semibold text-foreground">{avgBitrate} Mbps</span>
               </div>
             </div>
           )}
 
           {!youtubeStats && !vkStats && (
             <div className="text-center py-6">
-              <Youtube className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">Нет активных стримов</p>
+              <Youtube className="mx-auto mb-2 h-10 w-10 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">Нет активных стримов</p>
             </div>
           )}
         </div>

@@ -51,9 +51,9 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission, use
       <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
         <Card className="max-w-md">
           <CardContent className="py-8 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-500" />
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-warning" />
             <h3 className="text-lg font-semibold mb-2">Требуется авторизация</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="mb-4 text-sm text-muted-foreground">
               Пожалуйста, войдите в систему для доступа к этой странице.
             </p>
             <Button onClick={() => setLocation("/login")}>
@@ -72,7 +72,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission, use
         <div className="flex items-center justify-center min-h-[50vh] p-4">
           <Card className="max-w-md w-full">
             <CardContent className="py-8 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+              <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
               <h3 className="text-lg font-semibold mb-2">Доступ запрещён</h3>
               <p className="text-muted-foreground mb-4">
                 У вас нет прав для просмотра этой страницы.
@@ -95,7 +95,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission, use
         <div className="flex items-center justify-center min-h-[50vh] p-4">
           <Card className="max-w-md w-full">
             <CardContent className="py-8 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+              <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
               <h3 className="text-lg font-semibold mb-2">Доступ ограничен</h3>
               <p className="text-muted-foreground mb-4">
                 Для этой страницы нужны специальные права платформы.
@@ -117,7 +117,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission, use
         <div className="flex items-center justify-center min-h-[50vh] p-4">
           <Card className="max-w-md w-full">
             <CardContent className="py-8 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+              <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
               <h3 className="text-lg font-semibold mb-2">Доступ запрещён</h3>
               <p className="text-muted-foreground mb-4">
                 У вас нет доступа к этой вкладке. Обратитесь к администратору.

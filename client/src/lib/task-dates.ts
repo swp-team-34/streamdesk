@@ -116,23 +116,23 @@ export const getDueDateStatusClasses = (status: DueDateStatus) => {
   switch (status) {
     case "complete":
       return {
-        badge: "border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
-        card: "border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-500/25 dark:bg-emerald-500/10",
+        badge: "border-success/20 bg-success-muted text-success",
+        card: "border-success/25",
       };
     case "overdue":
       return {
-        badge: "border-red-200 bg-red-100 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200",
-        card: "border-red-200/80 bg-red-50/50 dark:border-red-500/25 dark:bg-red-500/10",
+        badge: "border-error/20 bg-error-muted text-error",
+        card: "border-error/25",
       };
     case "soon":
       return {
-        badge: "border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
-        card: "border-amber-200/80 bg-amber-50/50 dark:border-amber-500/25 dark:bg-amber-500/10",
+        badge: "border-warning/20 bg-warning-muted text-warning",
+        card: "border-warning/25",
       };
     case "upcoming":
       return {
-        badge: "border-sky-200 bg-sky-100 text-sky-900 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-200",
-        card: "border-sky-200/80 bg-sky-50/40 dark:border-blue-400/25 dark:bg-blue-400/10",
+        badge: "border-info/20 bg-info-muted text-info",
+        card: "border-info/25",
       };
     default:
       return {

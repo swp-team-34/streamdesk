@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, MessageSquarePlus, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Loader2, MessageSquarePlus, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,7 +14,7 @@ import {
   LocationFormDialog,
 } from "@/components/locations/location-management-dialogs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { useToast } from "@/hooks/use-toast";
 import { AuthService } from "@/lib/auth";
 import {
@@ -252,7 +252,7 @@ export default function LocationsPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-7xl space-y-4 px-4 py-4 sm:py-6">
+    <div className="container mx-auto max-w-7xl space-y-5 px-4 pb-8 pt-6 sm:pb-10 sm:pt-7">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Площадки</h1>
@@ -274,42 +274,46 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_190px_190px_190px]">
+      <Card className="border-border/50 bg-surface-raised shadow-xs">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_200px_190px_200px]">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Название, адрес, тип или заметки"
           />
-          <Select value={archiveFilter} onValueChange={(value) => setArchiveFilter(value as typeof archiveFilter)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Активные площадки</SelectItem>
-              <SelectItem value="archived">Архив</SelectItem>
-              <SelectItem value="all">Активные и архив</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_RECORDING_PLACE_STATUSES}>Все статусы</SelectItem>
-              {RECORDING_PLACE_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>{RECORDING_PLACE_STATUS_LABELS[status]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sort} onValueChange={(value) => setSort(value as LocationSort)}>
-            <SelectTrigger>
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">По названию</SelectItem>
-              <SelectItem value="status">По статусу</SelectItem>
-              <SelectItem value="updated">Недавно обновлённые</SelectItem>
-              <SelectItem value="newest">Сначала новые</SelectItem>
-            </SelectContent>
-          </Select>
+          <StreamSelect
+            value={archiveFilter}
+            onValueChange={(value) => setArchiveFilter(value as typeof archiveFilter)}
+            ariaLabel="Архив площадок"
+            options={[
+              { value: "active", label: "Активные площадки" },
+              { value: "archived", label: "Архив" },
+              { value: "all", label: "Активные и архив" },
+            ]}
+          />
+          <StreamSelect
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            ariaLabel="Статус площадок"
+            options={[
+              { value: ALL_RECORDING_PLACE_STATUSES, label: "Все статусы" },
+              ...RECORDING_PLACE_STATUSES.map((status) => ({
+                value: status,
+                label: RECORDING_PLACE_STATUS_LABELS[status],
+              })),
+            ]}
+          />
+          <StreamSelect
+            value={sort}
+            onValueChange={(value) => setSort(value as LocationSort)}
+            ariaLabel="Сортировка площадок"
+            options={[
+              { value: "name", label: "По названию", keywords: ["алфавит"] },
+              { value: "status", label: "По статусу" },
+              { value: "updated", label: "Недавно обновлённые" },
+              { value: "newest", label: "Сначала новые" },
+            ]}
+          />
         </CardContent>
       </Card>
 
@@ -319,8 +323,8 @@ export default function LocationsPage() {
           Загрузка площадок...
         </div>
       ) : locationsQuery.isError ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-8 text-center">
-          <p className="text-sm text-red-700 dark:text-red-300">Не удалось загрузить площадки.</p>
+        <div className="rounded-surface border border-error/30 bg-error-muted p-8 text-center">
+          <p className="text-sm text-error">Не удалось загрузить площадки.</p>
           <Button className="mt-3" variant="outline" onClick={() => locationsQuery.refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Повторить
@@ -342,7 +346,7 @@ export default function LocationsPage() {
       )}
 
       {!locationsQuery.isLoading && !locationsQuery.isError && visibleLocations.length === 0 && (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
           Площадки по выбранным условиям не найдены.
         </div>
       )}

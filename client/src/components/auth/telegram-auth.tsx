@@ -105,7 +105,7 @@ export function TelegramAuth({ onSuccess }: TelegramAuthProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center">
-          <MessageCircle className="w-5 h-5 mr-2 text-blue-500" />
+          <MessageCircle className="mr-2 h-5 w-5 text-info" />
           Интеграция с Telegram
         </CardTitle>
       </CardHeader>
@@ -113,32 +113,32 @@ export function TelegramAuth({ onSuccess }: TelegramAuthProps) {
         {/* Подключенные аккаунты */}
         {telegramUsers.length > 0 && (
           <div className="space-y-4">
-            <h4 className="font-medium text-gray-900">Подключенные аккаунты</h4>
+            <h4 className="font-medium">Подключенные аккаунты</h4>
             <div className="space-y-2">
               {telegramUsers.map((user) => (
                 <div
                   key={user.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between rounded-surface border border-border/50 bg-muted/20 p-3"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-blue-600" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-control bg-info-muted">
+                      <User className="h-5 w-5 text-info" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
                         <span className="font-medium">@{user.username}</span>
                         {user.verified && (
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                          <Badge className="border-success/20 bg-success-muted text-success">
                             <Check className="w-3 h-3 mr-1" />
                             Проверен
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-muted-foreground">
                         {user.firstName} {user.lastName}
                       </p>
                       {user.phone && (
-                        <div className="flex items-center space-x-1 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                           <Phone className="w-3 h-3" />
                           <span>{user.phone}</span>
                         </div>
@@ -161,11 +161,11 @@ export function TelegramAuth({ onSuccess }: TelegramAuthProps) {
 
         {/* Форма подключения нового аккаунта */}
         <div className="space-y-4">
-          <h4 className="font-medium text-gray-900">Подключить новый аккаунт</h4>
-          <div className="bg-blue-50 p-4 rounded-lg">
+          <h4 className="font-medium">Подключить новый аккаунт</h4>
+          <div className="rounded-surface border border-info/20 bg-info-muted/60 p-4">
             <div className="flex items-start space-x-2">
-              <MessageCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-800">
+              <MessageCircle className="mt-0.5 h-5 w-5 text-info" />
+              <div className="text-sm text-info">
                 <p className="font-medium mb-1">Как подключить Telegram:</p>
                 <ol className="list-decimal list-inside space-y-1 text-xs">
                   <li>Найдите @StreamDeskBot в Telegram</li>

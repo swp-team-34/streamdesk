@@ -62,7 +62,7 @@ export function ActivityHeatmap({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-background/50 p-3">
+      <div className="overflow-x-auto rounded-surface border border-border/50 bg-muted/20 p-3">
         <div className="grid w-max grid-flow-col gap-1">
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="grid grid-rows-7 gap-1">
@@ -107,7 +107,7 @@ export function TodayUsageChart({ data }: { data: any[] }) {
           Heartbeat, активные системы и нагрузка обновляются в выбранном интервале.
         </div>
       </div>
-      <div className="h-44 rounded-lg border bg-background/50 p-2">
+      <div className="h-44 rounded-surface border border-border/50 bg-muted/20 p-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.16)" />

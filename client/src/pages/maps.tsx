@@ -30,10 +30,10 @@ export default function MapsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
+    <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-[1920px] space-y-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Карты
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -41,14 +41,14 @@ export default function MapsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1 p-0.5 rounded-xl bg-muted/20 w-full min-w-0">
+        <div className="flex w-full min-w-0 flex-wrap gap-1 rounded-control border border-border/50 bg-muted/30 p-1">
           {FLOOR_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleFloorChange(tab.id)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap",
+                "flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm",
                 activeFloor === tab.id
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -65,8 +65,8 @@ export default function MapsPage() {
         </div>
 
         <Card className={cn(
-          "bg-card border-border overflow-hidden rounded-xl",
-          fullscreen && "fixed inset-4 z-50 rounded-2xl"
+          "overflow-hidden",
+          fullscreen && "fixed inset-4 z-50 rounded-dialog shadow-overlay"
         )}>
           <CardContent className="p-0 relative">
             <div
@@ -118,7 +118,7 @@ export default function MapsPage() {
                   <button
                     type="button"
                     onClick={() => setFullscreen(!fullscreen)}
-                    className="p-2 rounded-lg bg-card/90 border border-border hover:bg-muted transition-colors shadow-sm"
+                    className="rounded-control border border-border/50 bg-card/90 p-2 shadow-xs transition-colors hover:bg-muted"
                     title={fullscreen ? "Выйти из полноэкранного режима" : "Полный экран"}
                   >
                     <Maximize2 className="h-4 w-4 text-muted-foreground" />

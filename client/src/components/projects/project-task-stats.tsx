@@ -102,7 +102,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
   if (isLoading || !stats) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
       </div>
     );
   }
@@ -145,14 +145,14 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-4 rounded-surface border border-border/50 bg-surface-subtle p-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Источник: выделенная доска Kanban V2</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Сводка пересчитывается из карточек, площадок и складских связей проекта.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm" className="rounded-xl">
+        <Button asChild variant="outline" size="sm" className="rounded-control bg-surface-raised">
           <Link href={boardHref}>Открыть задачи</Link>
         </Button>
       </div>
@@ -165,7 +165,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
           </div>
           <Badge variant="outline">{percent}% готово</Badge>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           <Progress value={percent} className="h-3 rounded-full" />
           <p className="mt-2 text-xs text-muted-foreground">
             {total > 0 ? `${done} из ${total} задач выполнено` : "На доске проекта пока нет карточек"}
@@ -177,19 +177,19 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
               key={metric.label}
               href={boardHref}
               className={cn(
-                "rounded-xl border bg-card p-3 transition hover:border-primary/40 hover:bg-muted/30",
-                metric.danger && "border-red-500/35 bg-red-500/5",
+                "rounded-control border border-border/50 bg-surface-raised p-3 shadow-xs transition hover:border-primary/40 hover:bg-surface-overlay",
+                metric.danger && "border-error/25 bg-error-muted",
               )}
             >
               <div className="text-xs text-muted-foreground">{metric.label}</div>
-              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-red-500")}>
+              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-error")}>
                 {metric.value}
               </div>
             </Link>
           ))}
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
             <p className="mb-3 text-sm font-semibold">Сроки активных задач</p>
             <div className="grid grid-cols-2 gap-2">
               {deadlineMetrics.map((metric) => (
@@ -197,8 +197,8 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                   key={metric.label}
                   href={boardHref}
                   className={cn(
-                    "rounded-lg border border-border/60 bg-muted/20 p-3 hover:bg-muted/40",
-                    metric.danger && "border-red-500/35 text-red-500",
+                    "rounded-control border border-border/50 bg-surface-subtle p-3 hover:bg-surface-overlay",
+                    metric.danger && "border-error/25 bg-error-muted text-error",
                   )}
                 >
                   <div className="text-xs text-muted-foreground">{metric.label}</div>
@@ -207,7 +207,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
             <p className="mb-3 text-sm font-semibold">Колонки</p>
             {Object.keys(byStatus).length === 0 ? (
               <p className="text-sm text-muted-foreground">Нет данных по колонкам.</p>
@@ -219,7 +219,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                     <Link
                       key={status}
                       href={boardHref}
-                      className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/40"
+                      className="flex items-center justify-between gap-3 rounded-control px-2 py-1.5 text-sm hover:bg-accent"
                     >
                       <span className="truncate text-muted-foreground">{statusNames[status] || status}</span>
                       <span className="font-medium">{count}</span>
@@ -236,7 +236,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
           <h3 className="text-sm font-semibold">Нагрузка участников</h3>
           <p className="text-xs text-muted-foreground">Включены участники проекта и текущей доски.</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           {assignees.length === 0 ? (
             <p className="text-sm text-muted-foreground">У проекта пока нет доступных участников.</p>
           ) : (
@@ -245,7 +245,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                 <Link
                   key={assignee.userId}
                   href={boardHref}
-                  className="rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                  className="rounded-control border border-border/50 bg-surface-subtle p-3 hover:bg-surface-overlay"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate text-sm font-medium">{assignee.name}</span>
@@ -254,7 +254,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                   <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                     <span>Активно: {assignee.active}</span>
                     <span>· Готово: {assignee.completed}</span>
-                    {assignee.overdue > 0 && <span className="text-red-500">· Просрочено: {assignee.overdue}</span>}
+                    {assignee.overdue > 0 && <span className="text-error">· Просрочено: {assignee.overdue}</span>}
                   </div>
                 </Link>
               ))}
@@ -269,7 +269,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
             <h3 className="text-sm font-semibold">Площадки</h3>
             <p className="text-xs text-muted-foreground">Прямые связи проекта и площадки карточек.</p>
           </div>
-          <Button asChild variant="outline" size="sm" className="rounded-xl">
+          <Button asChild variant="outline" size="sm" className="rounded-control bg-surface-raised">
             <Link href="/locations">Открыть площадки</Link>
           </Button>
         </div>
@@ -283,13 +283,13 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
             <Link
               key={String(label)}
               href="/locations"
-              className="rounded-xl border border-border bg-card p-3 hover:bg-muted/30"
+              className="rounded-control border border-border/50 bg-surface-raised p-3 shadow-xs hover:bg-surface-overlay"
             >
               <div className="text-xs text-muted-foreground">{label}</div>
               <div
                 className={cn(
                   "mt-1 text-2xl font-semibold",
-                  label === "Открытые проблемы" && Number(value) > 0 && "text-amber-500",
+                  label === "Открытые проблемы" && Number(value) > 0 && "text-warning",
                 )}
               >
                 {value}
@@ -297,7 +297,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
             </Link>
           ))}
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           <div className="mb-3 flex flex-wrap gap-2">
             {(["critical", "high", "medium", "low"] as const).map((severity) => (
               <Badge
@@ -316,7 +316,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                 <Link
                   key={location.id}
                   href="/locations"
-                  className="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                  className="flex items-start justify-between gap-3 rounded-control border border-border/50 bg-surface-subtle p-3 hover:bg-surface-overlay"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{location.name}</div>
@@ -324,7 +324,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                       {location.archived ? "Архивная" : "Активная"} · проблем: {location.unresolvedIssues}
                     </div>
                   </div>
-                  {location.unresolvedIssues > 0 && <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />}
+                  {location.unresolvedIssues > 0 && <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />}
                 </Link>
               ))}
             </div>
@@ -338,7 +338,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
             <h3 className="text-sm font-semibold">Оборудование</h3>
             <p className="text-xs text-muted-foreground">Уникальные позиции без повторного подсчёта связей.</p>
           </div>
-          <Button asChild variant="outline" size="sm" className="rounded-xl">
+          <Button asChild variant="outline" size="sm" className="rounded-control bg-surface-raised">
             <Link href="/equipment">Открыть склад</Link>
           </Button>
         </div>
@@ -348,18 +348,18 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
               key={metric.label}
               href="/equipment"
               className={cn(
-                "rounded-xl border border-border bg-card p-3 hover:bg-muted/30",
-                metric.danger && "border-red-500/35 bg-red-500/5",
+                "rounded-control border border-border/50 bg-surface-raised p-3 shadow-xs hover:bg-surface-overlay",
+                metric.danger && "border-error/25 bg-error-muted",
               )}
             >
               <div className="text-xs text-muted-foreground">{metric.label}</div>
-              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-red-500")}>
+              <div className={cn("mt-1 text-2xl font-semibold", metric.danger && "text-error")}>
                 {metric.value}
               </div>
             </Link>
           ))}
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs">
           {equipment.items.length === 0 ? (
             <p className="text-sm text-muted-foreground">У проекта пока нет связанного оборудования.</p>
           ) : (
@@ -368,7 +368,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
                 <Link
                   key={item.id}
                   href={`/equipment?equipmentId=${encodeURIComponent(item.id)}`}
-                  className="rounded-lg border border-border/60 p-3 hover:bg-muted/30"
+                  className="rounded-control border border-border/50 bg-surface-subtle p-3 hover:bg-surface-overlay"
                 >
                   <div className="truncate text-sm font-medium">
                     {[item.name, item.model].filter(Boolean).join(" · ")}
@@ -389,7 +389,7 @@ export function ProjectTaskStats({ projectId, companyId, onClose }: ProjectTaskS
         </div>
       </section>
 
-      <Button variant="outline" size="sm" onClick={onClose} className="w-full rounded-xl">
+      <Button variant="outline" size="sm" onClick={onClose} className="w-full rounded-control bg-surface-raised">
         Закрыть
       </Button>
     </div>

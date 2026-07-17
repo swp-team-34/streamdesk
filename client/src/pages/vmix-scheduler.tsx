@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
 import { 
   Video, 
   RefreshCw, 
@@ -53,6 +55,15 @@ import {
   type VmixTargetMode,
 } from "@/lib/vmix-scheduler-model";
 import { cn } from "@/lib/utils";
+
+const VMIX_ACTION_OPTIONS = [
+  { id: "action-cut", value: "Cut", label: "Cut (резкий переход)" },
+  { id: "action-fade", value: "Fade", label: "Fade (плавный переход)" },
+  { id: "action-stream", value: "StartStreaming", label: "Начать стрим" },
+  { id: "action-recording", value: "StartRecording", label: "Начать запись" },
+  { id: "action-stop-stream", value: "StopStreaming", label: "Остановить стрим" },
+  { id: "action-stop-recording", value: "StopRecording", label: "Остановить запись" },
+];
 
 export default function VmixScheduler() {
   const [vmixHost, setVmixHost] = useState(localStorage.getItem("vmix_host") || "localhost");
@@ -392,12 +403,12 @@ export default function VmixScheduler() {
   }, [events, connection?.connected, eventInputs]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
         {/* Заголовок */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Расписатель vMix
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">
@@ -405,7 +416,7 @@ export default function VmixScheduler() {
             </p>
           </div>
           {connection?.connected && (
-            <Badge className="px-4 py-2 text-sm bg-green-500 text-white hover:bg-green-600">
+            <Badge className="border-success/20 bg-success-muted px-4 py-2 text-sm text-success hover:bg-success-muted">
               <Wifi className="w-4 h-4 mr-2" />
               Онлайн
             </Badge>
@@ -413,7 +424,7 @@ export default function VmixScheduler() {
         </div>
 
         {/* Подключение к vMix */}
-        <Card className="border-2 shadow-lg">
+        <Card>
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <Video className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -470,7 +481,7 @@ export default function VmixScheduler() {
                   </p>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <div className="rounded-surface border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   Прямой IP работает, когда сервер StreamDesk видит компьютер с vMix по сети.
                 </div>
               )}
@@ -528,31 +539,31 @@ export default function VmixScheduler() {
             </div>
             {connection && (
               <div className={cn(
-                "mt-4 p-3 rounded-lg flex items-center gap-2",
+                "mt-4 flex items-center gap-2 rounded-surface border p-3",
                 connection.connected 
-                  ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" 
-                  : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  ? "border-success/20 bg-success-muted/60"
+                  : "border-error/20 bg-error-muted/60"
               )}>
                 {connection.connected ? (
                   <>
-                    <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                      <p className="text-sm font-medium text-success">
                         Подключено к vMix
                       </p>
-                      <p className="text-xs text-green-700 dark:text-green-300">
+                      <p className="text-xs text-muted-foreground">
                         {targetMode === "agent" ? (selectedAgent?.name || "vMix agent") : `${vmixHost}:${vmixPort}`} • {connection.inputs?.length || 0} входов
                       </p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 text-error" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                      <p className="text-sm font-medium text-error">
                         Не подключено
                       </p>
-                      <p className="text-xs text-red-700 dark:text-red-300">
+                      <p className="text-xs text-muted-foreground">
                         Проверьте настройки подключения
                       </p>
                     </div>
@@ -565,7 +576,7 @@ export default function VmixScheduler() {
 
         {connection?.connected && <VmixStatusCards connection={connection} />}
 
-        <Tabs defaultValue="schedule" className="space-y-4 sm:space-y-6">
+        <Tabs defaultValue="schedule" className="space-y-5">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="schedule" className="text-xs sm:text-sm">
               <Calendar className="w-4 h-4 mr-2 hidden sm:inline" />
@@ -583,7 +594,7 @@ export default function VmixScheduler() {
 
           {/* Вкладка Расписание */}
           <TabsContent value="schedule" className="space-y-4">
-            <Card className="shadow-lg">
+            <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
@@ -622,11 +633,11 @@ export default function VmixScheduler() {
                         <Card 
                           key={event.id} 
                           className={cn(
-                            "transition-all hover:shadow-md border-l-4",
-                            event.status === "live" && "border-l-red-500 shadow-lg shadow-red-500/20",
-                            event.status === "scheduled" && "border-l-blue-500",
-                            event.status === "completed" && "border-l-emerald-500",
-                            event.status === "error" && "border-l-red-500"
+                            "border-l-4 transition-colors hover:bg-muted/20",
+                            event.status === "live" && "border-l-error",
+                            event.status === "scheduled" && "border-l-info",
+                            event.status === "completed" && "border-l-success",
+                            event.status === "error" && "border-l-error"
                           )}
                         >
                           <CardContent className="p-4 sm:p-6">
@@ -818,7 +829,7 @@ export default function VmixScheduler() {
           <TabsContent value="control" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Управление входами */}
-              <Card className="shadow-lg">
+              <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Layers className="w-5 h-5" />
@@ -834,9 +845,9 @@ export default function VmixScheduler() {
                       <div 
                         key={input.number} 
                         className={cn(
-                          "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 p-3 border rounded-lg transition-all hover:shadow-md",
-                          connection?.preview === input.number && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 shadow-md",
-                          connection?.program === input.number && "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 shadow-md"
+                          "flex flex-col gap-2 rounded-surface border border-border/50 bg-muted/20 p-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+                          connection?.preview === input.number && "border-info/30 bg-info-muted/60",
+                          connection?.program === input.number && "border-success/30 bg-success-muted/60"
                         )}
                       >
                         <div className="flex-1 min-w-0">
@@ -892,7 +903,7 @@ export default function VmixScheduler() {
 
               {/* Быстрые команды */}
               <div className="space-y-4 sm:space-y-6">
-                <Card className="shadow-lg">
+                <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Zap className="w-5 h-5" />
@@ -912,7 +923,7 @@ export default function VmixScheduler() {
                       <Film className="w-4 h-4 mr-2" />
                       {connection?.recording ? "Остановить запись" : "Начать запись"}
                       {connection?.recording && (
-                        <div className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        <div className="ml-auto h-2 w-2 animate-pulse rounded-full bg-error" />
                       )}
                     </Button>
                     <Button
@@ -924,7 +935,7 @@ export default function VmixScheduler() {
                       <Video className="w-4 h-4 mr-2" />
                       {connection?.streaming ? "Остановить стрим" : "Начать стрим"}
                       {connection?.streaming && (
-                        <div className="ml-auto w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                        <div className="ml-auto h-2 w-2 animate-pulse rounded-full bg-primary" />
                       )}
                     </Button>
                     <div className="grid grid-cols-2 gap-2 pt-2">
@@ -949,7 +960,7 @@ export default function VmixScheduler() {
                 </Card>
 
                 {/* Переход на рекламу */}
-                <Card className="shadow-lg">
+                <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Monitor className="w-5 h-5" />
@@ -986,7 +997,7 @@ export default function VmixScheduler() {
 
           {/* Вкладка События */}
           <TabsContent value="events" className="space-y-4">
-            <Card className="shadow-lg">
+            <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
@@ -1019,12 +1030,12 @@ export default function VmixScheduler() {
                           />
                         </div>
                         <div>
-                          <Label>Время начала *</Label>
-                          <Input 
-                            type="datetime-local" 
+                          <StreamDateTimePicker
+                            id="vmix-event-start-time"
+                            label="Время начала *"
                             value={newEventStartTime}
-                            onChange={(e) => setNewEventStartTime(e.target.value)}
-                            min={new Date().toISOString().slice(0, 16)}
+                            onChange={setNewEventStartTime}
+                            minValue={new Date().toISOString().slice(0, 16)}
                           />
                         </div>
                         {connection?.inputs && connection.inputs.length > 0 && (
@@ -1055,114 +1066,25 @@ export default function VmixScheduler() {
                           <Label>Действия</Label>
                           <div className="space-y-2 mt-2">
                             <div className="grid grid-cols-2 gap-2">
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-cut"
-                                  checked={newEventActions.includes("Cut")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "Cut"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "Cut"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-cut" className="font-normal cursor-pointer text-sm">
-                                  Cut (резкий переход)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-fade"
-                                  checked={newEventActions.includes("Fade")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "Fade"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "Fade"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-fade" className="font-normal cursor-pointer text-sm">
-                                  Fade (плавный переход)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stream"
-                                  checked={newEventActions.includes("StartStreaming")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StartStreaming"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StartStreaming"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stream" className="font-normal cursor-pointer text-sm">
-                                  Начать стрим
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-recording"
-                                  checked={newEventActions.includes("StartRecording")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StartRecording"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StartRecording"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-recording" className="font-normal cursor-pointer text-sm">
-                                  Начать запись
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stop-stream"
-                                  checked={newEventActions.includes("StopStreaming")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StopStreaming"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StopStreaming"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stop-stream" className="font-normal cursor-pointer text-sm">
-                                  Остановить стрим
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id="action-stop-recording"
-                                  checked={newEventActions.includes("StopRecording")}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewEventActions([...newEventActions, "StopRecording"]);
-                                    } else {
-                                      setNewEventActions(newEventActions.filter(a => a !== "StopRecording"));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="action-stop-recording" className="font-normal cursor-pointer text-sm">
-                                  Остановить запись
-                                </Label>
-                              </div>
+                              {VMIX_ACTION_OPTIONS.map((action) => {
+                                const selected = newEventActions.includes(action.value);
+                                return (
+                                  <label
+                                    key={action.value}
+                                    htmlFor={action.id}
+                                    className="flex min-h-10 items-center gap-2 rounded-control border border-border/35 bg-surface-raised px-3 text-sm"
+                                  >
+                                    <Checkbox
+                                      id={action.id}
+                                      checked={selected}
+                                      onCheckedChange={(checked) => setNewEventActions(checked === true
+                                        ? [...newEventActions, action.value]
+                                        : newEventActions.filter((value) => value !== action.value))}
+                                    />
+                                    {action.label}
+                                  </label>
+                                );
+                              })}
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
                               Примечание: Если выбран инпут, автоматически выполнится Preview → Cut. 
@@ -1208,7 +1130,7 @@ export default function VmixScheduler() {
                 <div className="space-y-3">
                   {events.length > 0 ? (
                     events.map((event) => (
-                      <Card key={event.id} className="border-l-4 border-l-blue-500">
+                      <Card key={event.id} className="border-l-4 border-l-info">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
@@ -1243,7 +1165,7 @@ export default function VmixScheduler() {
                       </Card>
                     ))
                   ) : (
-                    <div className="flex items-center gap-3 p-6 border-2 border-dashed rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3 rounded-surface border border-dashed border-border/60 bg-muted/20 p-6">
                       <Info className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                       <p className="text-sm text-muted-foreground">
                         Нет созданных событий. Создайте новое событие для автоматического выполнения.

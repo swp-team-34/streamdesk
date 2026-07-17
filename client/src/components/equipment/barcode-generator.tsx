@@ -81,29 +81,29 @@ export function BarcodeGenerator({ isOpen, onClose, equipment, onBarcodeGenerate
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] bg-white dark:bg-slate-900">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] bg-surface-overlay">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
             <ScanBarcode className="w-5 h-5" />
             Генератор штрих-кода
           </DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             Создайте и сохраните штрих-код для оборудования
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {equipmentInfo && (
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <div className="font-medium text-slate-900 dark:text-white">{equipmentInfo.name}</div>
+            <div className="rounded-control border border-border/40 bg-surface-subtle p-3">
+              <div className="font-medium text-foreground">{equipmentInfo.name}</div>
               {equipmentInfo.model && (
-                <div className="text-sm text-slate-500 dark:text-slate-400">{equipmentInfo.model}</div>
+                <div className="text-sm text-muted-foreground">{equipmentInfo.model}</div>
               )}
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="barcode-value" className="text-slate-700 dark:text-slate-300">
+            <Label htmlFor="barcode-value">
               Значение штрих-кода
             </Label>
             <div className="flex gap-2">
@@ -112,7 +112,7 @@ export function BarcodeGenerator({ isOpen, onClose, equipment, onBarcodeGenerate
                 value={barcodeValue}
                 onChange={(e) => setBarcodeValue(e.target.value.toUpperCase())}
                 placeholder="Введите или сгенерируйте"
-                className="font-mono bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                className="border-border/50 bg-surface-raised font-mono"
                 data-testid="input-barcode-value"
               />
               <Button 
@@ -128,9 +128,9 @@ export function BarcodeGenerator({ isOpen, onClose, equipment, onBarcodeGenerate
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-700 dark:text-slate-300">Формат</Label>
+            <Label>Формат</Label>
             <Select value={barcodeFormat} onValueChange={setBarcodeFormat}>
-              <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+              <SelectTrigger className="border-border/50 bg-surface-raised">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,7 +144,7 @@ export function BarcodeGenerator({ isOpen, onClose, equipment, onBarcodeGenerate
           </div>
 
           {barcodeValue && (
-            <div className="p-3 bg-white rounded-md border border-slate-200 flex justify-center overflow-hidden">
+            <div className="flex justify-center overflow-hidden rounded-control border border-border/50 bg-white p-3">
               <svg ref={barcodeRef} data-testid="barcode-preview" />
             </div>
           )}
@@ -252,35 +252,35 @@ export function EquipmentBarcodeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] bg-white dark:bg-slate-900">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] bg-surface-overlay">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
             <ScanBarcode className="w-5 h-5" />
             Штрих-код оборудования
           </DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             {equipment.name}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-md text-center">
-            <div className="font-semibold text-base sm:text-lg text-slate-900 dark:text-white truncate">{equipment.name}</div>
+          <div className="rounded-control border border-border/40 bg-surface-subtle p-3 text-center">
+            <div className="truncate text-base font-semibold text-foreground sm:text-lg">{equipment.name}</div>
             {equipment.model && (
-              <div className="text-sm text-slate-500 dark:text-slate-400 truncate">{equipment.model}</div>
+              <div className="truncate text-sm text-muted-foreground">{equipment.model}</div>
             )}
             {equipment.serialNumber && (
-              <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              <div className="mt-1 text-xs text-muted-foreground">
                 S/N: {equipment.serialNumber}
               </div>
             )}
           </div>
 
-          <div className="p-3 bg-white rounded-md border border-slate-200 flex justify-center overflow-hidden">
+          <div className="flex justify-center overflow-hidden rounded-control border border-border/50 bg-white p-3">
             <svg ref={barcodeRef} data-testid="equipment-barcode" />
           </div>
 
-          <div className="text-center text-xs font-mono text-slate-600 dark:text-slate-400 break-all">
+          <div className="break-all text-center font-mono text-xs text-muted-foreground">
             {barcodeValue}
           </div>
 

@@ -46,8 +46,12 @@ export function buildDashboardWidgetDefinitions({
     {
       id: "status",
       title: "Статус",
-      layout: { defaultW: 12, defaultH: 8, minW: 6, maxW: 12, minH: 6, maxH: 18 },
-      render: () => <StatusCards stats={stats} user={currentUser} />,
+      layout: { defaultW: 12, defaultH: 5, minW: 6, maxW: 12, minH: 5, maxH: 12 },
+      render: () => (
+        <div className="h-full p-1">
+          <StatusCards stats={stats} user={currentUser} />
+        </div>
+      ),
     },
   ];
 

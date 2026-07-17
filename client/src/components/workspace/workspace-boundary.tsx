@@ -56,7 +56,7 @@ export function WorkspaceBoundary({ children }: { children: ReactNode }) {
   if (workspace.requiresSelection || !workspace.type) {
     return (
       <div className="min-h-screen bg-starry bg-background flex items-center justify-center p-4 sm:p-6">
-        <Card className="w-full max-w-xl border-border/50 shadow-xl">
+        <Card className="w-full max-w-xl border-border/50 shadow-surface">
           <CardHeader>
             <CardTitle>Выберите рабочее пространство</CardTitle>
             <CardDescription>

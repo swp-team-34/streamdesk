@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import { useToast } from "@/hooks/use-toast";
 
 interface Zone {
@@ -93,20 +94,13 @@ export function AddZoneDialog({ open, onClose, onAdd }: AddZoneDialogProps) {
             </div>
           </div>
           <div>
-            <Label>Цвет</Label>
-            <div className="flex gap-2 items-center">
-              <Input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-20 h-10"
-              />
-              <Input
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                placeholder="#3b82f6"
-              />
-            </div>
+            <StreamColorPicker
+              id="new-schema-zone-color"
+              label="Цвет"
+              ariaLabel="Цвет новой зоны"
+              value={color}
+              onChange={setColor}
+            />
           </div>
           <div className="flex gap-2 pt-2">
             <Button className="flex-1" onClick={handleAdd}>
@@ -121,4 +115,3 @@ export function AddZoneDialog({ open, onClose, onAdd }: AddZoneDialogProps) {
     </Dialog>
   );
 }
-

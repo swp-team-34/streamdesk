@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCardListRow } from "./kanban-card-list-row";
 import type { KanbanCardView, KanbanListView } from "@/lib/kanban-board-model";
 
@@ -72,9 +73,7 @@ describe("KanbanCardListRow", () => {
     expect(screen.getByText("Проблемы площадки: 1")).toBeInTheDocument();
     expect(screen.getByText("Tim")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Список для Prepare stream" }), {
-      target: { value: "closed" },
-    });
+    chooseStreamSelectOption("Список для Prepare stream", "Done");
     fireEvent.click(screen.getByRole("button", { name: "Изменить карточку" }));
     fireEvent.click(screen.getByRole("button", { name: "Удалить карточку" }));
 

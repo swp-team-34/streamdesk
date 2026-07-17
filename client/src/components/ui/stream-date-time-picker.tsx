@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Check, Clock, Globe2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { cn } from "@/lib/utils";
 import {
   combineDateWithTime,
@@ -28,7 +29,7 @@ interface StreamDateTimePickerProps {
   placeholder?: string;
   defaultTime?: string;
   onChange: (value: string) => void;
-  onAllDayChange?: (value: boolean) => void;
+  onAllDayChange?: (value: boolean, nextValue: string) => void;
 }
 
 const toValidDate = (value?: string | null) => {
@@ -68,6 +69,11 @@ export function StreamDateTimePicker({
     return `${String(selectedDate.getHours()).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }, [defaultTime, selectedDate]);
   const [selectedHour, selectedMinute] = selectedTime.split(":");
+  const lastTimedTimeRef = useRef(allDay ? normalizeTimeValue(defaultTime) : selectedTime);
+
+  useEffect(() => {
+    if (!allDay) lastTimedTimeRef.current = selectedTime;
+  }, [allDay, selectedTime]);
 
   const commit = (date: Date, time = selectedTime) => {
     const next = allDay ? combineDateWithTime(date, "00:00") : combineDateWithTime(date, time);
@@ -80,7 +86,9 @@ export function StreamDateTimePicker({
   };
 
   const handleTimeChange = (time: string) => {
-    commit(selectedDate || new Date(), time);
+    const normalizedTime = normalizeTimeValue(time);
+    lastTimedTimeRef.current = normalizedTime;
+    commit(selectedDate || new Date(), normalizedTime);
   };
 
   const handleHourChange = (hour: string) => {
@@ -92,9 +100,17 @@ export function StreamDateTimePicker({
   };
 
   const handleAllDayChange = (checked: boolean) => {
-    onAllDayChange?.(checked);
     const sourceDate = selectedDate || new Date();
-    onChange(toDateTimeLocalValue(combineDateWithTime(sourceDate, checked ? "00:00" : defaultTime)));
+    if (checked && !allDay) lastTimedTimeRef.current = selectedTime;
+    const nextValue = toDateTimeLocalValue(combineDateWithTime(
+      sourceDate,
+      checked ? "00:00" : lastTimedTimeRef.current || normalizeTimeValue(defaultTime),
+    ));
+    if (onAllDayChange) {
+      onAllDayChange(checked, nextValue);
+      return;
+    }
+    onChange(nextValue);
   };
 
   return (
@@ -111,7 +127,7 @@ export function StreamDateTimePicker({
             type="button"
             variant="outline"
             disabled={disabled}
-            className="h-10 w-full justify-start gap-2 rounded-xl border-border/35 bg-muted/20 text-left font-normal text-foreground hover:bg-accent/60 focus-visible:ring-ring"
+            className="h-10 w-full justify-start gap-2 rounded-control border-border/50 bg-muted/20 text-left font-normal text-foreground hover:bg-accent/60 focus-visible:ring-ring"
           >
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <span className={cn("min-w-0 truncate", !value && "text-muted-foreground")}>
@@ -121,7 +137,7 @@ export function StreamDateTimePicker({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="z-[220] w-[min(92vw,360px)] rounded-2xl border-border/60 bg-popover p-3 shadow-2xl"
+          className="z-[220] max-h-[min(calc(100dvh-1rem),640px)] w-[min(92vw,360px)] overflow-y-auto overscroll-contain rounded-dialog border-border/60 bg-popover p-3 shadow-overlay"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <div className="space-y-3">
@@ -144,12 +160,12 @@ export function StreamDateTimePicker({
               onSelect={handleDateSelect}
               disabled={minDate ? { before: new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) } : undefined}
               initialFocus={false}
-              className="rounded-xl border border-border/35 bg-card p-2"
+              className="rounded-surface border border-border/50 bg-card p-2"
             />
 
             <div className="grid gap-2 border-t border-border/35 pt-3">
               {showAllDay && (
-                <label className="flex items-center gap-2 rounded-xl border border-border/35 bg-muted/30 px-3 py-2 text-sm">
+                <label className="flex items-center gap-2 rounded-control border border-border/50 bg-muted/30 px-3 py-2 text-sm">
                   <Checkbox checked={allDay} onCheckedChange={(checked) => handleAllDayChange(checked === true)} />
                   Весь день
                 </label>
@@ -162,33 +178,25 @@ export function StreamDateTimePicker({
                     Время
                   </span>
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                    <select
-                      className="h-10 rounded-xl border border-border/35 bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    <StreamSelect
+                      ariaLabel="Часы"
                       value={selectedHour}
-                      onChange={(event) => handleHourChange(event.target.value)}
+                      options={HOUR_OPTIONS.map((hour) => ({ value: hour, label: hour }))}
+                      onValueChange={handleHourChange}
                       disabled={disabled}
-                      aria-label="Часы"
-                    >
-                      {HOUR_OPTIONS.map((hour) => (
-                        <option key={hour} value={hour}>
-                          {hour}
-                        </option>
-                      ))}
-                    </select>
+                      className="h-10 sm:h-10"
+                      contentClassName="z-[240]"
+                    />
                     <span className="text-sm font-semibold text-muted-foreground">:</span>
-                    <select
-                      className="h-10 rounded-xl border border-border/35 bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    <StreamSelect
+                      ariaLabel="Минуты"
                       value={selectedMinute}
-                      onChange={(event) => handleMinuteChange(event.target.value)}
+                      options={MINUTE_OPTIONS.map((minute) => ({ value: minute, label: minute }))}
+                      onValueChange={handleMinuteChange}
                       disabled={disabled}
-                      aria-label="Минуты"
-                    >
-                      {MINUTE_OPTIONS.map((minute) => (
-                        <option key={minute} value={minute}>
-                          {minute}
-                        </option>
-                      ))}
-                    </select>
+                      className="h-10 sm:h-10"
+                      contentClassName="z-[240]"
+                    />
                   </div>
                 </label>
               )}

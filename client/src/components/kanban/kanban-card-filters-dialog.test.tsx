@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import {
   EMPTY_KANBAN_CARD_FILTERS,
   KanbanCardFiltersDialog,
@@ -31,12 +32,12 @@ describe("KanbanCardFiltersDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Статус / список"), { target: { value: "list:list-1" } });
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ status: "list:list-1" }));
-    fireEvent.change(screen.getByLabelText("Исполнитель"), { target: { value: "user-1" } });
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ assigneeUserId: "user-1" }));
-    fireEvent.change(screen.getByLabelText("Локация"), { target: { value: "Studio" } });
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ location: "Studio" }));
+    chooseStreamSelectOption("Статус / список", "Active");
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ statuses: ["list:list-1"] }));
+    chooseStreamSelectOption("Исполнитель", "Tim");
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ assigneeUserIds: ["user-1"] }));
+    chooseStreamSelectOption("Локация", "Studio");
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ locations: ["Studio"] }));
   });
 
   it("supports typed and empty custom-field filters", () => {
@@ -95,7 +96,7 @@ describe("KanbanCardFiltersDialog", () => {
     render(
       <KanbanCardFiltersDialog
         open
-        filters={{ ...EMPTY_KANBAN_CARD_FILTERS, priority: "high" }}
+        filters={{ ...EMPTY_KANBAN_CARD_FILTERS, priorities: ["high"] }}
         lists={[]}
         users={[]}
         locations={[]}
@@ -113,5 +114,31 @@ describe("KanbanCardFiltersDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Применить" }));
     expect(onReset).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("does not render removable chips below filter dropdowns", () => {
+    render(
+      <KanbanCardFiltersDialog
+        open
+        filters={{
+          ...EMPTY_KANBAN_CARD_FILTERS,
+          priorities: ["high", "medium"],
+        }}
+        lists={[]}
+        users={[]}
+        locations={[]}
+        labels={[]}
+        labelGroups={[]}
+        customFields={[]}
+        hasActiveFilters
+        onOpenChange={vi.fn()}
+        onChange={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Приоритет" })).toHaveTextContent("Выбрано: 2");
+    expect(screen.queryByRole("button", { name: "Убрать Высокий" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Убрать Средний" })).not.toBeInTheDocument();
   });
 });

@@ -49,17 +49,17 @@ export function EquipmentBundleCreateDialog({
 }: EquipmentBundleCreateDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg bg-white dark:bg-slate-900">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-slate-900 dark:text-white">Создать супер позицию</DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogTitle>Создать супер позицию</DialogTitle>
+          <DialogDescription>
             Выбранные позиции будут объединены в одну складскую карточку, а комплектующие пометятся как входящие в сборку.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="bundle-name">
+            <label className="text-sm font-medium text-foreground" htmlFor="bundle-name">
               Название сборки
             </label>
             <Input
@@ -71,9 +71,9 @@ export function EquipmentBundleCreateDialog({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Категория</label>
+            <label className="text-sm font-medium text-foreground">Категория</label>
             <Select value={categoryId} onValueChange={onCategoryIdChange}>
-              <SelectTrigger aria-label="Категория сборки" className="bg-white dark:bg-slate-800">
+              <SelectTrigger aria-label="Категория сборки">
                 <SelectValue placeholder="Без категории" />
               </SelectTrigger>
               <SelectContent>
@@ -89,13 +89,13 @@ export function EquipmentBundleCreateDialog({
             </Select>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-            <div className="mb-2 text-sm font-medium text-slate-900 dark:text-white">Состав: {items.length}</div>
+          <div className="rounded-control border border-border/50 bg-surface-subtle p-3">
+            <div className="mb-2 text-sm font-medium text-foreground">Состав: {items.length}</div>
             <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
               {items.map((item) => (
-                <div key={item.id} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
-                  <div className="font-medium text-slate-900 dark:text-white">{item.name}</div>
-                  <div className="mt-0.5 text-slate-500 dark:text-slate-400">
+                <div key={item.id} className="rounded-control border border-border/40 bg-surface-raised px-3 py-2 text-xs shadow-xs">
+                  <div className="font-medium text-foreground">{item.name}</div>
+                  <div className="mt-0.5 text-muted-foreground">
                     {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getEquipmentCategoryLabel(item)}
                   </div>
                 </div>

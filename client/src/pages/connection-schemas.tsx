@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { 
   Network, 
@@ -38,6 +40,7 @@ import {
 
 export default function ConnectionSchemas() {
   const { toast } = useToast();
+  const { confirm: confirmAction, prompt: promptAction } = useAppDialog();
   const [selectedSchema, setSelectedSchema] = useState<string | null>(null);
   const [isCreatingSchema, setIsCreatingSchema] = useState(false);
   const [isAddingEquipment, setIsAddingEquipment] = useState(false);
@@ -494,12 +497,16 @@ export default function ConnectionSchemas() {
     updateDevicePosition.mutate({ id: deviceId, position });
   };
 
-  const handleDeleteComponent = (id: string) => {
+  const handleDeleteComponent = async (id: string) => {
     const component = selectedSchemaData?.components?.find((item) => item.id === id);
     const name = component?.name || "элемент";
-    if (window.confirm(`Удалить "${name}" из схемы?`)) {
-      deleteComponentMutation.mutate(id);
-    }
+    const confirmed = await confirmAction({
+      title: `Удалить «${name}» из схемы?`,
+      description: "Элемент и связанные с ним соединения будут удалены.",
+      confirmLabel: "Удалить",
+      destructive: true,
+    });
+    if (confirmed) deleteComponentMutation.mutate(id);
   };
 
   const handleAddZone = (zone: Omit<Zone, "id">) => {
@@ -566,12 +573,12 @@ export default function ConnectionSchemas() {
   };
 
   return (
-    <div className="min-h-screen min-w-0 overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-4 overflow-x-hidden px-2 py-3 sm:px-4 sm:py-4">
+      <div className="space-y-4">
         {/* Заголовок */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+            <h1 className="truncate text-2xl font-semibold tracking-[-0.02em] text-foreground">
               Схемы подключения
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">
@@ -580,7 +587,7 @@ export default function ConnectionSchemas() {
           </div>
           <Dialog open={isCreatingSchema} onOpenChange={setIsCreatingSchema}>
             <DialogTrigger asChild>
-              <Button size="lg" onClick={() => setIsCreatingSchema(true)}>
+              <Button onClick={() => setIsCreatingSchema(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Создать схему
               </Button>
@@ -632,9 +639,9 @@ export default function ConnectionSchemas() {
 
         {/* Полноэкранный холст */}
         {isFullScreen && selectedSchemaData && (
-          <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
-            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-wrap">
-              <span className="text-white font-medium truncate">{selectedSchemaData.name} — полноэкранный режим</span>
+          <div className="fixed inset-0 z-50 flex flex-col bg-surface-base">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-surface-raised px-3 py-2 shadow-xs">
+              <span className="truncate font-medium text-foreground">{selectedSchemaData.name} — полноэкранный режим</span>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <AddEquipmentDialog
                   open={isAddingEquipment}
@@ -644,7 +651,7 @@ export default function ConnectionSchemas() {
                 <Button
                   size="sm"
                   onClick={() => setIsAddingEquipment(true)}
-                  className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
+                  className="border-border/50 bg-surface-overlay text-foreground hover:bg-surface-subtle"
                 >
                   <Package className="w-4 h-4 sm:mr-2" />
                   Оборудование
@@ -653,11 +660,18 @@ export default function ConnectionSchemas() {
                   size="sm"
                   variant="outline"
                   disabled={aiGenerateMutation.isPending}
-                  onClick={() => {
-                    const prompt = window.prompt("Что нужно собрать на схеме? Например: 4 камеры SDI, ATEM Mini, vMix, роутер, 2 микрофона");
+                  onClick={async () => {
+                    const prompt = await promptAction({
+                      title: "Собрать схему с помощью AI",
+                      description: "Опишите оборудование, количество и нужные типы соединений.",
+                      label: "Описание схемы",
+                      placeholder: "Например: 4 камеры SDI, ATEM Mini, vMix, роутер, 2 микрофона",
+                      confirmLabel: "Собрать",
+                      required: true,
+                    });
                     if (prompt) aiGenerateMutation.mutate(prompt);
                   }}
-                  className="border-slate-600 text-white hover:bg-slate-700"
+                  className="border-border/50 bg-surface-raised text-foreground hover:bg-surface-overlay"
                 >
                   <BrainCircuit className="w-4 h-4 sm:mr-2" />
                   AI
@@ -666,7 +680,7 @@ export default function ConnectionSchemas() {
                   size="sm"
                   variant="outline"
                   onClick={() => setDrawZoneMode(true)}
-                  className="border-slate-600 text-white hover:bg-slate-700"
+                  className="border-border/50 bg-surface-raised text-foreground hover:bg-surface-overlay"
                   title="Выделить прямоугольник на схеме"
                 >
                   <Square className="w-4 h-4 sm:mr-2" />
@@ -676,7 +690,7 @@ export default function ConnectionSchemas() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsFullScreen(false)}
-                  className="border-slate-600 text-white hover:bg-slate-700"
+                  className="border-border/50 bg-surface-raised text-foreground hover:bg-surface-overlay"
                 >
                   <Minimize2 className="w-4 h-4 mr-2" />
                   Выйти
@@ -705,7 +719,7 @@ export default function ConnectionSchemas() {
             </div>
             {/* Редактирование зоны или устройства в полноэкранном режиме */}
             {(selectedZoneId || selectedDeviceId) && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl flex flex-col gap-2 min-w-[200px]">
+              <div className="absolute bottom-4 left-1/2 z-50 flex min-w-[240px] -translate-x-1/2 flex-col gap-2 rounded-dialog border border-border/60 bg-surface-overlay p-3 shadow-overlay">
                 {selectedZoneId && (() => {
                   const zone = zones.find((z) => z.id === selectedZoneId);
                   if (!zone) return null;
@@ -774,20 +788,13 @@ export default function ConnectionSchemas() {
                 />
               </div>
               <div>
-                <Label>Цвет</Label>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    type="color"
-                    value={drawnZoneColor}
-                    onChange={(e) => setDrawnZoneColor(e.target.value)}
-                    className="w-14 h-9"
-                  />
-                  <Input
-                    value={drawnZoneColor}
-                    onChange={(e) => setDrawnZoneColor(e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
+                <StreamColorPicker
+                  id="drawn-zone-color"
+                  label="Цвет"
+                  ariaLabel="Цвет выделенной зоны"
+                  value={drawnZoneColor}
+                  onChange={setDrawnZoneColor}
+                />
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={confirmDrawnZone}>
@@ -804,7 +811,7 @@ export default function ConnectionSchemas() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 min-h-0 h-[calc(100vh-180px)] sm:h-[calc(100vh-200px)]">
           {/* Список схем — на мобильном сверху, компактно */}
           <div className="lg:col-span-1 min-w-0 flex flex-col min-h-[140px] sm:min-h-0">
-            <Card className="shadow-lg flex flex-col flex-1 min-h-0">
+            <Card className="flex min-h-0 flex-1 flex-col border-border/50 bg-surface-raised shadow-xs">
               <CardHeader className="p-3 sm:p-6">
                 <CardTitle className="text-base sm:text-lg">Схемы</CardTitle>
                 <CardDescription className="text-xs sm:text-sm">Выберите схему для редактирования</CardDescription>
@@ -818,10 +825,10 @@ export default function ConnectionSchemas() {
                         if (el && newlyCreatedSchemaId === schema.id) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
                       }}
                       className={cn(
-                        "p-3 rounded-lg border-2 cursor-pointer transition-all",
+                        "cursor-pointer rounded-control border p-3 transition-[border-color,background-color,box-shadow] duration-150",
                         selectedSchema === schema.id
-                          ? "border-primary bg-primary/5"
-                          : "border-transparent hover:border-muted-foreground/50",
+                          ? "border-primary/50 bg-primary/10 shadow-xs"
+                          : "border-border/40 bg-surface-subtle hover:border-border/70 hover:bg-surface-overlay",
                         newlyCreatedSchemaId === schema.id && "ring-2 ring-primary ring-offset-2 animate-pulse"
                       )}
                       onClick={() => {
@@ -839,14 +846,18 @@ export default function ConnectionSchemas() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm("Удалить схему?")) {
-                              deleteSchemaMutation.mutate(schema.id);
-                            }
+                            const confirmed = await confirmAction({
+                              title: `Удалить схему «${schema.name}»?`,
+                              description: "Схема, её оборудование, зоны и соединения будут удалены.",
+                              confirmLabel: "Удалить",
+                              destructive: true,
+                            });
+                            if (confirmed) deleteSchemaMutation.mutate(schema.id);
                           }}
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-error" />
                         </Button>
                       </div>
                     </div>
@@ -864,7 +875,7 @@ export default function ConnectionSchemas() {
           {/* Редактор схемы: канвас с перемещением и рисованием */}
           <div className="lg:col-span-3 min-h-0 flex flex-col min-w-0">
             {selectedSchemaData ? (
-              <Card className="shadow-lg flex flex-col flex-1 min-h-[320px] sm:min-h-[420px] md:min-h-[520px]">
+              <Card className="flex min-h-[320px] flex-1 flex-col border-border/50 bg-surface-raised shadow-xs sm:min-h-[420px] md:min-h-[520px]">
                 <CardHeader className="p-3 sm:p-6">
                   <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
@@ -891,8 +902,15 @@ export default function ConnectionSchemas() {
                         variant="outline"
                         className="h-9 touch-manipulation"
                         disabled={aiGenerateMutation.isPending}
-                        onClick={() => {
-                          const prompt = window.prompt("Опишите схему: оборудование, количество, SDI/HDMI/LAN/звук");
+                        onClick={async () => {
+                          const prompt = await promptAction({
+                            title: "Собрать схему с помощью AI",
+                            description: "Опишите оборудование, количество и нужные типы соединений.",
+                            label: "Описание схемы",
+                            placeholder: "Оборудование, количество, SDI/HDMI/LAN/звук",
+                            confirmLabel: "Собрать",
+                            required: true,
+                          });
                           if (prompt) aiGenerateMutation.mutate(prompt);
                         }}
                       >
@@ -951,7 +969,7 @@ export default function ConnectionSchemas() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="shadow-lg h-full flex items-center justify-center">
+              <Card className="flex h-full items-center justify-center border-dashed border-border/60 bg-surface-raised shadow-xs">
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Network className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="text-sm">Выберите схему для редактирования</p>

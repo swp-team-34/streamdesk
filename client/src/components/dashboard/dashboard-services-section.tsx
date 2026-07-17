@@ -28,9 +28,9 @@ export default function DashboardServicesSection({ user }: { user?: any }) {
   if (services.length === 0) return null;
 
   return (
-    <div className="space-y-1.5 w-full min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 w-full min-w-0">
-        <h3 className="text-lg font-bold text-foreground shrink-0">
+    <div className="w-full min-w-0 space-y-2">
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="shrink-0 text-base font-semibold text-foreground">
           Все сервисы
         </h3>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto min-w-0">
@@ -40,15 +40,15 @@ export default function DashboardServicesSection({ user }: { user?: any }) {
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 w-full min-w-0">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {services.map((service) => {
           const Icon = service.icon;
           return (
             <Link key={service.href} href={service.href} className="min-w-0">
-              <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border hover:border-primary/50 transition-colors cursor-pointer h-full rounded-xl overflow-hidden border-l-4 border-l-primary/50 hover:border-l-primary">
-                <CardContent className="p-2.5 flex items-center gap-2 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-                    <Icon className="h-5 w-5 text-primary" />
+              <Card className="h-full cursor-pointer overflow-hidden border-border/50 bg-surface-raised transition-[border-color,background-color] hover:border-primary/40 hover:bg-primary/5">
+                <CardContent className="flex min-w-0 items-center gap-2.5 !p-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary/10">
+                    <Icon className="h-4 w-4 text-primary" />
                   </div>
                   <span className="font-medium text-foreground truncate min-w-0">{service.title}</span>
                 </CardContent>

@@ -93,7 +93,7 @@ export default function TasksYouGile() {
       <div className="p-4 sm:p-6 max-w-4xl mx-auto">
         <Card>
           <CardContent className="py-12 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-warning" />
             <h2 className="text-xl font-semibold mb-2">YouGile не подключён</h2>
             <p className="text-muted-foreground mb-4">
               Администратор должен задать <code className="bg-muted px-1 rounded">YOUGILE_API_KEY</code> в <code className="bg-muted px-1 rounded">.env</code> и перезапустить сервер.

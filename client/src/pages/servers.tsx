@@ -75,17 +75,17 @@ function getStatusLabel(status: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "online":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+      return "border-success/20 bg-success-muted text-success";
     case "offline":
-      return "bg-rose-500/15 text-rose-300 border-rose-500/30";
+      return "border-error/20 bg-error-muted text-error";
     case "maintenance":
-      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+      return "border-warning/20 bg-warning-muted text-warning";
     case "pending":
-      return "bg-violet-500/15 text-violet-300 border-violet-500/30";
+      return "border-primary/20 bg-primary/10 text-primary";
     case "rejected":
-      return "bg-slate-500/15 text-slate-300 border-slate-500/30";
+      return "border-border/40 bg-muted text-muted-foreground";
     default:
-      return "bg-muted text-muted-foreground border-border";
+      return "border-border/40 bg-muted text-muted-foreground";
   }
 }
 
@@ -199,7 +199,7 @@ export default function Servers() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-4 sm:py-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-1">
           <div className="text-sm text-muted-foreground">
@@ -218,7 +218,7 @@ export default function Servers() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="border-border/70 bg-card/90">
+        <Card>
           <CardHeader className="pb-3">
             <CardTitle>Фильтры инфраструктуры</CardTitle>
           </CardHeader>
@@ -305,7 +305,7 @@ export default function Servers() {
       </div>
 
       {pendingAgentItems.length > 0 && (
-        <Card className="border-violet-300/70 bg-violet-500/10">
+        <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-3">
             <CardTitle>Агенты в ожидании</CardTitle>
           </CardHeader>
@@ -317,7 +317,7 @@ export default function Servers() {
               const motherboard = asRecord(hardware.motherboard);
               const captureDevices = Array.isArray(hardware.captureDevices) ? hardware.captureDevices : [];
               return (
-                <div key={`pending-${item.id}`} className="rounded-md border border-violet-300/60 bg-background/80 p-4">
+                <div key={`pending-${item.id}`} className="rounded-surface border border-primary/20 bg-card p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -376,11 +376,11 @@ export default function Servers() {
               .filter(([key, value]) => !["agent", "metrics", "hardware", "vmix", "workspace", "companyId"].includes(key) && value != null && String(value).trim().length > 0)
               .slice(0, 4);
             return (
-              <Card key={`${item.kind}-${item.id}`} className="border-border/70 bg-card/90">
+              <Card key={`${item.kind}-${item.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-control bg-primary/10 text-primary">
                         {item.kind === "server" ? <Server className="h-5 w-5" /> : <Laptop className="h-5 w-5" />}
                       </div>
                       <div>
@@ -425,7 +425,7 @@ export default function Servers() {
                     </div>
                   </div>
 
-                  <div className="grid gap-2 rounded-xl border border-border/60 bg-background/60 p-3">
+                  <div className="grid gap-2 rounded-surface border border-border/50 bg-muted/20 p-3">
                     {detailEntries.length === 0 ? (
                       <div className="text-sm text-muted-foreground">
                         Спецификации подтянутся автоматически после запуска агента или будут заполнены вручную.

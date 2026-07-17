@@ -119,7 +119,8 @@ describe("EquipmentCheckoutRequestDialog", () => {
         onSelectedCardIdsChange={onSelectedCardIdsChange}
       />,
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: "Выбрать карточку «Prepare camera»" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Карточки Kanban V2" }));
+    fireEvent.click(screen.getByRole("option", { name: /Prepare camera/ }));
     expect(onProjectIdChange).toHaveBeenCalledWith(project.id);
     expect([...onSelectedCardIdsChange.mock.calls[0][0]]).toEqual([card.id]);
   });

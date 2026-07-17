@@ -8,29 +8,25 @@ export default function QuickActions() {
       title: "Новый стрим",
       icon: Video,
       href: "/streams",
-      gradient: "from-red-500 to-pink-500",
-      glow: "hover:shadow-red-500/25"
+      tone: "bg-error-muted text-error",
     },
     {
       title: "Техника",
       icon: Package,
       href: "/equipment",
-      gradient: "from-amber-500 to-orange-500",
-      glow: "hover:shadow-amber-500/25"
+      tone: "bg-warning-muted text-warning",
     },
     {
       title: "Событие",
       icon: CalendarPlus,
       href: "/calendar",
-      gradient: "from-violet-500 to-purple-500",
-      glow: "hover:shadow-violet-500/25"
+      tone: "bg-primary/10 text-primary",
     },
     {
       title: "Задачи",
       icon: ListTodo,
       href: "/tasks",
-      gradient: "from-cyan-500 to-blue-500",
-      glow: "hover:shadow-cyan-500/25"
+      tone: "bg-info-muted text-info",
     }
   ];
 
@@ -44,23 +40,21 @@ export default function QuickActions() {
               variant="outline"
               className={`
                 w-full flex flex-col items-center justify-center gap-1 p-2.5 h-auto min-h-0
-                bg-white dark:bg-slate-800/90
-                border-slate-200 dark:border-slate-700
-                hover:border-slate-300 dark:hover:border-slate-600
-                transition-all duration-200
-                hover:shadow-md ${action.glow}
+                border-border/50 bg-card
+                transition-colors duration-150
+                hover:border-primary/30 hover:bg-muted/40
                 group
               `}
               data-testid={`quick-action-${index}`}
             >
               <div className={`
-                w-8 h-8 rounded-md flex items-center justify-center shrink-0
-                bg-gradient-to-br ${action.gradient}
-                group-hover:scale-105 transition-transform
+                w-8 h-8 rounded-control flex items-center justify-center shrink-0
+                ${action.tone}
+                transition-colors
               `}>
-                <Icon className="h-4 w-4 text-white" />
+                <Icon className="h-4 w-4" />
               </div>
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{action.title}</span>
+              <span className="text-xs font-medium text-foreground">{action.title}</span>
             </Button>
           </Link>
         );

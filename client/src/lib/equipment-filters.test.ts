@@ -26,24 +26,24 @@ describe("equipment filters", () => {
     });
     expect(matchesEquipmentBaseFilters(item, {
       searchTerm: "ser-42",
-      status: "available",
-      operability: "working",
-      category: "category:camera-category",
+      statuses: ["available", "in-use"],
+      operabilities: ["working"],
+      categories: ["category:camera-category"],
     })).toBe(true);
     expect(matchesEquipmentBaseFilters(item, {
       searchTerm: "ser-42",
-      status: "in-use",
-      operability: "working",
-      category: "category:camera-category",
+      statuses: ["in-use"],
+      operabilities: ["working"],
+      categories: ["category:camera-category"],
     })).toBe(false);
   });
 
   it("supports canonical users, raw legacy assignees and unassigned items", () => {
     const users = [{ id: "user-1", name: "Tim", username: "tim" }];
-    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "Tim" }), "user-1", true, users)).toBe(true);
-    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "legacy" }), "raw:legacy", true, users)).toBe(true);
-    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: null }), "unassigned", true, users)).toBe(true);
-    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "other" }), "user-1", false, users)).toBe(true);
+    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "Tim" }), ["user-1", "unassigned"], true, users)).toBe(true);
+    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "legacy" }), ["raw:legacy"], true, users)).toBe(true);
+    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: null }), ["unassigned"], true, users)).toBe(true);
+    expect(matchesEquipmentEmployeeFilter(equipment({ assignedTo: "other" }), ["user-1"], false, users)).toBe(true);
   });
 
   it("orders active category paths without mutating the query result", () => {
@@ -63,10 +63,10 @@ describe("equipment filters", () => {
   it("counts only visible active filters", () => {
     const filters = {
       searchTerm: "camera",
-      status: "available",
-      operability: "all",
-      category: "all",
-      employee: "user-1",
+      statuses: ["available"],
+      operabilities: [],
+      categories: [],
+      employees: ["user-1"],
     };
     expect(countActiveEquipmentFilters(filters, true)).toBe(3);
     expect(countActiveEquipmentFilters(filters, false)).toBe(2);

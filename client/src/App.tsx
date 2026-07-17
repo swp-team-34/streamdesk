@@ -47,6 +47,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { PERMISSIONS } from "@shared/schema";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WorkspaceBoundary } from "@/components/workspace/workspace-boundary";
+import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
 
 function StubModeBanner() {
   const { data } = useQuery<{ stubMode?: boolean }>({
@@ -311,7 +312,7 @@ function App() {
 
   if (isLoading && user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -337,10 +338,10 @@ function App() {
         <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <div className="flex min-h-screen items-center justify-center bg-background">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-gray-600">Загрузка...</p>
+                  <p className="text-muted-foreground">Загрузка...</p>
                 </div>
               </div>
               <Toaster />
@@ -368,11 +369,12 @@ function App() {
   const isFullWidthWorkspace = isTasksWorkspace;
 
   return (
-    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
+    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme" userId={user.id}>
       <QueryClientProvider client={queryClient}>
         <WorkspaceProvider>
           <WorkspaceBoundary>
-            <TooltipProvider>
+            <AppDialogProvider>
+              <TooltipProvider>
               <div
             className={cn(
               "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
@@ -460,7 +462,8 @@ function App() {
             </div>
               </div>
               <Toaster />
-            </TooltipProvider>
+              </TooltipProvider>
+            </AppDialogProvider>
           </WorkspaceBoundary>
         </WorkspaceProvider>
       </QueryClientProvider>

@@ -85,13 +85,13 @@ function getStatusClass(status: string) {
   switch (status) {
     case "live":
     case "active":
-      return "bg-red-500/15 text-red-600 border-red-500/30";
+      return "border-error/20 bg-error-muted text-error";
     case "preparing":
-      return "bg-amber-500/15 text-amber-600 border-amber-500/30";
+      return "border-warning/20 bg-warning-muted text-warning";
     case "ended":
-      return "bg-slate-500/15 text-slate-600 border-slate-500/30";
+      return "border-border/40 bg-muted text-muted-foreground";
     default:
-      return "bg-muted text-muted-foreground border-border";
+      return "border-border/40 bg-muted text-muted-foreground";
   }
 }
 
@@ -226,7 +226,7 @@ export default function Streams() {
   }
 
   return (
-    <div className="space-y-5 w-full min-w-0 max-w-full">
+    <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-5 px-4 py-4 sm:py-6">
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="grid gap-3 p-4 lg:grid-cols-[1fr_1fr_auto]">
           <div className="space-y-2">
@@ -276,7 +276,7 @@ export default function Streams() {
               <p className="text-sm text-muted-foreground">В эфире</p>
               <p className="mt-1 text-2xl font-semibold">{totals.active}</p>
             </div>
-            <Radio className="h-5 w-5 text-red-500" />
+            <Radio className="h-5 w-5 text-error" />
           </CardContent>
         </Card>
         <Card>
@@ -292,9 +292,9 @@ export default function Streams() {
           <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-sm text-muted-foreground">Флаги чата</p>
-              <p className="mt-1 text-2xl font-semibold text-red-600">{flaggedComments.length}</p>
+              <p className="mt-1 text-2xl font-semibold text-error">{flaggedComments.length}</p>
             </div>
-            <ShieldAlert className="h-5 w-5 text-red-500" />
+            <ShieldAlert className="h-5 w-5 text-error" />
           </CardContent>
         </Card>
       </div>
@@ -309,7 +309,7 @@ export default function Streams() {
           </CardHeader>
           <CardContent className="space-y-2">
             {streams.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+              <div className="rounded-surface border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
                 Вставьте первую ссылку выше. Случайные показатели больше не подставляются.
               </div>
             ) : (
@@ -321,8 +321,8 @@ export default function Streams() {
                     type="button"
                     onClick={() => setSelectedStreamId(stream.id)}
                     className={cn(
-                      "w-full rounded-lg border p-3 text-left transition-colors",
-                      selected ? "border-primary bg-primary/5 ring-2 ring-primary/25" : "border-border hover:bg-muted/40",
+                      "w-full rounded-surface border border-border/50 bg-muted/20 p-3 text-left transition-colors",
+                      selected ? "border-primary/50 bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted/40",
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -374,7 +374,7 @@ export default function Streams() {
                     ["Битрейт", formatMetric(selectedStream.bitrate, selectedStream.bitrate ? " kbps" : ""), Gauge],
                     ["FPS", formatMetric(selectedStream.fps), Activity],
                   ].map(([label, value, Icon]: any) => (
-                    <div key={label} className="rounded-lg border bg-background/60 p-3">
+                    <div key={label} className="rounded-surface border border-border/50 bg-muted/20 p-3">
                       <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
                         <Icon className="h-4 w-4" />
                         {label}
@@ -407,7 +407,7 @@ export default function Streams() {
                   </div>
 
                   {selectedComments.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+                    <div className="rounded-surface border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
                       Комментариев пока нет. Когда будет подключён сбор комментариев платформы, они будут попадать сюда; пока можно вставлять спорные сообщения вручную.
                     </div>
                   ) : (
@@ -418,8 +418,8 @@ export default function Streams() {
                           <div
                             key={comment.id}
                             className={cn(
-                              "rounded-lg border p-3",
-                              flagged ? "border-red-500/40 bg-red-500/10" : "border-border bg-background/60",
+                              "rounded-surface border border-border/50 p-3",
+                              flagged ? "border-error/25 bg-error-muted/60" : "bg-muted/20",
                             )}
                           >
                             <div className="flex items-start justify-between gap-3">

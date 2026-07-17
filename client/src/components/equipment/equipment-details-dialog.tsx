@@ -108,7 +108,7 @@ export function EquipmentDetailsDialog({
 
   return (
     <Dialog open={Boolean(equipment)} onOpenChange={(open) => !open && void onClose()}>
-      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden bg-white dark:bg-slate-900">
+      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden">
         {equipment && (
           <>
             <DialogHeader>
@@ -124,13 +124,13 @@ export function EquipmentDetailsDialog({
                   Назад к комплекту
                 </Button>
               )}
-              <DialogTitle className="text-slate-900 dark:text-white">{equipment.name}</DialogTitle>
-              <DialogDescription className="text-slate-500 dark:text-slate-400">
+              <DialogTitle>{equipment.name}</DialogTitle>
+              <DialogDescription>
                 {[equipment.model, getEquipmentCategoryLabel(equipment)].filter(Boolean).join(" · ")}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="min-h-0 space-y-4 overflow-y-auto pr-1 text-sm text-slate-700 dark:text-slate-300">
+            <div className="min-h-0 space-y-4 overflow-y-auto pr-1 text-sm text-foreground">
               {photos.length > 0 && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {photos.map((photo, index) => (
@@ -139,7 +139,7 @@ export function EquipmentDetailsDialog({
                       href={photo}
                       target="_blank"
                       rel="noreferrer"
-                      className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900"
+                      className="block overflow-hidden rounded-surface border border-border/50 bg-surface-subtle"
                     >
                       <img
                         src={photo}
@@ -170,33 +170,33 @@ export function EquipmentDetailsDialog({
               />
 
               {history.length > 0 && (
-                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                  <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                  <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     <History className="h-3.5 w-3.5" />
                     История состава
                   </div>
                   <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
                     {[...history].reverse().map((entry, index) => (
-                      <div key={String(entry.id || index)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
-                        <div className="font-medium text-slate-900 dark:text-white">
+                      <div key={String(entry.id || index)} className="rounded-control border border-border/40 bg-surface-raised px-3 py-2 text-xs shadow-xs">
+                        <div className="font-medium text-foreground">
                           {String(entry.componentName || "Компонент")}
                         </div>
                         <Badge className={cn(
                           "mt-1 text-[10px]",
                           entry.action === "added"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+                            ? "bg-success-muted text-success"
+                            : "bg-muted text-muted-foreground",
                         )}>
                           {entry.action === "added" ? "Добавлено" : "Извлечено"}
                         </Badge>
-                        <div className="mt-1 text-slate-500 dark:text-slate-400">
+                        <div className="mt-1 text-muted-foreground">
                           {String(entry.actorName || "Пользователь")} · {formatEquipmentDateTime(String(entry.at || ""))}
                         </div>
-                        <div className="mt-1 break-words text-slate-600 dark:text-slate-300">
+                        <div className="mt-1 break-words text-foreground/80">
                           {String(entry.reason || entry.context || "Без комментария")}
                         </div>
                         {entry.managerOverride === true && (
-                          <Badge className="mt-2 bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                          <Badge className="mt-2 bg-warning-muted text-[10px] text-warning">
                             Override менеджера
                           </Badge>
                         )}
@@ -206,8 +206,8 @@ export function EquipmentDetailsDialog({
                 </div>
               )}
 
-              <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                   Исправность
                 </div>
                 <Badge className={getEquipmentOperabilityClass(getEquipmentOperabilityStatus(equipment))}>
@@ -219,16 +219,16 @@ export function EquipmentDetailsDialog({
                 const destination = getEquipmentPhysicalDestination(equipment);
                 if (!destination.displayName) return null;
                 return (
-                  <div className="rounded-md border border-violet-200/80 bg-violet-50/70 px-4 py-3 dark:border-violet-900 dark:bg-violet-950/20">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-violet-600 dark:text-violet-300">
+                  <div className="rounded-surface border border-primary/30 bg-primary/5 px-4 py-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-primary">
                       Физическое местоположение
                     </div>
                     <div className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div className="min-w-0">
                         <div className="break-words font-medium">{destination.displayName}</div>
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                          <Badge className="bg-white text-[10px] text-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                          <Badge variant="secondary" className="text-[10px] text-primary">
                             {destination.locationId
                               ? "Площадка"
                               : destination.legacyLocation
@@ -236,7 +236,7 @@ export function EquipmentDetailsDialog({
                                 : "Ручной ввод"}
                           </Badge>
                           {destination.archived && (
-                            <Badge className="bg-slate-200 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            <Badge variant="secondary" className="text-[10px]">
                               В архиве
                             </Badge>
                           )}
@@ -251,21 +251,21 @@ export function EquipmentDetailsDialog({
                 const links = getEquipmentContextLinks(equipment).filter((link) => link.active);
                 if (links.length === 0) return null;
                 return (
-                  <div className="rounded-md border border-blue-200/80 bg-blue-50/70 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
-                    <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-blue-600 dark:text-blue-300">
+                  <div className="rounded-surface border border-info/30 bg-info/10 px-4 py-3">
+                    <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-info">
                       Рабочий контекст
                     </div>
                     <div className="space-y-2">
                       {links.map((link) => (
-                        <div key={link.id} className="rounded-md border border-blue-200/70 bg-white/80 px-3 py-2 dark:border-blue-900/70 dark:bg-slate-900/70">
+                        <div key={link.id} className="rounded-control border border-border/40 bg-surface-raised px-3 py-2 shadow-xs">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <Badge className={link.source === "checkout"
-                              ? "bg-blue-100 text-[10px] text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
-                              : "bg-violet-100 text-[10px] text-violet-800 dark:bg-violet-900/50 dark:text-violet-200"}>
+                              ? "bg-info/15 text-[10px] text-info"
+                              : "bg-primary/15 text-[10px] text-primary"}>
                               {link.source === "checkout" ? "Выдача / запрос" : "Ручная связь"}
                             </Badge>
                             {link.checkoutRequest?.status && (
-                              <Badge className="bg-slate-100 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              <Badge variant="secondary" className="text-[10px]">
                                 {getRequestStatusText(link.checkoutRequest.status)}
                               </Badge>
                             )}
@@ -273,7 +273,7 @@ export function EquipmentDetailsDialog({
                           {link.project?.name && (
                             <Link
                               href={`/projects?projectId=${encodeURIComponent(String(link.project.id))}`}
-                              className="mt-1.5 block break-words font-medium text-slate-900 hover:underline dark:text-white"
+                              className="mt-1.5 block break-words font-medium text-foreground hover:underline"
                             >
                               Проект: {link.project.name}
                             </Link>
@@ -281,7 +281,7 @@ export function EquipmentDetailsDialog({
                           {link.kanbanCard?.title && (
                             <Link
                               href={`/tasks?boardId=${encodeURIComponent(String(link.kanbanCard.boardId))}&cardId=${encodeURIComponent(String(link.kanbanCard.id))}`}
-                              className="mt-1 block break-words text-slate-600 hover:underline dark:text-slate-300"
+                              className="mt-1 block break-words text-muted-foreground hover:text-foreground hover:underline"
                             >
                               Kanban V2: {link.kanbanCard.title}
                             </Link>
@@ -300,27 +300,27 @@ export function EquipmentDetailsDialog({
                 if (!storageLocation && !responsiblePerson && !responsibleContact) return null;
 
                 return (
-                  <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                    <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                  <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                    <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                       Хранение и ответственность
                     </div>
                     <div className="space-y-2">
                       {storageLocation && (
                         <div className="flex items-start gap-2">
-                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <div className="min-w-0">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Место хранения</div>
+                            <div className="text-xs text-muted-foreground">Место хранения</div>
                             <div className="break-words font-medium">{storageLocation}</div>
                           </div>
                         </div>
                       )}
                       {(responsiblePerson || responsibleContact) && (
                         <div className="flex items-start gap-2">
-                          <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                          <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <div className="min-w-0">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Ответственный</div>
+                            <div className="text-xs text-muted-foreground">Ответственный</div>
                             {responsiblePerson && <div className="break-words font-medium">{responsiblePerson}</div>}
-                            {responsibleContact && <div className="break-words text-slate-600 dark:text-slate-300">{responsibleContact}</div>}
+                            {responsibleContact && <div className="break-words text-muted-foreground">{responsibleContact}</div>}
                           </div>
                         </div>
                       )}
@@ -330,8 +330,8 @@ export function EquipmentDetailsDialog({
               })()}
 
               {equipment.status === "in-use" && assignedUserName && (
-                <div className="rounded-md border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
-                  <div className="flex items-start gap-2 text-blue-700 dark:text-blue-300">
+                <div className="rounded-surface border border-info/30 bg-info/10 px-4 py-3">
+                  <div className="flex items-start gap-2 text-info">
                     <User className="mt-0.5 h-4 w-4 shrink-0" />
                     <div className="min-w-0">
                       <div className="font-medium">Сейчас забрал</div>
@@ -342,29 +342,29 @@ export function EquipmentDetailsDialog({
               )}
 
               {!canEdit && String(equipment.notes ?? "").trim() && (
-                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Описание
                   </div>
                   {(noteAudit.authorName || noteAudit.at) && (
-                    <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="mb-2 text-xs text-muted-foreground">
                       Примечание: {noteAudit.authorName || "пользователь"}
                       {noteAudit.at ? `, ${formatEquipmentDateTime(noteAudit.at)}` : ""}
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap break-words leading-6 text-slate-700 dark:text-slate-200">
+                  <p className="whitespace-pre-wrap break-words leading-6 text-foreground">
                     {equipment.notes}
                   </p>
                 </div>
               )}
 
               {canEdit && (
-                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Примечание
                   </div>
                   {(noteAudit.authorName || noteAudit.at) && (
-                    <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="mb-2 text-xs text-muted-foreground">
                       Последнее изменение: {noteAudit.authorName || "пользователь"}
                       {noteAudit.at ? `, ${formatEquipmentDateTime(noteAudit.at)}` : ""}
                     </div>
@@ -374,7 +374,7 @@ export function EquipmentDetailsDialog({
                     value={note}
                     onChange={(event) => onNoteChange(event.target.value)}
                     placeholder="Напишите примечание по оборудованию"
-                    className="min-h-28 resize-y bg-white dark:bg-slate-950"
+                    className="min-h-28 resize-y"
                   />
                   <div
                     className={cn(
@@ -382,7 +382,7 @@ export function EquipmentDetailsDialog({
                       noteAutosaveStatus === "error" ||
                         (noteAutosaveStatus === "dirty" && noteAutosaveError)
                         ? "text-destructive"
-                        : "text-slate-500 dark:text-slate-400",
+                        : "text-muted-foreground",
                     )}
                     role="status"
                   >
@@ -398,26 +398,26 @@ export function EquipmentDetailsDialog({
               )}
 
               {specificationEntries.length > 0 && (
-                <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                  <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Технические характеристики
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {specificationEntries.map(([label, value]) => (
                       <div
                         key={`${equipment.id}-${label}`}
-                        className="rounded-md border border-slate-200/70 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+                        className="rounded-control border border-border/40 bg-surface-raised px-3 py-2 shadow-xs"
                       >
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
-                        <div className="mt-1 break-words font-medium text-slate-900 dark:text-slate-100">{value}</div>
+                        <div className="text-xs text-muted-foreground">{label}</div>
+                        <div className="mt-1 break-words font-medium text-foreground">{value}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                   <MessageSquare className="h-3.5 w-3.5" />
                   История и файлы
                 </div>
@@ -429,7 +429,7 @@ export function EquipmentDetailsDialog({
               </div>
 
               {canEdit && !String(equipment.notes ?? "").trim() && specificationEntries.length === 0 && (
-                <div className="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle px-4 py-6 text-center text-muted-foreground">
                   Для этой позиции описание и технические характеристики пока не заполнены.
                 </div>
               )}

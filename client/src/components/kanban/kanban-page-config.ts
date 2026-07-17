@@ -150,11 +150,6 @@ export const EMPTY_MEMBER_FORM: MemberFormState = {
   canComment: false,
 };
 
-export const DEFAULT_KANBAN_CUSTOM_FIELD_TEMPLATES = [
-  { name: "File Storage Location", type: "text" as KanbanCustomFieldType, showOnCard: true, showInList: true },
-  { name: "Recording Date", type: "date" as KanbanCustomFieldType, showOnCard: true, showInList: true },
-];
-
 export const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -163,9 +158,6 @@ export const asRecord = (value: unknown): Record<string, unknown> | null => {
 export const getDraggableCardStyle = (
   style: DraggableStyle | undefined,
 ): CSSProperties | undefined => style as CSSProperties | undefined;
-
-export const confirmDelete = (message: string) =>
-  typeof window !== "undefined" && window.confirm(message);
 
 export interface KanbanCardMoveInput {
   boardId: string;

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCustomFieldsSection } from "./kanban-custom-fields-section";
 
 const form = {
@@ -28,14 +29,13 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={onFormChange}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={vi.fn()}
         onSave={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
-    expect(screen.getByLabelText("Опции поля")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Тип поля"), { target: { value: "select" } });
+    expect(screen.queryByLabelText("Опции поля")).not.toBeInTheDocument();
+    chooseStreamSelectOption("Тип поля", "Select");
     expect(onFormChange).toHaveBeenCalledWith({ ...form, type: "select" });
 
     rerender(
@@ -48,7 +48,6 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={onFormChange}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={vi.fn()}
         onSave={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -57,8 +56,7 @@ describe("KanbanCustomFieldsSection", () => {
     expect(screen.getByLabelText("Опции поля")).toBeEnabled();
   });
 
-  it("delegates default, save, edit and archive actions", () => {
-    const onCreateDefaults = vi.fn();
+  it("delegates save, edit and archive actions", () => {
     const onSave = vi.fn();
     const onEdit = vi.fn();
     const onDelete = vi.fn();
@@ -72,19 +70,38 @@ describe("KanbanCustomFieldsSection", () => {
         deletePending={false}
         onFormChange={vi.fn()}
         onCancelEdit={vi.fn()}
-        onCreateDefaults={onCreateDefaults}
         onSave={onSave}
         onEdit={onEdit}
         onDelete={onDelete}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "File/Recording шаблон" }));
     fireEvent.click(screen.getByRole("button", { name: "Добавить поле" }));
     fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
     fireEvent.click(screen.getByRole("button", { name: "Архивировать" }));
-    expect(onCreateDefaults).toHaveBeenCalledOnce();
     expect(onSave).toHaveBeenCalledOnce();
     expect(onEdit).toHaveBeenCalledWith(field);
     expect(onDelete).toHaveBeenCalledWith(field);
+  });
+
+  it("uses accessible custom checkboxes for visibility settings", () => {
+    const onFormChange = vi.fn();
+    render(
+      <KanbanCustomFieldsSection
+        fields={[]}
+        form={form}
+        canEdit
+        loading={false}
+        savePending={false}
+        deletePending={false}
+        onFormChange={onFormChange}
+        onCancelEdit={vi.fn()}
+        onSave={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Обязательное" }));
+    expect(onFormChange).toHaveBeenCalledWith({ ...form, required: true });
   });
 });

@@ -75,11 +75,11 @@ export function KanbanBoardNavigation({
   const sharedBoards = boards.filter((board) => Boolean(board.companyId));
 
   return (
-    <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <div className="mb-3 flex items-center justify-between gap-2 rounded-surface border border-border/50 bg-surface-raised p-2 shadow-xs">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9 min-w-0 max-w-full flex-1 justify-between gap-2 rounded-xl sm:max-w-[320px] sm:flex-none">
+            <Button variant="outline" className="h-9 min-w-0 max-w-full flex-1 justify-between gap-2 rounded-control border-border/50 bg-surface-base sm:max-w-[320px] sm:flex-none">
               <span className="min-w-0 truncate">
                 {boardsLoading ? "Загрузка досок..." : selectedBoard?.name || "Выберите доску"}
               </span>
@@ -118,14 +118,14 @@ export function KanbanBoardNavigation({
 
       <div className="flex shrink-0 items-center gap-1.5">
         {selectedBoard?.canManage && (
-          <Button variant="outline" size="icon" className="hidden h-9 w-9 rounded-xl md:inline-flex" onClick={onOpenSettings} aria-label="Настройки доски" title="Настройки доски">
+          <Button variant="outline" size="icon" className="hidden h-9 w-9 rounded-control border-border/50 bg-surface-base md:inline-flex" onClick={onOpenSettings} aria-label="Настройки доски" title="Настройки доски">
             <Settings2 className="h-4 w-4" />
           </Button>
         )}
 
         <DropdownMenu open={createMenuOpen} onOpenChange={onCreateMenuOpenChange}>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" className="h-9 w-9 rounded-xl" aria-label="Создать">
+            <Button size="icon" className="h-9 w-9 rounded-control" aria-label="Создать">
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -142,7 +142,7 @@ export function KanbanBoardNavigation({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" aria-label="Действия доски">
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-control border-border/50 bg-surface-base" aria-label="Действия доски">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

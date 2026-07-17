@@ -84,15 +84,15 @@ export function buildVmixEventActions(input: string, selectedActions: string[]) 
 export function getVmixEventStatusClass(status: string) {
   switch (status) {
     case "live":
-      return "bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50";
+      return "border-error/20 bg-error-muted text-error animate-pulse";
     case "scheduled":
-      return "bg-blue-500 text-white dark:bg-blue-600";
+      return "border-info/20 bg-info-muted text-info";
     case "completed":
-      return "bg-emerald-500 text-white dark:bg-emerald-600";
+      return "border-success/20 bg-success-muted text-success";
     case "error":
-      return "bg-red-500 text-white dark:bg-red-600";
+      return "border-error/20 bg-error-muted text-error";
     default:
-      return "bg-slate-500 text-white dark:bg-slate-600";
+      return "border-border/40 bg-muted text-muted-foreground";
   }
 }
 

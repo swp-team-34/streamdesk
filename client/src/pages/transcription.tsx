@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +31,7 @@ interface FolderItem {
 
 export default function Transcription() {
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
   const queryClient = useQueryClient();
 
   const [selectedPodcast, setSelectedPodcast] = useState<string | null>(null);
@@ -182,10 +184,18 @@ export default function Transcription() {
     },
   });
 
-  const handleDelete = (itemName: string, isFolder: boolean) => {
+  const handleDelete = async (itemName: string, isFolder: boolean) => {
     if (!selectedPodcast) return;
     const itemPath = currentPath ? `${currentPath}/${itemName}` : itemName;
-    if (!confirm(isFolder ? `Удалить папку «${itemName}» и всё её содержимое?` : `Удалить файл «${itemName}»?`)) return;
+    const confirmed = await confirmAction({
+      title: isFolder ? `Удалить папку «${itemName}»?` : `Удалить файл «${itemName}»?`,
+      description: isFolder
+        ? "Папка и всё её содержимое будут удалены без возможности восстановления."
+        : "Файл будет удалён без возможности восстановления.",
+      confirmLabel: "Удалить",
+      destructive: true,
+    });
+    if (!confirmed) return;
     deleteItemMutation.mutate({ itemPath, isFolder });
   };
 
@@ -245,7 +255,7 @@ export default function Transcription() {
                 </div>
               )}
               {podcastsError && !podcastsLoading && (
-                <div className="text-sm text-red-500 px-1 py-2">
+                <div className="px-1 py-2 text-sm text-error">
                   Не удалось загрузить список подкастов. Попробуйте обновить.
                 </div>
               )}
@@ -279,9 +289,15 @@ export default function Transcription() {
                     variant="ghost"
                     className="h-7 w-7 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
                     title="Удалить подкаст"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (!confirm(`Удалить подкаст «${podcast.name}» и всё его содержимое?`)) return;
+                      const confirmed = await confirmAction({
+                        title: `Удалить подкаст «${podcast.name}»?`,
+                        description: "Подкаст и всё его содержимое будут удалены без возможности восстановления.",
+                        confirmLabel: "Удалить",
+                        destructive: true,
+                      });
+                      if (!confirmed) return;
                       deletePodcastMutation.mutate(podcast.name);
                     }}
                     disabled={deletePodcastMutation.isPending}
@@ -370,7 +386,7 @@ export default function Transcription() {
                 </div>
               )}
               {contentsError && !contentsLoading && (
-                <div className="text-sm text-red-500">
+                <div className="text-sm text-error">
                   Не удалось загрузить содержимое. Попробуйте обновить страницу или выбрать подкаст заново.
                 </div>
               )}
@@ -412,8 +428,8 @@ export default function Transcription() {
                             className="flex items-center gap-2 flex-1 min-w-0"
                             onClick={() => setExpandedFolderPath(isExpanded ? null : fullPath)}
                           >
-                            <ChevronRight className={cn("w-4 h-4 shrink-0 text-amber-500 transition-transform", isExpanded && "rotate-90")} />
-                            <Folder className="w-4 h-4 text-amber-500 shrink-0" />
+                            <ChevronRight className={cn("h-4 w-4 shrink-0 text-warning transition-transform", isExpanded && "rotate-90")} />
+                            <Folder className="h-4 w-4 shrink-0 text-warning" />
                             <span className="truncate">{folder.name}</span>
                           </button>
                           <Button
@@ -428,14 +444,14 @@ export default function Transcription() {
                           </Button>
                         </div>
                         {isExpanded && (
-                          <div className="pl-6 pr-2 py-2 bg-muted/30 border-l-2 border-amber-500/40 ml-2 mb-2 rounded-r space-y-1">
+                          <div className="mb-2 ml-2 space-y-1 rounded-r-control border-l-2 border-warning/40 bg-muted/30 py-2 pl-6 pr-2">
                             {expandedLoading ? (
                               <div className="text-xs text-muted-foreground">Загрузка...</div>
                             ) : (
                               <>
                                 {expandedContents?.files.map((file) => (
                                   <div key={file.name} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-background/50 group/item">
-                                    <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                                    <FileText className="h-4 w-4 shrink-0 text-info" />
                                     <span className="truncate flex-1">{file.name}</span>
                                     <Button
                                       type="button"
@@ -451,7 +467,7 @@ export default function Transcription() {
                                 ))}
                                 {expandedContents?.folders?.map((sub) => (
                                   <div key={sub.name} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-muted-foreground group/item">
-                                    <Folder className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <Folder className="h-4 w-4 shrink-0 text-warning" />
                                     <span className="truncate flex-1">{sub.name}</span>
                                     <Button
                                       type="button"
@@ -483,7 +499,7 @@ export default function Transcription() {
                   )}
                   {contents?.files.map((file) => (
                     <div key={file.name} className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border border-transparent hover:border-muted group">
-                      <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                      <FileText className="h-4 w-4 shrink-0 text-info" />
                       <span className="truncate flex-1">{file.name}</span>
                       <Button
                         type="button"
@@ -506,5 +522,3 @@ export default function Transcription() {
     </div>
   );
 }
-
-

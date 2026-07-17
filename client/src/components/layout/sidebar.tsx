@@ -33,11 +33,12 @@ import {
   FileSpreadsheet,
   Users,
 } from "lucide-react";
-import { useState, useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tabPermission, PERMISSIONS } from "@shared/schema";
 import { apiUrl } from "@/lib/queryClient";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { useTheme } from "@/components/theme-provider";
 
 interface SidebarProps {
   user?: any;
@@ -112,7 +113,7 @@ function SidebarLink({
       <Icon className={cn("w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0", isActive && "text-primary")} />
       {!collapsed && <span className="font-medium truncate">{label}</span>}
       {collapsed && (
-        <div className="absolute left-full ml-2 px-2 py-1 bg-popover border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+        <div className="pointer-events-none invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-control border border-border/50 bg-popover px-2 py-1 opacity-0 shadow-surface transition-all group-hover:visible group-hover:opacity-100">
           {label}
         </div>
       )}
@@ -122,6 +123,7 @@ function SidebarLink({
 export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
   const [location] = useLocation();
   const { workspace } = useWorkspace();
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed } = useTheme();
   const touchStartX = useRef(0);
   const { data: terminalAccess } = useQuery({
     queryKey: ["/api/terminal/access"],
@@ -132,11 +134,6 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       return { allowedRoles: Array.isArray(data?.allowedRoles) ? data.allowedRoles : [] };
     },
     staleTime: 60_000,
-  });
-
-  const [collapsed, setCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebar_collapsed");
-    return saved === "true";
   });
 
   const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
@@ -198,10 +195,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       );
 
   const toggleCollapse = () => {
-    const nextCollapsed = !collapsed;
-    setCollapsed(nextCollapsed);
-    localStorage.setItem("sidebar_collapsed", String(nextCollapsed));
-    window.dispatchEvent(new Event("sidebar-collapse-change"));
+    setSidebarCollapsed(!collapsed);
   };
   const closeAndSyncPlatformTab = (href: string) => {
     onClose();
@@ -217,7 +211,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
       <div
         className={cn(
           "fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-in-out lg:translate-x-0 flex flex-col overflow-hidden",
-          "bg-card border-r border-border/40 shadow-xl dark:shadow-none dark:backdrop-blur-md",
+          "border-r border-border/50 bg-card shadow-overlay lg:shadow-none",
           isOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-14 sm:w-16 lg:w-14 xl:w-16" : "w-[200px] sm:w-56 lg:w-[200px] xl:w-56 max-w-[80vw] lg:max-w-none"
         )}
@@ -294,7 +288,7 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
                   </>
                 )}
                 {collapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-popover border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+                  <div className="pointer-events-none invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-control border border-border/50 bg-popover px-2 py-1 opacity-0 shadow-surface transition-all group-hover:visible group-hover:opacity-100">
                     расписатель vMix
                   </div>
                 )}
@@ -351,8 +345,8 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
           )}
         </nav>
 
-        <div className={cn("p-2 sm:p-3 border-t border-border/40", collapsed && "p-2")}>
-          <div className="bg-muted/50 rounded-lg p-3">
+        <div className={cn("border-t border-border/40 p-2 sm:p-3", collapsed && "p-1.5")}>
+          <div className={cn("w-full rounded-lg bg-muted/50 p-3", collapsed && "p-1")}>
             <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
               <Avatar className={cn("flex-shrink-0 touch-target", collapsed ? "w-8 h-8" : "w-10 h-10")}>
                 <AvatarImage src={user?.avatar || undefined} />
@@ -385,9 +379,10 @@ export default function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProp
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-full mt-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="mt-1.5 h-9 w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 onClick={onLogout}
                 title="Выйти"
+                aria-label="Выйти"
               >
                 <LogOut className="w-4 h-4" />
               </Button>

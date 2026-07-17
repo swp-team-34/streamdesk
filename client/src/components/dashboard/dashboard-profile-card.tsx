@@ -18,32 +18,25 @@ export default function DashboardProfileCard() {
         : "Сотрудник";
 
   return (
-    <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border overflow-hidden rounded-xl border-l-4 border-l-primary/60">
-      <CardContent className="p-3 sm:p-4 min-w-0">
-        <div className="flex items-start gap-3">
-          <Avatar className="h-14 w-14 shrink-0 border-2 border-primary/30">
+    <Card className="min-w-0 overflow-hidden border-border/50 bg-surface-raised shadow-xs">
+      <CardContent className="min-w-0 !p-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 shrink-0 border border-border/60">
             <AvatarImage src={user.avatar} />
-            <AvatarFallback className="bg-primary/20 text-primary text-lg">
+            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
               {user.name?.split(" ").map((n: string) => n[0]).join("") || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-foreground text-lg truncate">
-              {user.name || "Гость"}
-            </h3>
-            <p className="text-sm text-muted-foreground truncate">
-              {user.email || user.username ? `@${user.username || "user"}` : roleLabel}
-            </p>
-            {user.email && (
-              <p className="text-xs text-muted-foreground/80 mt-0.5 truncate">
-                {user.email}
-              </p>
-            )}
-            {!user.email && (
-              <p className="text-xs text-muted-foreground/80 mt-0.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <h3 className="truncate text-sm font-semibold text-foreground">{user.name || "Гость"}</h3>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                 {roleLabel}
-              </p>
-            )}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {user.email || (user.username ? `@${user.username}` : "Личный профиль")}
+            </p>
           </div>
         </div>
       </CardContent>

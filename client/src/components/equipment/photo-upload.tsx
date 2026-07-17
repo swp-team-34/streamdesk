@@ -104,14 +104,14 @@ export function PhotoUpload({ equipmentId, existingPhotos, onPhotosChange }: Pho
           <ImageIcon className="w-4 h-4" />
           Фотографии оборудования
         </label>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {existingPhotos.length} фото
         </span>
       </div>
 
       {/* Существующие фотографии */}
       {brokenLocalPhotos > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="rounded-control border border-warning/25 bg-warning-muted px-3 py-2 text-xs text-warning">
           Старые временные фото не открываются после перезагрузки. Загрузите файлы заново.
         </div>
       )}
@@ -123,7 +123,7 @@ export function PhotoUpload({ equipmentId, existingPhotos, onPhotosChange }: Pho
               <img
                 src={/^(https?:)?\/\//i.test(photo) || photo.startsWith("/") ? photo : photo.includes("uploads/") ? `/${photo.replace(/^\/+/, "")}` : `/uploads/${photo.replace(/^\/+/, "")}`}
                 alt={`Фото ${index + 1}`}
-                className="w-full h-24 object-cover rounded-lg border"
+                className="h-24 w-full rounded-control border border-border/50 object-cover"
                 onError={(e) => {
                   e.currentTarget.src = '/placeholder-image.png';
                 }}
@@ -143,12 +143,12 @@ export function PhotoUpload({ equipmentId, existingPhotos, onPhotosChange }: Pho
       )}
 
       {/* Загрузка файлов */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+      <div className="rounded-surface border border-dashed border-border/60 bg-surface-subtle p-6">
         <div className="text-center space-y-4">
-          <Upload className="w-8 h-8 mx-auto text-gray-400" />
+          <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
           <div>
             <label htmlFor="photo-upload" className="cursor-pointer">
-              <span className="text-sm font-medium text-blue-600 hover:text-blue-500">
+              <span className="text-sm font-medium text-primary hover:text-primary/80">
                 Загрузить файлы
               </span>
               <input
@@ -161,7 +161,7 @@ export function PhotoUpload({ equipmentId, existingPhotos, onPhotosChange }: Pho
                 disabled={isUploading}
               />
             </label>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               PNG, JPG, GIF до 10MB
             </p>
           </div>
@@ -188,7 +188,7 @@ export function PhotoUpload({ equipmentId, existingPhotos, onPhotosChange }: Pho
 
       {isUploading && (
         <div className="text-center">
-          <div className="inline-flex items-center px-4 py-2 text-sm text-blue-600">
+          <div className="inline-flex items-center px-4 py-2 text-sm text-primary">
             <Upload className="w-4 h-4 mr-2 animate-pulse" />
             Загрузка фотографий...
           </div>

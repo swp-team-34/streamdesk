@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { createRef } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { ProjectEditForm } from "./project-edit-form";
+import { ProjectEditForm, normalizeProjectResponsibleIds } from "./project-edit-form";
 
 const mocks = vi.hoisted(() => ({ flush: vi.fn() }));
 
@@ -27,6 +27,14 @@ describe("ProjectEditForm", () => {
   afterAll(() => vi.unstubAllGlobals());
   afterEach(cleanup);
 
+  it("keeps all responsible users and includes a legacy assignee once", () => {
+    expect(normalizeProjectResponsibleIds({
+      id: "project-1",
+      assignedTo: "user-1",
+      responsibleUserIds: ["user-2", "user-1", "user-2"],
+    })).toEqual(["user-2", "user-1"]);
+  });
+
   it("keeps editor state controlled and flushes before closing", async () => {
     mocks.flush.mockReset();
     mocks.flush.mockResolvedValue(true);
@@ -44,6 +52,7 @@ describe("ProjectEditForm", () => {
 
     fireEvent.change(screen.getByDisplayValue("Launch"), { target: { value: "Launch updated" } });
     expect(screen.getByDisplayValue("Launch updated")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Ответственные проекта" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
 
     await waitFor(() => expect(mocks.flush).toHaveBeenCalledOnce());
