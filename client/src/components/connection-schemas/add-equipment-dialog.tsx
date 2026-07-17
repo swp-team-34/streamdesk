@@ -9,10 +9,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { Search, Loader2, Plus, ExternalLink, Radio, Signal } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Equipment } from "@shared/schema";
+
+const EQUIPMENT_TYPE_OPTIONS = [
+  { value: "computer", label: "Компьютер" },
+  { value: "camera", label: "Камера" },
+  { value: "mic", label: "Микрофон" },
+  { value: "audio", label: "Аудио" },
+  { value: "network", label: "Сеть" },
+  { value: "display", label: "Дисплей" },
+  { value: "other", label: "Другое" },
+];
+
+const PORT_TYPE_OPTIONS = ["HDMI", "SDI", "USB", "USB-C", "ETH", "LAN", "BNC", "DC", "XLR", "Wireless"]
+  .map((value) => ({ value, label: value === "ETH" ? "Ethernet" : value }));
 
 /** Нормализация для поиска: нижний регистр, похожие кириллица/латиница к одному виду, двойные буквы убрать */
 function normalizeForSearch(s: string): string {
@@ -710,19 +724,13 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
 
                 <div>
                   <Label>Тип</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  <StreamSelect
+                    ariaLabel="Тип оборудования"
                     value={customEquipment.type}
-                    onChange={(e) => setCustomEquipment({ ...customEquipment, type: e.target.value })}
-                  >
-                    <option value="computer">Компьютер</option>
-                    <option value="camera">Камера</option>
-                    <option value="mic">Микрофон</option>
-                    <option value="audio">Аудио</option>
-                    <option value="network">Сеть</option>
-                    <option value="display">Дисплей</option>
-                    <option value="other">Другое</option>
-                  </select>
+                    options={EQUIPMENT_TYPE_OPTIONS}
+                    onValueChange={(value) => setCustomEquipment({ ...customEquipment, type: value })}
+                    className="h-10 sm:h-10"
+                  />
                 </div>
 
                 <div>
@@ -742,22 +750,15 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                           placeholder="Название порта"
                           className="flex-1"
                         />
-                        <select
-                          className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={port.portType || "HDMI"}
-                          onChange={(e) => updatePort("in", port.id, { portType: e.target.value })}
-                        >
-                          <option value="HDMI">HDMI</option>
-                          <option value="SDI">SDI</option>
-                          <option value="USB">USB</option>
-                          <option value="USB-C">USB-C</option>
-                          <option value="ETH">Ethernet</option>
-                          <option value="LAN">LAN</option>
-                          <option value="BNC">BNC</option>
-                          <option value="DC">DC</option>
-                          <option value="XLR">XLR</option>
-                          <option value="Wireless">Wireless</option>
-                        </select>
+                        <div className="w-36 shrink-0">
+                          <StreamSelect
+                            ariaLabel={`Тип входного порта ${port.name || port.id}`}
+                            value={port.portType || "HDMI"}
+                            options={PORT_TYPE_OPTIONS}
+                            onValueChange={(value) => updatePort("in", port.id, { portType: value })}
+                            className="h-10 sm:h-10"
+                          />
+                        </div>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -787,22 +788,15 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
                           placeholder="Название порта"
                           className="flex-1"
                         />
-                        <select
-                          className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={port.portType || "HDMI"}
-                          onChange={(e) => updatePort("out", port.id, { portType: e.target.value })}
-                        >
-                          <option value="HDMI">HDMI</option>
-                          <option value="SDI">SDI</option>
-                          <option value="USB">USB</option>
-                          <option value="USB-C">USB-C</option>
-                          <option value="ETH">Ethernet</option>
-                          <option value="LAN">LAN</option>
-                          <option value="BNC">BNC</option>
-                          <option value="DC">DC</option>
-                          <option value="XLR">XLR</option>
-                          <option value="Wireless">Wireless</option>
-                        </select>
+                        <div className="w-36 shrink-0">
+                          <StreamSelect
+                            ariaLabel={`Тип выходного порта ${port.name || port.id}`}
+                            value={port.portType || "HDMI"}
+                            options={PORT_TYPE_OPTIONS}
+                            onValueChange={(value) => updatePort("out", port.id, { portType: value })}
+                            className="h-10 sm:h-10"
+                          />
+                        </div>
                         <Button
                           size="sm"
                           variant="ghost"

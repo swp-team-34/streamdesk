@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { insertEventSchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AuthService } from "@/lib/auth";
@@ -506,37 +507,33 @@ export function EventForm({ isOpen, onClose, event, selectedDate }: EventFormPro
               <div className="grid grid-cols-1 gap-4 rounded-xl border border-border/35 bg-muted/20 p-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <FormLabel>Доска</FormLabel>
-                  <select
-                    className="h-10 w-full rounded-xl border border-input/35 bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  <StreamSelect
+                    ariaLabel="Доска Kanban"
                     value={selectedKanbanBoardId}
-                    onChange={(selectedEvent) => {
-                      setSelectedKanbanBoardId(selectedEvent.target.value);
+                    options={editableKanbanBoards.length === 0
+                      ? [{ value: "", label: "Нет доступных досок" }]
+                      : editableKanbanBoards.map((board) => ({ value: board.id, label: board.name }))}
+                    onValueChange={(value) => {
+                      setSelectedKanbanBoardId(value);
                       setSelectedKanbanListId("");
                     }}
-                  >
-                    {editableKanbanBoards.length === 0 && <option value="">Нет доступных досок</option>}
-                    {editableKanbanBoards.map((board) => (
-                      <option key={board.id} value={board.id}>
-                        {board.name}
-                      </option>
-                    ))}
-                  </select>
+                    className="h-10 sm:h-10"
+                    searchable
+                  />
                 </div>
                 <div className="space-y-2">
                   <FormLabel>Список</FormLabel>
-                  <select
-                    className="h-10 w-full rounded-xl border border-input/35 bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  <StreamSelect
+                    ariaLabel="Список Kanban"
                     value={selectedKanbanListId}
-                    onChange={(selectedEvent) => setSelectedKanbanListId(selectedEvent.target.value)}
+                    options={kanbanLists.length === 0
+                      ? [{ value: "", label: "Нет списков" }]
+                      : kanbanLists.map((list) => ({ value: list.id, label: list.name }))}
+                    onValueChange={setSelectedKanbanListId}
                     disabled={!selectedKanbanBoardId}
-                  >
-                    {kanbanLists.length === 0 && <option value="">Нет списков</option>}
-                    {kanbanLists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.name}
-                      </option>
-                    ))}
-                  </select>
+                    className="h-10 sm:h-10"
+                    searchable
+                  />
                 </div>
               </div>
             )}

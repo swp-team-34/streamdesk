@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CalendarSettingsDialog } from "./calendar-settings-dialog";
 import { DEFAULT_CALENDAR_SETTINGS } from "@/lib/calendar-page-model";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 
 describe("CalendarSettingsDialog", () => {
   it("updates controlled settings and closes from the primary action", () => {
@@ -20,7 +21,7 @@ describe("CalendarSettingsDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Начало рабочего дня"), { target: { value: "8" } });
+    chooseStreamSelectOption("Начало рабочего дня", "08:00");
     expect(settings.workdayStart).toBe(8);
 
     fireEvent.click(screen.getByText("Готово"));

@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import {
   DEFAULT_CALENDAR_SETTINGS,
   type CalendarSettings,
@@ -34,50 +36,54 @@ export function CalendarSettingsDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Начало рабочего дня</span>
-              <select
-                className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                value={settings.workdayStart}
-                onChange={(event) => onSettingsChange((previous) => ({
-                  ...previous,
-                  workdayStart: Number(event.target.value),
+              <StreamSelect
+                ariaLabel="Начало рабочего дня"
+                value={String(settings.workdayStart)}
+                options={Array.from({ length: 24 }, (_, hour) => ({
+                  value: String(hour),
+                  label: `${String(hour).padStart(2, "0")}:00`,
                 }))}
-              >
-                {Array.from({ length: 24 }, (_, hour) => (
-                  <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                ))}
-              </select>
+                onValueChange={(value) => onSettingsChange((previous) => ({
+                  ...previous,
+                  workdayStart: Number(value),
+                }))}
+                className="h-9 sm:h-9"
+              />
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Конец рабочего дня</span>
-              <select
-                className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                value={settings.workdayEnd}
-                onChange={(event) => onSettingsChange((previous) => ({
-                  ...previous,
-                  workdayEnd: Number(event.target.value),
+              <StreamSelect
+                ariaLabel="Конец рабочего дня"
+                value={String(settings.workdayEnd)}
+                options={Array.from({ length: 24 }, (_, index) => index + 1).map((hour) => ({
+                  value: String(hour),
+                  label: `${String(hour).padStart(2, "0")}:00`,
                 }))}
-              >
-                {Array.from({ length: 24 }, (_, index) => index + 1).map((hour) => (
-                  <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                ))}
-              </select>
+                onValueChange={(value) => onSettingsChange((previous) => ({
+                  ...previous,
+                  workdayEnd: Number(value),
+                }))}
+                className="h-9 sm:h-9"
+              />
             </label>
           </div>
 
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">Шаг сетки</span>
-            <select
-              className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-              value={settings.gridStep}
-              onChange={(event) => onSettingsChange((previous) => ({
+            <StreamSelect
+              ariaLabel="Шаг сетки"
+              value={String(settings.gridStep)}
+              options={[
+                { value: "15", label: "15 минут" },
+                { value: "30", label: "30 минут" },
+                { value: "60", label: "60 минут" },
+              ]}
+              onValueChange={(value) => onSettingsChange((previous) => ({
                 ...previous,
-                gridStep: Number(event.target.value) as 15 | 30 | 60,
+                gridStep: Number(value) as 15 | 30 | 60,
               }))}
-            >
-              <option value={15}>15 минут</option>
-              <option value={30}>30 минут</option>
-              <option value={60}>60 минут</option>
-            </select>
+              className="h-9 sm:h-9"
+            />
           </label>
 
           <div className="grid gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
@@ -101,13 +107,13 @@ export function CalendarSettingsDialog({
 
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">Timezone label</span>
-            <input
-              className="h-9 rounded-control border border-input/60 bg-surface-raised px-3 text-foreground shadow-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            <Input
               value={settings.timezoneLabel}
               onChange={(event) => onSettingsChange((previous) => ({
                 ...previous,
                 timezoneLabel: event.target.value,
               }))}
+              className="h-9"
             />
           </label>
         </div>

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock3, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StreamSelect } from "@/components/ui/stream-select";
 import {
   DASHBOARD_WIDGET_EMPTY_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
@@ -196,16 +197,17 @@ export default function WorkProgressWidget() {
           <Activity className="h-4 w-4 shrink-0 text-primary" />
           <CardTitle className="truncate text-sm font-semibold text-foreground">Ход работ</CardTitle>
         </div>
-        <select
+        <StreamSelect
+          ariaLabel="Группировка хода работ"
           value={groupMode}
-          onChange={(event) => setGroupMode(event.target.value as GroupMode)}
-          className="h-8 rounded-control border border-input/60 bg-surface-raised px-2 text-xs text-foreground"
-          aria-label="Группировка хода работ"
-        >
-          <option value="assignee">По сотрудникам</option>
-          <option value="location">По локациям</option>
-          <option value="tags">По тегам</option>
-        </select>
+          options={[
+            { value: "assignee", label: "По сотрудникам" },
+            { value: "location", label: "По локациям" },
+            { value: "tags", label: "По тегам" },
+          ]}
+          onValueChange={(value) => setGroupMode(value as GroupMode)}
+          className="h-8 w-auto min-w-40 px-2 text-xs sm:h-8"
+        />
       </CardHeader>
       <CardContent className={`${DASHBOARD_WIDGET_SCROLL_CONTENT_CLASS} space-y-3 px-3 pb-3 pt-0`}>
         {isLoading ? (

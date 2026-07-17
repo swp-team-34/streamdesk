@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StreamSelect } from "@/components/ui/stream-select";
 import {
   DASHBOARD_WIDGET_EMPTY_CLASS,
   DASHBOARD_WIDGET_ROW_CLASS,
@@ -231,15 +232,16 @@ export function EquipmentForTasksWidget({ user }: { user?: any }) {
       onRefresh={refresh}
     >
       <div className="flex items-center justify-end">
-        <select
+        <StreamSelect
+          ariaLabel="Область задач для оборудования"
           value={scope}
-          onChange={(event) => setScope(event.target.value as "mine" | "team")}
-          className="h-7 rounded-control border border-input/60 bg-surface-raised px-2 text-xs"
-          aria-label="Область задач для оборудования"
-        >
-          <option value="mine">Мои задачи</option>
-          <option value="team">Команда</option>
-        </select>
+          options={[
+            { value: "mine", label: "Мои задачи" },
+            { value: "team", label: "Команда" },
+          ]}
+          onValueChange={(value) => setScope(value as "mine" | "team")}
+          className="h-8 w-auto min-w-36 px-2 text-xs sm:h-8"
+        />
       </div>
       {(cardsQuery.isError || linksQuery.isError) && <ErrorState />}
       {cardsQuery.isLoading || linksQuery.isLoading ? <LoadingRows /> : rows.length === 0 ? (
