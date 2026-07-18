@@ -4,7 +4,7 @@ Current, actual handover state of StreamDesk. Maintained throughout Assignment 6
 whenever access, deployment, limitations, or transition status change. Summarizes the handover -
 follow the links for detail.
 
-Last updated: 2026-07-12 (Week 6 trial and transition-readiness review completed).
+Last updated: 2026-07-18 (Sprint 5 follow-up build and transition state verified).
 
 ## 1. Status and Scope
 
@@ -12,13 +12,22 @@ StreamDesk is a multi-tenant workflow platform for event/production teams: equip
 task manager, calendar, projects, estimates, connection schemes, and machine monitoring,
 isolated per company.
 
-Latest release: **[v3.0.0-rc.1 (Week 6 trial / handover candidate)](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1)**,
-available at **[team34.ru](https://team34.ru/)**. Sprint 4 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/4),
-Week 6, July 6-12) delivered the trial increment and transition-readiness evidence - see
-[roadmap.md](roadmap.md) and the
-[Week 6 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md).
-Final MVP v3 is
-planned for Sprint 5 (Week 7, July 13-19).
+Current deployed build: the latest Sprint 5 build from `main`, available in the
+team-controlled test environment at **[team34.ru](https://team34.ru/)**. The latest formal
+GitHub release is still
+**[v3.0.0-rc.1 (Week 6 trial / handover candidate)](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1)**.
+The final `MVP v3` SemVer release has not yet been published; Sprint 5 changes remain under
+`[Unreleased]` in `CHANGELOG.md`.
+
+Sprint 5 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/5), Week 7,
+July 13-19) completed the agreed follow-up product work: safer Warehouse kit workflows,
+configurable Warehouse taxonomy and storage, equipment activity and work-context links,
+Location workspaces and discussions, project/Kanban V2 realtime collaboration, continuous
+Calendar navigation, configurable Dashboard layouts, active-workspace isolation, workspace
+creation/onboarding recovery, module decomposition, and the shared light/dark UI system.
+See [roadmap.md](roadmap.md), the
+[Week 6 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md),
+and the maintained [changelog](../CHANGELOG.md).
 
 Scope: the deployed application, source repository, maintained docs, and guidance to run,
 configure, and troubleshoot the product without the dev team present.
@@ -26,32 +35,45 @@ configure, and troubleshoot the product without the dev team present.
 ## 2. Access and Use
 
 - **Instance:** [team34.ru](https://team34.ru/)
-- **Sign-in:** any email/password to register, then "for personal use" - or register via a
-  company invite link (owners generate these from company settings).
-- **Usable now:** task manager (including project-specific Kanban boards), calendar, projects,
-  locations and issue reporting, warehouse tracking/checkout requests, customizable dashboard,
-  and monitoring-agent downloads. Estimates and connection schemes work but are less mature.
-- **Trial result:** the customer independently registered, created a company, and exercised the
-  Dashboard, Task Manager, Calendar, Projects, Locations, and Warehouse workflows. The result was
-  **passed with observations**; remaining work is listed in [Section 7](#7-known-limitations).
+- **Sign-in and onboarding:** register with email/login and password, then choose personal use,
+  create a company workspace, or join through a company invite link. A company owner or
+  administrator can generate and copy a 24-hour invite link from company administration. A new
+  or existing user can open that link or paste it during onboarding. A signed-in user can create
+  and activate additional company workspaces from the workspace selector.
+- **Workspace model:** personal Kanban V2, Calendar, and Project data stays in the personal
+  workspace; company data is shared only with members of the selected company. Switching the
+  active workspace flushes pending autosaves and reloads scoped data and realtime subscriptions.
+- **Usable now:** Kanban V2 task management, continuous Calendar, projects, Location workspaces
+  and topics, Warehouse inventory/checkout/kits/settings, customizable Dashboard, estimates,
+  connection schemes, monitoring-agent downloads, monitoring, streaming, and the related
+  administration workflows.
+- **Customer result:** the customer independently completed the Week 6 trial and accepted the
+  current product for the reached handover level. Current handover level:
+  **Ready for independent use**. Customer-confirmation status: **Accepted**.
 
 ## 3. Installation and Deployment
 
-Self-hosting is optional - `team34.ru` is the default access path. Instructions below are for a
-customer-owned deployment or recovery copy.
+`team34.ru` is the current course-evaluation and test access path. Its domain, VPS/SSH access,
+PM2/Nginx configuration, and deployment operation remain controlled by the team; these private
+credentials are not part of the handover. The agreed long-term operating model is a separate
+customer-owned VPS using customer-owned credentials and secrets. That deployment is planned but
+has not yet been independently verified or recorded as completed.
 
 ```bash
 npm install && npm run db:push && npm run dev   # local run
 npm run build && npm start                       # production build + start
 ```
 
-Production runs the built bundle under PM2 (`ecosystem.config.cjs`) behind Nginx on a VPS over
-SSH. Deploy checklist: build -> upload bundle -> apply only safe migrations (`npm run db:push`,
-never destructive) -> restart PM2 -> verify `/api/health`, then login/warehouse/tasks/estimates
-in the browser.
+The tested server topology runs the built bundle under PM2 (`ecosystem.config.cjs`) behind Nginx
+on a VPS over SSH. Customer deployment checklist: provision the customer environment -> install
+dependencies -> build -> configure server-side environment variables -> apply only safe
+migrations (`npm run db:push`, never destructive) -> start/restart PM2 -> verify `/api/health`
+-> register/login -> complete onboarding -> create or join a company -> verify workspace
+switching, Calendar, Kanban V2, Locations, Projects, Warehouse, and Dashboard in the browser.
 
-Deploy scripts: `deploy.mjs`, `deploy-full.mjs`, `deploy.sh`, `scripts/setup-remote-server.mjs` -
-team-maintained today (transfer status: [Section 9](#9-remaining-actions)).
+Deploy scripts: `deploy.mjs`, `deploy-full.mjs`, `deploy.sh`, `scripts/setup-remote-server.mjs`.
+They remain team-maintained for the test environment; customer deployment must use the
+customer's own host, environment file, domain/TLS arrangement, and backup policy.
 
 ## 4. Configuration and Secrets
 
@@ -71,7 +93,11 @@ and integration keys if exposed; HTTPS is required in production.
 - Back up the database before schema-affecting deploys; don't overwrite company data (tracked:
   [#160](https://github.com/swp-team-34/streamdesk/issues/160)).
 - YouGile sync must not delete local tasks on API failure - treat it as optional, non-authoritative.
-- Company data isolation is a hard requirement (tasks, warehouse, agents, estimates, schemes).
+- Company data isolation is enforced through the selected active workspace across Calendar,
+  Kanban V2, projects, Locations, Warehouse, Dashboard, users, notifications, monitoring,
+  streaming, estimates, schemes, and realtime subscriptions.
+- Personal-workspace data and company-workspace data are intentionally separate. Confirm the
+  selected workspace before creating, importing, or editing operational records.
 - Monitoring-agent `.bat` files are company-specific - never reuse across companies.
 
 ## 6. Troubleshooting and Support
@@ -80,76 +106,81 @@ and integration keys if exposed; HTTPS is required in production.
 - DB issues: `npm run db:verify`.
 - Before deploying a change: `npm run check` and `npm run build`.
 - Regression check: `npm test`, `npm run coverage` - see [testing.md](testing.md).
-- Known UI bugs: [Section 7](#7-known-limitations), each linked to a tracked issue.
+- Known follow-up work: [Section 7](#7-known-limitations), linked where a public issue exists.
 - Escalation until transition completes: open a GitHub issue on
   [swp-team-34/streamdesk](https://github.com/swp-team-34/streamdesk), or raise it at a Sprint
   Review. Direct team support ends at course end ([Section 9](#9-remaining-actions)).
 
 ## 7. Known Limitations
 
-Current limitations from the Week 6 customer trial:
+Current limitations after the Sprint 5 follow-up build:
 
-| Area | Description | Issue/PBI | Status |
+| Area | Description | Issue/action | Status |
 | --- | --- | --- | --- |
-| Warehouse categories | User-configurable categories/subcategories | Sprint 5 follow-up PBI | Open |
-| Warehouse kits | Prevent issuing active kit components separately; log removals | Sprint 5 follow-up PBI | Open |
-| Locations | Expand the basic locations and issue flow into a venue archive with editing, notes, files, history, and resolve/archive workflows | Sprint 5 follow-up PBI | Open |
-| Location integration | Complete location context across Warehouse and task/stream issue entry points | Sprint 5 follow-up PBI | Open |
-| Task Manager | Add responsible person and initiator fields | Follow-up PBI | Open |
-| Warehouse equipment cards | Add comments/photos to equipment items | Follow-up PBI | Open |
-| Task Manager custom fields | Add hints for custom-field filters | Follow-up PBI | Open |
+| Calendar timeline | First-load initialization and toolbar-period updates are fixed. Progressive adjacent-date buffering and active-scroll rebasing still need follow-up validation under sustained fast scrolling. | [#252](https://github.com/swp-team-34/streamdesk/issues/252) | Open follow-up |
+| Final release | Sprint 5 changes are deployed from `main` but are not yet packaged as the final higher-precedence `MVP v3` SemVer release. | Assignment 6 Part 7 | Pending |
+| Customer-side operation | The customer-owned VPS deployment is the agreed operating model, but setup and end-to-end verification on that VPS are not yet recorded. The team-controlled `team34.ru` instance remains the test/evaluation environment. | Transition action | Pending |
+| Secondary modules | Estimates and connection schemes remain usable but received less customer validation than the core Kanban V2, Calendar, Projects, Locations, Warehouse, and Dashboard workflows. | Future customer-led validation | Follow-up |
 
-Project-specific boards, equipment-request links to Kanban cards or legacy tasks, Warehouse
-counts and action layout, compact Task Manager controls, Dashboard layout persistence and reset,
-Calendar overlap/overflow fixes, and additive database updates are included in the Week 6 trial
-release. The remaining limitations do not invalidate the Week 6 trial result. The Week 7 priority
-is Warehouse taxonomy, kit safeguards, Locations improvements, deployment, and final transition.
+The Week 6 limitations for Warehouse categories/kits, Location workspaces and topics, equipment
+comments/photos, Kanban V2 initiator/responsible roles, custom-field guidance, project/equipment
+links, Dashboard layouts, workspace isolation, and common UI consistency were addressed during
+Sprint 5. These resolved items are no longer transition blockers.
 
 ## 8. Handover Status
 
-**Current level: Week 6 trial / handover candidate, as of 2026-07-12.**
+**Reached handover level: Ready for independent use, as of 2026-07-18.**
 
-The customer independently used the trial release during the Sprint Review / UAT and confirmed
-that the product can be taken into practical use after the agreed Week 7 fixes and deployment.
-The product is still used for demonstration/testing only and is not deployed or operated on the
-customer side. See [user-acceptance-tests.md](user-acceptance-tests.md) and the
+**Customer-confirmation status: Accepted.**
+
+The customer independently used the Week 6 trial, and the agreed Sprint 5 fixes are now present
+in the current `main` build available at `team34.ru`. The accepted transition scope covers normal
+product use, company/personal workspace selection, and the documentation required to understand,
+run, verify, and troubleshoot the application. See
+[user-acceptance-tests.md](user-acceptance-tests.md) and the
 [Week 6 review summary](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/sprint-review-summary.md).
 
-The customer agreed to act as product owner after handover and found the reviewed documentation
-familiar and sufficient for the current trial level. Final Assignment 6 handover level and
-customer-confirmation status are not yet recorded: Week 7 must confirm them against the final
-build and actual transition scope.
+The customer remains the intended product owner after handover and can use the public GitHub
+issue tracker to prioritize future product work and maintenance follow-ups.
+
+The stronger `Deployed or operated on customer side` level is the agreed next operating step,
+not a completed evidence claim: the current accessible instance remains team-controlled, while
+the customer intends to deploy the accepted product on a separate customer-owned VPS. The final
+`MVP v3` tag/release is also still pending even though the latest Sprint 5 build is deployed.
 
 ## 9. Remaining Actions
 
-**Blocking full transition:**
+**Required to finish Assignment 6 delivery packaging:**
 
-- Complete the agreed Week 7 Warehouse taxonomy, kit safeguards, Locations workflow, and UI
-  follow-up work selected for MVP v3.
-- Provide the final deployment/recovery instructions and support the customer-side deployment,
-  backup, update, and GitHub issue-tracker setup where agreed.
-- Decide and execute, in Week 7, the transfer/continued-operation status of the `team34.ru`
-  domain, VPS/SSH access, and PM2/Nginx deployment - currently team-operated. The repository
-  itself needs no separate ownership transfer: it is MIT-licensed and the customer and
-  university already hold the rights.
-- Ask the customer to review the final Week 7 build and the current version of this document,
-  then record the reached handover level and explicit confirmation status (Assignment 6 Part 8).
+- Publish the final higher-precedence `MVP v3` SemVer release from protected `main`, move the
+  accepted `[Unreleased]` changes into the dated release section, and link the Sprint 5 milestone,
+  current access instructions, this handover, the Week 7 report, and sanitized demo evidence.
+- Keep `team34.ru` available as the team-controlled evaluation environment until grading and the
+  agreed test period are complete.
 
-**Completed in Week 6:** trial release `v3.0.0-rc.1`, customer-led trial/UAT,
-transition-readiness discussion, documentation review, and the delivered fixes summarized in
-Section 7. Keep this document, `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` current if
-access, deployment, support, or workflow arrangements change in Sprint 5.
+**Post-handover/customer-side follow-up:**
+
+- Provision the customer's own VPS, use customer-owned secrets/domain/TLS/backup policy, execute
+  the deployment checklist in Section 3, and record an end-to-end health/onboarding/core-workflow
+  verification. Team test-server credentials must not be copied or disclosed.
+- Agree on whether [#252](https://github.com/swp-team-34/streamdesk/issues/252) is completed by
+  the team before the final release or retained as customer-led maintenance after transition.
+- Use the public GitHub issue tracker for future product defects and improvements. The repository
+  needs no separate ownership transfer: it is MIT-licensed and remains accessible to the customer
+  and university.
 
 ## 10. Documentation Sufficiency
 
 Current docs (this file, `README.md`, [testing.md](testing.md),
 [quality-requirements.md](quality-requirements.md), [architecture/README.md](architecture/README.md),
-[hosted site](https://swp-team-34.github.io/streamdesk/)) were reviewed by the customer, who
-reported no specific documentation gap, and are sufficient for the current Week 6 trial /
-handover-candidate level. They are not yet sufficient evidence of a zero-team final transition:
-the production deployment remains team-operated, the customer-side deployment has not happened,
-and the final ownership/access arrangements are undecided. Team support remains necessary for
-the agreed Week 7 fixes, deployment, backups, updates, issue-tracker setup, and final handover.
+[hosted site](https://swp-team-34.github.io/streamdesk/)) are accepted as sufficient for the
+reached **Ready for independent use** level. They cover normal access, local/server setup,
+configuration names, verification, troubleshooting, tests, architecture, and current limitations
+without exposing private credentials.
+
+Limited team support is still necessary for final `MVP v3` release packaging and the first
+customer-owned VPS deployment/recovery exercise. After that exercise, routine operation,
+customer-owned secrets, backups, updates, and future issue prioritization belong to the customer.
 
 ## 11. Related Documentation
 
