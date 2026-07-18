@@ -138,6 +138,57 @@ describe("active workspace isolation", () => {
     });
   });
 
+  it("creates and activates an additional company workspace", async () => {
+    const app = await createAppWithRoutes();
+    const createWorkspace = routeHandler(app, "POST", "/api/workspaces/company");
+    const user = await createUser("workspace-creator", {
+      workspaceMode: "personal",
+      activeWorkspaceType: "personal",
+      activeCompanyId: null,
+    });
+    const session: Record<string, unknown> = {
+      activeWorkspaceType: "personal",
+      activeCompanyId: null,
+    };
+    const response = createJsonResponse();
+
+    await createWorkspace!({
+      user,
+      session,
+      body: {
+        name: "Second production team",
+        description: "Created from the workspace switcher",
+      },
+    }, response);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject({
+      company: {
+        name: "Second production team",
+        ownerId: user.id,
+      },
+      workspaceContext: {
+        workspace: {
+          type: "company",
+          companyId: (response.body as any).company.id,
+          requiresSelection: false,
+        },
+      },
+    });
+    expect(session).toMatchObject({
+      activeWorkspaceType: "company",
+      activeCompanyId: (response.body as any).company.id,
+    });
+    expect(await storage.getCompanyMembershipByUser((response.body as any).company.id, user.id))
+      .toMatchObject({ role: "owner", status: "active" });
+    expect(await storage.getUser(user.id)).toMatchObject({
+      onboardingCompleted: true,
+      workspaceMode: "company_owner",
+      activeWorkspaceType: "company",
+      activeCompanyId: (response.body as any).company.id,
+    });
+  });
+
   it("selects one company automatically and rejects a revoked persisted company", async () => {
     const app = await createAppWithRoutes();
     const getWorkspace = routeHandler(app, "GET", "/api/workspace-context");

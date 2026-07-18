@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { StreamSelect } from "@/components/ui/stream-select";
+import { cn } from "@/lib/utils";
 import type { TaskManagerSortBy, TaskManagerSortDirection } from "@/lib/task-manager-sort";
 import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
@@ -154,18 +155,30 @@ export function KanbanBoardToolbar({
               </Button>
               <div className="col-span-3 inline-flex w-full rounded-control border border-border/45 bg-surface-subtle p-1 lg:col-span-1 lg:w-auto">
                 <Button
-                  variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  className="flex-1 gap-2 rounded-control lg:flex-none"
+                  aria-pressed={viewMode === "kanban"}
+                  className={cn(
+                    "flex-1 gap-2 rounded-control lg:flex-none",
+                    viewMode === "kanban"
+                      ? "bg-primary/15 text-primary shadow-xs ring-1 ring-inset ring-primary/30 hover:bg-primary/20 hover:text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => onViewModeChange("kanban")}
                 >
                   <Layers3 className="h-4 w-4" />
                   Kanban
                 </Button>
                 <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  className="flex-1 gap-2 rounded-control lg:flex-none"
+                  aria-pressed={viewMode === "list"}
+                  className={cn(
+                    "flex-1 gap-2 rounded-control lg:flex-none",
+                    viewMode === "list"
+                      ? "bg-primary/15 text-primary shadow-xs ring-1 ring-inset ring-primary/30 hover:bg-primary/20 hover:text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => onViewModeChange("list")}
                 >
                   <LayoutList className="h-4 w-4" />

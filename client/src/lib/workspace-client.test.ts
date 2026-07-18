@@ -31,6 +31,7 @@ describe("workspace client switch", () => {
 
   it("keeps supported personal modules and redirects company-only modules", () => {
     expect(getWorkspaceSwitchDestination("personal", "/projects")).toBe("/projects");
+    expect(getWorkspaceSwitchDestination("personal", "/onboarding")).toBe("/onboarding");
     expect(getWorkspaceSwitchDestination("personal", "/equipment")).toBe("/");
     expect(getWorkspaceSwitchDestination("company", "/equipment")).toBe("/equipment");
   });

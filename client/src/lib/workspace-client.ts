@@ -9,6 +9,7 @@ type WorkspaceRealtimeTransport = {
 
 const PERSONAL_WORKSPACE_PATHS = new Set([
   "/",
+  "/onboarding",
   "/calendar",
   "/projects",
   "/tasks",

@@ -64,7 +64,9 @@ export default function Dashboard() {
     workspaceType: workspace?.type,
     companyId: workspace?.companyId,
   });
-  const [widgetLayout, setWidgetLayout] = useState<DashboardSavedLayout>(() => readSavedWidgetLayout());
+  const [widgetLayout, setWidgetLayout] = useState<DashboardSavedLayout>(
+    () => readSavedWidgetLayout(layoutStorageKey),
+  );
   const previousLayoutStorageKeyRef = useRef(layoutStorageKey);
   const skipLayoutPersistRef = useRef(false);
   const [previewLayout, setPreviewLayout] = useState<DashboardLayoutState | null>(null);
