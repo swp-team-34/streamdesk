@@ -47,9 +47,11 @@ configure, and troubleshoot the product without the dev team present.
   and topics, Warehouse inventory/checkout/kits/settings, customizable Dashboard, estimates,
   connection schemes, monitoring-agent downloads, monitoring, streaming, and the related
   administration workflows.
-- **Customer result:** the customer independently completed the Week 6 trial and accepted the
-  current product for the reached handover level. Current handover level:
-  **Ready for independent use**. Customer-confirmation status: **Accepted**.
+- **Customer result:** the customer independently completed the Week 6 trial. The Sprint 5 build
+  was reviewed in a team-led demonstration and described by the customer as a strong working tool
+  for tasks, projects, and Warehouse operations. Current handover level:
+  **Ready for independent use**. Customer-confirmation status:
+  **Accepted with follow-up items**.
 
 ## 3. Installation and Deployment
 
@@ -109,7 +111,9 @@ and integration keys if exposed; HTTPS is required in production.
 - Known follow-up work: [Section 7](#7-known-limitations), linked where a public issue exists.
 - Escalation until transition completes: open a GitHub issue on
   [swp-team-34/streamdesk](https://github.com/swp-team-34/streamdesk), or raise it at a Sprint
-  Review. Direct team support ends at course end ([Section 9](#9-remaining-actions)).
+  Review. The team remains available for initial customer-side integration and deployment
+  questions; any ongoing support after transition must be agreed separately
+  ([Section 9](#9-remaining-actions)).
 
 ## 7. Known Limitations
 
@@ -117,7 +121,7 @@ Current limitations after the Sprint 5 follow-up build:
 
 | Area | Description | Issue/action | Status |
 | --- | --- | --- | --- |
-| Calendar timeline | First-load initialization and toolbar-period updates are fixed. Progressive adjacent-date buffering and active-scroll rebasing still need follow-up validation under sustained fast scrolling. | [#252](https://github.com/swp-team-34/streamdesk/issues/252) | Open follow-up |
+| Calendar timeline | First-load initialization and toolbar-period updates are fixed. Progressive adjacent-date buffering and active-scroll rebasing still need follow-up validation under sustained fast scrolling. | [#252](https://github.com/swp-team-34/streamdesk/issues/252) | Deferred to later maintenance; not a Sprint 5 handover blocker |
 | Final release | Sprint 5 changes are deployed from `main` but are not yet packaged as the final higher-precedence `MVP v3` SemVer release. | Assignment 6 Part 7 | Pending |
 | Customer-side operation | The customer-owned VPS deployment is the agreed operating model, but setup and end-to-end verification on that VPS are not yet recorded. The team-controlled `team34.ru` instance remains the test/evaluation environment. | Transition action | Pending |
 | Secondary modules | Estimates and connection schemes remain usable but received less customer validation than the core Kanban V2, Calendar, Projects, Locations, Warehouse, and Dashboard workflows. | Future customer-led validation | Follow-up |
@@ -131,12 +135,14 @@ Sprint 5. These resolved items are no longer transition blockers.
 
 **Reached handover level: Ready for independent use, as of 2026-07-18.**
 
-**Customer-confirmation status: Accepted.**
+**Customer-confirmation status: Accepted with follow-up items.**
 
-The customer independently used the Week 6 trial, and the agreed Sprint 5 fixes are now present
-in the current `main` build available at `team34.ru`. The accepted transition scope covers normal
-product use, company/personal workspace selection, and the documentation required to understand,
-run, verify, and troubleshoot the application. See
+The customer independently used the Week 6 trial. During the Sprint 5 meeting, the team
+demonstrated the latest `main` build available at `team34.ru`; the customer described it as a
+strong working tool that can already be used for tasks, projects, and Warehouse operations. The
+customer also reviewed the updated handover material and confirmed that it was understandable.
+The accepted transition scope covers normal product use, company/personal workspace selection,
+and the documentation required to understand, run, verify, and troubleshoot the application. See
 [user-acceptance-tests.md](user-acceptance-tests.md) and the
 [Week 6 review summary](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/sprint-review-summary.md).
 
@@ -162,9 +168,10 @@ the customer intends to deploy the accepted product on a separate customer-owned
 
 - Provision the customer's own VPS, use customer-owned secrets/domain/TLS/backup policy, execute
   the deployment checklist in Section 3, and record an end-to-end health/onboarding/core-workflow
-  verification. Team test-server credentials must not be copied or disclosed.
-- Agree on whether [#252](https://github.com/swp-team-34/streamdesk/issues/252) is completed by
-  the team before the final release or retained as customer-led maintenance after transition.
+  verification. Team test-server credentials must not be copied or disclosed. The team remains
+  available to assist with the initial integration and deployment.
+- Test Warehouse workflows, including scanning, in the customer-owned environment and record any
+  additional feedback discovered during practical use.
 - Use the public GitHub issue tracker for future product defects and improvements. The repository
   needs no separate ownership transfer: it is MIT-licensed and remains accessible to the customer
   and university.
@@ -173,10 +180,11 @@ the customer intends to deploy the accepted product on a separate customer-owned
 
 Current docs (this file, `README.md`, [testing.md](testing.md),
 [quality-requirements.md](quality-requirements.md), [architecture/README.md](architecture/README.md),
-[hosted site](https://swp-team-34.github.io/streamdesk/)) are accepted as sufficient for the
-reached **Ready for independent use** level. They cover normal access, local/server setup,
+[hosted site](https://swp-team-34.github.io/streamdesk/)) cover normal access, local/server setup,
 configuration names, verification, troubleshooting, tests, architecture, and current limitations
-without exposing private credentials.
+without exposing private credentials. The customer reviewed the updated handover material during
+the Sprint 5 meeting and confirmed that it was understandable. The maintained documentation is
+sufficient for the reached **Ready for independent use** level.
 
 Limited team support is still necessary for final `MVP v3` release packaging and the first
 customer-owned VPS deployment/recovery exercise. After that exercise, routine operation,
