@@ -137,6 +137,7 @@ export default function Calendar() {
     timerId: number | null;
   } | null>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [timelineToolbarDate, setTimelineToolbarDate] = useState<Date | null>(null);
   const calendarPointerActionRef = useRef<{
     mode: CalendarPointerMode;
     entry: CalendarEntry;
@@ -221,6 +222,7 @@ export default function Calendar() {
   const { data: users = [] } = useQuery<CalendarUser[]>({
     queryKey: ["/api/users"],
   });
+  const isCalendarLoading = isLoadingEvents || isLoadingTasks || isLoadingKanbanCards;
   const storedEventColors = useMemo(() => readEventColorMap(), [events]);
 
   const userNameById = useMemo(() => {
@@ -431,7 +433,7 @@ export default function Calendar() {
     const observer = new ResizeObserver(updateViewportWidth);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isTimelineView, viewMode]);
+  }, [isCalendarLoading, isTimelineView, viewMode]);
 
   useLayoutEffect(() => {
     if (!isTimelineView || timelineViewportWidth <= 0) return;
@@ -1066,8 +1068,10 @@ export default function Calendar() {
           fractionalOffset: 0,
         };
         setSelectedDate(new Date(targetDate));
+        setTimelineToolbarDate(null);
         return;
       }
+      setTimelineToolbarDate(null);
       timelinePendingViewportRef.current = null;
       element.scrollLeft = targetScrollLeft;
       timelineLastScrollLeftRef.current = targetScrollLeft;
@@ -1077,6 +1081,7 @@ export default function Calendar() {
     };
 
     timelineRecenteringRef.current = true;
+    setTimelineToolbarDate(isSameDay(targetDate, selectedDate) ? null : new Date(targetDate));
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reducedMotion || Math.abs(element.scrollLeft - targetScrollLeft) < 1) {
       finishSnap();
@@ -1230,11 +1235,20 @@ export default function Calendar() {
     setViewMode("day");
   };
 
+  const toolbarTimelineVisibleDays = timelineToolbarDate
+    ? buildCalendarTimelineDays({
+        anchorDate: timelineToolbarDate,
+        viewMode: timelineViewMode,
+        showWeekends: calendarSettings.showWeekends,
+        bufferDays: 0,
+      })
+    : timelineVisibleDays;
+
   const toolbarPeriodLabel = (() => {
     if (viewMode === "month") return format(selectedDate, "LLLL yyyy", { locale: ru });
     if (isTimelineView) {
-      const start = timelineVisibleDays[0] || selectedDate;
-      const end = timelineVisibleDays.at(-1) || start;
+      const start = toolbarTimelineVisibleDays[0] || selectedDate;
+      const end = toolbarTimelineVisibleDays.at(-1) || start;
       if (isSameDay(start, end)) return format(start, "d MMM yyyy", { locale: ru });
       return `${format(start, "d MMM", { locale: ru })} – ${format(end, "d MMM yyyy", { locale: ru })}`;
     }
@@ -1695,7 +1709,7 @@ export default function Calendar() {
     );
   };
 
-  if (isLoadingEvents || isLoadingTasks || isLoadingKanbanCards) {
+  if (isCalendarLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
