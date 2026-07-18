@@ -68,6 +68,9 @@ nav:
           - ADR-001: architecture/adr/ADR-001-centralized-equipment-permissions.md
           - ADR-002: architecture/adr/ADR-002-declarative-protected-route-wrapper.md
           - ADR-003: architecture/adr/ADR-003-unified-monorepo-coverage.md
+          - ADR-004: architecture/adr/ADR-004-authenticated-scoped-realtime.md
+          - ADR-005: architecture/adr/ADR-005-active-workspace-tenant-boundary.md
+          - ADR-006: architecture/adr/ADR-006-split-client-server-architecture.md
           
   - Quality:
       - Testing Overview: testing.md
