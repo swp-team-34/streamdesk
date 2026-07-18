@@ -3692,7 +3692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           name: user.name,
-          onboardingCompleted: user.onboardingCompleted !== false,
+          onboardingCompleted: user.onboardingCompleted === true,
           workspaceMode: user.workspaceMode || "pending",
           permissions,
         },
@@ -3720,7 +3720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ user: { ...updated, password: undefined } });
   });
 
-  app.post("/api/onboarding/company", async (req, res) => {
+  const createCompanyWorkspace = async (req: express.Request, res: express.Response) => {
     try {
       const user = req.user as any;
       if (!user?.id) return res.status(401).json({ message: "Требуется авторизация" });
@@ -3749,11 +3749,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any);
       req.session.activeWorkspaceType = "company";
       req.session.activeCompanyId = company.id;
-      res.json({ company, user: { ...updated, password: undefined } });
+      req.user = updated;
+      req.workspace = await resolveWorkspaceContext(updated, req.session);
+      res.json({
+        company,
+        user: { ...updated, password: undefined },
+        workspaceContext: await buildWorkspaceResponse(req),
+      });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось создать компанию" });
     }
-  });
+  };
+
+  app.post("/api/onboarding/company", createCompanyWorkspace);
+  app.post("/api/workspaces/company", createCompanyWorkspace);
 
   app.post("/api/onboarding/join", async (req, res) => {
     try {

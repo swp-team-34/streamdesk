@@ -48,6 +48,7 @@ import { PERMISSIONS } from "@shared/schema";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WorkspaceBoundary } from "@/components/workspace/workspace-boundary";
 import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
+import { isPlatformAdminUser, requiresOnboarding } from "@/lib/auth-routing";
 
 function StubModeBanner() {
   const { data } = useQuery<{ stubMode?: boolean }>({
@@ -216,10 +217,6 @@ function Router({ user }: { user: any }) {
   );
 }
 
-function getDefaultAuthenticatedPath(user: any): string {
-  return "/";
-}
-
 function App() {
   // Синхронная загрузка пользователя при инициализации
   const loadUserSync = () => {
@@ -293,22 +290,25 @@ function App() {
     window.location.href = '/login';
   };
 
+  const isPlatformAdmin = isPlatformAdminUser(user);
+  const needsOnboarding = requiresOnboarding(user);
+
   useEffect(() => {
     if (user && typeof window !== "undefined" && window.location.pathname === "/login") {
-      const nextPath = user.onboardingCompleted === false ? "/onboarding" : getDefaultAuthenticatedPath(user);
+      const nextPath = needsOnboarding ? "/onboarding" : "/";
       const t = setTimeout(() => { window.location.href = nextPath; }, 100);
       return () => clearTimeout(t);
     }
-  }, [user]);
+  }, [needsOnboarding, user]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
     const path = window.location.pathname;
-    if (user.onboardingCompleted === false && path !== "/onboarding" && path !== "/login") {
+    if (needsOnboarding && path !== "/onboarding" && path !== "/login") {
       const t = setTimeout(() => { window.location.href = "/onboarding"; }, 100);
       return () => clearTimeout(t);
     }
-  }, [user]);
+  }, [needsOnboarding, user]);
 
   if (isLoading && user) {
     return (
@@ -362,7 +362,7 @@ function App() {
     );
   }
 
-  const showWorkspaceChrome = user.onboardingCompleted !== false && location !== "/onboarding";
+  const showWorkspaceChrome = !needsOnboarding && location !== "/onboarding";
   const isPlatformAdminArea = location === "/platform-admin";
   const showBottomNav = showWorkspaceChrome && !isPlatformAdminArea;
   const isTasksWorkspace = location === "/tasks" || location === "/tasks-v2";
