@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KanbanCardSubtasksSection } from "./kanban-card-subtasks-section";
 
@@ -19,7 +19,7 @@ describe("KanbanCardSubtasksSection", () => {
         pending={false}
         onDraftChange={vi.fn()}
         onSave={onSave}
-        confirmDelete={() => true}
+        confirmDelete={async () => true}
       />,
     );
 
@@ -42,7 +42,7 @@ describe("KanbanCardSubtasksSection", () => {
         pending={false}
         onDraftChange={vi.fn()}
         onSave={onSave}
-        confirmDelete={() => true}
+        confirmDelete={async () => true}
       />,
     );
 
@@ -53,9 +53,9 @@ describe("KanbanCardSubtasksSection", () => {
     vi.restoreAllMocks();
   });
 
-  it("requires delete confirmation and hides editing controls from viewers", () => {
+  it("requires delete confirmation and hides editing controls from viewers", async () => {
     const onSave = vi.fn();
-    const confirmDelete = vi.fn(() => false);
+    const confirmDelete = vi.fn(async () => false);
     const { rerender } = render(
       <KanbanCardSubtasksSection
         subtasks={[{ id: "first", title: "First" }]}
@@ -69,7 +69,7 @@ describe("KanbanCardSubtasksSection", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
-    expect(confirmDelete).toHaveBeenCalledOnce();
+    await waitFor(() => expect(confirmDelete).toHaveBeenCalledOnce());
     expect(onSave).not.toHaveBeenCalled();
 
     rerender(

@@ -6,8 +6,8 @@
   --breakpoint-4xl: 2048px;
   --breakpoint-xxl: 1550px;
 
-  --color-brand-gradient-start-rgb: 151 71 255; /* #9747FF основной */
-  --color-brand-gradient-end-rgb: 180 100 255; /* чуть светлее для градиента */
+  --color-brand-gradient-start-rgb: 94 106 210;
+  --color-brand-gradient-end-rgb: 94 106 210;
 
   --color-inh-primary-rgb: 235 237 239;
   --color-inh-primary-hover-rgb: 223 225 229; /* #DFE1E5 */
@@ -34,18 +34,17 @@
   to { width: 100%; }
 }
 
-/* Gradient near primary brand color */
+/* Compatibility helper: selected text now uses one restrained brand accent. */
 .selected {
-  background-image: linear-gradient(to right, rgb(var(--color-brand-gradient-start-rgb)), rgb(var(--color-brand-gradient-end-rgb)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--primary);
 }
 
-/* Basic component helpers from design theme */
-.neon-glow { box-shadow: 0 0 5px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan); }
-.neon-glow-purple { box-shadow: 0 0 5px var(--neon-purple), 0 0 20px var(--neon-purple), 0 0 40px var(--neon-purple); }
-.neon-glow-pink { box-shadow: 0 0 5px var(--neon-pink), 0 0 20px var(--neon-pink); }
+/* Legacy class aliases kept calm while feature modules migrate. */
+.neon-glow,
+.neon-glow-purple,
+.neon-glow-pink {
+  box-shadow: var(--shadow-sm);
+}
 
 /* Ensure the base font variable is available */
 :root { --font-sans: var(--font-rubik); }
@@ -67,13 +66,8 @@
   --color-inh-inactive-rgb: 105 105 105;
 }
 
-/* Starry/dotted background — только в тёмной теме (как InNoHassle) */
+/* Compatibility class: application chrome now uses a calm semantic canvas. */
 .bg-starry {
-  background-color: hsl(0, 0%, 100%);
-  background-image: radial-gradient(circle at 1px 1px, rgba(151, 71, 255, 0.08) 1px, transparent 0);
-  background-size: 32px 32px;
-}
-.dark .bg-starry {
-  background-color: hsl(224, 47%, 4%);
-  background-image: radial-gradient(circle at 1px 1px, rgba(151, 71, 255, 0.15) 1px, transparent 0);
+  background-color: var(--background);
+  background-image: none;
 }

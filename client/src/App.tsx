@@ -47,6 +47,8 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { PERMISSIONS } from "@shared/schema";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WorkspaceBoundary } from "@/components/workspace/workspace-boundary";
+import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
+import { isPlatformAdminUser, requiresOnboarding } from "@/lib/auth-routing";
 
 function StubModeBanner() {
   const { data } = useQuery<{ stubMode?: boolean }>({
@@ -215,10 +217,6 @@ function Router({ user }: { user: any }) {
   );
 }
 
-function getDefaultAuthenticatedPath(user: any): string {
-  return "/";
-}
-
 function App() {
   // Синхронная загрузка пользователя при инициализации
   const loadUserSync = () => {
@@ -292,26 +290,29 @@ function App() {
     window.location.href = '/login';
   };
 
+  const isPlatformAdmin = isPlatformAdminUser(user);
+  const needsOnboarding = requiresOnboarding(user);
+
   useEffect(() => {
     if (user && typeof window !== "undefined" && window.location.pathname === "/login") {
-      const nextPath = user.onboardingCompleted === false ? "/onboarding" : getDefaultAuthenticatedPath(user);
+      const nextPath = needsOnboarding ? "/onboarding" : "/";
       const t = setTimeout(() => { window.location.href = nextPath; }, 100);
       return () => clearTimeout(t);
     }
-  }, [user]);
+  }, [needsOnboarding, user]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
     const path = window.location.pathname;
-    if (user.onboardingCompleted === false && path !== "/onboarding" && path !== "/login") {
+    if (needsOnboarding && path !== "/onboarding" && path !== "/login") {
       const t = setTimeout(() => { window.location.href = "/onboarding"; }, 100);
       return () => clearTimeout(t);
     }
-  }, [user]);
+  }, [needsOnboarding, user]);
 
   if (isLoading && user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -337,10 +338,10 @@ function App() {
         <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <div className="flex min-h-screen items-center justify-center bg-background">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-gray-600">Загрузка...</p>
+                  <p className="text-muted-foreground">Загрузка...</p>
                 </div>
               </div>
               <Toaster />
@@ -361,18 +362,19 @@ function App() {
     );
   }
 
-  const showWorkspaceChrome = user.onboardingCompleted !== false && location !== "/onboarding";
+  const showWorkspaceChrome = !needsOnboarding && location !== "/onboarding";
   const isPlatformAdminArea = location === "/platform-admin";
   const showBottomNav = showWorkspaceChrome && !isPlatformAdminArea;
   const isTasksWorkspace = location === "/tasks" || location === "/tasks-v2";
   const isFullWidthWorkspace = isTasksWorkspace;
 
   return (
-    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme">
+    <ThemeProvider defaultTheme="system" storageKey="streamstudio-theme" userId={user.id}>
       <QueryClientProvider client={queryClient}>
         <WorkspaceProvider>
           <WorkspaceBoundary>
-            <TooltipProvider>
+            <AppDialogProvider>
+              <TooltipProvider>
               <div
             className={cn(
               "app-layout min-h-screen bg-background font-sans antialiased transition-colors duration-300 w-full max-w-[100vw] flex",
@@ -460,7 +462,8 @@ function App() {
             </div>
               </div>
               <Toaster />
-            </TooltipProvider>
+              </TooltipProvider>
+            </AppDialogProvider>
           </WorkspaceBoundary>
         </WorkspaceProvider>
       </QueryClientProvider>

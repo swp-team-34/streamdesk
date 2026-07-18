@@ -92,9 +92,8 @@ describe("WarehouseCartSheet", () => {
         onSendToProject={onSendToProject}
       />,
     );
-    fireEvent.change(screen.getByLabelText(/Вернуть до/), {
-      target: { value: "2026-07-21" },
-    });
+    fireEvent.click(screen.getByLabelText(/Вернуть до/));
+    fireEvent.click(screen.getByRole("gridcell", { name: "21" }));
     fireEvent.change(screen.getByLabelText("Основание"), {
       target: { value: "Production" },
     });

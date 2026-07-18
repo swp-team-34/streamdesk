@@ -113,7 +113,7 @@ export function BottomNav({ user, onOpenMenu }: BottomNavProps) {
       role="navigation"
       aria-label="Основное меню"
     >
-      <div className="flex items-stretch justify-around min-h-[56px] max-w-[100vw] rounded-[22px] bg-background/50 dark:bg-background/40 backdrop-blur-xl border border-border/40 shadow-lg">
+      <div className="flex min-h-[56px] max-w-[100vw] items-stretch justify-around rounded-surface border border-border/50 bg-card/95 shadow-surface backdrop-blur-md">
         {visibleItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = !item.isMore && location === item.href;
@@ -126,7 +126,7 @@ export function BottomNav({ user, onOpenMenu }: BottomNavProps) {
                 type="button"
                 onClick={onOpenMenu}
                 className={cn(
-                  "flex flex-col items-center justify-center flex-1 min-w-0 py-2 px-1 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/30 active:bg-muted/50 transition-colors touch-manipulation",
+                  "flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center rounded-control px-1 py-2 text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground active:bg-muted/50",
                 )}
                 aria-label="Открыть меню"
               >
@@ -141,7 +141,7 @@ export function BottomNav({ user, onOpenMenu }: BottomNavProps) {
               key={uniqueKey}
               href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center flex-1 min-w-0 py-2 px-1 rounded-xl transition-colors touch-manipulation",
+                  "flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center rounded-control px-1 py-2 transition-colors",
                   isActive
                     ? "text-primary bg-primary/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30 active:bg-muted/50",

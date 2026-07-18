@@ -53,7 +53,7 @@ export function EquipmentKitCardSection({
 
   return (
     <div
-      className="border-t border-slate-200 pt-2 dark:border-slate-700"
+      className="border-t border-border/40 pt-2"
       onClick={stopPropagation}
       onKeyDown={stopPropagation}
     >
@@ -75,7 +75,7 @@ export function EquipmentKitCardSection({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            className="h-8 w-8 shrink-0 text-success hover:bg-success-muted hover:text-success"
             title="Добавить в комплект"
             aria-label={`Добавить позицию в «${bundle.name}»`}
             onClick={() => onAdd(bundle)}
@@ -98,20 +98,20 @@ export function EquipmentKitCardSection({
             return (
               <div
                 key={component.id || `${bundle.id}-${index}`}
-                className="flex items-stretch overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
+                className="flex items-stretch overflow-hidden rounded-control border border-border/40 bg-surface-subtle"
               >
                 <button
                   type="button"
                   aria-label={`Открыть «${component.name}»`}
                   disabled={!component.live}
                   onClick={() => component.live && onOpen(bundle.id, component.live)}
-                  className="min-w-0 flex-1 px-2.5 py-2 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-default disabled:opacity-70 dark:hover:bg-slate-900"
+                  className="min-w-0 flex-1 px-2.5 py-2 text-left transition hover:bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-default disabled:opacity-70"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 break-words font-medium text-slate-900 dark:text-white">
+                    <span className="min-w-0 break-words font-medium text-foreground">
                       {component.name}
                     </span>
-                    <span className="shrink-0 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                       {component.inventoryNumber || "без инв. №"}
                     </span>
                   </div>
@@ -123,22 +123,22 @@ export function EquipmentKitCardSection({
                       {getEquipmentOperabilityLabel(component.operabilityStatus)}
                     </Badge>
                     {component.live && isSuperPosition(component.live) && (
-                      <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      <Badge className="border border-success/20 bg-success-muted text-[10px] text-success">
                         Комплект
                       </Badge>
                     )}
                     {componentProject && (
-                      <Badge className="bg-violet-100 text-[10px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                      <Badge className="border border-primary/20 bg-primary/10 text-[10px] text-primary">
                         На проекте
                       </Badge>
                     )}
                     {overdue && (
-                      <Badge className="bg-red-100 text-[10px] text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                      <Badge className="border border-error/20 bg-error-muted text-[10px] text-error">
                         Просрочено
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-1.5 break-words text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="mt-1.5 break-words text-[11px] text-muted-foreground">
                     {holder ? `У сотрудника: ${holder}` : component.location ? `Хранение: ${component.location}` : "Место не указано"}
                   </div>
                 </button>
@@ -147,7 +147,7 @@ export function EquipmentKitCardSection({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-auto w-10 shrink-0 rounded-none border-l border-slate-200 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/20"
+                    className="h-auto w-10 shrink-0 rounded-none border-l border-border/40 text-error hover:bg-error-muted hover:text-error"
                     disabled={removePending}
                     title="Убрать из комплекта"
                     aria-label={`Убрать «${component.name}» из комплекта`}
@@ -159,7 +159,7 @@ export function EquipmentKitCardSection({
               </div>
             );
           }) : (
-            <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle px-3 py-4 text-center text-xs text-muted-foreground">
               В комплекте нет компонентов.
             </div>
           )}

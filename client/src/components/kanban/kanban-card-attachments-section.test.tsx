@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KanbanCardAttachmentsSection } from "./kanban-card-attachments-section";
 
@@ -16,9 +16,9 @@ const attachment = {
 afterEach(cleanup);
 
 describe("KanbanCardAttachmentsSection", () => {
-  it("renders attachment metadata and delegates confirmed deletion", () => {
+  it("renders attachment metadata and delegates confirmed deletion", async () => {
     const onDelete = vi.fn();
-    const confirmDelete = vi.fn(() => true);
+    const confirmDelete = vi.fn(async () => true);
     render(
       <KanbanCardAttachmentsSection
         attachments={[attachment]}
@@ -37,7 +37,7 @@ describe("KanbanCardAttachmentsSection", () => {
     expect(screen.getByText(/1.5 КБ · application\/pdf/)).toBeInTheDocument();
     expect(screen.getByText("Загрузил: Tim")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
-    expect(confirmDelete).toHaveBeenCalledOnce();
+    await waitFor(() => expect(confirmDelete).toHaveBeenCalledOnce());
     expect(onDelete).toHaveBeenCalledWith("attachment-1");
   });
 
@@ -53,7 +53,7 @@ describe("KanbanCardAttachmentsSection", () => {
         getUserName={(id) => id}
         onUpload={onUpload}
         onDelete={vi.fn()}
-        confirmDelete={() => true}
+        confirmDelete={async () => true}
       />,
     );
 
@@ -75,7 +75,7 @@ describe("KanbanCardAttachmentsSection", () => {
         getUserName={(id) => id}
         onUpload={vi.fn()}
         onDelete={vi.fn()}
-        confirmDelete={() => true}
+        confirmDelete={async () => true}
       />,
     );
 

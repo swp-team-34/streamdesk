@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   getSubtaskProgress,
@@ -14,7 +15,7 @@ interface KanbanCardSubtasksSectionProps {
   pending: boolean;
   onDraftChange: (value: string) => void;
   onSave: (subtasks: KanbanSubtask[], clearDraftOnSuccess?: boolean) => void;
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
 }
 
 export function KanbanCardSubtasksSection({
@@ -51,7 +52,7 @@ export function KanbanCardSubtasksSection({
       </div>
 
       {normalizedSubtasks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+        <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-6 text-sm text-muted-foreground">
           У этой карточки пока нет подзадач.
         </div>
       ) : (
@@ -59,14 +60,13 @@ export function KanbanCardSubtasksSection({
           {normalizedSubtasks.map((subtask) => (
             <div
               key={subtask.id}
-              className="flex items-center gap-2 rounded-2xl border border-border/35 bg-muted/20 px-3 py-2.5"
+              className="flex items-center gap-2 rounded-surface border border-border/50 bg-surface-subtle px-3 py-2.5"
             >
-              <input
+              <Checkbox
                 aria-label={`Выполнено: ${subtask.title}`}
-                type="checkbox"
                 checked={Boolean(subtask.completed)}
-                onChange={(event) => onSave(normalizedSubtasks.map((item) =>
-                  item.id === subtask.id ? { ...item, completed: event.target.checked } : item,
+                onCheckedChange={(checked) => onSave(normalizedSubtasks.map((item) =>
+                  item.id === subtask.id ? { ...item, completed: checked === true } : item,
                 ))}
                 disabled={!canEdit || pending}
               />
@@ -82,8 +82,8 @@ export function KanbanCardSubtasksSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (!confirmDelete(`Удалить подзадачу "${subtask.title}"?`)) return;
+                  onClick={async () => {
+                    if (!await confirmDelete(`Удалить подзадачу "${subtask.title}"?`)) return;
                     onSave(normalizedSubtasks.filter((item) => item.id !== subtask.id));
                   }}
                   disabled={pending}
@@ -111,7 +111,7 @@ export function KanbanCardSubtasksSection({
             }}
           />
           <Button
-            className="rounded-xl"
+            className="rounded-control"
             onClick={addSubtask}
             disabled={!draft.trim() || pending}
           >

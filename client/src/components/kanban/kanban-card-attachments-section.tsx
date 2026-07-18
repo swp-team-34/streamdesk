@@ -15,7 +15,7 @@ interface KanbanCardAttachmentsSectionProps {
   getUserName: (userId: string) => string;
   onUpload: (file: File) => void;
   onDelete: (attachmentId: string) => void;
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
 }
 
 export function KanbanCardAttachmentsSection({
@@ -40,12 +40,12 @@ export function KanbanCardAttachmentsSection({
 
       <div className="space-y-3">
         {attachments.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+          <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-6 text-sm text-muted-foreground">
             У этой карточки пока нет вложений.
           </div>
         ) : (
           attachments.map((attachment) => (
-            <div key={attachment.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4">
+            <div key={attachment.id} className="rounded-surface border border-border/50 bg-surface-subtle p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
@@ -60,7 +60,7 @@ export function KanbanCardAttachmentsSection({
                     </a>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-full border border-border/35 bg-muted/30 px-2 py-1">
+                    <span className="rounded-full border border-border/40 bg-surface-overlay px-2 py-1">
                       {formatFileSize(attachment.fileSize)} · {attachment.mimeType || "unknown"} ·{" "}
                       {formatDueDateLabel(attachment.createdAt) || "Неизвестное время"}
                     </span>
@@ -84,8 +84,8 @@ export function KanbanCardAttachmentsSection({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        if (!confirmDelete(`Удалить вложение "${attachment.fileName}"?`)) return;
+                      onClick={async () => {
+                        if (!await confirmDelete(`Удалить вложение "${attachment.fileName}"?`)) return;
                         onDelete(attachment.id);
                       }}
                       disabled={deletePending}

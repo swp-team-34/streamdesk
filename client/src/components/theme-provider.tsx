@@ -1,16 +1,27 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  DEFAULT_USER_UI_PREFERENCES,
+  normalizeUserUiPreferences,
+  type UserUiPreferences,
+  type UiThemeMode,
+} from "@shared/ui-preferences";
+import { analyzeUiAccent, buildUiAccentVariables } from "@shared/ui-accent";
+import { apiUrl } from "@/lib/queryClient";
 
-export type Theme = "dark" | "light" | "system" | "warm" | "high-contrast" | "sepia";
-export type ColorScheme = {
-  primary: string;
-  secondary: string;
-  accent: string;
-};
+export type Theme = UiThemeMode;
 
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
+  userId?: string | null;
 };
 
 type ThemeProviderState = {
@@ -19,8 +30,17 @@ type ThemeProviderState = {
   resolvedTheme: "dark" | "light";
   autoTheme: boolean;
   setAutoTheme: (enabled: boolean) => void;
-  customColors: ColorScheme | null;
-  setCustomColors: (colors: ColorScheme | null) => void;
+  preferences: UserUiPreferences;
+  savedPreferences: UserUiPreferences;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  isHydratingPreferences: boolean;
+  isSavingPreferences: boolean;
+  preferencesError: string | null;
+  previewPreferences: (preferences: UserUiPreferences) => void;
+  clearPreferencesPreview: () => void;
+  savePreferences: (preferences: UserUiPreferences) => Promise<boolean>;
+  resetPreferences: () => Promise<boolean>;
 };
 
 const initialState: ThemeProviderState = {
@@ -29,134 +49,271 @@ const initialState: ThemeProviderState = {
   resolvedTheme: "light",
   autoTheme: false,
   setAutoTheme: () => null,
-  customColors: null,
-  setCustomColors: () => null,
+  preferences: DEFAULT_USER_UI_PREFERENCES,
+  savedPreferences: DEFAULT_USER_UI_PREFERENCES,
+  sidebarCollapsed: false,
+  setSidebarCollapsed: () => null,
+  isHydratingPreferences: false,
+  isSavingPreferences: false,
+  preferencesError: null,
+  previewPreferences: () => null,
+  clearPreferencesPreview: () => null,
+  savePreferences: async () => false,
+  resetPreferences: async () => false,
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+
+const UI_THEME_CLASSES = ["light", "dark", "warm", "high-contrast", "sepia"];
+
+function getPreferenceCacheKey(storageKey: string, userId?: string | null) {
+  return `${storageKey}-preferences:${userId || "last"}`;
+}
+
+function readCachedPreferences(
+  storageKey: string,
+  userId: string | null | undefined,
+  defaultTheme: Theme,
+) {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_USER_UI_PREFERENCES, theme: defaultTheme };
+  }
+  try {
+    const cached = localStorage.getItem(getPreferenceCacheKey(storageKey, userId))
+      || localStorage.getItem(getPreferenceCacheKey(storageKey, null));
+    if (cached) return normalizeUserUiPreferences(JSON.parse(cached));
+
+    const legacyTheme = localStorage.getItem(storageKey);
+    const legacyAuto = localStorage.getItem(`${storageKey}-auto`) === "true";
+    const legacyColors = localStorage.getItem(`${storageKey}-colors`);
+    let legacyAccent = DEFAULT_USER_UI_PREFERENCES.accent;
+    if (legacyColors) {
+      const parsed = JSON.parse(legacyColors);
+      if (typeof parsed?.primary === "string" && analyzeUiAccent(parsed.primary).valid) {
+        legacyAccent = parsed.primary;
+      }
+    }
+    return normalizeUserUiPreferences({
+      ...DEFAULT_USER_UI_PREFERENCES,
+      theme: legacyTheme?.startsWith("neon") ? "dark" : legacyTheme || defaultTheme,
+      autoTheme: legacyAuto,
+      accent: legacyAccent,
+      sidebarCollapsed: localStorage.getItem("sidebar_collapsed") === "true",
+    });
+  } catch {
+    return { ...DEFAULT_USER_UI_PREFERENCES, theme: defaultTheme };
+  }
+}
+
+function writeCachedPreferences(
+  storageKey: string,
+  userId: string | null | undefined,
+  preferences: UserUiPreferences,
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const serialized = JSON.stringify(preferences);
+    localStorage.setItem(getPreferenceCacheKey(storageKey, userId), serialized);
+    localStorage.setItem(getPreferenceCacheKey(storageKey, null), serialized);
+    localStorage.setItem(storageKey, preferences.theme);
+    localStorage.setItem(`${storageKey}-auto`, String(preferences.autoTheme));
+    localStorage.setItem("sidebar_collapsed", String(preferences.sidebarCollapsed));
+    window.dispatchEvent(new Event("sidebar-collapse-change"));
+  } catch {
+    // Local storage is only a cache. Server persistence remains authoritative.
+  }
+}
 
 export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "streamstudio-theme",
+  userId = null,
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedValue = localStorage.getItem(storageKey);
-    const saved = savedValue as Theme | null;
-    if (savedValue && (savedValue.startsWith("neon") || savedValue === "neon")) {
-      localStorage.setItem(storageKey, "dark");
-      return "dark";
-    }
-    return saved || defaultTheme;
-  });
-  const [autoTheme, setAutoTheme] = useState<boolean>(
-    () => localStorage.getItem(`${storageKey}-auto`) === "true"
-  );
-  const [customColors, setCustomColors] = useState<ColorScheme | null>(() => {
-    const saved = localStorage.getItem(`${storageKey}-colors`);
-    return saved ? JSON.parse(saved) : null;
-  });
-
+  const [savedPreferences, setSavedPreferences] = useState<UserUiPreferences>(() =>
+    readCachedPreferences(storageKey, userId, defaultTheme));
+  const [preferencesPreview, setPreferencesPreview] = useState<UserUiPreferences | null>(null);
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("light");
+  const [isHydratingPreferences, setIsHydratingPreferences] = useState(Boolean(userId));
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const preferences = preferencesPreview || savedPreferences;
 
-  // Автоматическое переключение по времени суток
-  useEffect(() => {
-    if (!autoTheme) return;
-
-    const updateThemeByTime = () => {
-      const hour = new Date().getHours();
-      const root = window.document.documentElement;
-      
-      if (hour >= 6 && hour < 20) {
-        root.classList.remove("dark");
-        root.classList.add("light");
-        setResolvedTheme("light");
-      } else {
-        root.classList.remove("light");
-        root.classList.add("dark");
-        setResolvedTheme("dark");
-      }
-    };
-
-    updateThemeByTime();
-    const interval = setInterval(updateThemeByTime, 60000); // Проверяем каждую минуту
-    return () => clearInterval(interval);
-  }, [autoTheme]);
-
-  useEffect(() => {
-    if (autoTheme) return; // Если авто-тема включена, не меняем вручную
-
+  const applyPreferences = useCallback(() => {
+    if (typeof window === "undefined") return;
     const root = window.document.documentElement;
-
-    root.classList.remove("light", "dark", "warm", "high-contrast", "sepia");
-
+    const systemIsDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const hour = new Date().getHours();
     let effectiveTheme: "dark" | "light";
 
-    if (theme === "system") {
-      effectiveTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    } else if (theme === "warm" || theme === "high-contrast" || theme === "sepia") {
-      effectiveTheme = "dark";
-      root.classList.add(theme);
+    if (preferences.autoTheme) {
+      effectiveTheme = hour >= 6 && hour < 20 ? "light" : "dark";
+    } else if (preferences.theme === "system" || preferences.theme === "high-contrast") {
+      effectiveTheme = systemIsDark ? "dark" : "light";
+    } else if (preferences.theme === "warm" || preferences.theme === "sepia") {
+      effectiveTheme = "light";
     } else {
-      effectiveTheme = theme;
+      effectiveTheme = preferences.theme;
     }
 
+    root.classList.remove(...UI_THEME_CLASSES);
     root.classList.add(effectiveTheme);
-    setResolvedTheme(effectiveTheme);
-    
-    // Применяем кастомные цвета, если они заданы
-    if (customColors) {
-      root.style.setProperty('--primary', customColors.primary);
-      root.style.setProperty('--secondary', customColors.secondary);
-      root.style.setProperty('--accent', customColors.accent);
-    } else {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--secondary');
-      root.style.removeProperty('--accent');
+    if (["warm", "high-contrast", "sepia"].includes(preferences.theme)) {
+      root.classList.add(preferences.theme);
     }
-  }, [theme, autoTheme, customColors]);
+    root.dataset.theme = effectiveTheme;
+    root.dataset.uiTheme = preferences.theme;
+    root.style.colorScheme = effectiveTheme;
+
+    const accent = buildUiAccentVariables(preferences.accent);
+    root.style.setProperty("--primary", accent.accent);
+    root.style.setProperty("--primary-hover", accent.hover);
+    root.style.setProperty("--primary-muted", accent.muted);
+    root.style.setProperty("--primary-foreground", accent.foreground);
+    root.style.setProperty("--ring", accent.accent);
+    root.style.setProperty("--sidebar-primary", accent.accent);
+    root.style.setProperty("--sidebar-primary-foreground", accent.foreground);
+    root.style.setProperty("--sidebar-ring", accent.accent);
+    root.style.setProperty("--brand-accent", accent.accent);
+    setResolvedTheme(effectiveTheme);
+  }, [preferences]);
 
   useEffect(() => {
-    if (theme === "system") {
-      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      const handleChange = () => {
-        const root = window.document.documentElement;
-        root.classList.remove("light", "dark");
-        const newTheme = mediaQuery.matches ? "dark" : "light";
-        root.classList.add(newTheme);
-        setResolvedTheme(newTheme);
-      };
-      
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-  }, [theme]);
+    applyPreferences();
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemTheme = () => applyPreferences();
+    mediaQuery.addEventListener("change", handleSystemTheme);
+    const interval = preferences.autoTheme
+      ? window.setInterval(applyPreferences, 60_000)
+      : undefined;
+    return () => {
+      mediaQuery.removeEventListener("change", handleSystemTheme);
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, [applyPreferences, preferences.autoTheme]);
 
-  const value = {
-    theme,
+  useEffect(() => {
+    const cached = readCachedPreferences(storageKey, userId, defaultTheme);
+    setSavedPreferences(cached);
+    setPreferencesPreview(null);
+    setPreferencesError(null);
+    if (!userId) {
+      setIsHydratingPreferences(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsHydratingPreferences(true);
+    fetch(apiUrl("/api/users/me/ui-preferences"), {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.message || "Не удалось загрузить настройки интерфейса");
+        return normalizeUserUiPreferences(body?.preferences);
+      })
+      .then((serverPreferences) => {
+        if (controller.signal.aborted) return;
+        setSavedPreferences(serverPreferences);
+        writeCachedPreferences(storageKey, userId, serverPreferences);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setPreferencesError(error?.message || "Не удалось загрузить настройки интерфейса");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsHydratingPreferences(false);
+      });
+
+    return () => controller.abort();
+  }, [defaultTheme, storageKey, userId]);
+
+  const savePreferences = useCallback(async (nextValue: UserUiPreferences) => {
+    const nextPreferences = normalizeUserUiPreferences(nextValue);
+    const accent = analyzeUiAccent(nextPreferences.accent);
+    if (!accent.valid) {
+      setPreferencesError("Выбранный акцент не соответствует требованиям контраста");
+      return false;
+    }
+
+    const previousPreferences = savedPreferences;
+    setSavedPreferences(nextPreferences);
+    setPreferencesPreview(null);
+    setPreferencesError(null);
+    writeCachedPreferences(storageKey, userId, nextPreferences);
+    if (!userId) return true;
+
+    setIsSavingPreferences(true);
+    try {
+      const response = await fetch(apiUrl("/api/users/me/ui-preferences"), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: nextPreferences }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.message || "Не удалось сохранить настройки интерфейса");
+      const persistedPreferences = normalizeUserUiPreferences(body?.preferences);
+      setSavedPreferences(persistedPreferences);
+      writeCachedPreferences(storageKey, userId, persistedPreferences);
+      return true;
+    } catch (error: any) {
+      setSavedPreferences(previousPreferences);
+      writeCachedPreferences(storageKey, userId, previousPreferences);
+      setPreferencesError(error?.message || "Не удалось сохранить настройки интерфейса");
+      return false;
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  }, [savedPreferences, storageKey, userId]);
+
+  const previewPreferences = useCallback((nextPreferences: UserUiPreferences) => {
+    setPreferencesPreview(normalizeUserUiPreferences(nextPreferences));
+    setPreferencesError(null);
+  }, []);
+  const clearPreferencesPreview = useCallback(() => setPreferencesPreview(null), []);
+  const resetPreferences = useCallback(
+    () => savePreferences(DEFAULT_USER_UI_PREFERENCES),
+    [savePreferences],
+  );
+
+  const value = useMemo<ThemeProviderState>(() => ({
+    theme: preferences.theme,
     setTheme: (newTheme: Theme) => {
-      localStorage.setItem(storageKey, newTheme);
-      setTheme(newTheme);
+      void savePreferences({ ...savedPreferences, theme: newTheme });
     },
     resolvedTheme,
-    autoTheme,
+    autoTheme: preferences.autoTheme,
     setAutoTheme: (enabled: boolean) => {
-      localStorage.setItem(`${storageKey}-auto`, String(enabled));
-      setAutoTheme(enabled);
+      void savePreferences({ ...savedPreferences, autoTheme: enabled });
     },
-    customColors,
-    setCustomColors: (colors: ColorScheme | null) => {
-      if (colors) {
-        localStorage.setItem(`${storageKey}-colors`, JSON.stringify(colors));
-      } else {
-        localStorage.removeItem(`${storageKey}-colors`);
-      }
-      setCustomColors(colors);
+    preferences,
+    savedPreferences,
+    sidebarCollapsed: preferences.sidebarCollapsed,
+    setSidebarCollapsed: (collapsed: boolean) => {
+      void savePreferences({ ...savedPreferences, sidebarCollapsed: collapsed });
     },
-  };
+    isHydratingPreferences,
+    isSavingPreferences,
+    preferencesError,
+    previewPreferences,
+    clearPreferencesPreview,
+    savePreferences,
+    resetPreferences,
+  }), [
+    clearPreferencesPreview,
+    isHydratingPreferences,
+    isSavingPreferences,
+    preferences,
+    preferencesError,
+    previewPreferences,
+    resetPreferences,
+    resolvedTheme,
+    savePreferences,
+    savedPreferences,
+  ]);
 
   return (
     <ThemeProviderContext.Provider {...props} value={value}>

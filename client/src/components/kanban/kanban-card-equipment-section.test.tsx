@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Router } from "wouter";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCardEquipmentSection } from "./kanban-card-equipment-section";
 import type { KanbanEquipmentLinkView } from "@/lib/kanban-equipment-links";
 
@@ -49,13 +50,11 @@ afterEach(cleanup);
 describe("KanbanCardEquipmentSection", () => {
   it("delegates selection, attach and manual detach actions", () => {
     const callbacks = renderSection();
-    fireEvent.change(screen.getByRole("combobox", { name: "Оборудование для карточки" }), {
-      target: { value: "equipment-2" },
-    });
+    chooseStreamSelectOption("Оборудование для карточки", "Выберите оборудование");
     fireEvent.click(screen.getByRole("button", { name: "Прикрепить" }));
     fireEvent.click(screen.getByRole("button", { name: "Открепить Camera" }));
 
-    expect(callbacks.onSelectionChange).toHaveBeenCalledWith("equipment-2");
+    expect(callbacks.onSelectionChange).toHaveBeenCalledWith("");
     expect(callbacks.onAttach).toHaveBeenCalledWith("equipment-2");
     expect(callbacks.onDetach).toHaveBeenCalledWith("equipment-1");
     expect(screen.getByText("Прикреплено")).toBeInTheDocument();

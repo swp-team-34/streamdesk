@@ -2,6 +2,7 @@ import { Package, Plus, X } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type {
   EquipmentSummaryView,
   KanbanEquipmentLinkView,
@@ -11,7 +12,6 @@ import {
   getEquipmentWorkflowStatusVariant,
 } from "@/lib/kanban-presentation";
 import { formatDueDateLabel } from "@/lib/task-dates";
-import { KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
 
 interface KanbanCardEquipmentSectionProps {
   companyScoped: boolean;
@@ -56,27 +56,30 @@ export function KanbanCardEquipmentSection({
 
       {canManage && (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <select
-            aria-label="Оборудование для карточки"
+          <StreamSelect
+            ariaLabel="Оборудование для карточки"
             value={selection}
-            onChange={(event) => onSelectionChange(event.target.value)}
-            className={`${KANBAN_PANEL_SELECT_CLASS} flex-1`}
+            options={[
+              {
+                value: "",
+                label: availableEquipment.length > 0
+                  ? "Выберите оборудование"
+                  : "Всё доступное оборудование уже связано",
+                disabled: availableEquipment.length === 0,
+              },
+              ...availableEquipment.map((item) => ({
+                value: item.id,
+                label: item.name,
+                description: item.model || undefined,
+              })),
+            ]}
+            onValueChange={onSelectionChange}
+            className="flex-1"
             disabled={attachPending || detachPending || availableEquipment.length === 0}
-          >
-            <option value="">
-              {availableEquipment.length > 0
-                ? "Выберите оборудование"
-                : "Всё доступное оборудование уже связано"}
-            </option>
-            {availableEquipment.map((item) => (
-              <option key={item.id} value={item.id}>
-                {[item.name, item.model].filter(Boolean).join(" · ")}
-              </option>
-            ))}
-          </select>
+          />
           <Button
             type="button"
-            className="rounded-xl"
+            className="rounded-control"
             disabled={!selection || attachPending}
             onClick={() => onAttach(selection)}
           >
@@ -87,13 +90,13 @@ export function KanbanCardEquipmentSection({
       )}
 
       {!companyScoped && (
-        <div className="mt-3 rounded-xl border border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="mt-3 rounded-control border border-border/50 bg-surface-subtle px-3 py-2 text-xs text-muted-foreground">
           Warehouse доступен только в пространстве компании.
         </div>
       )}
 
       {links.length === 0 ? (
-        <div className="mt-3 rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+        <div className="mt-3 rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
           К этой карточке пока не прикреплено оборудование.
         </div>
       ) : (
@@ -103,7 +106,7 @@ export function KanbanCardEquipmentSection({
             return (
               <div
                 key={link.id}
-                className="rounded-2xl border border-border/35 bg-muted/20 px-4 py-3 text-sm"
+                className="rounded-surface border border-border/50 bg-surface-subtle px-4 py-3 text-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -135,7 +138,7 @@ export function KanbanCardEquipmentSection({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                        className="h-8 w-8 rounded-control text-error hover:bg-error-muted hover:text-error"
                         disabled={detachPending}
                         title="Открепить оборудование"
                         aria-label={`Открепить ${link.equipment.name || link.equipment.id}`}
@@ -162,7 +165,7 @@ export function KanbanCardEquipmentSection({
                   </div>
                 )}
                 {link.request?.note && (
-                  <div className="mt-3 rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="mt-3 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-xs text-muted-foreground">
                     {link.request.note}
                   </div>
                 )}

@@ -569,8 +569,8 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 p-2 border-b bg-white dark:bg-slate-900">
-        <div className="flex items-center gap-1 border-r pr-2 mr-2">
+      <div className="flex items-center gap-2 border-b border-border/50 bg-surface-raised p-2">
+        <div className="mr-2 flex items-center gap-1 border-r border-border/50 pr-2">
           <Button variant="ghost" size="sm" onClick={handleZoomIn} title="Увеличить (или колёсико мыши)">
             <ZoomIn className="w-4 h-4 mr-0.5" />
             <span className="text-xs">+</span>
@@ -583,7 +583,7 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
             <Maximize2 className="w-4 h-4" />
           </Button>
         </div>
-        <div className="flex items-center gap-1 border-r pr-2 mr-2">
+        <div className="mr-2 flex items-center gap-1 border-r border-border/50 pr-2">
           <Button variant="ghost" size="sm" onClick={handleUndo} disabled={historyIndex <= 0} title="Отменить">
             <Undo2 className="w-4 h-4" />
           </Button>
@@ -608,12 +608,12 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
       </div>
 
       {!fullScreen && (
-        <p className="text-xs text-muted-foreground px-2 py-1 border-b bg-muted/30">
+        <p className="border-b border-border/40 bg-surface-subtle px-2 py-1 text-xs text-muted-foreground">
           Соединяйте выход (out) с входом (in). Векторная графика — масштабирование без потери качества.
         </p>
       )}
       {drawZoneMode && (
-        <div className="flex items-center justify-between gap-2 text-xs font-medium text-primary px-2 py-1.5 border-b bg-primary/10">
+        <div className="flex items-center justify-between gap-2 border-b border-primary/20 bg-primary/10 px-2 py-1.5 text-xs font-medium text-primary">
           <span>Выделите область на схеме: нажмите и протяните мышь.</span>
           {onCancelDrawZone && (
             <Button type="button" variant="ghost" size="sm" className="h-7 text-primary" onClick={onCancelDrawZone}>
@@ -623,9 +623,9 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
         </div>
       )}
       {cableDrag && (
-        <div className="flex items-center justify-between gap-2 text-xs font-medium text-sky-200 px-2 py-1.5 border-b bg-sky-950/70">
+        <div className="flex items-center justify-between gap-2 border-b border-info/25 bg-info-muted px-2 py-1.5 text-xs font-medium text-info">
           <span>Соединение активно. Нажмите `Esc` или кнопку справа, чтобы отменить линию.</span>
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-sky-200" onClick={cancelCableDrag}>
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-info" onClick={cancelCableDrag}>
             Отменить линию
           </Button>
         </div>
@@ -633,7 +633,7 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
 
       <div
         ref={containerRef}
-        className={fullScreen ? "flex-1 min-h-0 w-full overflow-hidden" : "flex-1 min-h-[400px] bg-slate-100 dark:bg-slate-900 overflow-hidden"}
+        className={fullScreen ? "min-h-0 w-full flex-1 overflow-hidden bg-surface-base" : "min-h-[400px] flex-1 overflow-hidden bg-surface-base"}
         style={{ touchAction: "none", willChange: "transform" }}
       >
         <div
@@ -1007,13 +1007,13 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
       {deviceContextMenu && (
         <div
           ref={deviceContextMenuRef}
-          className="fixed z-[100] min-w-[180px] rounded-lg border border-slate-600 bg-slate-800 py-1 shadow-xl"
+          className="fixed z-[100] min-w-[200px] rounded-control border border-border/60 bg-surface-overlay py-1 shadow-overlay"
           style={{ left: deviceContextMenu.x, top: deviceContextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
-            className="w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700"
+            className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-subtle"
             onClick={() => {
               onDeviceSelect?.(deviceContextMenu.deviceId);
               setDeviceContextMenu(null);
@@ -1024,7 +1024,7 @@ export const SchemaCanvas = forwardRef<SchemaCanvasRef, SchemaCanvasProps>(funct
           {onDeviceDelete && (
             <button
               type="button"
-              className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700"
+              className="w-full px-3 py-2 text-left text-sm text-error hover:bg-error-muted"
               onClick={() => {
                 onDeviceDelete(deviceContextMenu.deviceId);
                 setDeviceContextMenu(null);

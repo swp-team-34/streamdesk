@@ -24,6 +24,7 @@ export default defineConfig({
   oxc: false,
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/test-utils/vitest-setup.ts"],
     include: [
       "src/**/*.test.{ts,tsx}",
       "../server/**/*.test.ts",

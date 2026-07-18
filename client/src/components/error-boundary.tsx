@@ -82,27 +82,27 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl border-red-200 dark:border-red-800">
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <Card className="w-full max-w-2xl border-error/20">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 mb-4">
-                <AlertCircle className="w-8 h-8 text-red-500 dark:text-red-400" />
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                <AlertCircle className="h-8 w-8 text-error" />
+                <h2 className="text-2xl font-semibold text-foreground">
                   Произошла ошибка
                 </h2>
               </div>
               
               {this.state.error && (
-                <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-                  <p className="text-sm font-mono text-red-800 dark:text-red-300 break-all">
+                <div className="mb-4 rounded-surface border border-error/20 bg-error-muted/60 p-4">
+                  <p className="break-all font-mono text-sm text-error">
                     {this.state.error.toString()}
                   </p>
                   {this.state.errorInfo && (
                     <details className="mt-2">
-                      <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer">
+                      <summary className="cursor-pointer text-xs text-error">
                         Детали ошибки
                       </summary>
-                      <pre className="mt-2 text-xs text-red-700 dark:text-red-400 overflow-auto max-h-64 p-2 bg-red-100 dark:bg-red-950/40 rounded">
+                      <pre className="mt-2 max-h-64 overflow-auto rounded-control bg-error-muted p-2 text-xs text-error">
                         {this.state.errorInfo.componentStack}
                       </pre>
                     </details>
@@ -130,4 +130,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-

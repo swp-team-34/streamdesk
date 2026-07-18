@@ -199,11 +199,11 @@ export function getInoperableEquipmentMessage(item: Equipment | null | undefined
 
 export function getEquipmentStatusClass(status: string) {
   switch (status) {
-    case "available": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-    case "in-use": return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
-    case "maintenance": return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-    case "broken": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-    default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+    case "available": return "border-success/20 bg-success-muted text-success";
+    case "in-use": return "border-info/20 bg-info-muted text-info";
+    case "maintenance": return "border-warning/20 bg-warning-muted text-warning";
+    case "broken": return "border-error/20 bg-error-muted text-error";
+    default: return "border-border/40 bg-muted text-muted-foreground";
   }
 }
 
@@ -219,10 +219,10 @@ export function getEquipmentStatusLabel(status: string) {
 
 export function getEquipmentOperabilityClass(status: string) {
   switch (status) {
-    case "working": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-    case "broken": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-    case "on_repair": return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-    default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+    case "working": return "border-success/20 bg-success-muted text-success";
+    case "broken": return "border-error/20 bg-error-muted text-error";
+    case "on_repair": return "border-warning/20 bg-warning-muted text-warning";
+    default: return "border-border/40 bg-muted text-muted-foreground";
   }
 }
 

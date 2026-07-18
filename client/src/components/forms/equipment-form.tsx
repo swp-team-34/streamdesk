@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { insertEquipmentSchema } from "@shared/schema";
 import { canCreateEquipment, canEditEquipment, canReserveEquipment } from "@/lib/equipment-permissions";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -244,25 +244,21 @@ export function EquipmentForm({
     ));
   };
 
-  const toggleContextCard = (card: NonNullable<EquipmentFormProps["kanbanCards"]>[number], checked: boolean) => {
-    const projectId = cardProjectId(card);
-    if (checked && contextProjectId === "none" && projectId) {
+  const changeContextCards = (nextCardIds: string[]) => {
+    const addedCardId = nextCardIds.find((cardId) => !contextCardIds.has(cardId));
+    const addedCard = addedCardId ? kanbanCards.find((card) => card.id === addedCardId) : null;
+    const projectId = addedCard ? cardProjectId(addedCard) : "";
+    if (addedCard && contextProjectId === "none" && projectId) {
       setContextProjectId(projectId);
-      setContextCardIds((current) => new Set([
-        ...[...current].filter((cardId) => {
+      setContextCardIds(new Set(
+        nextCardIds.filter((cardId) => {
           const selectedCard = kanbanCards.find((entry) => entry.id === cardId);
           return selectedCard && cardProjectId(selectedCard) === projectId;
         }),
-        card.id,
-      ]));
+      ));
       return;
     }
-    setContextCardIds((current) => {
-      const next = new Set(current);
-      if (checked) next.add(card.id);
-      else next.delete(card.id);
-      return next;
-    });
+    setContextCardIds(new Set(nextCardIds));
   };
 
   const physicalDestinationPayload = () => destinationChoice === "manual"
@@ -541,9 +537,9 @@ export function EquipmentForm({
     parentBundleExists !== false;
 
   const renderDestinationAndContext = (includeWorkContext: boolean) => (
-    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+    <div className="space-y-4 rounded-surface border border-border/50 bg-surface-subtle p-4">
       <div className="space-y-2">
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        <div className="text-sm font-medium text-foreground">
           <MapPin className="mr-1 inline h-4 w-4" />
           Физическое местоположение
         </div>
@@ -554,7 +550,7 @@ export function EquipmentForm({
             if (value !== "manual") setManualLocation("");
           }}
         >
-          <SelectTrigger className="bg-white dark:bg-slate-900">
+          <SelectTrigger>
             <SelectValue placeholder="Выберите площадку или ручной ввод" />
           </SelectTrigger>
           <SelectContent>
@@ -572,21 +568,20 @@ export function EquipmentForm({
             value={manualLocation}
             onChange={(event) => setManualLocation(event.target.value)}
             placeholder="Например: выездная площадка, монтажная 2"
-            className="bg-white dark:bg-slate-900"
           />
         )}
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Это место назначения оборудования. Полка или стеллаж указываются отдельно в поле хранения.
         </p>
       </div>
 
       {includeWorkContext && (
-        <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
-          <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        <div className="space-y-3 border-t border-border/50 pt-4">
+          <div className="text-sm font-medium text-foreground">
             Рабочий контекст
           </div>
           <Select value={contextProjectId} onValueChange={changeContextProject}>
-            <SelectTrigger className="bg-white dark:bg-slate-900">
+            <SelectTrigger>
               <SelectValue placeholder="Без проекта" />
             </SelectTrigger>
             <SelectContent>
@@ -598,31 +593,24 @@ export function EquipmentForm({
               ))}
             </SelectContent>
           </Select>
-          <div className="max-h-44 space-y-2 overflow-y-auto rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
-            {availableKanbanCards.length > 0 ? availableKanbanCards.slice(0, 100).map((card) => (
-              <label key={card.id} className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <Checkbox
-                  checked={contextCardIds.has(card.id)}
-                  onCheckedChange={(checked) => toggleContextCard(card, checked === true)}
-                />
-                <span className="min-w-0 text-sm">
-                  <span className="block break-words font-medium">{card.title || "Карточка"}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
-                    {[card.boardName, card.listName].filter(Boolean).join(" · ")}
-                  </span>
-                </span>
-              </label>
-            )) : (
-              <div className="py-3 text-center text-sm text-slate-500 dark:text-slate-400">
-                {contextProjectId === "none"
-                  ? "Нет доступных карточек Kanban V2"
-                  : "У проекта нет доступных карточек Kanban V2"}
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Можно выбрать несколько карточек. Legacy Task Manager здесь не используется.
-          </p>
+          <StreamMultiSelect
+            ariaLabel="Карточки рабочего контекста"
+            title="Выберите карточки Kanban V2"
+            values={[...contextCardIds]}
+            options={availableKanbanCards.slice(0, 100).map((card) => ({
+              value: card.id,
+              label: card.title || "Карточка",
+              description: [card.boardName, card.listName].filter(Boolean).join(" · "),
+            }))}
+            onValuesChange={changeContextCards}
+            placeholder={contextProjectId === "none"
+              ? "Выберите карточки компании"
+              : "Выберите карточки проекта"}
+            searchPlaceholder="Поиск по карточкам"
+            emptyMessage={contextProjectId === "none"
+              ? "Нет доступных карточек Kanban V2"
+              : "У проекта нет доступных карточек Kanban V2"}
+          />
         </div>
       )}
     </div>
@@ -636,8 +624,8 @@ export function EquipmentForm({
         const manualValue = String(form.watch("storageLocation") || "").trim();
         const selectValue = String(field.value || "").trim() || (manualValue ? "manual" : "none");
         return (
-          <FormItem className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-            <FormLabel className="text-slate-700 dark:text-slate-300">
+          <FormItem className="space-y-3 rounded-surface border border-border/50 bg-surface-subtle p-4">
+            <FormLabel className="text-foreground">
               <MapPin className="mr-1 inline h-4 w-4" />
               Место хранения{required ? " *" : ""}
             </FormLabel>
@@ -663,7 +651,7 @@ export function EquipmentForm({
               }}
             >
               <FormControl>
-                <SelectTrigger className="bg-white dark:bg-slate-900">
+                <SelectTrigger>
                   <SelectValue placeholder="Выберите комнату, стеллаж или полку" />
                 </SelectTrigger>
               </FormControl>
@@ -687,7 +675,6 @@ export function EquipmentForm({
                   <FormControl>
                     <Input
                       placeholder="Комната 204, стеллаж B, полка 3"
-                      className="bg-white dark:bg-slate-900"
                       {...storageField}
                       value={storageField.value || ""}
                     />
@@ -696,7 +683,7 @@ export function EquipmentForm({
               />
             )}
             {availableStorageLocations.length === 0 && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Справочник пока пуст. Можно указать место вручную или создать его в настройках склада.
               </p>
             )}
@@ -712,9 +699,9 @@ export function EquipmentForm({
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) onClose();
       }}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto bg-white dark:bg-slate-900">
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-slate-900 dark:text-white">
+            <DialogTitle>
               {returnViaParentBundle
                 ? "Возврат через сборку"
                 : equipment.status === 'in-use' ? 'Вернуть оборудование' : 'Взять оборудование'}
@@ -722,18 +709,18 @@ export function EquipmentForm({
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <h3 className="font-semibold text-slate-900 dark:text-white">{equipment.name}</h3>
+            <div className="rounded-surface border border-border/50 bg-surface-subtle p-4">
+              <h3 className="font-semibold text-foreground">{equipment.name}</h3>
               {equipment.model && (
-                <p className="text-sm text-slate-500 dark:text-slate-400">{equipment.model}</p>
+                <p className="text-sm text-muted-foreground">{equipment.model}</p>
               )}
-              <Badge className={`mt-2 ${equipment.status === 'available' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+              <Badge className={`mt-2 ${equipment.status === 'available' ? 'bg-success-muted text-success' : 'bg-warning-muted text-warning'}`}>
                 {equipment.status === 'available' ? 'Доступно' : 'Используется'}
               </Badge>
             </div>
 
             {returnViaParentBundle && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200">
+              <div className="rounded-control border border-warning/30 bg-warning-muted p-3 text-sm text-warning">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
@@ -775,7 +762,7 @@ export function EquipmentForm({
                   ) : equipment.status === 'in-use' ? (
                     <Button
                       type="button"
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="flex-1 bg-success text-white hover:bg-success/90"
                       onClick={() => handleTakeReturn('return')}
                       disabled={takeReturnMutation.isPending}
                     >
@@ -784,7 +771,7 @@ export function EquipmentForm({
                   ) : (
                     <Button
                       type="button"
-                      className="flex-1 bg-primary hover:bg-primary/90 text-white"
+                      className="flex-1"
                       onClick={() => handleTakeReturn('take')}
                       disabled={takeReturnMutation.isPending}
                     >
@@ -804,26 +791,27 @@ export function EquipmentForm({
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open) void requestClose();
     }}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar bg-white dark:bg-slate-900 sm:w-full">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto sm:w-full">
         <DialogHeader>
-          <DialogTitle className="text-slate-900 dark:text-white">
+          <DialogTitle>
             {equipment ? "Редактировать оборудование" : "Добавить оборудование"}
           </DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-surface border border-border/50 bg-surface-subtle p-4">
+              <div className="mb-4 text-sm font-semibold text-foreground">Основные сведения</div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Название *</FormLabel>
+                    <FormLabel>Название *</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="Sony FX3 Camera #1" 
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field} 
                       />
                     </FormControl>
@@ -837,7 +825,7 @@ export function EquipmentForm({
                 name="categoryId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Категория</FormLabel>
+                    <FormLabel>Категория</FormLabel>
                     <Select
                       value={String(field.value || "") || "none"}
                       onValueChange={(value) => {
@@ -850,7 +838,7 @@ export function EquipmentForm({
                       }}
                     >
                       <FormControl>
-                        <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+                        <SelectTrigger>
                           <SelectValue placeholder="Выберите категорию" />
                         </SelectTrigger>
                       </FormControl>
@@ -877,11 +865,10 @@ export function EquipmentForm({
                 name="model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Модель</FormLabel>
+                    <FormLabel>Модель</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="Sony FX3" 
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""} 
                       />
@@ -892,12 +879,11 @@ export function EquipmentForm({
               />
 
               <FormItem>
-                <FormLabel className="text-slate-700 dark:text-slate-300">Стоимость для сметы</FormLabel>
+                <FormLabel>Стоимость для сметы</FormLabel>
                 <FormControl>
                   <Input
                     inputMode="decimal"
                     placeholder="15000"
-                    className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                     value={estimatePrice}
                     onChange={(event) => setEstimatePrice(event.target.value)}
                   />
@@ -910,11 +896,10 @@ export function EquipmentForm({
                 name="serialNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Серийный номер</FormLabel>
+                    <FormLabel>Серийный номер</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="SN001234" 
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""} 
                       />
@@ -929,7 +914,7 @@ export function EquipmentForm({
                 name="inventoryNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <FormLabel className="flex items-center gap-2">
                       <ScanBarcode className="w-4 h-4" />
                       Инвентарный номер / Штрих-код
                     </FormLabel>
@@ -937,7 +922,7 @@ export function EquipmentForm({
                       <FormControl>
                         <Input 
                           placeholder="INV-2024-001 или сканируйте" 
-                          className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 font-mono"
+                          className="font-mono"
                           {...field}
                           value={field.value || ""} 
                         />
@@ -976,10 +961,10 @@ export function EquipmentForm({
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Статус</FormLabel>
+                    <FormLabel>Статус</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+                        <SelectTrigger>
                           <SelectValue placeholder="Выберите статус" />
                         </SelectTrigger>
                       </FormControl>
@@ -1000,10 +985,10 @@ export function EquipmentForm({
                 name="operabilityStatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Исправность</FormLabel>
+                    <FormLabel>Исправность</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || "working"}>
                       <FormControl>
-                        <SelectTrigger className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+                        <SelectTrigger>
                           <SelectValue placeholder="Выберите исправность" />
                         </SelectTrigger>
                       </FormControl>
@@ -1018,6 +1003,10 @@ export function EquipmentForm({
                 )}
               />
 
+              <div className="border-t border-border/50 pt-4 md:col-span-2">
+                <div className="text-sm font-semibold text-foreground">Размещение и рабочий контекст</div>
+              </div>
+
               <div className="md:col-span-2">
                 {renderDestinationAndContext(true)}
               </div>
@@ -1026,16 +1015,19 @@ export function EquipmentForm({
                 {renderWarehouseStorageSelection(false)}
               </div>
 
+              <div className="border-t border-border/50 pt-4 md:col-span-2">
+                <div className="text-sm font-semibold text-foreground">Ответственность</div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="responsiblePerson"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Ответственный</FormLabel>
+                    <FormLabel>Ответственный</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Имя ответственного"
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""}
                       />
@@ -1050,11 +1042,10 @@ export function EquipmentForm({
                 name="responsibleContact"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 dark:text-slate-300">Контакт ответственного</FormLabel>
+                    <FormLabel>Контакт ответственного</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="+7 900 000-00-00, Telegram или email"
-                        className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         {...field}
                         value={field.value || ""}
                       />
@@ -1063,14 +1054,15 @@ export function EquipmentForm({
                   </FormItem>
                 )}
               />
+              </div>
             </div>
 
             {barcodeValue && barcodeValue.length >= 3 && (
-              <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <QrCode className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
                       Предпросмотр штрих-кода
                     </span>
                   </div>
@@ -1097,32 +1089,34 @@ export function EquipmentForm({
                     </Button>
                   </div>
                 </div>
-                <div className="flex justify-center p-3 bg-white rounded-md border overflow-hidden">
+                <div className="flex justify-center overflow-hidden rounded-control border border-border/50 bg-white p-3">
                   <svg ref={barcodeRef} data-testid="barcode-preview" />
                 </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              <FormLabel className="text-slate-700 dark:text-slate-300">Тех. характеристики</FormLabel>
+            <section className="space-y-4 rounded-surface border border-border/50 bg-surface-subtle p-4">
+              <div className="text-sm font-semibold text-foreground">Описание и файлы</div>
+              <div className="space-y-2">
+              <FormLabel>Тех. характеристики</FormLabel>
               <Textarea
                 value={specificationsText}
                 onChange={(event) => setSpecificationsText(event.target.value)}
                 placeholder={"Порт HDMI: 2\nПитание: USB-C\nКомплектация: кейс"}
-                className="min-h-[110px] bg-white font-mono text-sm dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                className="min-h-[110px] font-mono text-sm"
               />
-            </div>
+              </div>
 
             <FormField
               control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-700 dark:text-slate-300">Примечания</FormLabel>
+                  <FormLabel>Примечания</FormLabel>
                   <FormControl>
                     <Textarea 
                       placeholder="Дополнительная информация об оборудовании..."
-                      className="min-h-[80px] bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                      className="min-h-[80px]"
                       {...field}
                       value={field.value || ""} 
                     />
@@ -1137,14 +1131,15 @@ export function EquipmentForm({
               existingPhotos={photos}
               onPhotosChange={setPhotos}
             />
+            </section>
 
-            <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
               {equipment ? (
                 <div
                   className={`text-sm ${
                     equipmentAutosave.status === "error" || (equipmentAutosave.status === "dirty" && equipmentAutosave.error)
                       ? "text-destructive"
-                      : "text-slate-500 dark:text-slate-400"
+                      : "text-muted-foreground"
                   }`}
                   role="status"
                 >
@@ -1164,7 +1159,6 @@ export function EquipmentForm({
                   type="button"
                   variant="outline"
                   onClick={() => void requestClose()}
-                  className="border-slate-300 dark:border-slate-600"
                 >
                   {equipment ? "Закрыть" : "Отмена"}
                 </Button>
@@ -1172,7 +1166,6 @@ export function EquipmentForm({
                   <Button
                     type="submit"
                     disabled={createMutation.isPending}
-                    className="bg-primary hover:bg-primary/90 text-white"
                   >
                     {createMutation.isPending ? "Сохранение..." : "Добавить"}
                   </Button>

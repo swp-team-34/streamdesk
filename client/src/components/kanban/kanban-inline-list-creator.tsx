@@ -25,7 +25,7 @@ export function KanbanInlineListCreator({
   onSubmit,
 }: KanbanInlineListCreatorProps) {
   return (
-    <Card className="task-board-column flex w-[calc(100vw-2.5rem)] shrink-0 items-stretch rounded-[24px] border border-dashed border-border/40 bg-muted/20 shadow-sm sm:w-[320px]">
+    <Card className="task-board-column flex w-[calc(100vw-2.5rem)] shrink-0 items-stretch rounded-surface border border-dashed border-border/50 bg-surface-raised shadow-xs sm:w-[320px]">
       <CardContent className="flex w-full flex-col justify-start p-4">
         {open ? (
           <div className="space-y-3">
@@ -56,7 +56,7 @@ export function KanbanInlineListCreator({
               </Button>
               <Button
                 size="sm"
-                className="rounded-xl"
+                className="rounded-control"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={onSubmit}
                 disabled={!title.trim() || pending}
@@ -68,7 +68,7 @@ export function KanbanInlineListCreator({
         ) : (
           <button
             type="button"
-            className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-[20px] text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-control text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground"
             onClick={onOpen}
             disabled={pending}
           >

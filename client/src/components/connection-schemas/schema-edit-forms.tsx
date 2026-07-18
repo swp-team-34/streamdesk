@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
 import type { SchemaDevice, SchemaZone } from "@/lib/connection-schema-model";
 
 export function ZoneEditForm({
@@ -16,26 +17,20 @@ export function ZoneEditForm({
   const [color, setColor] = useState(zone.color || "#3b82f6");
   return (
     <>
-      <span className="text-sm font-medium text-white">Редактирование зоны</span>
+      <span className="text-sm font-medium text-foreground">Редактирование зоны</span>
       <Input
         placeholder="Название"
         value={name}
         onChange={(event) => setName(event.target.value)}
-        className="h-8 border-slate-600 bg-slate-700 text-white"
+        className="h-8 border-border/50 bg-surface-raised text-foreground"
       />
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
-          className="h-8 w-8 cursor-pointer rounded"
-        />
-        <Input
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
-          className="h-8 flex-1 border-slate-600 bg-slate-700 text-sm text-white"
-        />
-      </div>
+      <StreamColorPicker
+        id="schema-zone-edit-color"
+        value={color}
+        onChange={setColor}
+        ariaLabel="Цвет зоны"
+        className="h-8 border-border/50 bg-surface-raised text-foreground hover:bg-surface-subtle"
+      />
       <div className="flex gap-2">
         <Button size="sm" className="h-8 flex-1" onClick={() => onSave(name.trim(), color)}>
           Сохранить
@@ -93,50 +88,50 @@ export function DeviceEditForm({
 
   return (
     <>
-      <span className="text-sm font-medium text-white">Редактирование оборудования</span>
+      <span className="text-sm font-medium text-foreground">Редактирование оборудования</span>
       <Input
         placeholder="Название"
         value={name}
         onChange={(event) => setName(event.target.value)}
-        className="h-8 border-slate-600 bg-slate-700 text-white"
+        className="h-8 border-border/50 bg-surface-raised text-foreground"
       />
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs text-slate-400">Ширина</label>
+          <label className="text-xs text-muted-foreground">Ширина</label>
           <Input
             type="number"
             min={100}
             max={600}
             value={width}
             onChange={(event) => setWidth(Number(event.target.value))}
-            className="h-8 border-slate-600 bg-slate-700 text-white"
+            className="h-8 border-border/50 bg-surface-raised text-foreground"
           />
         </div>
         <div>
-          <label className="text-xs text-slate-400">Высота</label>
+          <label className="text-xs text-muted-foreground">Высота</label>
           <Input
             type="number"
             min={60}
             max={400}
             value={height}
             onChange={(event) => setHeight(Number(event.target.value))}
-            className="h-8 border-slate-600 bg-slate-700 text-white"
+            className="h-8 border-border/50 bg-surface-raised text-foreground"
           />
         </div>
       </div>
       <div>
-        <label className="text-xs text-slate-400">Входы (каждый с новой строки)</label>
+        <label className="text-xs text-muted-foreground">Входы (каждый с новой строки)</label>
         <textarea
-          className="mt-1 min-h-[60px] w-full resize-y rounded border border-slate-600 bg-slate-700 p-2 text-sm text-white"
+          className="mt-1 min-h-[60px] w-full resize-y rounded-control border border-border/50 bg-surface-raised p-2 text-sm text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           value={portsInText}
           onChange={(event) => setPortsInText(event.target.value)}
           placeholder={"HDMI 1\nSDI\n..."}
         />
       </div>
       <div>
-        <label className="text-xs text-slate-400">Выходы (каждый с новой строки)</label>
+        <label className="text-xs text-muted-foreground">Выходы (каждый с новой строки)</label>
         <textarea
-          className="mt-1 min-h-[60px] w-full resize-y rounded border border-slate-600 bg-slate-700 p-2 text-sm text-white"
+          className="mt-1 min-h-[60px] w-full resize-y rounded-control border border-border/50 bg-surface-raised p-2 text-sm text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           value={portsOutText}
           onChange={(event) => setPortsOutText(event.target.value)}
           placeholder={"HDMI\nSDI\n..."}

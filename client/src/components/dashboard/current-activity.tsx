@@ -1,6 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Video, Camera, Radio } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
+import { getCalendarEventHref } from "@/lib/entity-navigation";
 
 interface CurrentActivityProps {
   streams?: any[];
@@ -34,19 +41,19 @@ export default function CurrentActivity({ streams, events }: CurrentActivityProp
   ];
 
   return (
-    <Card className="bg-card/80 dark:bg-card/90 backdrop-blur-sm border border-border rounded-xl overflow-hidden min-w-0 border-l-4 border-l-red-500/70">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="py-2 px-3 sm:px-3 pb-1">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shrink-0" />
+          <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-error" />
           <CardTitle className="text-sm font-semibold text-foreground">Текущая активность</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="px-0 sm:px-0 pb-0 pt-0">
         {activities.length === 0 ? (
-          <div className="text-center py-4">
-            <Radio className="w-8 h-8 mx-auto mb-1.5 text-slate-300 dark:text-slate-600" />
-            <p className="text-xs text-slate-500 dark:text-slate-400">Нет активных трансляций</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Запланированные события появятся здесь</p>
+          <div className="py-4 text-center text-muted-foreground">
+            <Radio className="mx-auto mb-1.5 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-xs">Нет активных трансляций</p>
+            <p className="mt-0.5 text-[10px]">Запланированные события появятся здесь</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -54,30 +61,35 @@ export default function CurrentActivity({ streams, events }: CurrentActivityProp
               const Icon = activity.icon;
               const isStream = activity.type === 'stream';
               return (
-                <div
-                  key={index}
+                <Link
+                  key={`${activity.type}:${activity.id || index}`}
+                  href={isStream ? "/streams" : getCalendarEventHref(activity.id, activity.startTime)}
                   className={cn(
-                    "flex items-center justify-between rounded-r-xl overflow-hidden bg-card/70 dark:bg-card/80 backdrop-blur-sm border border-border min-w-0 border-l-4",
-                    isStream ? "border-l-red-500/70" : "border-l-amber-500/70"
+                    "flex min-w-0 items-center justify-between overflow-hidden",
+                    DASHBOARD_WIDGET_ROW_CLASS,
+                    DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
                   )}
                   data-testid={`activity-${index}`}
                 >
                   <div className={`flex items-center gap-3 p-3 w-full`}>
-                    <div className={`flex items-center justify-center w-12 h-12 rounded-lg shadow ${isStream ? 'bg-gradient-to-br from-red-500 to-pink-500' : 'bg-gradient-to-br from-amber-400 to-orange-400'}`}>
-                      <Icon className="text-white w-5 h-5" />
+                    <div className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-control",
+                      isStream ? "bg-error-muted text-error" : "bg-warning-muted text-warning",
+                    )}>
+                      <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white truncate">{activity.title}</p>
-                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      <p className="truncate text-sm font-semibold text-foreground sm:text-base">{activity.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
                         {activity.location} • {isStream ? 'В эфире' : `Начало в ${new Date(activity.startTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`}
                       </p>
                     </div>
                     <div className="text-right flex flex-col items-end justify-center gap-0.5">
-                      <span className={`text-sm font-semibold ${isStream ? 'text-red-500' : 'text-amber-500'}`}>{activity.status}</span>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{activity.duration || activity.timeLeft}</p>
+                      <span className={cn("text-sm font-semibold", isStream ? "text-error" : "text-warning")}>{activity.status}</span>
+                      <p className="text-xs text-muted-foreground">{activity.duration || activity.timeLeft}</p>
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

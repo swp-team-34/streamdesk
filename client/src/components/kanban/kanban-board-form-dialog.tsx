@@ -9,10 +9,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
   KANBAN_PANEL_TEXTAREA_CLASS,
 } from "./kanban-styles";
 
@@ -80,7 +80,7 @@ export function KanbanBoardFormDialog({
 }: KanbanBoardFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl border-border/50 bg-card text-card-foreground">
+      <DialogContent className="max-w-2xl border-border/50 bg-surface-overlay text-foreground shadow-overlay">
         <DialogHeader>
           <DialogTitle>{editingBoardId ? "Изменить доску" : "Создать доску"}</DialogTitle>
           <DialogDescription>
@@ -110,7 +110,7 @@ export function KanbanBoardFormDialog({
                     companyId: value === "personal" ? "" : form.companyId || companies[0]?.id || "",
                   })}
                   className={[
-                    "rounded-2xl border p-3 text-left transition",
+                    "rounded-surface border p-3 text-left transition",
                     selected
                       ? "border-primary/60 bg-primary/10 text-foreground"
                       : "border-border/40 bg-background hover:bg-accent/60",
@@ -132,20 +132,15 @@ export function KanbanBoardFormDialog({
               <label className="text-sm font-medium" htmlFor="kanban-board-dialog-company">
                 Компания
               </label>
-              <select
+              <StreamSelect
                 id="kanban-board-dialog-company"
-                className={KANBAN_PANEL_SELECT_CLASS}
                 value={form.companyId}
-                onChange={(event) => onChange({ ...form, companyId: event.target.value })}
+                options={companies.length === 0
+                  ? [{ value: "", label: "Нет доступных компаний", disabled: true }]
+                  : companies.map((company) => ({ value: company.id, label: company.name }))}
+                onValueChange={(companyId) => onChange({ ...form, companyId })}
                 disabled={Boolean(editingBoardId) || companiesLoading || pending}
-              >
-                {companies.length === 0 && <option value="">Нет доступных компаний</option>}
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
 

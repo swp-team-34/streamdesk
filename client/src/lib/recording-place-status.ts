@@ -17,11 +17,11 @@ export const RECORDING_PLACE_STATUS_LABELS: Record<RecordingPlaceStatus, string>
 };
 
 export const RECORDING_PLACE_STATUS_TONES: Record<RecordingPlaceStatus, string> = {
-  available: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-  occupied: "border-blue-500/40 bg-blue-500/10 text-blue-200",
-  reserved: "border-amber-500/40 bg-amber-500/10 text-amber-200",
-  maintenance: "border-purple-500/40 bg-purple-500/10 text-purple-200",
-  unavailable: "border-red-500/40 bg-red-500/10 text-red-200",
+  available: "border-success/25 bg-success-muted text-success",
+  occupied: "border-info/25 bg-info-muted text-info",
+  reserved: "border-warning/25 bg-warning-muted text-warning",
+  maintenance: "border-primary/25 bg-primary/10 text-primary",
+  unavailable: "border-error/25 bg-error-muted text-error",
 };
 
 export const ALL_RECORDING_PLACE_STATUSES = "all";

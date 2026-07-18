@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanBoardToolbar } from "./kanban-board-toolbar";
 
 function createProps() {
@@ -32,14 +33,15 @@ describe("KanbanBoardToolbar", () => {
     expect(screen.getByText("Доска: Production")).toBeInTheDocument();
     expect(screen.getByText("Live events")).toBeInTheDocument();
     expect(screen.getByText("Активны")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "List" })).toHaveClass("bg-primary/15");
+    expect(screen.getByRole("button", { name: "Kanban" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.change(screen.getByPlaceholderText("Поиск карточек"), { target: { value: "audio" } });
     fireEvent.click(screen.getByRole("button", { name: "Очистить поиск" }));
     fireEvent.click(screen.getByRole("button", { name: "Фильтры Активны" }));
     fireEvent.click(screen.getByRole("button", { name: "Kanban" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Группировка списка" }), {
-      target: { value: "field:location" },
-    });
+    chooseStreamSelectOption("Группировка списка", "По полю: Location");
 
     expect(props.onSearchChange).toHaveBeenNthCalledWith(1, "audio");
     expect(props.onSearchChange).toHaveBeenNthCalledWith(2, "");

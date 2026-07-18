@@ -8,7 +8,7 @@ import {
 describe("Kanban custom field filter help", () => {
   it("describes option-based controls", () => {
     expect(getKanbanCustomFieldFilterHelp({ type: "select" })).toContain("один вариант");
-    expect(getKanbanCustomFieldFilterHelp({ type: "multi-select" })).toContain("содержащие");
+    expect(getKanbanCustomFieldFilterHelp({ type: "multi-select" })).toContain("хотя бы один");
   });
 
   it("matches exact options and an explicit empty value", () => {
@@ -21,9 +21,15 @@ describe("Kanban custom field filter help", () => {
     expect(matchesKanbanCustomFieldFilter(
       { type: "multi-select" },
       ["Camera", "Sound"],
-      "Sound",
+      ["Sound", "Light"],
       "Camera, Sound",
     )).toBe(true);
+    expect(matchesKanbanCustomFieldFilter(
+      { type: "multi-select" },
+      ["Camera", "Sound"],
+      ["Light"],
+      "Camera, Sound",
+    )).toBe(false);
     expect(matchesKanbanCustomFieldFilter(
       { type: "text" },
       null,

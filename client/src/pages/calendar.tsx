@@ -30,6 +30,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { readCalendarRouteState } from "@/lib/entity-navigation";
 import {
   getCalendarEntryDensity,
   getCalendarEntryLaneLayout,
@@ -48,12 +49,18 @@ import {
   buildCalendarTimelineDays,
   CALENDAR_TIMELINE_BUFFER_DAYS,
   CALENDAR_TIMELINE_GUTTER_WIDTH,
+  CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS,
   getCalendarTimelineDayWidth,
   getCalendarTimelineScrollLeft,
   getCalendarTimelineSnapIndex,
   getCalendarTimelineVisibleDayCount,
   type CalendarTimelineViewMode,
 } from "@/lib/calendar-timeline";
+import {
+  buildCalendarAllDayDraftSlot,
+  CALENDAR_DATE_LONG_PRESS_MS,
+  hasCalendarDatePressMoved,
+} from "@/lib/calendar-all-day";
 import {
   CALENDAR_SETTINGS_STORAGE_KEY,
   CALENDAR_SLOT_HEIGHT,
@@ -84,12 +91,19 @@ import {
 export default function Calendar() {
   useWebSocket();
 
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const initialRouteStateRef = useRef(readCalendarRouteState(
+    typeof window === "undefined" ? "" : window.location.search,
+  ));
+  const [selectedDate, setSelectedDate] = useState(
+    () => initialRouteStateRef.current.date ?? new Date(),
+  );
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null);
   const [draftSlot, setDraftSlot] = useState<{ startTime: string; endTime: string } | null>(null);
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    () => initialRouteStateRef.current.view ?? "week",
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>(() => loadCalendarSettings());
   const [calendarPointerPreview, setCalendarPointerPreview] = useState<CalendarPointerPreview | null>(null);
@@ -100,19 +114,101 @@ export default function Calendar() {
   const { toast } = useToast();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineScrollTimerRef = useRef<number | null>(null);
+  const timelineSnapTimerRef = useRef<number | null>(null);
+  const commitTimelineScrollRef = useRef<() => void>(() => undefined);
   const timelineRecenteringRef = useRef(false);
+  const timelineLastScrollLeftRef = useRef(0);
+  const timelinePendingViewportRef = useRef<{
+    dateKey: string;
+    fractionalOffset: number;
+  } | null>(null);
   const timelinePanRef = useRef<{
     pointerId: number;
     startX: number;
     scrollLeft: number;
   } | null>(null);
+  const timelineDatePressRef = useRef<{
+    pointerId: number;
+    date: Date;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    triggered: boolean;
+    timerId: number | null;
+  } | null>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [timelineToolbarDate, setTimelineToolbarDate] = useState<Date | null>(null);
   const calendarPointerActionRef = useRef<{
     mode: CalendarPointerMode;
     entry: CalendarEntry;
     startX: number;
     startY: number;
   } | null>(null);
+  const routeEventOpenedRef = useRef(false);
+
+  const openAllDayEventForm = useCallback((date: Date) => {
+    setDraftSlot(buildCalendarAllDayDraftSlot(date));
+    setSelectedEntry(null);
+    setIsDetailOpen(false);
+    setIsFormOpen(true);
+  }, []);
+
+  const clearTimelineDatePressTimer = useCallback(() => {
+    const press = timelineDatePressRef.current;
+    if (press?.timerId != null) {
+      window.clearTimeout(press.timerId);
+      press.timerId = null;
+    }
+  }, []);
+
+  const startTimelineDatePress = useCallback((
+    event: ReactPointerEvent<HTMLButtonElement>,
+    date: Date,
+  ) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    clearTimelineDatePressTimer();
+    const press = {
+      pointerId: event.pointerId,
+      date: new Date(date),
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      triggered: false,
+      timerId: null as number | null,
+    };
+    timelineDatePressRef.current = press;
+    press.timerId = window.setTimeout(() => {
+      if (timelineDatePressRef.current !== press || press.moved) return;
+      press.triggered = true;
+      openAllDayEventForm(press.date);
+    }, CALENDAR_DATE_LONG_PRESS_MS);
+  }, [clearTimelineDatePressTimer, openAllDayEventForm]);
+
+  const updateTimelineDatePressMovement = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const press = timelineDatePressRef.current;
+    if (!press || press.pointerId !== event.pointerId || press.moved) return;
+    if (!hasCalendarDatePressMoved(
+      { x: press.startX, y: press.startY },
+      { x: event.clientX, y: event.clientY },
+    )) return;
+    press.moved = true;
+    clearTimelineDatePressTimer();
+  }, [clearTimelineDatePressTimer]);
+
+  const finishTimelineDatePress = useCallback((
+    event: ReactPointerEvent<HTMLElement>,
+    activate: boolean,
+  ) => {
+    const press = timelineDatePressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    clearTimelineDatePressTimer();
+    timelineDatePressRef.current = null;
+    if (activate && !press.moved && !press.triggered) {
+      openAllDayEventForm(press.date);
+    }
+  }, [clearTimelineDatePressTimer, openAllDayEventForm]);
+
+  useEffect(() => () => clearTimelineDatePressTimer(), [clearTimelineDatePressTimer]);
 
   const { data: events = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -126,6 +222,7 @@ export default function Calendar() {
   const { data: users = [] } = useQuery<CalendarUser[]>({
     queryKey: ["/api/users"],
   });
+  const isCalendarLoading = isLoadingEvents || isLoadingTasks || isLoadingKanbanCards;
   const storedEventColors = useMemo(() => readEventColorMap(), [events]);
 
   const userNameById = useMemo(() => {
@@ -160,6 +257,7 @@ export default function Calendar() {
       anchorDate: selectedDate,
       viewMode: timelineViewMode,
       showWeekends: calendarSettings.showWeekends,
+      bufferDays: CALENDAR_TIMELINE_BUFFER_DAYS,
     }),
     [calendarSettings.showWeekends, selectedDate, timelineViewMode],
   );
@@ -323,19 +421,19 @@ export default function Calendar() {
       if (isTimelineView) scrollToCurrentHour(timelineScrollRef.current);
     }, 100);
     return () => clearTimeout(t);
-  }, [HOUR_START, ROW_HEIGHT, isTimelineView, viewMode]);
+  }, [ROW_HEIGHT, isTimelineView, viewMode, workdayStart]);
 
   useLayoutEffect(() => {
     if (!isTimelineView) return;
     const element = timelineScrollRef.current;
     if (!element) return;
 
-    const updateViewportWidth = () => setTimelineViewportWidth(element.clientWidth);
+    const updateViewportWidth = () => setTimelineViewportWidth(element.getBoundingClientRect().width);
     updateViewportWidth();
     const observer = new ResizeObserver(updateViewportWidth);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isTimelineView, viewMode]);
+  }, [isCalendarLoading, isTimelineView, viewMode]);
 
   useLayoutEffect(() => {
     if (!isTimelineView || timelineViewportWidth <= 0) return;
@@ -343,19 +441,30 @@ export default function Calendar() {
     if (!element) return;
 
     timelineRecenteringRef.current = true;
-    element.scrollLeft = getCalendarTimelineScrollLeft(
-      CALENDAR_TIMELINE_BUFFER_DAYS,
-      timelineDayWidth,
-    );
+    const pendingViewport = timelinePendingViewportRef.current;
+    timelinePendingViewportRef.current = null;
+    const pendingDayIndex = pendingViewport
+      ? timelineDays.findIndex((day) => format(day, "yyyy-MM-dd") === pendingViewport.dateKey)
+      : -1;
+    const targetDayIndex = pendingDayIndex >= 0
+      ? pendingDayIndex + pendingViewport!.fractionalOffset
+      : CALENDAR_TIMELINE_BUFFER_DAYS;
+
+    element.scrollLeft = getCalendarTimelineScrollLeft(targetDayIndex, timelineDayWidth);
+    timelineLastScrollLeftRef.current = element.scrollLeft;
     const frameId = window.requestAnimationFrame(() => {
       timelineRecenteringRef.current = false;
     });
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      timelineRecenteringRef.current = false;
+    };
   }, [
     calendarSettings.showWeekends,
     isTimelineView,
     selectedDate,
     timelineDayWidth,
+    timelineDays,
     timelineViewportWidth,
     viewMode,
   ]);
@@ -364,12 +473,26 @@ export default function Calendar() {
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
     }
+    if (timelineSnapTimerRef.current != null) {
+      window.clearTimeout(timelineSnapTimerRef.current);
+    }
   }, []);
 
   const entries = useMemo(
     () => buildCalendarEntries({ events, tasks, kanbanCards, userNameById }),
     [events, kanbanCards, tasks, userNameById],
   );
+
+  useEffect(() => {
+    if (routeEventOpenedRef.current || !initialRouteStateRef.current.eventId) return;
+    const eventEntry = entries.find((entry) =>
+      entry.kind === "event" && String(entry.id) === initialRouteStateRef.current.eventId,
+    );
+    if (!eventEntry) return;
+    routeEventOpenedRef.current = true;
+    setSelectedEntry(eventEntry);
+    setIsDetailOpen(true);
+  }, [entries]);
 
   const entriesForDateCache = useMemo(() => new Map<string, CalendarEntry[]>(), [entries]);
   const getEntriesForDate = useCallback((date: Date) => {
@@ -414,17 +537,17 @@ export default function Calendar() {
     const urgency = getEntryDeadlineUrgency(entry);
     if (urgency === "overdue") {
       return {
-        card: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
-        inline: `border-l-red-400 ${getDueDateStatusClasses("overdue").card} text-red-950 dark:text-red-50`,
-        dot: "bg-red-400",
+        card: `border-l-error ${getDueDateStatusClasses("overdue").card} text-foreground`,
+        inline: `border-l-error ${getDueDateStatusClasses("overdue").card} text-foreground`,
+        dot: "bg-error",
         badge: getDueDateStatusClasses("overdue").badge,
       };
     }
     if (urgency === "soon") {
       return {
-        card: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
-        inline: `border-l-amber-400 ${getDueDateStatusClasses("soon").card} text-amber-950 dark:text-amber-50`,
-        dot: "bg-amber-400",
+        card: `border-l-warning ${getDueDateStatusClasses("soon").card} text-foreground`,
+        inline: `border-l-warning ${getDueDateStatusClasses("soon").card} text-foreground`,
+        dot: "bg-warning",
         badge: getDueDateStatusClasses("soon").badge,
       };
     }
@@ -505,8 +628,8 @@ export default function Calendar() {
     return (
       <div
         className={cn(
-          "pointer-events-none absolute z-30 rounded-xl border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25 backdrop-blur",
-                  (calendarPointerPreview.mode === "resize-start" || calendarPointerPreview.mode === "resize-end") && "border-dashed",
+          "pointer-events-none absolute z-30 rounded-control border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/25",
+          (calendarPointerPreview.mode === "resize-start" || calendarPointerPreview.mode === "resize-end") && "border-dashed",
         )}
         style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
       >
@@ -539,6 +662,13 @@ export default function Calendar() {
     days: Date[],
     columnCount: number,
   ) => {
+    if (
+      !slotSelectStart ||
+      !slotSelectEnd ||
+      (slotSelectStart.dayIndex === slotSelectEnd.dayIndex && slotSelectStart.hour === slotSelectEnd.hour)
+    ) {
+      return null;
+    }
     const range = getSlotSelectionRange(days);
     if (!range) return null;
     const dayIndex = days.findIndex((day) => isSameDay(day, range.start));
@@ -554,7 +684,7 @@ export default function Calendar() {
 
     return (
       <div
-        className="pointer-events-none absolute z-20 rounded-xl border border-primary/60 bg-primary/15 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/20 backdrop-blur"
+        className="pointer-events-none absolute z-20 rounded-control border border-primary/60 bg-primary/15 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/20"
         style={{ ...blockStyle, ...horizontalStyle, minHeight: 28 }}
       >
         <div className="truncate font-semibold">Новое событие</div>
@@ -894,12 +1024,12 @@ export default function Calendar() {
         {(entry.kind === "task" || entry.kind === "kanban") && (
           <div className="mt-auto flex min-w-0 items-center gap-1 overflow-hidden pt-0.5">
             {entry.task.priority && (
-              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+              <span className="max-w-full truncate rounded-full bg-surface-raised/70 px-1.5 py-0.5 text-[10px] leading-none">
                 {TASK_PRIORITY_LABELS[entry.task.priority] || entry.task.priority}
               </span>
             )}
             {getEntryDeadlineUrgency(entry) !== "none" && (
-              <span className="max-w-full truncate rounded-full bg-background/55 px-1.5 py-0.5 text-[10px] leading-none">
+              <span className="max-w-full truncate rounded-full bg-surface-raised/70 px-1.5 py-0.5 text-[10px] leading-none">
                 {getDueDateStatusLabel(getEntryDeadlineUrgency(entry))}
               </span>
             )}
@@ -929,40 +1059,84 @@ export default function Calendar() {
     const targetDate = timelineDays[targetIndex];
     if (!targetDate) return;
 
-    if (!isSameDay(targetDate, selectedDate)) {
-      setSelectedDate(new Date(targetDate));
+    const targetScrollLeft = getCalendarTimelineScrollLeft(targetIndex, timelineDayWidth);
+    const finishSnap = () => {
+      timelineSnapTimerRef.current = null;
+      if (!isSameDay(targetDate, selectedDate)) {
+        timelinePendingViewportRef.current = {
+          dateKey: format(targetDate, "yyyy-MM-dd"),
+          fractionalOffset: 0,
+        };
+        setSelectedDate(new Date(targetDate));
+        setTimelineToolbarDate(null);
+        return;
+      }
+      setTimelineToolbarDate(null);
+      timelinePendingViewportRef.current = null;
+      element.scrollLeft = targetScrollLeft;
+      timelineLastScrollLeftRef.current = targetScrollLeft;
+      window.requestAnimationFrame(() => {
+        timelineRecenteringRef.current = false;
+      });
+    };
+
+    timelineRecenteringRef.current = true;
+    setTimelineToolbarDate(isSameDay(targetDate, selectedDate) ? null : new Date(targetDate));
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || Math.abs(element.scrollLeft - targetScrollLeft) < 1) {
+      finishSnap();
       return;
     }
 
-    const targetScrollLeft = getCalendarTimelineScrollLeft(
-      CALENDAR_TIMELINE_BUFFER_DAYS,
-      timelineDayWidth,
+    element.scrollTo({ left: targetScrollLeft, behavior: "smooth" });
+    timelineSnapTimerRef.current = window.setTimeout(finishSnap, 280);
+  }, [selectedDate, timelineDayWidth, timelineDays]);
+  commitTimelineScrollRef.current = commitTimelineScroll;
+
+  const rebaseTimelineIfNeeded = useCallback(() => {
+    const element = timelineScrollRef.current;
+    if (!element || timelineRecenteringRef.current) return;
+
+    const firstVisibleDay = element.scrollLeft / timelineDayWidth;
+    const visibleDayWidth = Math.max(
+      1,
+      (element.getBoundingClientRect().width - CALENDAR_TIMELINE_GUTTER_WIDTH) / timelineDayWidth,
     );
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    element.scrollTo({
-      left: targetScrollLeft,
-      behavior: reducedMotion ? "auto" : "smooth",
-    });
+    const lastVisibleDay = firstVisibleDay + visibleDayWidth;
+    const nearStart = firstVisibleDay <= CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS;
+    const nearEnd = timelineDays.length - 1 - lastVisibleDay <= CALENDAR_TIMELINE_PREFETCH_THRESHOLD_DAYS;
+    if (!nearStart && !nearEnd) return;
+
+    const anchorIndex = Math.max(
+      0,
+      Math.min(timelineDays.length - 1, Math.floor(firstVisibleDay)),
+    );
+    const anchorDate = timelineDays[anchorIndex];
+    if (!anchorDate || isSameDay(anchorDate, selectedDate)) return;
+
+    timelinePendingViewportRef.current = {
+      dateKey: format(anchorDate, "yyyy-MM-dd"),
+      fractionalOffset: firstVisibleDay - anchorIndex,
+    };
+    setSelectedDate(new Date(anchorDate));
   }, [selectedDate, timelineDayWidth, timelineDays]);
 
   const handleTimelineScroll = useCallback(() => {
     if (timelineRecenteringRef.current) return;
+    const element = timelineScrollRef.current;
+    if (!element) return;
+    const nextScrollLeft = element.scrollLeft;
+    if (Math.abs(nextScrollLeft - timelineLastScrollLeftRef.current) < 0.5) return;
+    timelineLastScrollLeftRef.current = nextScrollLeft;
+    rebaseTimelineIfNeeded();
     if (timelineScrollTimerRef.current != null) {
       window.clearTimeout(timelineScrollTimerRef.current);
     }
     timelineScrollTimerRef.current = window.setTimeout(() => {
       timelineScrollTimerRef.current = null;
-      commitTimelineScroll();
-    }, 60);
-  }, [commitTimelineScroll]);
-
-  useEffect(() => {
-    if (!isTimelineView) return;
-    const element = timelineScrollRef.current;
-    if (!element) return;
-    element.addEventListener("scrollend", commitTimelineScroll);
-    return () => element.removeEventListener("scrollend", commitTimelineScroll);
-  }, [commitTimelineScroll, isTimelineView]);
+      commitTimelineScrollRef.current();
+    }, 520);
+  }, [rebaseTimelineIfNeeded]);
 
   const scrollTimelineByDays = useCallback((dayDelta: number) => {
     const element = timelineScrollRef.current;
@@ -1008,13 +1182,15 @@ export default function Calendar() {
   }, []);
 
   const handleTimelinePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    updateTimelineDatePressMovement(event);
     const pan = timelinePanRef.current;
     const element = timelineScrollRef.current;
     if (!pan || !element || pan.pointerId !== event.pointerId) return;
     element.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
-  }, []);
+  }, [updateTimelineDatePressMovement]);
 
   const handleTimelinePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    finishTimelineDatePress(event, true);
     const pan = timelinePanRef.current;
     const element = timelineScrollRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
@@ -1022,8 +1198,20 @@ export default function Calendar() {
     if (element?.hasPointerCapture(event.pointerId)) {
       element.releasePointerCapture(event.pointerId);
     }
-    commitTimelineScroll();
-  }, [commitTimelineScroll]);
+    handleTimelineScroll();
+  }, [finishTimelineDatePress, handleTimelineScroll]);
+
+  const handleTimelinePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    finishTimelineDatePress(event, false);
+    const pan = timelinePanRef.current;
+    const element = timelineScrollRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    timelinePanRef.current = null;
+    if (element?.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
+    }
+    handleTimelineScroll();
+  }, [finishTimelineDatePress, handleTimelineScroll]);
 
   const shiftSelectedDate = (direction: -1 | 1) => {
     const current = selectedDate;
@@ -1047,11 +1235,20 @@ export default function Calendar() {
     setViewMode("day");
   };
 
+  const toolbarTimelineVisibleDays = timelineToolbarDate
+    ? buildCalendarTimelineDays({
+        anchorDate: timelineToolbarDate,
+        viewMode: timelineViewMode,
+        showWeekends: calendarSettings.showWeekends,
+        bufferDays: 0,
+      })
+    : timelineVisibleDays;
+
   const toolbarPeriodLabel = (() => {
     if (viewMode === "month") return format(selectedDate, "LLLL yyyy", { locale: ru });
     if (isTimelineView) {
-      const start = timelineVisibleDays[0] || selectedDate;
-      const end = timelineVisibleDays.at(-1) || start;
+      const start = toolbarTimelineVisibleDays[0] || selectedDate;
+      const end = toolbarTimelineVisibleDays.at(-1) || start;
       if (isSameDay(start, end)) return format(start, "d MMM yyyy", { locale: ru });
       return `${format(start, "d MMM", { locale: ru })} – ${format(end, "d MMM yyyy", { locale: ru })}`;
     }
@@ -1079,16 +1276,19 @@ export default function Calendar() {
     const timelineColumnTemplate = `${CALENDAR_TIMELINE_GUTTER_WIDTH}px repeat(${Math.max(1, days.length)}, ${timelineDayWidth}px)`;
     if (allDayEntries.length === 0 && !allDayPreview) {
       return (
-        <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: timelineColumnTemplate }}>
-          <div className="sticky left-0 z-30 border-r border-border/35 bg-muted/95 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+        <div className="grid border-b border-border/40 bg-surface-subtle" style={{ gridTemplateColumns: timelineColumnTemplate }}>
+          <div className="sticky left-0 z-30 border-r border-border/40 bg-surface-subtle px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
           {days.map((day, dayIndex) => (
-            <div
+            <button
               key={day.toISOString()}
+              type="button"
               data-calendar-all-day
               data-scope={scope}
               data-date={day.toISOString()}
               data-day-index={dayIndex}
-              className="min-h-10 border-r border-border/35 last:border-r-0"
+              aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+              className="min-h-10 cursor-pointer border-r border-border/30 transition-colors hover:bg-primary/5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0"
+              onClick={() => openAllDayEventForm(day)}
             />
           ))}
         </div>
@@ -1096,21 +1296,24 @@ export default function Calendar() {
     }
 
     return (
-      <div className="grid border-b border-border/30 bg-muted/20" style={{ gridTemplateColumns: timelineColumnTemplate }}>
-        <div className="sticky left-0 z-30 border-r border-border/35 bg-muted/95 px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
+      <div className="grid border-b border-border/40 bg-surface-subtle" style={{ gridTemplateColumns: timelineColumnTemplate }}>
+        <div className="sticky left-0 z-30 border-r border-border/40 bg-surface-subtle px-2 py-2 text-[11px] font-medium text-muted-foreground">Весь день</div>
         <div
           className="relative max-h-28 min-h-10 overflow-y-auto p-1"
           style={{ gridColumn: `span ${Math.max(1, days.length)} / span ${Math.max(1, days.length)}` }}
         >
           <div className="absolute inset-1 grid gap-1" style={{ gridTemplateColumns: dayColumnTemplate }}>
             {days.map((day, dayIndex) => (
-              <div
+              <button
                 key={day.toISOString()}
+                type="button"
                 data-calendar-all-day
                 data-scope={scope}
                 data-date={day.toISOString()}
                 data-day-index={dayIndex}
-                className="min-h-8 rounded-lg border border-dashed border-border/25"
+                aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+                className="min-h-8 cursor-pointer rounded-control border border-dashed border-border/30 transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                onClick={() => openAllDayEventForm(day)}
               />
             ))}
           </div>
@@ -1127,7 +1330,7 @@ export default function Calendar() {
                 key={getCalendarEntryKey(entry)}
                 type="button"
                 data-calendar-all-day-entry
-                className={cn("relative z-10 min-w-0 cursor-grab rounded-lg border border-border/40 px-2 py-1 text-left text-xs shadow-sm", getEventCardClasses(entry))}
+                className={cn("relative z-10 min-w-0 cursor-grab rounded-control border border-border/40 px-2 py-1 text-left text-xs shadow-xs", getEventCardClasses(entry))}
                 style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: index + 1, ...getEntryColorStyle(entry) }}
                 onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
               >
@@ -1159,7 +1362,7 @@ export default function Calendar() {
               const last = visibleIndexes.at(-1) ?? first;
               return (
                 <div
-                  className="pointer-events-none relative z-20 min-w-0 rounded-lg border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-lg ring-2 ring-primary/25"
+                  className="pointer-events-none relative z-20 min-w-0 rounded-control border border-primary/70 bg-primary/20 px-2 py-1 text-left text-xs text-foreground shadow-surface ring-2 ring-primary/25"
                   style={{ gridColumn: `${first + 1} / span ${Math.max(1, last - first + 1)}`, gridRow: allDayEntries.length + 1 }}
                 >
                   <span className="block truncate font-semibold">{allDayPreview.entry.title}</span>
@@ -1175,38 +1378,57 @@ export default function Calendar() {
   const renderCompressedHoursControl = (
     days: Date[],
     range: "before" | "after",
-    sticky = false,
+    gridTemplateColumns: string,
   ) => {
     const startsAt = range === "before" ? 0 : workdayEnd;
     const endsAt = range === "before" ? workdayStart : 24;
     if (endsAt <= startsAt) return null;
     const isExpanded = expandedNonWorkingRanges[range];
+    if (isExpanded) return null;
 
-    const entriesInRange = days.flatMap((day) =>
+    const entryCountByDay = days.map((day) =>
       getEntriesForDate(day).filter((entry) => {
         if (isAllDayEntry(entry)) return false;
         const start = new Date(entry.startTime);
         const hour = start.getHours() + start.getMinutes() / 60;
         return hour >= startsAt && hour < endsAt;
-      }),
+      }).length,
     );
+    const entriesInRange = entryCountByDay.reduce((sum, count) => sum + count, 0);
+    const startsAtLabel = `${String(startsAt).padStart(2, "0")}:00`;
+    const endsAtLabel = `${String(endsAt).padStart(2, "0")}:00`;
 
     return (
       <button
         type="button"
+        aria-expanded="false"
+        aria-label={`Развернуть часы с ${startsAtLabel} до ${endsAtLabel}${entriesInRange > 0 ? `. Событий внутри: ${entriesInRange}` : ""}`}
+        title={`Развернуть ${startsAtLabel}–${endsAtLabel}`}
+        data-calendar-compressed-hours={range}
         className={cn(
-          "flex w-full items-center justify-between gap-3 border-b border-border/20 bg-muted/20 px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/35",
-          sticky && "sticky left-0 z-30",
+          "group grid w-full cursor-pointer border-b border-border/35 bg-surface-subtle text-left text-[10px] text-muted-foreground transition-colors hover:bg-muted/55 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 sm:text-xs",
+          "h-11",
         )}
-        style={sticky && timelineViewportWidth > 0 ? { width: timelineViewportWidth } : undefined}
+        style={{ gridTemplateColumns }}
         onClick={() => setExpandedNonWorkingRanges((prev) => ({ ...prev, [range]: !prev[range] }))}
       >
-        <span>
-          {String(startsAt).padStart(2, "0")}:00 - {String(endsAt).padStart(2, "0")}:00 {isExpanded ? "раскрыто" : "сжато"}
+        <span className="sticky left-0 z-20 block h-full border-r border-border/40 bg-surface-subtle group-hover:bg-muted/55">
+          <span className="relative block h-full pr-1 text-right">
+            <span className="absolute right-1 top-0.5">{startsAtLabel}</span>
+            <span className="absolute bottom-0.5 right-1">{endsAtLabel}</span>
+          </span>
         </span>
-        <span className="rounded-full bg-muted px-2 py-0.5">
-          {isExpanded ? "Свернуть" : entriesInRange.length > 0 ? `${entriesInRange.length} внутри` : "Показать"}
-        </span>
+        {days.map((day, index) => (
+          <span
+            key={`${range}-${day.toISOString()}`}
+            className="relative block h-full border-r border-border/25 last:border-r-0"
+          >
+            <span className="absolute inset-x-0 top-1/2 border-t border-border/25" />
+            {entryCountByDay[index] > 0 && (
+              <span className="absolute left-2 top-1.5 h-1 w-8 max-w-[calc(100%-1rem)] rounded-full bg-primary/45" />
+            )}
+          </span>
+        ))}
       </button>
     );
   };
@@ -1224,16 +1446,27 @@ export default function Calendar() {
       ? (now.getHours() - HOUR_START + now.getMinutes() / 60) * ROW_HEIGHT
       : 0;
     const timelineWeekNumber = getISOWeek(timelineVisibleDays[0] || selectedDate);
+    const renderTimelineHourLabel = (hour: number) => (
+      hour === HOUR_START && workdayStart > 0 && !expandedNonWorkingRanges.before
+        ? null
+        : `${String(hour).padStart(2, "0")}:00`
+    );
+    const getExpandedRangeForHour = (hour: number): "before" | "after" | null => {
+      if (expandedNonWorkingRanges.before && hour < workdayStart) return "before";
+      if (expandedNonWorkingRanges.after && hour >= workdayEnd) return "after";
+      return null;
+    };
 
     return (
       <div
         ref={timelineScrollRef}
         tabIndex={0}
         aria-label="Временная шкала календаря. Используйте стрелки для перехода по дням."
-        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-xl border border-border/30 bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        className="max-h-[75vh] min-w-0 max-w-full overflow-auto rounded-surface border border-border/50 bg-surface-raised shadow-xs outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-primary/30"
         style={{
-          scrollSnapType: "x mandatory",
+          scrollSnapType: "none",
           overscrollBehaviorX: "contain",
+          overflowAnchor: "none",
           touchAction: "pan-x pan-y",
         }}
         onScroll={handleTimelineScroll}
@@ -1241,7 +1474,7 @@ export default function Calendar() {
         onPointerDown={handleTimelinePointerDown}
         onPointerMove={handleTimelinePointerMove}
         onPointerUp={handleTimelinePointerEnd}
-        onPointerCancel={handleTimelinePointerEnd}
+        onPointerCancel={handleTimelinePointerCancel}
         onWheel={(event) => {
           if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
           event.preventDefault();
@@ -1249,55 +1482,62 @@ export default function Calendar() {
         }}
       >
         <div className="min-w-max" style={{ width: timelineContentWidth }}>
-          <div className="sticky top-0 z-50 bg-card shadow-sm shadow-background/30">
-            {renderAllDayZone(timelineDays, timelineViewMode)}
-            {renderCompressedHoursControl(timelineVisibleDays, "before", true)}
-            <div className="grid bg-card" style={{ gridTemplateColumns }}>
+          <div className="sticky top-0 z-50 border-b border-border/40 bg-surface-raised shadow-xs">
+            <div className="grid bg-surface-raised" style={{ gridTemplateColumns }}>
               <div
                 data-calendar-horizontal-pan
-                className="sticky left-0 z-30 cursor-grab border-b border-r border-border/35 bg-card px-2 py-2 text-[10px] font-medium text-foreground active:cursor-grabbing sm:text-xs"
+                className="sticky left-0 z-30 cursor-grab border-b border-r border-border/40 bg-surface-raised px-2 py-2 text-[10px] font-medium text-muted-foreground active:cursor-grabbing sm:text-xs"
               >
                 Н{timelineWeekNumber}
               </div>
               {timelineDays.map((day) => {
                 const isToday = isSameDay(day, now);
                 return (
-                  <div
+                  <button
                     key={day.toISOString()}
+                    type="button"
                     data-calendar-horizontal-pan
-                    className="cursor-grab select-none border-b border-r border-border/35 bg-card px-1 py-2 text-center last:border-r-0 active:cursor-grabbing"
+                    aria-label={`Создать событие на весь день ${format(day, "d MMMM yyyy", { locale: ru })}`}
+                    className="cursor-grab select-none border-b border-r border-border/40 bg-surface-raised px-1 py-2 text-center transition-colors hover:bg-muted/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary last:border-r-0 active:cursor-grabbing"
                     style={{
                       scrollSnapAlign: "start",
                       scrollMarginLeft: CALENDAR_TIMELINE_GUTTER_WIDTH,
                     }}
+                    onPointerDown={(event) => startTimelineDatePress(event, day)}
+                    onPointerUp={(event) => finishTimelineDatePress(event, true)}
+                    onPointerCancel={(event) => finishTimelineDatePress(event, false)}
+                    onClick={(event) => {
+                      if (event.detail === 0) openAllDayEventForm(day);
+                    }}
+                    onContextMenu={(event) => event.preventDefault()}
                   >
                     <div className="truncate text-[10px] uppercase text-muted-foreground sm:text-xs">
                       {format(day, "EEE", { locale: ru })}
                     </div>
                     <div className={cn(
-                      "inline-block min-w-6 rounded-md text-sm font-semibold",
-                      isToday && "bg-red-500 px-1 text-white",
+                      "inline-flex min-h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold",
+                      isToday && "bg-primary px-1 text-primary-foreground",
                     )}>
                       {format(day, "d")}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
+            {renderAllDayZone(timelineDays, timelineViewMode)}
           </div>
+          {renderCompressedHoursControl(timelineDays, "before", gridTemplateColumns)}
           <div className="grid" style={{ gridTemplateColumns }}>
             {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
               <Fragment key={hour}>
                 <div
-                  className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/35 bg-card pr-1 text-[10px] text-muted-foreground sm:text-xs"
+                  className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-border/30 bg-surface-raised pr-1 text-[10px] text-muted-foreground sm:text-xs"
                   style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
-                >
-                  {`${String(hour).padStart(2, "0")}:00`}
-                </div>
+                />
                 {timelineDays.map((day) => (
                   <div
                     key={`${hour}-${day.toISOString()}`}
-                    className="border-b border-r border-border/25 last:border-r-0"
+                    className="border-b border-r border-border/20 last:border-r-0"
                     style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
                   />
                 ))}
@@ -1310,18 +1550,49 @@ export default function Calendar() {
           >
             <div className="grid pointer-events-auto" style={{ gridTemplateColumns }}>
               <div
-                className="pointer-events-none sticky left-0 z-40 border-r border-border/35 bg-card"
+                className="pointer-events-none sticky left-0 z-40 border-r border-border/40 bg-surface-raised"
                 style={{ height: timelineHeight }}
               >
-                {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => (
-                  <div
-                    key={`timeline-hour-label-${hour}`}
-                    className="flex items-start justify-end border-b border-border/35 pr-1 text-[10px] text-muted-foreground sm:text-xs"
-                    style={{ height: ROW_HEIGHT, minHeight: ROW_HEIGHT }}
-                  >
-                    {`${String(hour).padStart(2, "0")}:00`}
-                  </div>
-                ))}
+                {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => {
+                  const expandedRange = getExpandedRangeForHour(hour);
+                  const isRangeBoundary = expandedRange === "before"
+                    ? hour === workdayStart - 1
+                    : expandedRange === "after" && hour === workdayEnd;
+                  const className = "relative flex w-full items-start justify-end border-b border-border/30 pr-1 text-[10px] text-muted-foreground sm:text-xs";
+                  const style = { height: ROW_HEIGHT, minHeight: ROW_HEIGHT };
+
+                  if (!expandedRange) {
+                    return (
+                      <div key={`timeline-hour-label-${hour}`} className={className} style={style}>
+                        {renderTimelineHourLabel(hour)}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={`timeline-hour-label-${hour}`}
+                      type="button"
+                      className={`${className} pointer-events-auto transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60`}
+                      style={style}
+                      aria-label={`Скрыть часы ${expandedRange === "before" ? `до ${String(workdayStart).padStart(2, "0")}:00` : `после ${String(workdayEnd).padStart(2, "0")}:00`}`}
+                      onClick={() => setExpandedNonWorkingRanges((current) => ({
+                        ...current,
+                        [expandedRange]: false,
+                      }))}
+                    >
+                      {renderTimelineHourLabel(hour)}
+                      {isRangeBoundary && (
+                        <span className={cn(
+                          "absolute inset-x-1 border-t border-muted-foreground/50",
+                          expandedRange === "before" ? "bottom-0" : "top-0",
+                        )}>
+                          <span className="absolute left-1/2 top-0 h-1.5 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/60" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <div
                 className="relative"
@@ -1336,13 +1607,6 @@ export default function Calendar() {
                     const [hourPart, minutePart] = time.split(":").map(Number);
                     const slot = hourPart + minutePart / 60;
                     if (slot < HOUR_START || slot >= HOUR_END) return null;
-                    const isSelected = slotSelectStart && slotSelectEnd && (() => {
-                      const minDay = Math.min(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
-                      const maxDay = Math.max(slotSelectStart.dayIndex, slotSelectEnd.dayIndex);
-                      const minHour = Math.min(slotSelectStart.hour, slotSelectEnd.hour);
-                      const maxHour = Math.max(slotSelectStart.hour, slotSelectEnd.hour);
-                      return dayIndex >= minDay && dayIndex <= maxDay && slot >= minHour && slot <= maxHour;
-                    })();
                     return (
                       <div
                         key={`timeline-slot-${day.toISOString()}-${time}`}
@@ -1351,10 +1615,7 @@ export default function Calendar() {
                         data-date={day.toISOString()}
                         data-day-index={dayIndex}
                         data-hour={slot}
-                        className={cn(
-                          "absolute cursor-cell transition-colors duration-150 hover:bg-primary/10",
-                          isSelected && "bg-primary/40 ring-2 ring-inset ring-primary/60",
-                        )}
+                        className="absolute cursor-cell transition-colors duration-150 hover:bg-primary/10"
                         style={{
                           left: `${(100 / columnCount) * dayIndex}%`,
                           width: `${100 / columnCount}%`,
@@ -1372,7 +1633,7 @@ export default function Calendar() {
                 )}
                 {showNowLine && (
                   <div
-                    className="pointer-events-none absolute z-10 h-px bg-red-500"
+                    className="pointer-events-none absolute z-10 h-px bg-error"
                     style={{
                       top: nowTop,
                       left: `${(100 / columnCount) * todayIndex}%`,
@@ -1410,7 +1671,7 @@ export default function Calendar() {
                             type="button"
                             data-calendar-entry-block
                             className={cn(
-                              "pointer-events-auto absolute cursor-grab overflow-hidden rounded-xl border border-border/30 text-left text-xs shadow-md backdrop-blur-sm transition hover:shadow-lg active:cursor-grabbing",
+                              "pointer-events-auto absolute cursor-grab overflow-hidden rounded-control border border-border/40 text-left text-xs shadow-xs transition hover:shadow-surface active:cursor-grabbing",
                               getEventCardClasses(entry),
                             )}
                             style={{
@@ -1442,13 +1703,13 @@ export default function Calendar() {
               </div>
             </div>
           </div>
-          {renderCompressedHoursControl(timelineVisibleDays, "after", true)}
+          {renderCompressedHoursControl(timelineDays, "after", gridTemplateColumns)}
         </div>
       </div>
     );
   };
 
-  if (isLoadingEvents || isLoadingTasks || isLoadingKanbanCards) {
+  if (isCalendarLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1457,38 +1718,28 @@ export default function Calendar() {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">
+    <div className="w-full min-w-0 max-w-full overflow-hidden px-2 py-3 sm:px-4 sm:py-4 lg:px-5">
       <CalendarToolbar
         periodLabel={toolbarPeriodLabel}
+        selectedDate={selectedDate}
         viewMode={viewMode}
         onCreateEvent={() => {
+          setDraftSlot(null);
           setSelectedEntry(null);
           setIsFormOpen(true);
         }}
         onShiftDate={shiftSelectedDate}
         onToday={() => setSelectedDate(new Date())}
         onOpenSettings={() => setSettingsOpen(true)}
+        onDateSelect={(date) => setSelectedDate(new Date(date))}
         onViewModeChange={setViewMode}
       />
 
       {viewMode === "month" ? (
-        <div className="space-y-1.5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1 sm:gap-1.5 p-2 sm:p-3 bg-card rounded-xl border border-border/40 w-full min-w-0">
-            <div className="flex items-center gap-2 text-foreground shrink-0">
-              <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-              <span className="font-semibold text-base sm:text-lg truncate">{format(selectedDate, "LLLL yyyy", { locale: ru })}</span>
-            </div>
-            <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:w-auto min-w-0">
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}>← Пред</Button>
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date())}>Сегодня</Button>
-              <Button variant="outline" size="sm" className="border-border/35 text-xs sm:text-sm flex-1 min-w-0 sm:flex-initial px-2 sm:px-3 rounded-xl" onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}>След →</Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border/35 overflow-hidden bg-card min-w-0">
-            <div className="grid grid-cols-7 border-b border-border/30">
+        <div className="min-w-0 overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
+            <div className="grid grid-cols-7 border-b border-border/40 bg-surface-subtle">
               {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
-                <div key={day} className="p-1 sm:p-1.5 text-center text-[10px] sm:text-xs font-semibold text-muted-foreground">{day}</div>
+                <div key={day} className="p-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">{day}</div>
               ))}
             </div>
             <div className="grid grid-cols-7">
@@ -1513,11 +1764,9 @@ export default function Calendar() {
                       data-scope="month"
                       data-date={day.toISOString()}
                       className={cn(
-                        "min-h-[56px] sm:min-h-[72px] md:min-h-[84px] p-0.5 sm:p-1 border-b border-border/30 transition-colors",
-                        !isCurrentMonth ? "bg-muted/20 opacity-70" : "bg-card",
-                        isToday && "ring-2 ring-inset ring-primary",
+                        "min-h-[56px] cursor-pointer border-b border-r border-border/25 p-0.5 transition-colors hover:bg-muted/40 sm:min-h-[72px] sm:p-1 md:min-h-[84px] [&:nth-child(7n)]:border-r-0",
+                        !isCurrentMonth ? "bg-surface-subtle/70 text-muted-foreground" : "bg-surface-raised",
                         isPointerPreviewDay && "bg-primary/10 ring-2 ring-inset ring-primary/50",
-                        "cursor-pointer",
                       )}
                       onClick={(event) => {
                         if ((event.target as HTMLElement).closest("[data-calendar-entry-block]")) return;
@@ -1527,8 +1776,12 @@ export default function Calendar() {
                       <button
                         type="button"
                         className={cn(
-                          "mb-0.5 rounded px-0.5 text-xs font-semibold hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:mb-1 sm:text-sm",
-                          isToday ? "text-primary" : isCurrentMonth ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500",
+                          "mb-0.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-medium hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:mb-1 sm:text-sm",
+                          isToday
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : isCurrentMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground",
                         )}
                         aria-label={`Открыть ${format(day, "d MMMM yyyy", { locale: ru })}`}
                         onClick={(event) => {
@@ -1544,30 +1797,41 @@ export default function Calendar() {
                             key={getCalendarEntryKey(entry)}
                             type="button"
                             data-calendar-entry-block
-                            className={cn("block w-full min-w-0 overflow-hidden rounded-r-xl rounded-l-md px-1.5 py-1 text-left text-[10px] shadow-sm cursor-grab active:cursor-grabbing sm:text-xs", getEventInlineClasses(entry))}
+                            className={cn("block w-full min-w-0 cursor-grab overflow-hidden rounded-control border border-border/30 px-1.5 py-1 text-left text-[10px] shadow-xs active:cursor-grabbing sm:text-xs", getEventInlineClasses(entry))}
                             style={getEntryColorStyle(entry, "inline")}
                             onPointerDown={(event) => startCalendarEntryPointerAction(event, entry, "all-day-move")}
                           >
                             {renderMonthEntryContent(entry)}
                           </button>
                         ))}
-                        {dayEntries.length > 3 && <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">+{dayEntries.length - 3} ещё</div>}
+                        {dayEntries.length > 3 && (
+                          <button
+                            type="button"
+                            className="rounded-control px-1 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:text-xs"
+                            aria-label={`Показать ещё ${dayEntries.length - 3} событий за ${format(day, "d MMMM", { locale: ru })}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDayView(day);
+                            }}
+                          >
+                            +{dayEntries.length - 3} ещё
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 });
               })()}
             </div>
-          </div>
         </div>
       ) : isTimelineView ? (
         renderTimelineView()
       ) : viewMode === "list" ? (
-        <div className="rounded-xl border border-border/30 bg-card overflow-hidden min-w-0">
-          <div className="p-2 sm:p-3 border-b border-border/30">
+        <div className="min-w-0 overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
+          <div className="border-b border-border/40 bg-surface-subtle p-2 sm:p-3">
             <div className="flex items-center gap-2 text-foreground">
               <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
-              <span className="font-semibold text-sm sm:text-base">
+              <span className="text-sm font-medium sm:text-base">
                 {format(weekStart, "d MMM", { locale: ru })} – {format(weekEnd, "d MMM yyyy", { locale: ru })}
               </span>
             </div>
@@ -1585,7 +1849,7 @@ export default function Calendar() {
                 );
               }
               return listEntries.map((entry) => (
-                <Card key={`${getCalendarEntryKey(entry)}:${entry._day.toISOString()}`} className={cn("rounded-xl border border-border/50 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden backdrop-blur-sm", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
+                <Card key={`${getCalendarEntryKey(entry)}:${entry._day.toISOString()}`} className={cn("cursor-pointer overflow-hidden rounded-control border border-border/40 shadow-xs transition hover:shadow-surface", getEventCardClasses(entry))} style={getEntryColorStyle(entry)} onClick={() => handleEntryClick(entry)}>
                   <CardHeader className="pb-1.5 p-2.5 sm:p-3">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                       <div className="flex-1 min-w-0">

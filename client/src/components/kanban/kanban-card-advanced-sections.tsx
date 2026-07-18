@@ -14,8 +14,9 @@ import type {
   KanbanEquipmentLinkView,
 } from "@/lib/kanban-equipment-links";
 
-interface KanbanCardAdvancedSectionsProps {
+export interface KanbanCardAdvancedSectionsProps {
   expanded: boolean;
+  mode?: "all" | "resources" | "activity";
   sectionClassName: string;
   boardId: string;
   cardId: string;
@@ -42,7 +43,7 @@ interface KanbanCardAdvancedSectionsProps {
   historyExpanded: boolean;
   getUserName: (userId: string) => string;
   getHistoryChangeLines: (entry: KanbanCardHistoryView) => string[];
-  confirmDelete: (message: string) => boolean;
+  confirmDelete: (message: string) => Promise<boolean>;
   onEquipmentSelectionChange: (equipmentId: string) => void;
   onAttachEquipment: (equipmentId: string) => void;
   onDetachEquipment: (equipmentId: string) => void;
@@ -56,6 +57,7 @@ interface KanbanCardAdvancedSectionsProps {
 
 export function KanbanCardAdvancedSections({
   expanded,
+  mode = "all",
   sectionClassName,
   boardId,
   cardId,
@@ -94,9 +96,11 @@ export function KanbanCardAdvancedSections({
   onCommentActivity,
 }: KanbanCardAdvancedSectionsProps) {
   const className = expanded ? sectionClassName : "hidden";
+  const showResources = mode === "all" || mode === "resources";
+  const showActivity = mode === "all" || mode === "activity";
   return (
     <>
-      <div className={className}>
+      {showResources && <div className={className}>
         <KanbanCardEquipmentSection
           companyScoped={companyScoped}
           links={equipmentLinks}
@@ -111,9 +115,9 @@ export function KanbanCardAdvancedSections({
           onAttach={onAttachEquipment}
           onDetach={onDetachEquipment}
         />
-      </div>
+      </div>}
 
-      <div className={className}>
+      {showResources && <div className={className}>
         <KanbanCardSubtasksSection
           subtasks={subtasks}
           draft={subtaskDraft}
@@ -123,9 +127,9 @@ export function KanbanCardAdvancedSections({
           onSave={onSaveSubtasks}
           confirmDelete={confirmDelete}
         />
-      </div>
+      </div>}
 
-      <div className={className}>
+      {showResources && <div className={className}>
         <KanbanCardAttachmentsSection
           attachments={attachments}
           loading={attachmentsLoading}
@@ -137,9 +141,9 @@ export function KanbanCardAdvancedSections({
           onDelete={onDeleteAttachment}
           confirmDelete={confirmDelete}
         />
-      </div>
+      </div>}
 
-      <div className={className}>
+      {showActivity && <div className={className}>
         <KanbanCardActivitySection
           entries={history}
           loading={historyLoading}
@@ -148,9 +152,9 @@ export function KanbanCardAdvancedSections({
           getChangeLines={getHistoryChangeLines}
           onToggleExpanded={onToggleHistoryExpanded}
         />
-      </div>
+      </div>}
 
-      <div className={className}>
+      {showActivity && <div className={className}>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Комментарии и ответы</h3>
@@ -167,7 +171,7 @@ export function KanbanCardAdvancedSections({
             />
           )}
         </div>
-      </div>
+      </div>}
     </>
   );
 }

@@ -19,6 +19,7 @@ import {
 import { UserLogsTab } from "@/components/admin/user-logs-tab";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import type { User, Role } from "@shared/schema";
 import { PERMISSIONS, TAB_KEYS, TAB_LABELS, tabPermission } from "@shared/schema";
 
@@ -92,6 +93,7 @@ export default function Admin() {
   const [repositoryDescription, setRepositoryDescription] = useState("");
   const [inviteLinks, setInviteLinks] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
 
   const currentUser = JSON.parse(localStorage.getItem('streamstudio_user') || '{}');
 
@@ -219,10 +221,10 @@ export default function Admin() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case "admin": return "bg-red-100 text-red-800";
-      case "manager": return "bg-purple-100 text-purple-800";
-      case "employee": return "bg-blue-100 text-blue-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "admin": return "border-error/20 bg-error-muted text-error";
+      case "manager": return "border-primary/20 bg-primary/10 text-primary";
+      case "employee": return "border-info/20 bg-info-muted text-info";
+      default: return "border-border/40 bg-muted text-muted-foreground";
     }
   };
 
@@ -285,12 +287,12 @@ export default function Admin() {
 
   if (!canOpenAdmin) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
         <Card className="max-w-md">
           <CardContent className="py-8 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-error" />
             <h3 className="text-lg font-semibold mb-2">Доступ запрещён</h3>
-            <p className="text-gray-600">
+            <p className="text-sm text-muted-foreground">
               У вас нет прав для просмотра этой страницы.
               Обратитесь к администратору.
             </p>
@@ -301,15 +303,14 @@ export default function Admin() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <p className="text-gray-500 mt-1">Управление пользователями и правами доступа</p>
-        </div>
+    <div className="space-y-5 p-4 sm:p-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Администрирование компании</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">Управление пользователями, доступом и рабочими интеграциями.</p>
       </div>
 
-      <Tabs defaultValue={manageableCompanies.length ? "company" : "users"}>
-        <TabsList>
+      <Tabs defaultValue={manageableCompanies.length ? "company" : "users"} className="space-y-5">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto">
           {manageableCompanies.length > 0 && (
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
@@ -335,7 +336,7 @@ export default function Admin() {
         </TabsList>
 
         {manageableCompanies.length > 0 && (
-          <TabsContent value="company" className="mt-6">
+          <TabsContent value="company" className="mt-0 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -352,7 +353,7 @@ export default function Admin() {
                   const activeUrl = inviteLinks[companyId] || item.activeInvite?.url || "";
                   const expiresAt = item.activeInvite?.expiresAt ? new Date(item.activeInvite.expiresAt).toLocaleString("ru-RU") : "";
                   return (
-                    <div key={companyId} className="rounded-lg border border-border p-4">
+                    <div key={companyId} className="rounded-surface border border-border/50 bg-muted/20 p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div className="min-w-0">
                           <div className="font-medium">{item.company?.name || "Компания"}</div>
@@ -386,7 +387,7 @@ export default function Admin() {
               </CardContent>
             </Card>
 
-            <Card className="mt-4">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserPlus className="w-5 h-5" />
@@ -398,12 +399,12 @@ export default function Admin() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {pendingCompanyApprovals.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-surface border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
                     Новых заявок сейчас нет.
                   </div>
                 ) : (
                   pendingCompanyApprovals.map((approval: any) => (
-                    <div key={approval.id} className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div key={approval.id} className="flex flex-col gap-3 rounded-surface border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <div className="font-medium truncate">
                           {approval.user?.name || approval.user?.username || approval.userId}
@@ -431,7 +432,7 @@ export default function Admin() {
           </TabsContent>
         )}
 
-        <TabsContent value="users" className="mt-6">
+        <TabsContent value="users" className="mt-0">
           {/* Users List */}
           <Card>
             <CardHeader>
@@ -450,7 +451,7 @@ export default function Admin() {
                   {filteredUsers.map(user => (
                     <div 
                       key={user.id} 
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                      className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
                       data-testid={`user-row-${user.id}`}
                     >
                       <div className="flex items-center gap-4 min-w-0">
@@ -467,7 +468,7 @@ export default function Admin() {
                               {getRoleLabel(user.role)}
                             </Badge>
                             {user.active === false && (
-                              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300">
+                              <Badge variant="outline" className="border-warning/20 bg-warning-muted text-xs text-warning">
                                 Ожидает подтверждения
                               </Badge>
                             )}
@@ -477,7 +478,7 @@ export default function Admin() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                          <div className="truncate text-sm text-muted-foreground">
                             @{user.username}
                             {user.email && ` • ${user.email}`}
                           </div>
@@ -507,7 +508,7 @@ export default function Admin() {
                             variant="default"
                             size="sm"
                             onClick={() => activateUserMutation.mutate(user.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-success text-white hover:bg-success/90"
                             data-testid={`button-activate-${user.id}`}
                           >
                             <Check className="w-4 h-4 mr-1" />
@@ -528,7 +529,7 @@ export default function Admin() {
                             variant="ghost"
                             size="sm"
                             onClick={() => banUserMutation.mutate(user.id)}
-                            className="text-red-500 hover:text-red-700"
+                            className="text-error hover:bg-error-muted hover:text-error"
                           >
                             <X className="w-4 h-4 mr-1" />
                             Бан
@@ -539,7 +540,7 @@ export default function Admin() {
                   ))}
 
                   {filteredUsers.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
+                    <div className="py-12 text-center text-sm text-muted-foreground">
                       Пользователи не найдены
                     </div>
                   )}
@@ -549,7 +550,7 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="roles" className="mt-6">
+        <TabsContent value="roles" className="mt-0">
           <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {rolesLoading ? (
               <div className="col-span-full flex items-center justify-center py-12">
@@ -557,7 +558,7 @@ export default function Admin() {
               </div>
             ) : (
               roles.map(role => (
-                <Card key={role.id} className="relative" data-testid={`role-card-${role.id}`}>
+                <Card key={role.id} className="relative overflow-hidden" data-testid={`role-card-${role.id}`}>
                   {role.isSystem && (
                     <Badge className="absolute top-2 right-2 text-xs" variant="secondary">
                       Системная
@@ -572,7 +573,7 @@ export default function Admin() {
                     <CardDescription>{role.description}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm text-gray-500 mb-2">
+                    <div className="mb-2 text-sm text-muted-foreground">
                       {(role.permissions as string[])?.length || 0} разрешений
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -594,11 +595,11 @@ export default function Admin() {
           </div>
         </TabsContent>
 
-        <TabsContent value="repositories" className="mt-6">
-          <div className="flex items-center justify-between mb-6">
+        <TabsContent value="repositories" className="mt-0 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold">Управление репозиториями</h3>
-              <p className="text-sm text-gray-500 mt-1">Добавляйте и редактируйте репозитории для задач</p>
+              <p className="mt-1 text-sm text-muted-foreground">Добавляйте и редактируйте репозитории для задач</p>
             </div>
             <Button
               onClick={() => {
@@ -643,9 +644,15 @@ export default function Admin() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-700"
+                        className="h-8 w-8 text-error hover:bg-error-muted hover:text-error"
                         onClick={async () => {
-                          if (confirm(`Удалить репозиторий "${repo.name}"?`)) {
+                          const confirmed = await confirmAction({
+                            title: `Удалить репозиторий «${repo.name}»?`,
+                            description: "Ссылка на репозиторий будет удалена из пространства компании.",
+                            confirmLabel: "Удалить",
+                            destructive: true,
+                          });
+                          if (confirmed) {
                             try {
                               await apiRequest("DELETE", `/api/repositories/${repo.id}`);
                               refetchRepositories();
@@ -683,14 +690,14 @@ export default function Admin() {
               </Card>
             ))}
             {repositories.length === 0 && (
-              <div className="col-span-full text-center py-12 text-gray-500">
+              <div className="col-span-full rounded-surface border border-dashed border-border/60 bg-muted/20 py-12 text-center text-sm text-muted-foreground">
                 Нет репозиториев. Добавьте первый репозиторий.
               </div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="logs" className="mt-6">
+        <TabsContent value="logs" className="mt-0">
           <UserLogsTab />
         </TabsContent>
       </Tabs>
@@ -787,7 +794,7 @@ export default function Admin() {
 
       {/* Permissions Dialog */}
       <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto hide-scrollbar">
+        <DialogContent className="hide-scrollbar max-h-[80vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Key className="w-5 h-5" />
@@ -797,7 +804,7 @@ export default function Admin() {
           
           {selectedUser && (
             <div className="space-y-6">
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-4 rounded-surface border border-border/50 bg-muted/30 p-4">
                 <Avatar className="w-12 h-12">
                   <AvatarImage src={selectedUser.avatar || undefined} />
                   <AvatarFallback>
@@ -806,7 +813,7 @@ export default function Admin() {
                 </Avatar>
                 <div>
                   <div className="font-medium">{selectedUser.name}</div>
-                  <div className="text-sm text-gray-500">@{selectedUser.username}</div>
+                  <div className="text-sm text-muted-foreground">@{selectedUser.username}</div>
                 </div>
               </div>
 
@@ -831,7 +838,7 @@ export default function Admin() {
                 <p className="text-sm text-muted-foreground">
                   Отметьте вкладки, которые видит сотрудник. Если ничего не отмечено — видны все вкладки. Администратор всегда видит всё.
                 </p>
-                <Card>
+                <Card className="bg-muted/20">
                   <CardContent className="py-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {TAB_KEYS.map((key) => {
@@ -858,7 +865,7 @@ export default function Admin() {
               <div className="space-y-4">
                 <Label>Права доступа</Label>
                 {Object.entries(permissionGroups).map(([group, config]) => (
-                  <Card key={group}>
+                  <Card key={group} className="bg-muted/20">
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm font-medium">{config.label}</CardTitle>
                     </CardHeader>

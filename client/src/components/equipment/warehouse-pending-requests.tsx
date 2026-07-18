@@ -38,12 +38,12 @@ export function WarehousePendingRequests({
   if (groups.length === 0) return null;
 
   return (
-    <Card className="border-violet-200/70 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20">
+    <Card className="border-primary/25 bg-primary/5 shadow-xs">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base text-slate-900 dark:text-white">
+        <CardTitle className="text-base text-foreground">
           Запросы на выдачу и перенос оборудования
         </CardTitle>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted-foreground">
           Сотрудники ждут решения. После апрува позиция либо выдаётся, либо переносится на нового сотрудника.
         </p>
       </CardHeader>
@@ -53,16 +53,16 @@ export function WarehousePendingRequests({
           return (
             <div
               key={group.id}
-              className="flex flex-col gap-3 rounded-xl border border-violet-200/70 bg-white/90 p-4 dark:border-violet-900/60 dark:bg-slate-900/80 lg:flex-row lg:items-center lg:justify-between"
+              className="flex flex-col gap-3 rounded-surface border border-border/50 bg-surface-raised p-4 shadow-xs lg:flex-row lg:items-center lg:justify-between"
             >
               <div className="min-w-0 space-y-1">
-                <div className="font-medium text-slate-900 dark:text-white">
+                <div className="font-medium text-foreground">
                   {group.items.length <= 1
                     ? group.items[0]?.name || group.fallbackEquipmentName || "Оборудование"
                     : `${group.items.length} позиций оборудования`}
                 </div>
                 {group.items.length > 1 && (
-                  <div className="space-y-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  <div className="space-y-0.5 text-sm text-muted-foreground">
                     {group.items.slice(0, 8).map((item) => (
                       <div key={item.id} className="break-words">
                         {item.name}{item.model ? ` · ${item.model}` : ""}
@@ -71,38 +71,38 @@ export function WarehousePendingRequests({
                     {group.items.length > 8 && <div>+ ещё {group.items.length - 8}</div>}
                   </div>
                 )}
-                <div className="text-sm text-slate-500 dark:text-slate-400">
+                <div className="text-sm text-muted-foreground">
                   {isKitExtraction
                     ? "Запросил извлечение"
                     : group.requestType === "transfer"
                       ? "Просит перенести"
                       : "Запросил"}: {group.requesterName || "Сотрудник"}
                 </div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">
+                <div className="text-sm text-muted-foreground">
                   Количество: {Math.max(1, group.quantity)}
                 </div>
                 {(group.requestType === "transfer" || isKitExtraction) && group.currentHolderName && (
-                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-sm text-muted-foreground">
                     {isKitExtraction ? "Активный комплект" : "Сейчас у сотрудника"}: {group.currentHolderName}
                   </div>
                 )}
                 {group.destination && (
-                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-sm text-muted-foreground">
                     {group.requestType === "transfer" ? "Куда переносит" : "Куда берёт"}: {group.destination}
                   </div>
                 )}
                 {group.projectName && (
-                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-sm text-muted-foreground">
                     Проект: {group.projectName}
                   </div>
                 )}
                 {group.kanbanCardTitles.length > 0 && (
-                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-sm text-muted-foreground">
                     Kanban V2: {group.kanbanCardTitles.join(", ")}
                   </div>
                 )}
                 {group.note && (
-                  <div className="break-words text-sm text-slate-500 dark:text-slate-400">
+                  <div className="break-words text-sm text-muted-foreground">
                     Комментарий: {group.note}
                   </div>
                 )}

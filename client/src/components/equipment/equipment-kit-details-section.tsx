@@ -50,9 +50,9 @@ export function EquipmentKitDetailsSection({
   return (
     <>
       {isSuperPosition(equipment) && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/25">
+        <div className="rounded-surface border border-success/25 bg-success-muted p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 font-medium text-emerald-900 dark:text-emerald-200">
+            <div className="flex items-center gap-2 font-medium text-success">
               <Package className="h-4 w-4" />
               Состав комплекта
             </div>
@@ -61,7 +61,7 @@ export function EquipmentKitDetailsSection({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 border-emerald-300 bg-white/80 text-emerald-800 hover:bg-white dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                className="h-8 border-success/30 bg-surface-raised text-success hover:bg-surface-overlay"
                 onClick={() => onAdd(equipment)}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -73,24 +73,24 @@ export function EquipmentKitDetailsSection({
             {components.length > 0 ? components.map((component, index) => (
               <div
                 key={component.id || index}
-                className="flex items-stretch overflow-hidden rounded-md border border-emerald-200/70 bg-white dark:border-emerald-900/70 dark:bg-slate-900"
+                className="flex items-stretch overflow-hidden rounded-control border border-success/20 bg-surface-raised"
               >
                 <button
                   type="button"
                   aria-label={`Открыть «${component.name}»`}
                   disabled={!component.live}
                   onClick={() => component.live && onOpenComponent(equipment.id, component.live)}
-                  className="min-w-0 flex-1 px-3 py-2 text-left text-xs transition hover:bg-emerald-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/40 disabled:cursor-default disabled:opacity-70 dark:hover:bg-emerald-950/20"
+                  className="min-w-0 flex-1 px-3 py-2 text-left text-xs transition hover:bg-success-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-success/30 disabled:cursor-default disabled:opacity-70"
                 >
-                  <div className="flex flex-wrap items-center gap-1.5 font-medium text-slate-900 dark:text-white">
+                  <div className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
                     {component.name}
                     {component.live && isSuperPosition(component.live) && (
-                      <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      <Badge className="border-success/20 bg-success-muted text-[10px] text-success">
                         Комплект
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 text-slate-500 dark:text-slate-400">
+                  <div className="mt-0.5 text-muted-foreground">
                     {[component.model, component.inventoryNumber].filter(Boolean).join(" · ") ||
                       getEquipmentCategoryLabel(component.live || ({ type: component.type } as Equipment))}
                   </div>
@@ -108,7 +108,7 @@ export function EquipmentKitDetailsSection({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-auto w-11 shrink-0 rounded-none border-l border-emerald-200/70 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-emerald-900/70 dark:hover:bg-red-950/20"
+                    className="h-auto w-11 shrink-0 rounded-none border-l border-success/20 text-error hover:bg-error-muted hover:text-error"
                     disabled={removePending}
                     title="Убрать из комплекта"
                     aria-label={`Убрать «${component.name}» из комплекта`}
@@ -119,7 +119,7 @@ export function EquipmentKitDetailsSection({
                 )}
               </div>
             )) : (
-              <div className="rounded-md border border-dashed border-emerald-300 px-3 py-5 text-center text-xs text-emerald-800/80 dark:border-emerald-800 dark:text-emerald-300/80">
+              <div className="rounded-control border border-dashed border-success/30 px-3 py-5 text-center text-xs text-success">
                 В комплекте пока нет позиций. Нажмите «Добавить».
               </div>
             )}
@@ -129,10 +129,10 @@ export function EquipmentKitDetailsSection({
 
       {parentBundleName && (
         <div className={cn(
-          "flex flex-col gap-2 rounded-lg border p-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-2 rounded-surface border p-3 text-sm sm:flex-row sm:items-center sm:justify-between",
           parentBundleExists
-            ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/25 dark:text-blue-200"
-            : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200",
+            ? "border-info/25 bg-info-muted text-info"
+            : "border-warning/25 bg-warning-muted text-warning",
         )}>
           <span>
             {parentBundleExists ? (
@@ -146,7 +146,7 @@ export function EquipmentKitDetailsSection({
               type="button"
               variant="outline"
               size="sm"
-              className="border-blue-300 bg-white/70 text-blue-800 hover:bg-white dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
+              className="border-info/30 bg-surface-raised text-info hover:bg-surface-overlay"
               onClick={() => onOpenParent(equipment)}
             >
               Открыть комплект

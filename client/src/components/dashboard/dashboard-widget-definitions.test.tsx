@@ -12,9 +12,11 @@ const build = (permissions?: string[]) => buildDashboardWidgetDefinitions({
 
 describe("dashboard widget definitions", () => {
   it("keeps the status widget and all feature widgets for unrestricted users", () => {
-    const ids = build().map((widget) => widget.id);
+    const definitions = build();
+    const ids = definitions.map((widget) => widget.id);
 
     expect(ids[0]).toBe("status");
+    expect(definitions[0].layout).toMatchObject({ defaultH: 5, minH: 5 });
     expect(ids).toContain("work-progress");
     expect(ids).toContain("quick-calendar");
     expect(ids).toContain("equipment-status");

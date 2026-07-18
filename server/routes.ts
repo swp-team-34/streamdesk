@@ -31,6 +31,11 @@ import {
   isTaskDeadlineOverdue,
 } from "@shared/task-deadlines";
 import {
+  calendarEventTypeListSchema,
+  normalizeCalendarEventTypes,
+} from "@shared/calendar-event-types";
+import { normalizeUserUiPreferences } from "@shared/ui-preferences";
+import {
   getKanbanCardAssigneeUserIds,
   getKanbanCardInitiatorUserId,
   getKanbanCardWorkloadUserIds,
@@ -58,6 +63,7 @@ import {
 import { registerNotificationRoutes } from "./routes/notifications";
 import { registerPushNotificationRoutes } from "./routes/push-notifications";
 import { registerRoomRoutes } from "./routes/rooms";
+import { registerUserPreferenceRoutes } from "./routes/user-preferences";
 import { withDbTimeout } from "./services/db-timeout";
 
 /** Парсит заголовок x-user: поддерживает JSON и Base64 (для кириллицы в имени). */
@@ -734,6 +740,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return workspace;
   };
 
+  const normalizeProjectUserIds = (value: unknown) => Array.from(new Set(
+    (Array.isArray(value) ? value : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean),
+  ));
+
+  const getProjectResponsibleUserIds = (project: any): string[] => {
+    const responsibleUserIds = normalizeProjectUserIds(project?.responsibleUserIds);
+    const legacyAssignedTo = String(project?.assignedTo || "").trim();
+    if (legacyAssignedTo && !responsibleUserIds.includes(legacyAssignedTo)) {
+      responsibleUserIds.push(legacyAssignedTo);
+    }
+    return responsibleUserIds;
+  };
+
   const getWorkspaceVisibleUserIds = async (user: any, workspace: WorkspaceContext) => {
     const visibleIds = new Set<string>();
     if (!user?.id || !workspace.type) return visibleIds;
@@ -768,15 +789,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     for (const project of allProjects as any[]) {
       if (project.companyId) continue;
+      const responsibleUserIds = getProjectResponsibleUserIds(project);
       const participants: string[] = Array.isArray(project.participants)
         ? project.participants.map(String)
         : [];
       const canSee = String(project.ownerId || "") === String(user.id) ||
-        String(project.assignedTo || "") === String(user.id) ||
+        responsibleUserIds.includes(String(user.id)) ||
         participants.includes(String(user.id));
       if (!canSee) continue;
       if (project.ownerId) visibleIds.add(String(project.ownerId));
-      if (project.assignedTo) visibleIds.add(String(project.assignedTo));
+      responsibleUserIds.forEach((responsibleUserId) => visibleIds.add(responsibleUserId));
       participants.forEach((participantId) => visibleIds.add(participantId));
     }
 
@@ -1543,7 +1565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     add(project?.ownerId);
-    add(project?.assignedTo);
+    getProjectResponsibleUserIds(project).forEach(add);
     add(currentUser?.id);
     if (Array.isArray(project?.participants)) {
       project.participants.forEach(add);
@@ -1859,13 +1881,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const buildKanbanCardResponses = async (cards: any[]) => {
-    const [labelEntries, locationEntries, commentEntries, allLocations, allIssues, allBoards] = await Promise.all([
+    const boardIds = Array.from(new Set(
+      cards.map((card) => String(card.boardId || "").trim()).filter(Boolean),
+    ));
+    const [labelEntries, labelDefinitions, locationEntries, commentEntries, allLocations, allIssues, allBoards] = await Promise.all([
       Promise.all(
       cards.map(async (card) => {
         const links = await storage.getKanbanCardLabels(card.id).catch(() => []);
         return [String(card.id), (links as any[]).map((link) => String(link.labelId))] as const;
       }),
       ),
+      Promise.all(boardIds.map(async (boardId) => [
+        boardId,
+        await storage.getKanbanLabelsByBoardId(boardId).catch(() => []),
+      ] as const)),
       Promise.all(cards.map(async (card) => [
         String(card.id),
         await getKanbanCardLocationIds(card),
@@ -1880,6 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ]);
 
     const labelIdsByCardId = new Map(labelEntries);
+    const labelsByBoardId = new Map(labelDefinitions);
     const locationIdsByCardId = new Map(locationEntries);
     const commentsByCardId = new Map(commentEntries);
     const locationById = new Map((allLocations as any[]).map((location) => [String(location.id), location]));
@@ -1902,6 +1932,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             String(location.companyId || "") === String(board.companyId),
           );
         });
+      const labelIds = labelIdsByCardId.get(String(card.id)) ?? [];
+      const labelsById = new Map(
+        ((labelsByBoardId.get(String(card.boardId)) ?? []) as any[])
+          .map((label) => [String(label.id), label]),
+      );
       return {
       ...card,
       initiatorUserId: getKanbanCardInitiatorUserId(card),
@@ -1910,7 +1945,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       assigneeUserId: getKanbanCardAssigneeUserIds(card)[0] || null,
       startDateHasTime: card.startDateHasTime !== false,
       dueDateHasTime: card.dueDateHasTime !== false,
-      labelIds: labelIdsByCardId.get(String(card.id)) ?? [],
+      labelIds,
+      labels: labelIds
+        .map((labelId) => labelsById.get(labelId))
+        .filter(Boolean)
+        .map((label: any) => ({
+          id: label.id,
+          name: label.name,
+          color: label.color,
+          archivedAt: label.archivedAt ?? null,
+        })),
       commentCount: activeComments.length,
       latestCommentAt,
       locationIds,
@@ -3648,7 +3692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           name: user.name,
-          onboardingCompleted: user.onboardingCompleted !== false,
+          onboardingCompleted: user.onboardingCompleted === true,
           workspaceMode: user.workspaceMode || "pending",
           permissions,
         },
@@ -3676,7 +3720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ user: { ...updated, password: undefined } });
   });
 
-  app.post("/api/onboarding/company", async (req, res) => {
+  const createCompanyWorkspace = async (req: express.Request, res: express.Response) => {
     try {
       const user = req.user as any;
       if (!user?.id) return res.status(401).json({ message: "Требуется авторизация" });
@@ -3705,11 +3749,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any);
       req.session.activeWorkspaceType = "company";
       req.session.activeCompanyId = company.id;
-      res.json({ company, user: { ...updated, password: undefined } });
+      req.user = updated;
+      req.workspace = await resolveWorkspaceContext(updated, req.session);
+      res.json({
+        company,
+        user: { ...updated, password: undefined },
+        workspaceContext: await buildWorkspaceResponse(req),
+      });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Не удалось создать компанию" });
     }
-  });
+  };
+
+  app.post("/api/onboarding/company", createCompanyWorkspace);
+  app.post("/api/workspaces/company", createCompanyWorkspace);
 
   app.post("/api/onboarding/join", async (req, res) => {
     try {
@@ -4539,6 +4592,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return (participants as any[]).some((participant) => String(participant.userId) === String(user.id));
   };
 
+  app.get("/api/calendar/event-types", async (req, res) => {
+    try {
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+
+      if (workspace.type === "company" && workspace.companyId) {
+        const company = await storage.getCompanyById(workspace.companyId);
+        if (!company) return res.status(404).json({ message: "Компания не найдена" });
+        const settings = company.settings && typeof company.settings === "object"
+          ? company.settings as Record<string, unknown>
+          : {};
+        return res.json({
+          eventTypes: normalizeCalendarEventTypes(settings.calendarEventTypes),
+          canManage: await canManageCompany(currentUser, workspace.companyId),
+          scope: "company",
+        });
+      }
+
+      const user = await storage.getUser(String(currentUser.id));
+      const preferences = normalizeUserUiPreferences(user?.uiPreferences);
+      return res.json({
+        eventTypes: preferences.calendarEventTypes,
+        canManage: true,
+        scope: "personal",
+      });
+    } catch (error) {
+      console.error("[Calendar] Failed to load event types:", error);
+      res.status(500).json({ message: "Не удалось загрузить типы событий" });
+    }
+  });
+
+  app.put("/api/calendar/event-types", async (req, res) => {
+    try {
+      const workspace = await requireActiveWorkspace(req, res);
+      if (!workspace) return;
+      const currentUser = req.user as any;
+      const parsed = calendarEventTypeListSchema.safeParse(req.body?.eventTypes);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Некорректный список типов событий",
+          issues: parsed.error.issues,
+        });
+      }
+      const eventTypes = normalizeCalendarEventTypes(parsed.data);
+
+      if (workspace.type === "company" && workspace.companyId) {
+        if (!(await canManageCompany(currentUser, workspace.companyId))) {
+          return res.status(403).json({ message: "Нет прав на изменение типов событий компании" });
+        }
+        const company = await storage.getCompanyById(workspace.companyId);
+        if (!company) return res.status(404).json({ message: "Компания не найдена" });
+        const settings = company.settings && typeof company.settings === "object"
+          ? company.settings as Record<string, unknown>
+          : {};
+        await storage.updateCompany(workspace.companyId, {
+          settings: { ...settings, calendarEventTypes: eventTypes },
+        } as any);
+        return res.json({ eventTypes, canManage: true, scope: "company" });
+      }
+
+      const user = await storage.getUser(String(currentUser.id));
+      if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+      const preferences = normalizeUserUiPreferences({
+        ...normalizeUserUiPreferences(user.uiPreferences),
+        calendarEventTypes: eventTypes,
+      });
+      await storage.updateUser(String(currentUser.id), { uiPreferences: preferences } as any);
+      return res.json({ eventTypes, canManage: true, scope: "personal" });
+    } catch (error) {
+      console.error("[Calendar] Failed to save event types:", error);
+      res.status(500).json({ message: "Не удалось сохранить типы событий" });
+    }
+  });
+
   app.get("/api/events", async (req, res) => {
     const workspace = await requireActiveWorkspace(req, res);
     if (!workspace) return;
@@ -4583,6 +4711,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!workspace) return;
       const currentUser = req.user as any;
       const body = { ...(req.body || {}) };
+      if (body.color != null && !/^#[0-9a-f]{6}$/i.test(String(body.color))) {
+        return res.status(400).json({ message: "Некорректный цвет события" });
+      }
       const participantIds: string[] = Array.isArray(body.participants)
         ? Array.from(new Set(
           body.participants
@@ -4675,6 +4806,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Изменять событие может только организатор" });
       }
       const body = req.body || {};
+      if (body.color != null && !/^#[0-9a-f]{6}$/i.test(String(body.color))) {
+        return res.status(400).json({ message: "Некорректный цвет события" });
+      }
       const normalized = { ...body };
       if (body.startTime != null) normalized.startTime = body.startTime instanceof Date ? body.startTime : new Date(body.startTime);
       if (body.endTime != null) normalized.endTime = body.endTime instanceof Date ? body.endTime : new Date(body.endTime);
@@ -8799,6 +8933,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
 
   registerRoomRoutes(app);
   registerNotificationRoutes(app, storage);
+  registerUserPreferenceRoutes(app, storage);
 
   const requireEquipmentPhotoWorkspace = async (
     req: express.Request,
@@ -11157,6 +11292,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }, null);
     return {
       ...project,
+      responsibleUserIds: getProjectResponsibleUserIds(project),
       commentCount: activeComments.length,
       latestCommentAt,
       directLocationIds,
@@ -11237,7 +11373,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     }
     if (projectCompanyId) return false;
     const userId = String(currentUser.id);
-    if (String(project.ownerId || "") === userId || String(project.assignedTo || "") === userId) return true;
+    if (String(project.ownerId || "") === userId || getProjectResponsibleUserIds(project).includes(userId)) return true;
     return Array.isArray(project.participants) && project.participants.map(String).includes(userId);
   };
 
@@ -11268,7 +11404,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     const userId = String(currentUser.id);
     if (
       String(project.ownerId || "") === userId ||
-      String(project.assignedTo || "") === userId
+      getProjectResponsibleUserIds(project).includes(userId)
     ) {
       return true;
     }
@@ -11395,12 +11531,13 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
     const userId = String(currentUser.id);
     const visibleProjects = (projects as any[]).filter((project) => {
       const participants = Array.isArray(project?.participants) ? project.participants.map(String) : [];
+      const responsibleUserIds = getProjectResponsibleUserIds(project);
       if (workspace.type === "company") {
         return String(project.companyId || "") === String(workspace.companyId || "");
       }
       return !project.companyId && (
         String(project.ownerId || "") === userId ||
-        String(project.assignedTo || "") === userId ||
+        responsibleUserIds.includes(userId) ||
         participants.includes(userId)
       );
     });
@@ -11417,18 +11554,17 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       rest.ownerId = currentUser.id;
       rest.companyId = workspace.type === "company" ? workspace.companyId : null;
       rest.visibility = workspace.type === "company" ? (rest.visibility || "company") : "personal";
-      const participants: string[] = Array.isArray(rest.participants)
-        ? Array.from(new Set(
-          rest.participants
-            .map((id: unknown) => String(id || "").trim())
-            .filter((id: string) => Boolean(id)),
-        ))
-        : [];
+      const participants = normalizeProjectUserIds(rest.participants);
+      const responsibleUserIds = normalizeProjectUserIds(
+        rest.responsibleUserIds ?? (rest.assignedTo ? [rest.assignedTo] : []),
+      );
       const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
-      if (participants.some((userId: string) => !visibleUserIds.has(userId))) {
-        return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
+      if ([...participants, ...responsibleUserIds].some((userId) => !visibleUserIds.has(userId))) {
+        return res.status(403).json({ message: "Один или несколько участников или ответственных недоступны в выбранном пространстве" });
       }
       rest.participants = participants;
+      rest.responsibleUserIds = responsibleUserIds;
+      rest.assignedTo = responsibleUserIds[0] || null;
       const projectData = {
         ...rest,
         deadline: deadline && deadline !== "" ? new Date(deadline) : null,
@@ -11465,17 +11601,24 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       const { locationIds, ...projectData } = req.body || {};
       delete projectData.companyId;
       delete projectData.ownerId;
+      const workspace = await getActiveWorkspaceForUser(currentUser);
+      const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
+      if (
+        Object.prototype.hasOwnProperty.call(projectData, "responsibleUserIds") ||
+        Object.prototype.hasOwnProperty.call(projectData, "assignedTo")
+      ) {
+        const responsibleUserIds = normalizeProjectUserIds(
+          projectData.responsibleUserIds ?? (projectData.assignedTo ? [projectData.assignedTo] : []),
+        );
+        if (responsibleUserIds.some((userId) => !visibleUserIds.has(userId))) {
+          return res.status(403).json({ message: "Один или несколько ответственных недоступны в выбранном пространстве" });
+        }
+        projectData.responsibleUserIds = responsibleUserIds;
+        projectData.assignedTo = responsibleUserIds[0] || null;
+      }
       if (projectData.participants !== undefined) {
-        const workspace = await getActiveWorkspaceForUser(currentUser);
-        const participants: string[] = Array.isArray(projectData.participants)
-          ? Array.from(new Set(
-            projectData.participants
-              .map((id: unknown) => String(id || "").trim())
-              .filter((id: string) => Boolean(id)),
-          ))
-          : [];
-        const visibleUserIds = await getWorkspaceVisibleUserIds(currentUser, workspace);
-        if (participants.some((userId: string) => !visibleUserIds.has(userId))) {
+        const participants = normalizeProjectUserIds(projectData.participants);
+        if (participants.some((userId) => !visibleUserIds.has(userId))) {
           return res.status(403).json({ message: "Один или несколько участников недоступны в выбранном пространстве" });
         }
         projectData.participants = participants;
@@ -11591,7 +11734,7 @@ Write-Host 'Starting StreamDesk Agent. You can close this window after the compu
       ))).flat() as any[];
       const projectMemberIds = Array.from(new Set([
         project.ownerId,
-        project.assignedTo,
+        ...getProjectResponsibleUserIds(project),
         ...(Array.isArray(project.participants) ? project.participants : []),
         ...boardMembers.map((member) => member.userId),
         ...visibleCards.flatMap((card) => [

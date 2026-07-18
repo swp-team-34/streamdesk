@@ -20,7 +20,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative rounded-full hover:bg-primary/10 transition-all h-9 w-9 sm:h-10 sm:w-10 shrink-0"
+          className="relative h-9 w-9 shrink-0 rounded-control transition-colors hover:bg-primary/10 sm:h-10 sm:w-10"
           data-testid="button-theme-toggle"
         >
           <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -28,14 +28,14 @@ export function ThemeToggle() {
           <span className="sr-only">Переключить тему</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="rounded-lg w-52 sm:w-56">
+      <DropdownMenuContent align="end" className="w-52 rounded-control sm:w-56">
         <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
           Основные темы
         </DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => setTheme("light")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
             theme === "light" ? "bg-primary/10 text-primary font-medium" : ""
           )}
           data-testid="theme-light"
@@ -46,7 +46,7 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setTheme("dark")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
             theme === "dark" ? "bg-primary/10 text-primary font-medium" : ""
           )}
           data-testid="theme-dark"
@@ -57,7 +57,7 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setTheme("system")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
             theme === "system" ? "bg-primary/10 text-primary font-medium" : ""
           )}
           data-testid="theme-system"
@@ -74,8 +74,8 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setTheme("warm")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
-            theme === "warm" ? "bg-orange-500/20 text-orange-700 dark:text-orange-300 font-medium" : ""
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
+            theme === "warm" ? "bg-warning-muted text-warning font-medium" : ""
           )}
         >
           <Eye className="mr-2 h-4 w-4" />
@@ -84,8 +84,8 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setTheme("high-contrast")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
-            theme === "high-contrast" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300 font-medium" : ""
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
+            theme === "high-contrast" ? "bg-info-muted text-info font-medium" : ""
           )}
         >
           <Contrast className="mr-2 h-4 w-4" />
@@ -94,8 +94,8 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setTheme("sepia")}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
-            theme === "sepia" ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium" : ""
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
+            theme === "sepia" ? "bg-warning-muted text-warning font-medium" : ""
           )}
         >
           <Eye className="mr-2 h-4 w-4" />
@@ -107,7 +107,7 @@ export function ThemeToggle() {
         <DropdownMenuItem
           onClick={() => setAutoTheme(!autoTheme)}
           className={cn(
-            "rounded-lg cursor-pointer transition-all min-h-[44px]",
+            "min-h-[44px] cursor-pointer rounded-md transition-colors",
             autoTheme ? "bg-primary/10 text-primary font-medium" : ""
           )}
         >

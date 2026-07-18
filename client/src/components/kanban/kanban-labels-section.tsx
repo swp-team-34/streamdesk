@@ -2,11 +2,10 @@ import { Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamColorPicker } from "@/components/ui/stream-color-picker";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanLabelGroupView, KanbanLabelView } from "@/lib/kanban-board-model";
-import {
-  KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
-} from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 export const LABEL_COLOR_PRESETS = [
   { label: "Sky", value: "#0ea5e9" },
@@ -73,7 +72,7 @@ export function KanbanLabelsSection({
       </div>
 
       {canEdit && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-border/35 bg-muted/20 p-3">
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3">
           <Input
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
@@ -86,7 +85,7 @@ export function KanbanLabelsSection({
               onCreate();
             }}
           />
-          <Button className="rounded-xl" onClick={onCreate} disabled={!draft.trim() || savePending}>
+          <Button className="rounded-control" onClick={onCreate} disabled={!draft.trim() || savePending}>
             <Plus className="mr-1 h-4 w-4" />
             Добавить метку
           </Button>
@@ -95,12 +94,12 @@ export function KanbanLabelsSection({
 
       <div className="mt-4 space-y-3">
         {labels.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/40 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+          <div className="rounded-surface border border-dashed border-border/50 bg-surface-subtle px-4 py-5 text-sm text-muted-foreground">
             Меток пока нет. Создай первую из detail modal карточки.
           </div>
         ) : (
           labels.map((label) => (
-            <div key={label.id} className="rounded-2xl border border-border/35 bg-muted/20 p-4">
+            <div key={label.id} className="rounded-surface border border-border/50 bg-surface-subtle p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 {editingLabelId === label.id ? (
                   <Input
@@ -126,7 +125,7 @@ export function KanbanLabelsSection({
                   <Badge
                     variant="outline"
                     className="cursor-text rounded-full border-transparent px-3 py-1.5"
-                    style={{ backgroundColor: label.color || "var(--muted)", color: "hsl(var(--foreground))" }}
+                    style={{ backgroundColor: label.color || "var(--muted)", color: "var(--foreground)" }}
                     onDoubleClick={() => onBeginEdit(label)}
                   >
                     {label.name}
@@ -137,7 +136,7 @@ export function KanbanLabelsSection({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-xl"
+                      className="h-8 w-8 rounded-control"
                       onClick={() => onBeginEdit(label)}
                       disabled={savePending}
                       title="Переименовать"
@@ -148,7 +147,7 @@ export function KanbanLabelsSection({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      className="rounded-control text-error hover:bg-error-muted hover:text-error"
                       onClick={() => onDelete(label)}
                       disabled={deletePending}
                     >
@@ -160,37 +159,25 @@ export function KanbanLabelsSection({
 
               {canEdit && (
                 <div className="mt-3 space-y-3">
-                  <select
-                    aria-label={`Группа метки ${label.name}`}
-                    className={`${KANBAN_PANEL_SELECT_CLASS} max-w-[260px]`}
+                  <StreamSelect
+                    ariaLabel={`Группа метки ${label.name}`}
+                    className="max-w-[260px]"
                     value={label.groupId || ""}
-                    onChange={(event) => onGroupChange(label, event.target.value || null)}
+                    options={[
+                      { value: "", label: "Без группы" },
+                      ...groups.map((group) => ({ value: group.id, label: group.name })),
+                    ]}
+                    onValueChange={(groupId) => onGroupChange(label, groupId || null)}
                     disabled={savePending}
-                  >
-                    <option value="">Без группы</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>{group.name}</option>
-                    ))}
-                  </select>
-                  <div className="flex flex-wrap gap-2">
-                    {LABEL_COLOR_PRESETS.map((preset) => (
-                      <button
-                        key={preset.value}
-                        type="button"
-                        className={[
-                          "h-8 w-8 rounded-xl border transition hover:scale-105",
-                          label.color === preset.value
-                            ? "border-primary/70 ring-2 ring-primary/30"
-                            : "border-border/50",
-                        ].join(" ")}
-                        style={{ backgroundColor: preset.value }}
-                        title={preset.label}
-                        aria-label={`Цвет метки ${preset.label}`}
-                        onClick={() => onColorChange(label, preset.value)}
-                        disabled={savePending}
-                      />
-                    ))}
-                  </div>
+                  />
+                  <StreamColorPicker
+                    value={label.color || LABEL_COLOR_PRESETS[0].value}
+                    onChange={(color) => onColorChange(label, color)}
+                    ariaLabel={`Цвет метки ${label.name}`}
+                    presets={[...LABEL_COLOR_PRESETS]}
+                    disabled={savePending}
+                    className="max-w-[260px]"
+                  />
                 </div>
               )}
             </div>

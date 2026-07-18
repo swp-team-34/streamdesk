@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanBoardMembersSection } from "./kanban-board-members-section";
 
 const user = { id: "user-1", name: "Tim", email: "tim@example.test" };
@@ -58,9 +59,7 @@ describe("KanbanBoardMembersSection", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Роль участника" }), {
-      target: { value: "editor" },
-    });
+    chooseStreamSelectOption("Роль участника", "editor");
     expect(onFormChange).toHaveBeenCalledWith({ userId: "user-1", role: "editor", canComment: true });
     fireEvent.click(screen.getByRole("button", { name: "Добавить" }));
     expect(onSave).toHaveBeenCalledOnce();

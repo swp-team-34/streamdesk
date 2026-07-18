@@ -7,16 +7,32 @@ import type { KanbanSmartInputResult } from "@/lib/kanban-smart-input";
 import { KanbanCardDetailFields } from "./kanban-card-detail-fields";
 
 vi.mock("@/components/ui/stream-date-time-picker", () => ({
-  StreamDateTimePicker: ({ id, label, value, onChange }: {
+  StreamDateTimePicker: ({ id, label, value, allDay, onChange, onAllDayChange }: {
     id: string;
     label: string;
     value: string;
+    allDay: boolean;
     onChange: (value: string) => void;
+    onAllDayChange?: (allDay: boolean, nextValue: string) => void;
   }) => (
-    <label htmlFor={id}>
-      {label}
-      <input id={id} value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
+    <div>
+      <label htmlFor={id}>
+        {label}
+        <input
+          id={id}
+          value={value}
+          data-all-day={String(allDay)}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        aria-label={`${label} весь день`}
+        onClick={() => onAllDayChange?.(!allDay, allDay ? "2026-07-17T09:00" : "2026-07-17T00:00")}
+      >
+        Toggle all day
+      </button>
+    </div>
   ),
 }));
 
@@ -102,7 +118,8 @@ describe("KanbanCardDetailFields", () => {
       assigneeUserId: "user-1",
     });
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Связать площадку «Studio»" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Площадки карточки" }));
+    fireEvent.click(screen.getByText("Studio"));
     expect(onChange).toHaveBeenNthCalledWith(3, { ...form, locationIds: ["location-1"] });
   });
 
@@ -146,6 +163,45 @@ describe("KanbanCardDetailFields", () => {
   it("keeps fields disabled for read-only board members", () => {
     render(<KanbanCardDetailFields {...baseProps} canEdit={false} />);
     expect(screen.getByLabelText("Название карточки")).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Связать площадку «Studio»" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Площадки карточки" })).toBeDisabled();
+  });
+
+  it("updates the all-day flag and date in one controlled change", () => {
+    const onChange = vi.fn();
+    render(
+      <KanbanCardDetailFields
+        {...baseProps}
+        form={{ ...form, startDate: "2026-07-17T14:00", startDateHasTime: true }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Дата старта весь день" }));
+
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: "2026-07-17T00:00",
+      startDateHasTime: false,
+    }));
+  });
+
+  it("shows time for an unset date and marks the first selected value as timed", () => {
+    const onChange = vi.fn();
+    render(
+      <KanbanCardDetailFields
+        {...baseProps}
+        form={{ ...form, startDate: "", startDateHasTime: false }}
+        onChange={onChange}
+      />,
+    );
+
+    const startDateInput = screen.getByLabelText("Дата старта");
+    expect(startDateInput).toHaveAttribute("data-all-day", "false");
+    fireEvent.change(startDateInput, { target: { value: "2026-07-17T09:00" } });
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: "2026-07-17T09:00",
+      startDateHasTime: true,
+    }));
   });
 });

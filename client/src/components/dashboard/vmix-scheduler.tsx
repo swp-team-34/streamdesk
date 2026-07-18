@@ -5,6 +5,12 @@ import { Calendar, Clock, Video, RefreshCw, ExternalLink, AlertCircle, CheckCirc
 import { Button } from "@/components/ui/button";
 import { format, parseISO, isPast, isToday, isTomorrow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { Link } from "wouter";
+import {
+  DASHBOARD_WIDGET_CARD_CLASS,
+  DASHBOARD_WIDGET_ENTITY_LINK_CLASS,
+  DASHBOARD_WIDGET_ROW_CLASS,
+} from "@/components/dashboard/dashboard-styles";
 
 interface VmixEvent {
   id: string;
@@ -61,11 +67,11 @@ export default function VmixScheduler() {
 
   const getEventStatusColor = (status: string) => {
     switch (status) {
-      case "live": return "bg-red-500 text-white animate-pulse";
-      case "scheduled": return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
-      case "completed": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-      case "error": return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-      default: return "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300";
+      case "live": return "bg-error text-white animate-pulse";
+      case "scheduled": return "bg-info-muted text-info";
+      case "completed": return "bg-success-muted text-success";
+      case "error": return "bg-error-muted text-error";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
@@ -95,21 +101,21 @@ export default function VmixScheduler() {
   };
 
   return (
-    <Card className="bg-card border-border rounded-xl overflow-hidden min-w-0">
+    <Card className={DASHBOARD_WIDGET_CARD_CLASS}>
       <CardHeader className="py-2 px-3 sm:px-3 pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
+          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
             <Video className="w-4 h-4 text-primary" />
             vMix Scheduler
           </CardTitle>
           <div className="flex items-center gap-1.5">
             {data?.connected ? (
-              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800 text-[10px] py-0 px-1.5">
+              <Badge variant="outline" className="border-success/30 bg-success-muted px-1.5 py-0 text-[10px] text-success">
                 <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
                 Online
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600">
+              <Badge variant="outline" className="bg-muted text-muted-foreground">
                 <AlertCircle className="w-3 h-3 mr-1" />
                 Offline
               </Badge>
@@ -130,17 +136,20 @@ export default function VmixScheduler() {
       <CardContent className="px-3 pb-2.5 pt-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
-            <RefreshCw className="w-5 h-5 animate-spin text-slate-400" />
+            <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-1.5">
             {data?.nextEvent && (
-              <div className="p-1.5 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20">
+              <Link
+                href="/vmix-scheduler"
+                className={`block rounded-control border border-primary/20 bg-primary/5 p-2 ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] text-primary font-medium mb-0.5">Следующий эфир</div>
-                    <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{fixMojibake(data.nextEvent.title)}</div>
-                    <div className="flex items-center gap-1 mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="truncate text-sm font-semibold text-foreground">{fixMojibake(data.nextEvent.title)}</div>
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                       <Clock className="w-3 h-3 shrink-0" />
                       {formatEventDate(data.nextEvent.startTime)}
                     </div>
@@ -149,44 +158,45 @@ export default function VmixScheduler() {
                     {getEventStatusText(data.nextEvent.status)}
                   </Badge>
                 </div>
-              </div>
+              </Link>
             )}
 
             {data?.events && data.events.length > 0 ? (
               <div className="space-y-1.5">
-                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase">
+                <div className="text-[10px] font-medium uppercase text-muted-foreground">
                   Расписание
                 </div>
                 {data.events.slice(0, 4).map((event) => (
-                  <div
+                  <Link
                     key={event.id}
-                    className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-700 last:border-0"
+                    href="/vmix-scheduler"
+                    className={`flex items-center justify-between px-2 py-1.5 ${DASHBOARD_WIDGET_ROW_CLASS} ${DASHBOARD_WIDGET_ENTITY_LINK_CLASS}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Calendar className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-medium text-slate-900 dark:text-white truncate">{fixMojibake(event.title)}</div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">{formatEventDate(event.startTime)}</div>
+                        <div className="truncate text-xs font-medium text-foreground">{fixMojibake(event.title)}</div>
+                        <div className="text-[10px] text-muted-foreground">{formatEventDate(event.startTime)}</div>
                       </div>
                     </div>
                     <Badge className={`flex-shrink-0 text-[10px] py-0 px-1.5 ${getEventStatusColor(event.status)}`}>
                       {getEventStatusText(event.status)}
                     </Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-3 text-slate-500 dark:text-slate-400">
-                <Calendar className="w-6 h-6 mx-auto mb-1 text-slate-300 dark:text-slate-600" />
+              <div className="py-3 text-center text-muted-foreground">
+                <Calendar className="mx-auto mb-1 h-6 w-6 text-muted-foreground/50" />
                 <p className="text-xs">Нет запланированных трансляций</p>
               </div>
             )}
 
             {data?.lastSync && (
-              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[10px]">
-                <span className="text-slate-400 dark:text-slate-500">
+              <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-[10px]">
+                <span className="text-muted-foreground">
                   Обновлено: {format(parseISO(data.lastSync), "HH:mm")}
                 </span>
                 <a

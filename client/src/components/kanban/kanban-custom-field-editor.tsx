@@ -1,9 +1,10 @@
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
-import {
-  KANBAN_PANEL_INPUT_CLASS,
-  KANBAN_PANEL_SELECT_CLASS,
-} from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 interface UserOption {
   id: string;
@@ -31,101 +32,103 @@ export function KanbanCustomFieldEditor({
 
   if (field.type === "checkbox") {
     return (
-      <label className="flex items-center gap-2 rounded-xl border border-border/30 bg-background px-3 py-2 text-sm">
-        <input
+      <label
+        htmlFor={commonId}
+        className="flex min-h-10 items-center gap-2 rounded-control border border-border/50 bg-surface-raised px-3 py-2 text-sm transition-colors hover:bg-surface-overlay"
+      >
+        <Checkbox
           id={commonId}
-          type="checkbox"
           checked={Boolean(value)}
-          onChange={(event) => onChange(event.target.checked)}
+          onCheckedChange={(checked) => onChange(checked === true)}
           disabled={disabled}
         />
-        {field.name}
+        <span>{Boolean(value) ? "Да" : "Нет"}</span>
       </label>
     );
   }
 
   if (field.type === "select") {
     return (
-      <select
+      <StreamSelect
         id={commonId}
-        className={KANBAN_PANEL_SELECT_CLASS}
+        ariaLabel={field.name}
         value={String(value ?? "")}
-        onChange={(event) => onChange(event.target.value)}
+        options={[
+          { value: "", label: "Не выбрано" },
+          ...(field.options ?? []).map((option) => ({ value: option, label: option })),
+        ]}
+        onValueChange={onChange}
         disabled={disabled}
-      >
-        <option value="">Не выбрано</option>
-        {(field.options ?? []).map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
+      />
     );
   }
 
   if (field.type === "multi-select") {
     const values = Array.isArray(value) ? value.map(String) : [];
     return (
-      <div className="flex flex-wrap gap-2">
-        {(field.options ?? []).map((option) => {
-          const selected = values.includes(option);
-          return (
-            <button
-              key={option}
-              type="button"
-              className={[
-                "rounded-full border px-3 py-1 text-sm transition",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border/35 bg-background text-muted-foreground hover:bg-muted/50",
-              ].join(" ")}
-              onClick={() => onChange(
-                selected ? values.filter((item) => item !== option) : [...values, option],
-              )}
-              disabled={disabled}
-            >
-              {option}
-            </button>
-          );
-        })}
-        {(field.options ?? []).length === 0 && (
-          <span className="text-sm text-muted-foreground">Добавь варианты в настройках доски.</span>
-        )}
-      </div>
+      <StreamMultiSelect
+        id={commonId}
+        ariaLabel={field.name}
+        title={field.name}
+        values={values}
+        options={(field.options ?? []).map((option) => ({ value: option, label: option }))}
+        placeholder={(field.options ?? []).length ? "Выбрать значения" : "Нет доступных вариантов"}
+        emptyMessage="Добавь варианты в настройках доски"
+        onValuesChange={onChange}
+        disabled={disabled || (field.options ?? []).length === 0}
+      />
     );
   }
 
   if (field.type === "person") {
     return (
-      <select
+      <StreamSelect
         id={commonId}
-        className={KANBAN_PANEL_SELECT_CLASS}
+        ariaLabel={field.name}
         value={String(value ?? "")}
-        onChange={(event) => onChange(event.target.value)}
+        options={[
+          { value: "", label: "Не выбрано" },
+          ...users.map((user) => ({ value: user.id, label: user.name })),
+        ]}
+        onValueChange={onChange}
         disabled={disabled}
-      >
-        <option value="">Не выбрано</option>
-        {users.map((user) => (
-          <option key={user.id} value={user.id}>{user.name}</option>
-        ))}
-      </select>
+      />
     );
   }
 
-  const inputType = field.type === "number"
-    ? "number"
-    : field.type === "date"
-      ? "date"
-      : field.type === "email"
-        ? "email"
-        : field.type === "url"
-          ? "url"
-          : "text";
+  if (field.type === "date") {
+    return (
+      <StreamDatePicker
+        id={commonId}
+        value={String(value ?? "")}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    );
+  }
+
+  const inputType = field.type === "email"
+      ? "email"
+      : field.type === "url"
+        ? "url"
+        : "text";
 
   return (
     <Input
       id={commonId}
       type={inputType}
+      inputMode={field.type === "number" ? "decimal" : undefined}
       value={String(value ?? "")}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        if (field.type === "number") {
+          if (!/^-?\d*(?:[.,]\d*)?$/.test(nextValue)) return;
+          onChange(nextValue.replace(",", "."));
+          return;
+        }
+        onChange(nextValue);
+      }}
       placeholder={placeholder}
       className={KANBAN_PANEL_INPUT_CLASS}
       disabled={disabled}

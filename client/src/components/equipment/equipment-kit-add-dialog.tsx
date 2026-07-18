@@ -72,10 +72,10 @@ export function EquipmentKitAddDialog({
 
   return (
     <Dialog open={Boolean(bundle)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-xl flex-col overflow-hidden bg-white dark:bg-slate-900">
+      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="text-slate-900 dark:text-white">Добавить в комплект</DialogTitle>
-          <DialogDescription className="text-slate-500 dark:text-slate-400">
+          <DialogTitle>Добавить в комплект</DialogTitle>
+          <DialogDescription>
             {bundle
               ? `Выберите оборудование для «${bundle.name}». Можно вложить и другой комплект.`
               : "Выберите оборудование для комплекта."}
@@ -86,10 +86,10 @@ export function EquipmentKitAddDialog({
           <div className="flex min-h-0 flex-col gap-4">
             {active && (
               <div className={cn(
-                "rounded-lg border px-3 py-2 text-sm",
+                "rounded-control border px-3 py-2 text-sm",
                 canOverrideActiveKit
-                  ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/25 dark:text-red-200"
-                  : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200",
+                  ? "border-error/30 bg-error-muted text-error"
+                  : "border-warning/30 bg-warning-muted text-warning",
               )}>
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -119,10 +119,10 @@ export function EquipmentKitAddDialog({
                   <label
                     key={item.id}
                     className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition",
+                      "flex cursor-pointer items-start gap-3 rounded-control border px-3 py-2 transition-colors",
                       checked
-                        ? "border-primary/50 bg-primary/5"
-                        : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600",
+                        ? "border-primary/50 bg-primary/10"
+                        : "border-border/40 bg-surface-raised hover:border-primary/35 hover:bg-muted/35",
                     )}
                   >
                     <Checkbox
@@ -137,22 +137,22 @@ export function EquipmentKitAddDialog({
                       className="mt-0.5"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-1.5 font-medium text-slate-900 dark:text-white">
+                      <span className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
                         {item.name}
                         {isSuperPosition(item) && (
-                          <Badge className="bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          <Badge className="border border-success/20 bg-success-muted text-[10px] text-success">
                             Комплект
                           </Badge>
                         )}
                       </span>
-                      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
                         {[item.model, item.inventoryNumber].filter(Boolean).join(" · ") || getEquipmentCategoryLabel(item)}
                       </span>
                     </span>
                   </label>
                 );
               }) : (
-                <div className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle px-4 py-8 text-center text-sm text-muted-foreground">
                   {search.trim()
                     ? "По вашему запросу нет доступных позиций."
                     : "Нет доступного исправного оборудования, которое можно добавить в этот комплект."}
@@ -161,7 +161,7 @@ export function EquipmentKitAddDialog({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="kit-add-reason">
+              <label className="text-sm font-medium text-foreground" htmlFor="kit-add-reason">
                 Причина или контекст
               </label>
               <Textarea
@@ -174,8 +174,8 @@ export function EquipmentKitAddDialog({
             </div>
 
             {active && canOverrideActiveKit && (
-              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/25">
-                <label className="text-sm font-medium text-red-800 dark:text-red-200" htmlFor="kit-add-approval">
+              <div className="space-y-2 rounded-control border border-error/30 bg-error-muted p-3">
+                <label className="text-sm font-medium text-error" htmlFor="kit-add-approval">
                   Для изменения активного комплекта введите ДОБАВИТЬ
                 </label>
                 <Input

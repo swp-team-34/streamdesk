@@ -3703,7 +3703,14 @@ export async function initDatabase(): Promise<void> {
       try {
         await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_workspace_type text`;
         await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_company_id varchar`;
+        await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_preferences jsonb DEFAULT '{}'::jsonb`;
         await client`ALTER TABLE events ADD COLUMN IF NOT EXISTS company_id varchar`;
+        await client`ALTER TABLE events ADD COLUMN IF NOT EXISTS color text`;
+        await client`ALTER TABLE projects ADD COLUMN IF NOT EXISTS responsible_user_ids jsonb DEFAULT '[]'::jsonb`;
+        await client`UPDATE projects
+          SET responsible_user_ids = jsonb_build_array(assigned_to)
+          WHERE assigned_to IS NOT NULL
+            AND (responsible_user_ids IS NULL OR responsible_user_ids = '[]'::jsonb)`;
         await client`CREATE INDEX IF NOT EXISTS events_company_start_idx
           ON events (company_id, start_time)`;
         await client`UPDATE events AS event

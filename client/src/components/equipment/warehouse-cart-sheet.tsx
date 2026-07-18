@@ -2,6 +2,9 @@ import type { Equipment } from "@shared/schema";
 import { FileText, Send, ShoppingCart, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamDatePicker } from "@/components/ui/stream-date-picker";
+import { StreamDateTimePicker } from "@/components/ui/stream-date-time-picker";
+import { StreamTimePicker } from "@/components/ui/stream-time-picker";
 import {
   Select,
   SelectContent,
@@ -98,7 +101,7 @@ export function WarehouseCartSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="relative min-w-0 flex-1 border-slate-300 dark:border-slate-600 sm:flex-none">
+        <Button variant="outline" size="sm" className="relative min-w-0 flex-1 border-border/50 bg-surface-raised sm:flex-none">
           <ShoppingCart className="mr-1.5 h-4 w-4 sm:mr-2" />
           Корзина
           {cart.length > 0 && (
@@ -148,7 +151,7 @@ export function WarehouseCartSheet({
                 <div>
                   <label className="mb-1 block text-sm font-medium">Отправить на проект</label>
                   <Select value={sendToProjectId} onValueChange={onSendToProjectIdChange}>
-                    <SelectTrigger aria-label="Проект для оборудования" className="bg-white dark:bg-slate-800">
+                    <SelectTrigger aria-label="Проект для оборудования" className="bg-surface-base">
                       <SelectValue placeholder={projects.length > 0 ? "Выберите проект" : "Нет доступных проектов"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -171,37 +174,31 @@ export function WarehouseCartSheet({
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-handoff-at">Выдать</label>
-                    <Input
+                    <StreamDateTimePicker
                       id="cart-handoff-at"
-                      type="datetime-local"
+                      label="Выдать"
                       value={handoffAt}
-                      onChange={(event) => onHandoffAtChange(event.target.value)}
-                      className="bg-white dark:bg-slate-800"
+                      onChange={onHandoffAtChange}
                     />
                   </div>
                   <div className="grid grid-cols-[1fr_92px] gap-2">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-return-date">
-                        Вернуть до <span className="text-red-500">*</span>
-                      </label>
-                      <Input
+                      <StreamDatePicker
                         id="cart-return-date"
-                        type="date"
+                        label="Вернуть до *"
                         value={returnDate}
-                        onChange={(event) => onReturnDateChange(event.target.value)}
-                        min={new Date().toISOString().slice(0, 10)}
-                        className="bg-white dark:bg-slate-800"
+                        onChange={onReturnDateChange}
+                        minValue={new Date().toISOString().slice(0, 10)}
+                        className="px-2 [&>svg]:hidden"
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground" htmlFor="cart-return-time">Время</label>
-                      <Input
+                      <StreamTimePicker
                         id="cart-return-time"
-                        type="time"
+                        label="Время"
                         value={returnTime}
-                        onChange={(event) => onReturnTimeChange(event.target.value)}
-                        className="bg-white px-2 dark:bg-slate-800"
+                        onChange={onReturnTimeChange}
+                        className="px-2 [&>svg]:hidden"
                       />
                     </div>
                   </div>
@@ -216,7 +213,7 @@ export function WarehouseCartSheet({
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Направление</label>
                       <Select value={passDirection} onValueChange={(value) => onPassDirectionChange(value === "in" ? "in" : "out")}>
-                        <SelectTrigger aria-label="Направление пропуска" className="bg-white dark:bg-slate-800">
+                        <SelectTrigger aria-label="Направление пропуска" className="bg-surface-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -232,7 +229,7 @@ export function WarehouseCartSheet({
                         value={passResponsiblePhone}
                         onChange={(event) => onPassResponsiblePhoneChange(event.target.value)}
                         placeholder="+7..."
-                        className="bg-white dark:bg-slate-800"
+                        className="bg-surface-base"
                       />
                     </div>
                   </div>
@@ -243,7 +240,7 @@ export function WarehouseCartSheet({
                       value={passBasis}
                       onChange={(event) => onPassBasisChange(event.target.value)}
                       placeholder="Например: работы по проекту"
-                      className="bg-white dark:bg-slate-800"
+                      className="bg-surface-base"
                     />
                   </div>
                   <Button

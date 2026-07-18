@@ -40,7 +40,7 @@ export function WarehouseHistorySheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-0 flex-1 border-slate-300 dark:border-slate-600 sm:flex-none">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1 border-border/50 bg-surface-raised sm:flex-none">
           <History className="mr-1.5 h-4 w-4 sm:mr-2" />
           Моя история
         </Button>
@@ -51,19 +51,19 @@ export function WarehouseHistorySheet({
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {groups.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle px-4 py-8 text-center text-sm text-muted-foreground">
               Пока нет выдач и запросов.
             </div>
           ) : groups.map((group) => (
-            <div key={group.id} className="rounded-md border bg-card p-3">
+            <div key={group.id} className="rounded-control border border-border/50 bg-surface-raised p-3 shadow-xs">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-medium leading-snug text-slate-900 dark:text-white">
+                  <div className="font-medium leading-snug text-foreground">
                     {group.items.length === 1
                       ? group.items[0].equipmentName
                       : `${group.items.length} позиций оборудования`}
                   </div>
-                  <div className="mt-1 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                     {group.items.slice(0, 8).map((item) => (
                       <div key={item.id} className="break-words">
                         {item.equipmentName}{item.model ? ` · ${item.model}` : ""}
@@ -76,7 +76,7 @@ export function WarehouseHistorySheet({
                   {group.status}
                 </Badge>
               </div>
-              <div className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                 {group.date && (
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" />
@@ -94,7 +94,7 @@ export function WarehouseHistorySheet({
                   </div>
                 )}
                 {group.note && (
-                  <div className="break-words text-slate-600 dark:text-slate-300">{group.note}</div>
+                  <div className="break-words text-foreground/80">{group.note}</div>
                 )}
               </div>
             </div>

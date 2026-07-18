@@ -10,6 +10,11 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+- Added company workspace creation from the active workspace selector, with
+  autosave flushing and immediate activation of the new company context.
+- Added workspace-scoped Calendar event types, persisted event colors,
+  Location-backed venues, multiple event participants, and multiple responsible
+  users for projects.
 - Added a shared active-workspace selector with remembered company choices and a separate personal workspace for Kanban V2, Calendar, and Projects.
 - Added company-scoped equipment destinations and work context: Warehouse checkout/edit flows can use an active Location or manual place, an optional project, and multiple project-consistent Kanban V2 cards without creating new Legacy Task Manager links.
 - Added expandable Warehouse kit composition with component status, warnings, direct details navigation, add/remove controls, composition history, and support for nested kits with cycle prevention.
@@ -24,6 +29,9 @@ changes are collected under `Unreleased`.
 
 ### Changed
 
+- Unified supported screens and dialogs around semantic light/dark theme tokens,
+  custom searchable selectors, color pickers, compact responsive layouts, and
+  multi-value filters where the underlying data supports multiple choices.
 - Changed Calendar Day, 3 Days, and Week views to a continuously scrollable, day-snapping timeline with adjacent-date buffering, synchronized toolbar navigation, keyboard, mouse, trackpad, and touch controls, a sticky all-day/date header during vertical scrolling, and direct Month-to-Day navigation from date cells.
 - Changed workspace switching to flush registered autosaves, close feature state through a workspace remount, clear React Query data, and reconnect realtime subscriptions before loading the target workspace.
 - Changed platform administrators to select a company for ordinary product screens while keeping cross-company access in the dedicated platform-admin area.
@@ -33,6 +41,16 @@ changes are collected under `Unreleased`.
 
 ### Fixed
 
+- Fixed Calendar timeline initialization after the first data load and removed
+  the visible delay between horizontal snap alignment and the toolbar period.
+- Fixed new-account routing so incomplete onboarding cannot fall through to an
+  unusable Dashboard, including when the completion flag is absent.
+- Fixed missing top spacing in reusable card content and restored a visible
+  active state for the Kanban/List mode selector in both themes.
+- Fixed Dashboard startup so the first render uses the layout scoped to the
+  active user and workspace instead of briefly restoring a global layout.
+- Fixed Safari login-page glow artifacts by keeping the ambient pulse while
+  avoiding animated large blurred compositor layers.
 - Fixed cross-company reads and mutations in Calendar, Kanban V2, tasks, Locations, projects, Warehouse, Dashboard, users, notifications, systems, streams, reservations, and realtime subscriptions by enforcing one validated active workspace on the server.
 - Fixed first-membership fallbacks during record creation; new events, tasks, projects, boards, equipment, Locations, systems, and streams now inherit the selected workspace.
 - Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.

@@ -19,7 +19,7 @@ export function KanbanSmartInputHelpDialog({
 }: KanbanSmartInputHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-border/50 bg-card text-card-foreground">
+      <DialogContent className="max-w-lg border-border/50 bg-surface-overlay text-foreground shadow-overlay">
         <DialogHeader>
           <DialogTitle>Умный ввод карточки</DialogTitle>
           <DialogDescription>
@@ -27,7 +27,7 @@ export function KanbanSmartInputHelpDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          <div className="rounded-xl border border-border/35 bg-muted/20 p-3">
+          <div className="rounded-control border border-border/50 bg-surface-subtle p-3">
             <code>Подготовить эфир завтра 14:00 высокий приоритет @tim</code>
           </div>
           <ul className="list-disc space-y-1 pl-5 text-muted-foreground">

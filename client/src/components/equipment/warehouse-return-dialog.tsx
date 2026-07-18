@@ -56,7 +56,7 @@ export function WarehouseReturnDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg bg-white dark:bg-slate-950 sm:w-full">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg sm:w-full">
         <DialogHeader>
           <DialogTitle>Вернуть оборудование</DialogTitle>
           <DialogDescription>

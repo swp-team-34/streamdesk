@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { KanbanCustomFieldDefinition } from "@/lib/kanban-board-model";
+import { chooseStreamSelectOption } from "@/test-utils/stream-select";
 import { KanbanCardCustomFieldsEditor } from "./kanban-card-custom-fields-editor";
 
 const field = {
@@ -72,5 +73,28 @@ describe("KanbanCardCustomFieldsEditor", () => {
       <KanbanCardCustomFieldsEditor {...baseProps} expanded={false} />,
     );
     expect(container.firstElementChild).toHaveClass("hidden");
+  });
+
+  it("shows options only for list fields and updates field visibility rules", () => {
+    const onFormChange = vi.fn();
+    const { rerender } = render(
+      <KanbanCardCustomFieldsEditor {...baseProps} form={form} onFormChange={onFormChange} />,
+    );
+
+    expect(screen.queryByLabelText("Опции нового поля карточки")).not.toBeInTheDocument();
+    chooseStreamSelectOption("Тип нового поля карточки", "Multi-select");
+    expect(onFormChange).toHaveBeenCalledWith({ ...form, type: "multi-select" });
+
+    const listForm = { ...form, type: "multi-select" as const };
+    rerender(
+      <KanbanCardCustomFieldsEditor {...baseProps} form={listForm} onFormChange={onFormChange} />,
+    );
+    fireEvent.change(screen.getByLabelText("Опции нового поля карточки"), {
+      target: { value: "Alpha, Beta" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Обязательное" }));
+
+    expect(onFormChange).toHaveBeenCalledWith({ ...listForm, options: "Alpha, Beta" });
+    expect(onFormChange).toHaveBeenLastCalledWith({ ...listForm, required: true });
   });
 });

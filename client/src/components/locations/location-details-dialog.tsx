@@ -76,7 +76,7 @@ export function LocationDetailsDialog({
 
             <div className="space-y-4">
               {location.address && (
-                <div className="rounded-lg border p-3">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                   <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
                     Адрес или контекст
@@ -85,13 +85,13 @@ export function LocationDetailsDialog({
                 </div>
               )}
               {location.description && (
-                <div className="rounded-lg border p-3">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                   <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">Описание</div>
                   <p className="whitespace-pre-wrap text-sm">{location.description}</p>
                 </div>
               )}
               {location.notes && (
-                <div className="rounded-lg border p-3">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                   <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
                     <FileText className="h-3.5 w-3.5" />
                     Рабочие заметки
@@ -101,7 +101,7 @@ export function LocationDetailsDialog({
               )}
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border p-3">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <ListTodo className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function LocationDetailsDialog({
                         <a
                           key={card.id}
                           href={`/tasks-v2?boardId=${encodeURIComponent(card.boardId)}&cardId=${encodeURIComponent(card.id)}`}
-                          className="block rounded-md bg-muted/40 px-3 py-2 transition hover:bg-muted"
+                          className="block rounded-control bg-surface-overlay px-3 py-2 transition hover:bg-surface-raised"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 truncate text-sm font-medium">{card.title}</span>
@@ -136,7 +136,7 @@ export function LocationDetailsDialog({
                   )}
                 </div>
 
-                <div className="rounded-lg border p-3">
+                <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Film className="h-4 w-4" />
@@ -152,7 +152,7 @@ export function LocationDetailsDialog({
                         <a
                           key={project.id}
                           href={`/projects?projectId=${encodeURIComponent(project.id)}`}
-                          className="block rounded-md bg-muted/40 px-3 py-2 transition hover:bg-muted"
+                          className="block rounded-control bg-surface-overlay px-3 py-2 transition hover:bg-surface-raised"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 truncate text-sm font-medium">{project.name}</span>
@@ -176,14 +176,14 @@ export function LocationDetailsDialog({
                 </div>
               </div>
 
-              <div className="rounded-lg border p-3">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Paperclip className="h-4 w-4" />
                     Файлы
                   </div>
                   {canManage && !location.archivedAt && (
-                    <Label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs">
+                    <Label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-border/50 bg-surface-raised px-2.5 text-xs">
                       <Plus className="h-3.5 w-3.5" />
                       Добавить
                       <input
@@ -201,7 +201,7 @@ export function LocationDetailsDialog({
                 {Array.isArray(location.attachments) && location.attachments.length > 0 ? (
                   <div className="space-y-2">
                     {location.attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
+                      <div key={attachment.id} className="flex items-center gap-2 rounded-control bg-surface-overlay px-3 py-2">
                         <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">{attachment.fileName}</div>
@@ -222,7 +222,7 @@ export function LocationDetailsDialog({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            className="h-8 w-8 text-error hover:bg-error-muted hover:text-error"
                             onClick={() => onRemoveAttachment(attachment.id)}
                             aria-label="Удалить файл"
                           >
@@ -237,7 +237,7 @@ export function LocationDetailsDialog({
                 )}
               </div>
 
-              <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+              <div className="rounded-surface border border-border/50 bg-surface-subtle p-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <History className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>

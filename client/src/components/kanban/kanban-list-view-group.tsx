@@ -4,8 +4,9 @@ import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StreamSelect } from "@/components/ui/stream-select";
 import type { KanbanCardView, KanbanListView } from "@/lib/kanban-board-model";
-import { KANBAN_PANEL_INPUT_CLASS, KANBAN_PANEL_SELECT_CLASS } from "./kanban-styles";
+import { KANBAN_PANEL_INPUT_CLASS } from "./kanban-styles";
 
 export interface KanbanListViewGroupItem {
   id: string;
@@ -72,7 +73,7 @@ export function KanbanListViewGroup({
   ) : cards;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/30 bg-card/50">
+    <section className="overflow-hidden rounded-surface border border-border/50 bg-surface-raised shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/25 px-3 py-2.5">
         <h3 className="font-semibold">{group.title}</h3>
         <Badge variant="secondary" className="rounded-full">{group.cards.length}</Badge>
@@ -96,23 +97,17 @@ export function KanbanListViewGroup({
               onSubmitDraft();
             }}
           />
-          <select
-            aria-label={`Список для новой задачи в группе ${group.title}`}
-            className={KANBAN_PANEL_SELECT_CLASS}
+          <StreamSelect
+            ariaLabel={`Список для новой задачи в группе ${group.title}`}
             value={draftListId}
-            onChange={(event) => onDraftListChange(event.target.value)}
+            options={lists.length === 0
+              ? [{ value: "", label: "Нет списков", disabled: true }]
+              : lists.map((list) => ({ value: list.id, label: list.name }))}
+            onValueChange={onDraftListChange}
             disabled={Boolean(group.droppableListId) || savePending || lists.length === 0}
-          >
-            {lists.length === 0 ? (
-              <option value="">Нет списков</option>
-            ) : (
-              lists.map((list) => (
-                <option key={list.id} value={list.id}>{list.name}</option>
-              ))
-            )}
-          </select>
+          />
           <Button
-            className="rounded-xl"
+            className="rounded-control"
             onClick={onSubmitDraft}
             disabled={!draftValue.trim() || !draftListId || savePending}
           >

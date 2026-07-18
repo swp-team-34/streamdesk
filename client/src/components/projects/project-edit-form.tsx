@@ -1,10 +1,9 @@
 import { useEffect, useState, type FormEvent, type MutableRefObject } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StreamMultiSelect } from "@/components/ui/stream-multi-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useDebouncedAutosave } from "@/hooks/use-debounced-autosave";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +17,13 @@ export function normalizeProjectParticipantIds(value: unknown): string[] {
 
 export function toggleProjectSelection(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
+}
+
+export function normalizeProjectResponsibleIds(project: ProjectEditorValue | null | undefined): string[] {
+  const ids = normalizeProjectParticipantIds(project?.responsibleUserIds);
+  const legacyAssignedTo = String(project?.assignedTo || "").trim();
+  if (legacyAssignedTo && !ids.includes(legacyAssignedTo)) ids.push(legacyAssignedTo);
+  return ids;
 }
 
 interface ProjectEditorUser {
@@ -38,6 +44,7 @@ interface ProjectEditorValue {
   name?: string | null;
   description?: string | null;
   assignedTo?: string | null;
+  responsibleUserIds?: unknown;
   participants?: unknown;
   showInTaskManager?: boolean | null;
   directLocationIds?: unknown;
@@ -61,7 +68,7 @@ export function ProjectEditForm({
   const safeUsers = Array.isArray(users) ? users : [];
   const [name, setName] = useState(project?.name ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
-  const [assignedTo, setAssignedTo] = useState(project?.assignedTo ?? "");
+  const [responsibleUserIds, setResponsibleUserIds] = useState<string[]>(normalizeProjectResponsibleIds(project));
   const [participants, setParticipants] = useState<string[]>(normalizeProjectParticipantIds(project?.participants));
   const [showInTaskManager, setShowInTaskManager] = useState(Boolean(project?.showInTaskManager));
   const [locationIds, setLocationIds] = useState<string[]>(normalizeProjectParticipantIds(project?.directLocationIds));
@@ -71,7 +78,7 @@ export function ProjectEditForm({
     if (!project) return;
     setName(project.name ?? "");
     setDescription(project.description ?? "");
-    setAssignedTo(project.assignedTo ?? "");
+    setResponsibleUserIds(normalizeProjectResponsibleIds(project));
     setParticipants(normalizeProjectParticipantIds(project.participants));
     setShowInTaskManager(Boolean(project.showInTaskManager));
     setLocationIds(normalizeProjectParticipantIds(project.directLocationIds));
@@ -80,6 +87,7 @@ export function ProjectEditForm({
     project?.name,
     project?.description,
     project?.assignedTo,
+    project?.responsibleUserIds,
     project?.participants,
     project?.showInTaskManager,
     project?.directLocationIds,
@@ -92,7 +100,7 @@ export function ProjectEditForm({
     value: {
       name,
       description,
-      assignedTo,
+      responsibleUserIds: [...responsibleUserIds].sort(),
       participants: [...participants].sort(),
       showInTaskManager,
       locationIds: [...locationIds].sort(),
@@ -103,7 +111,7 @@ export function ProjectEditForm({
           payload: {
             name: snapshot.name.trim(),
             description: snapshot.description.trim(),
-            assignedTo: snapshot.assignedTo || null,
+            responsibleUserIds: snapshot.responsibleUserIds,
             participants: snapshot.participants,
             showInTaskManager: snapshot.showInTaskManager,
             locationIds: snapshot.locationIds,
@@ -160,42 +168,41 @@ export function ProjectEditForm({
           rows={3}
         />
       </div>
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">Участник</label>
-        <Select value={assignedTo || "_none"} onValueChange={(value) => setAssignedTo(value === "_none" ? "" : value)}>
-          <SelectTrigger className="bg-background text-foreground">
-            <SelectValue placeholder="Выберите участника" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">Не назначен</SelectItem>
-            {safeUsers.map((user) => (
-              <SelectItem key={user.id} value={user.id}>{user.name ?? user.username ?? user.id}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-2">
+        <label className="block text-sm font-medium">Ответственные</label>
+        <StreamMultiSelect
+          values={responsibleUserIds}
+          options={safeUsers.map((user) => ({
+            value: user.id,
+            label: user.name ?? user.username ?? user.id,
+            description: user.email ?? undefined,
+          }))}
+          onValuesChange={setResponsibleUserIds}
+          placeholder={safeUsers.length > 0 ? "Выберите ответственных" : "Пользователей пока нет"}
+          ariaLabel="Ответственные проекта"
+          title="Ответственные проекта"
+          searchable
+          disabled={safeUsers.length === 0}
+        />
       </div>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Участники проекта</label>
-        <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border bg-background p-2">
-          {safeUsers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Пользователей пока нет</p>
-          ) : (
-            safeUsers.map((user) => (
-              <label key={user.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-                <Checkbox
-                  checked={participants.includes(user.id)}
-                  onCheckedChange={() => setParticipants((current) => toggleProjectSelection(current, user.id))}
-                />
-                <span className="min-w-0">
-                  <span className="block truncate">{user.name ?? user.username ?? user.id}</span>
-                  {user.email && <span className="block truncate text-xs text-muted-foreground">{user.email}</span>}
-                </span>
-              </label>
-            ))
-          )}
-        </div>
+        <StreamMultiSelect
+          values={participants}
+          options={safeUsers.map((user) => ({
+            value: user.id,
+            label: user.name ?? user.username ?? user.id,
+            description: user.email ?? undefined,
+          }))}
+          onValuesChange={setParticipants}
+          placeholder={safeUsers.length > 0 ? "Выберите участников" : "Пользователей пока нет"}
+          ariaLabel="Участники проекта"
+          title="Участники проекта"
+          searchable
+          disabled={safeUsers.length === 0}
+        />
       </div>
-      <label className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+      <label className="flex items-start gap-2 rounded-control border border-border/50 bg-surface-subtle p-3 text-sm">
         <Checkbox checked={showInTaskManager} onCheckedChange={(checked) => setShowInTaskManager(Boolean(checked))} />
         <span>
           <span className="block font-medium">Показывать в таск-менеджере</span>
@@ -204,29 +211,22 @@ export function ProjectEditForm({
       </label>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Площадки проекта</label>
-        <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border bg-background p-2">
-          {locations.filter((location) => !location.archivedAt || locationIds.includes(location.id)).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Активных площадок пока нет</p>
-          ) : (
-            locations
-              .filter((location) => !location.archivedAt || locationIds.includes(location.id))
-              .map((location) => (
-                <label
-                  key={location.id}
-                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      checked={locationIds.includes(location.id)}
-                      onCheckedChange={() => setLocationIds((current) => toggleProjectSelection(current, location.id))}
-                    />
-                    <span className="truncate">{location.name}</span>
-                  </span>
-                  {location.archivedAt && <Badge variant="secondary">Архив</Badge>}
-                </label>
-              ))
-          )}
-        </div>
+        <StreamMultiSelect
+          values={locationIds}
+          options={locations
+            .filter((location) => !location.archivedAt || locationIds.includes(location.id))
+            .map((location) => ({
+              value: location.id,
+              label: location.name,
+              description: location.archivedAt ? "Архив" : undefined,
+            }))}
+          onValuesChange={setLocationIds}
+          placeholder={locations.length > 0 ? "Выберите площадки" : "Активных площадок пока нет"}
+          ariaLabel="Площадки проекта"
+          title="Площадки проекта"
+          searchable
+          disabled={locations.length === 0}
+        />
         <p className="text-xs text-muted-foreground">Площадки карточек Kanban добавляются в сводку проекта автоматически.</p>
       </div>
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

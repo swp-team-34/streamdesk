@@ -42,10 +42,10 @@ const computerSchema = z.object({
 type ComputerFormData = z.infer<typeof computerSchema>;
 
 const statusConfig = {
-  active: { label: "Активен", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-  maintenance: { label: "Обслуживание", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  offline: { label: "Выключен", color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400" },
-  broken: { label: "Неисправен", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  active: { label: "Активен", color: "border-success/20 bg-success-muted text-success" },
+  maintenance: { label: "Обслуживание", color: "border-warning/20 bg-warning-muted text-warning" },
+  offline: { label: "Выключен", color: "border-border/40 bg-muted text-muted-foreground" },
+  broken: { label: "Неисправен", color: "border-error/20 bg-error-muted text-error" },
 };
 
 const purposeOptions = [
@@ -166,7 +166,7 @@ export default function Computers() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
@@ -175,7 +175,7 @@ export default function Computers() {
               Добавить компьютер
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+          <DialogContent className="hide-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Добавить компьютер</DialogTitle>
             </DialogHeader>
@@ -248,7 +248,7 @@ export default function Computers() {
                   />
                 </div>
 
-                <div className="border rounded-lg p-4 space-y-3">
+                <div className="space-y-3 rounded-surface border border-border/50 bg-muted/20 p-4">
                   <h4 className="font-medium text-foreground">Комплектующие</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
@@ -383,7 +383,7 @@ export default function Computers() {
         </Dialog>
       </div>
 
-      <Card className="dark:border-border/50">
+      <Card>
         <CardContent className="py-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -417,13 +417,13 @@ export default function Computers() {
             return (
               <Card 
                 key={computer.id} 
-                className="dark:border-border/50 dark:hover:border-primary/50 transition-all hover:shadow-lg"
+                className="transition-colors hover:border-primary/40 hover:bg-muted/10"
                 data-testid={`computer-card-${computer.id}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-control bg-primary/10">
                         <Monitor className="w-5 h-5 text-primary" />
                       </div>
                       <div>
@@ -462,7 +462,7 @@ export default function Computers() {
                       </Button>
                       
                       {isExpanded && (
-                        <div className="space-y-2 pt-2 border-t dark:border-border/50">
+                        <div className="space-y-2 border-t border-border/50 pt-2">
                           {Object.entries(components).map(([key, value]) => (
                             value && (
                               <div key={key} className="flex items-center gap-2 text-sm">

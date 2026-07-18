@@ -7,10 +7,10 @@ function createProps() {
   return {
     mobileOpen: false,
     searchTerm: "camera",
-    status: "all",
-    category: "all",
-    operability: "all",
-    employee: "all",
+    status: [],
+    category: [],
+    operability: [],
+    employee: [],
     activeFilterCount: 1,
     canFilterByEmployee: true,
     categoryOptions: [{ value: "category:camera", label: "Cameras" }],
@@ -73,5 +73,18 @@ describe("WarehouseFilters", () => {
     expect(screen.getByRole("button", { name: "Отчёт в Excel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Печать этикеток" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Собрать комплект" })).toBeDisabled();
+  });
+
+  it("keeps selected filter values in the dropdown without external chips", () => {
+    render(
+      <WarehouseFilters
+        {...createProps()}
+        status={["maintenance", "broken"]}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Статусы оборудования" })).toHaveTextContent("Выбрано: 2");
+    expect(screen.queryByRole("button", { name: "Убрать Обслуживание" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Убрать Сломано" })).not.toBeInTheDocument();
   });
 });

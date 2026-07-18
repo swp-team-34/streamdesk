@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -96,6 +97,7 @@ export function WarehouseSettings({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm: confirmAction } = useAppDialog();
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [categoryParentId, setCategoryParentId] = useState("root");
@@ -252,7 +254,15 @@ export function WarehouseSettings({
         affected ? `используется в ${affected} карточках` : "",
         children ? `дочерних элементов: ${children}` : "",
       ].filter(Boolean).join(", ");
-      if (!window.confirm(`Архивировать «${row.name}»${suffix ? ` (${suffix})` : ""}?`)) return;
+      const confirmed = await confirmAction({
+        title: `Архивировать «${row.name}»?`,
+        description: suffix
+          ? `Связанные данные: ${suffix}. Элемент можно будет восстановить позже.`
+          : "Элемент можно будет восстановить позже.",
+        confirmLabel: "Архивировать",
+        destructive: true,
+      });
+      if (!confirmed) return;
     }
     await settingsMutation.mutateAsync({
       method: "PUT",
@@ -265,7 +275,7 @@ export function WarehouseSettings({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto bg-white dark:bg-slate-950 sm:w-full">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto sm:w-full">
         <DialogHeader>
           <DialogTitle>Настройки склада</DialogTitle>
           <DialogDescription>
@@ -287,7 +297,7 @@ export function WarehouseSettings({
 
           <TabsContent value="categories" className="space-y-4">
             {canManage && (
-              <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-[1fr_1fr_auto]">
+              <div className="grid gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3 sm:grid-cols-[1fr_1fr_auto]">
                 <Input
                   value={categoryName}
                   onChange={(event) => setCategoryName(event.target.value)}
@@ -325,14 +335,14 @@ export function WarehouseSettings({
 
             <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
               {categoryRows.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
+                <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
                   Категорий пока нет.
                 </div>
               ) : categoryRows.map(({ row, depth }) => (
                 <div
                   key={row.id}
                   className={cn(
-                    "flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center",
+                    "flex flex-col gap-2 rounded-control border border-border/45 bg-surface-raised p-3 shadow-xs sm:flex-row sm:items-center",
                     row.archivedAt && "opacity-60",
                   )}
                   style={{ marginLeft: `${Math.min(depth, 1) * 20}px` }}
@@ -343,7 +353,7 @@ export function WarehouseSettings({
                       {depth > 0 && <Badge variant="outline">Подкатегория</Badge>}
                       {row.archivedAt && <Badge variant="secondary">Архив</Badge>}
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       Оборудование: {Number(row.equipmentCount || 0)}
                       {Number(row.childCount || 0) > 0 ? ` · Подкатегории: ${row.childCount}` : ""}
                     </div>
@@ -385,7 +395,7 @@ export function WarehouseSettings({
 
           <TabsContent value="storage" className="space-y-4">
             {canManage && (
-              <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-2">
+              <div className="grid gap-2 rounded-surface border border-border/50 bg-surface-subtle p-3 md:grid-cols-2">
                 <Input
                   value={storageName}
                   onChange={(event) => setStorageName(event.target.value)}
@@ -440,14 +450,14 @@ export function WarehouseSettings({
 
             <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
               {storageRows.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
+                <div className="rounded-control border border-dashed border-border/60 bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
                   Мест хранения пока нет.
                 </div>
               ) : storageRows.map(({ row, depth }) => (
                 <div
                   key={row.id}
                   className={cn(
-                    "flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center",
+                    "flex flex-col gap-2 rounded-control border border-border/45 bg-surface-raised p-3 shadow-xs sm:flex-row sm:items-center",
                     row.archivedAt && "opacity-60",
                   )}
                   style={{ marginLeft: `${Math.min(depth, 5) * 14}px` }}
@@ -459,7 +469,7 @@ export function WarehouseSettings({
                       {row.code && <Badge variant="secondary">{row.code}</Badge>}
                       {row.archivedAt && <Badge variant="secondary">Архив</Badge>}
                     </div>
-                    <div className="mt-1 break-words text-xs text-slate-500">
+                    <div className="mt-1 break-words text-xs text-muted-foreground">
                       {row.path || row.name} · Оборудование: {Number(row.equipmentCount || 0)}
                     </div>
                   </div>
