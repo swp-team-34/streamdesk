@@ -33,6 +33,9 @@ describe("KanbanBoardToolbar", () => {
     expect(screen.getByText("Доска: Production")).toBeInTheDocument();
     expect(screen.getByText("Live events")).toBeInTheDocument();
     expect(screen.getByText("Активны")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "List" })).toHaveClass("bg-primary/15");
+    expect(screen.getByRole("button", { name: "Kanban" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.change(screen.getByPlaceholderText("Поиск карточек"), { target: { value: "audio" } });
     fireEvent.click(screen.getByRole("button", { name: "Очистить поиск" }));

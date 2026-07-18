@@ -79,9 +79,26 @@ export default function Login({ onLogin }: LoginProps) {
   return (
     <div className="fixed inset-0 relative flex min-h-screen items-center justify-center overflow-auto bg-background p-3 text-foreground sm:p-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[12%] top-[10%] h-80 w-80 animate-pulse rounded-full bg-primary/10 blur-3xl motion-reduce:animate-none" />
-        <div className="absolute bottom-[8%] right-[10%] h-96 w-96 animate-pulse rounded-full bg-primary/15 blur-3xl motion-reduce:animate-none" style={{ animationDelay: "1s" }} />
-        <div className="absolute left-[48%] top-[48%] h-72 w-72 animate-pulse rounded-full bg-primary/5 blur-3xl motion-reduce:animate-none" style={{ animationDelay: "2s" }} />
+        <div
+          className="absolute left-[12%] top-[10%] h-80 w-80 animate-pulse rounded-full motion-reduce:animate-none"
+          style={{
+            background: "radial-gradient(circle, color-mix(in srgb, var(--primary) 30%, transparent) 0%, color-mix(in srgb, var(--primary) 15%, transparent) 42%, transparent 72%)",
+          }}
+        />
+        <div
+          className="absolute bottom-[8%] right-[10%] h-96 w-96 animate-pulse rounded-full motion-reduce:animate-none"
+          style={{
+            animationDelay: "1s",
+            background: "radial-gradient(circle, color-mix(in srgb, var(--primary) 38%, transparent) 0%, color-mix(in srgb, var(--primary) 20%, transparent) 42%, transparent 72%)",
+          }}
+        />
+        <div
+          className="absolute left-[48%] top-[48%] h-72 w-72 animate-pulse rounded-full motion-reduce:animate-none"
+          style={{
+            animationDelay: "2s",
+            background: "radial-gradient(circle, color-mix(in srgb, var(--primary) 22%, transparent) 0%, color-mix(in srgb, var(--primary) 11%, transparent) 42%, transparent 72%)",
+          }}
+        />
       </div>
 
       {isAnimating && (
