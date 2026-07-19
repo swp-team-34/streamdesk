@@ -967,6 +967,90 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-004-authenticated-scoped-realtime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-004
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-005-active-workspace-tenant-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-005
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/adr/ADR-006-split-client-server-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-006
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1476,13 +1560,13 @@
 <p><strong>Scenario:</strong> When a change is submitted through the protected repository workflow under the standard GitHub Actions CI environment, the test and coverage configuration shall run automated tests and produce coverage output for the configured client, server, and shared TypeScript source set before the change is considered Done.</p>
 <p><strong>Why this matters:</strong> Maintainers need repeatable automated evidence that critical permission, access-control, and scheduling behavior remains testable over time.</p>
 <p><strong>Linked quality requirement tests:</strong> <a href="../quality-requirement-tests/#qrt-003-coverage-gate">QRT-003</a></p>
-<p><strong>Linked architecture decisions:</strong> <a href="../architecture/adr/ADR-003-unified-monorepo-coverage/">ADR-003</a></p>
+<p><strong>Linked architecture decisions:</strong> <a href="../architecture/adr/ADR-006-split-client-server-architecture/">ADR-006</a></p>
 <h2 id="qr-004-calendar-date-manipulation-correctness">QR-004: Calendar date manipulation correctness<a class="headerlink" href="#qr-004-calendar-date-manipulation-correctness" title="Permanent link">&para;</a></h2>
 <p><strong>ISO/IEC 25010 sub-characteristic:</strong> Functional correctness</p>
 <p><strong>Scenario:</strong> When a user creates, moves, resizes, or edits a scheduled task or calendar item under the normal web application environment, the calendar date helper module shall preserve the intended date range, quarter-hour alignment, and minimum duration for 100% of automated date-helper test cases.</p>
 <p><strong>Why this matters:</strong> Calendar and task scheduling are core workflows for v3.0.0-rc.1. Incorrect date calculations can place tasks in the wrong time slot or corrupt task planning.</p>
 <p><strong>Linked quality requirement tests:</strong> <a href="../quality-requirement-tests/#qrt-004-calendar-date-helper-tests">QRT-004</a></p>
-<p><strong>Linked architecture decisions:</strong> <a href="../architecture/adr/ADR-003-unified-monorepo-coverage/">ADR-003</a></p>
+<p><strong>Linked architecture decisions:</strong> <a href="../architecture/adr/ADR-006-split-client-server-architecture/">ADR-006</a></p>
 
 
 

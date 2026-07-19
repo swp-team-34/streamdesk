@@ -16,7 +16,7 @@
         <link rel="prev" href="../ADR-002-declarative-protected-route-wrapper/">
       
       
-        <link rel="next" href="../../../testing/">
+        <link rel="next" href="../ADR-004-authenticated-scoped-realtime/">
       
       
         
@@ -1120,6 +1120,90 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ADR-004-authenticated-scoped-realtime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-004
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ADR-005-active-workspace-tenant-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-005
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ADR-006-split-client-server-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-006
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1545,7 +1629,7 @@
 
 <h1 id="adr-003-unified-monorepo-test-and-coverage-configuration">ADR-003: Unified Monorepo Test and Coverage Configuration<a class="headerlink" href="#adr-003-unified-monorepo-test-and-coverage-configuration" title="Permanent link">&para;</a></h1>
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p>Accepted</p>
+<p>Superseded by: <a href="../ADR-006-split-client-server-architecture/">ADR-006</a></p>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
 <p>StreamDesk is structured as a monorepo containing client, server, and shared TypeScript code. Running separate test and coverage commands for each part fragments the coverage data, making it difficult to enforce a consistent automated regression coverage baseline across the entire codebase and complicating the CI pipeline configuration.</p>
 <p>If coverage is fragmented, maintainers cannot easily see the overall testability of the system, and it becomes hard to enforce that critical boundaries (like shared permission logic) are adequately tested.</p>

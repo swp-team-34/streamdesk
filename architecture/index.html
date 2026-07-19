@@ -1148,6 +1148,90 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/ADR-004-authenticated-scoped-realtime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-004
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/ADR-005-active-workspace-tenant-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-005
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/ADR-006-split-client-server-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR-006
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1672,9 +1756,10 @@
 <ul>
 <li><a href="adr/ADR-001-centralized-equipment-permissions/">ADR-001: Centralized Equipment Permission Evaluator</a></li>
 <li><a href="adr/ADR-002-declarative-protected-route-wrapper/">ADR-002: Declarative Protected Route Wrapper</a></li>
-<li><a href="adr/ADR-003-unified-monorepo-coverage/">ADR-003: Unified Monorepo Test and Coverage Configuration</a></li>
+<li><a href="adr/ADR-003-unified-monorepo-coverage/">ADR-003: Unified Monorepo Test and Coverage Configuration</a> (Superseded)</li>
 <li><a href="adr/ADR-004-authenticated-scoped-realtime/">ADR-004: Authenticated Scoped Realtime Transport</a></li>
 <li><a href="adr/ADR-005-active-workspace-tenant-boundary/">ADR-005: Validated Active Workspace Tenant Boundary</a></li>
+<li><a href="adr/ADR-006-split-client-server-architecture/">ADR-006: Split Client-Server Architecture</a></li>
 </ul>
 <h3 id="how-the-decisions-fit-together">How the decisions fit together<a class="headerlink" href="#how-the-decisions-fit-together" title="Permanent link">&para;</a></h3>
 <p>These five decisions form the foundation of our team's approach to <strong>security, functional correctness, and maintainability</strong>:</p>
@@ -1688,9 +1773,9 @@
 <li>
 <p><strong>Maintainability &amp; Testability (QR-003):</strong></p>
 </li>
-<li><strong>ADR-003</strong> ensures that the entire monorepo (client, server, and shared logic) is covered by a unified automated testing and coverage pipeline. </li>
+<li><strong>ADR-006</strong> establishes the split client, server, and shared architecture, ensuring clear separation of concerns while keeping types in sync.</li>
 <li>
-<p>Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable. ADR-003 guarantees that this testability is enforced automatically in CI, providing repeatable evidence that critical access-control behavior remains correct over time.</p>
+<p>Because the permission logic (ADR-001) and the routing guards (ADR-002) are isolated and pure, they are highly testable within this modular structure, providing repeatable evidence that critical access-control behavior remains correct over time.</p>
 </li>
 <li>
 <p><strong>Realtime Security &amp; Consistency (QR-002, QR-003):</strong></p>
