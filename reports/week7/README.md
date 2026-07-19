@@ -83,6 +83,6 @@
 32. **Embedded screenshots from `reports/week7/images/`:**
 
     - Sprint 5 milestone: ![Milestone](images/milestone.png)
-    - Final release: ![Release](images/release.png) TODO
+    - Final release: `![Release](images/release.png)` TODO
     - Final product access/deployment evidence: ![Deployment](images/deployment.png)
     - Example reviewed issue-linked PR/MR: ![PR example (1)](images/pr-example-1.png) ![PR example (2)](images/pr-example-2.png)
