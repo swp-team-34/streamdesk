@@ -1,10 +1,10 @@
 # Customer Handover
 
-Current, actual handover state of StreamDesk. Maintained throughout Assignment 6; updated
+Current, actual handover state of StreamDesk. Maintained throughout Assignment 7; updated
 whenever access, deployment, limitations, or transition status change. Summarizes the handover -
 follow the links for detail.
 
-Last updated: 2026-07-18 (Sprint 5 follow-up build and transition state verified).
+Last updated: 2026-07-19 (final MVP v3 release packaging state).
 
 ## 1. Status and Scope
 
@@ -13,11 +13,11 @@ task manager, calendar, projects, estimates, connection schemes, and machine mon
 isolated per company.
 
 Current deployed build: the latest Sprint 5 build from `main`, available in the
-team-controlled test environment at **[team34.ru](https://team34.ru/)**. The latest formal
-GitHub release is still
-**[v3.0.0-rc.1 (Week 6 trial / handover candidate)](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1)**.
-The final `MVP v3` SemVer release has not yet been published; Sprint 5 changes remain under
-`[Unreleased]` in `CHANGELOG.md`.
+team-controlled test environment at **[team34.ru](https://team34.ru/)**. The latest stable
+formal MVP v3 GitHub release is
+**[v3.0.0](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0)**.
+Sprint 5 changes are included in `v3.0.0`; `[Unreleased]` in `CHANGELOG.md` is reserved for
+future work after the final MVP v3 release.
 
 Sprint 5 ([milestone](https://github.com/swp-team-34/streamdesk/milestone/5), Week 7,
 July 13-19) completed the agreed follow-up product work: safer Warehouse kit workflows,
@@ -27,6 +27,7 @@ Calendar navigation, configurable Dashboard layouts, active-workspace isolation,
 creation/onboarding recovery, module decomposition, and the shared light/dark UI system.
 See [roadmap.md](roadmap.md), the
 [Week 6 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md),
+the [Week 7 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week7/README.md),
 and the maintained [changelog](../CHANGELOG.md).
 
 Scope: the deployed application, source repository, maintained docs, and guidance to run,
@@ -122,7 +123,6 @@ Current limitations after the Sprint 5 follow-up build:
 | Area | Description | Issue/action | Status |
 | --- | --- | --- | --- |
 | Calendar timeline | First-load initialization and toolbar-period updates are fixed. Progressive adjacent-date buffering and active-scroll rebasing still need follow-up validation under sustained fast scrolling. | [#252](https://github.com/swp-team-34/streamdesk/issues/252) | Deferred to later maintenance; not a Sprint 5 handover blocker |
-| Final release | Sprint 5 changes are deployed from `main` but are not yet packaged as the final higher-precedence `MVP v3` SemVer release. | Assignment 6 Part 7 | Pending |
 | Customer-side operation | The customer-owned VPS deployment is the agreed operating model, but setup and end-to-end verification on that VPS are not yet recorded. The team-controlled `team34.ru` instance remains the test/evaluation environment. | Transition action | Pending |
 | Secondary modules | Estimates and connection schemes remain usable but received less customer validation than the core Kanban V2, Calendar, Projects, Locations, Warehouse, and Dashboard workflows. | Future customer-led validation | Follow-up |
 
@@ -151,16 +151,12 @@ issue tracker to prioritize future product work and maintenance follow-ups.
 
 The stronger `Deployed or operated on customer side` level is the agreed next operating step,
 not a completed evidence claim: the current accessible instance remains team-controlled, while
-the customer intends to deploy the accepted product on a separate customer-owned VPS. The final
-`MVP v3` tag/release is also still pending even though the latest Sprint 5 build is deployed.
+the customer intends to deploy the accepted product on a separate customer-owned VPS.
 
 ## 9. Remaining Actions
 
-**Required to finish Assignment 6 delivery packaging:**
+**Required to finish Assignment 7 delivery packaging:**
 
-- Publish the final higher-precedence `MVP v3` SemVer release from protected `main`, move the
-  accepted `[Unreleased]` changes into the dated release section, and link the Sprint 5 milestone,
-  current access instructions, this handover, the Week 7 report, and sanitized demo evidence.
 - Keep `team34.ru` available as the team-controlled evaluation environment until grading and the
   agreed test period are complete.
 
@@ -186,9 +182,9 @@ without exposing private credentials. The customer reviewed the updated handover
 the Sprint 5 meeting and confirmed that it was understandable. The maintained documentation is
 sufficient for the reached **Ready for independent use** level.
 
-Limited team support is still necessary for final `MVP v3` release packaging and the first
-customer-owned VPS deployment/recovery exercise. After that exercise, routine operation,
-customer-owned secrets, backups, updates, and future issue prioritization belong to the customer.
+Limited team support is still necessary for the first customer-owned VPS deployment/recovery
+exercise. After that exercise, routine operation, customer-owned secrets, backups, updates, and
+future issue prioritization belong to the customer.
 
 ## 11. Related Documentation
 
@@ -199,5 +195,6 @@ customer-owned secrets, backups, updates, and future issue prioritization belong
 - [architecture/README.md](architecture/README.md) - static/dynamic/deployment views, ADRs.
 - [user-acceptance-tests.md](user-acceptance-tests.md)
 - [definition-of-done.md](definition-of-done.md)
+- [Week 7 report](https://github.com/swp-team-34/streamdesk/blob/main/reports/week7/README.md)
 - [Hosted documentation site](https://swp-team-34.github.io/streamdesk/)
 - `.env.example` - sanitized configuration reference.

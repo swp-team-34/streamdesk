@@ -10,6 +10,14 @@ changes are collected under `Unreleased`.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v3.0.0] - 2026-07-19
+
+### Added
+
 - Added company workspace creation from the active workspace selector, with
   autosave flushing and immediate activation of the new company context.
 - Added workspace-scoped Calendar event types, persisted event colors,
@@ -26,6 +34,8 @@ changes are collected under `Unreleased`.
 - Added company-scoped Warehouse settings for categories, subcategories, and hierarchical storage locations, including ordering, archiving, usage counts, and selection during equipment creation, editing, and return.
 - Added deterministic Kanban V2 smart input for dates, ranges, times, priorities, and company-scoped assignee mentions, with preview, cancellation, and contextual help.
 - Added distinct Kanban V2 initiator, responsible-person, and multiple-assignee roles with company validation, activity history, filters, and workload-aware statistics.
+- Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
+- Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
 
 ### Changed
 
@@ -38,6 +48,7 @@ changes are collected under `Unreleased`.
 - Changed existing Warehouse equipment, equipment notes, and project editors to debounce and autosave valid updates, flush pending changes before close, refresh related workspace data, and report progress through the global synchronization indicator. Creation workflows still require explicit confirmation.
 - Changed Warehouse cards, filters, kit creation, and exports to use configured categories while retaining legacy equipment types only as a compatibility fallback.
 - Changed Kanban V2 card creation and editing to use a compact common-fields workflow, progressive disclosure for secondary content, contextual custom-field filter guidance, and accessible quick actions.
+- Rebuilt Dashboard layout persistence with direct drag/resize, deterministic collision reflow, two confirmed reset modes, responsive fallback controls, and the Sprint 5 operational project/task/equipment/location widgets.
 
 ### Fixed
 
@@ -54,10 +65,7 @@ changes are collected under `Unreleased`.
 - Fixed cross-company reads and mutations in Calendar, Kanban V2, tasks, Locations, projects, Warehouse, Dashboard, users, notifications, systems, streams, reservations, and realtime subscriptions by enforcing one validated active workspace on the server.
 - Fixed first-membership fallbacks during record creation; new events, tasks, projects, boards, equipment, Locations, systems, and streams now inherit the selected workspace.
 - Fixed kit component take, request, transfer, project assignment, approval, delete, and return paths with server-enforced extraction, parent-kit return guidance, safe disassembly on kit deletion, orphan-link recovery, active-kit manager escalation, and override auditing.
-- Added company-scoped Location workspaces with maintained address/context, notes, files, update audit details, reversible archiving, archive filters, and active-link confirmation.
-- Added bidirectional many-to-many Location links for Kanban V2 cards and projects, including reverse navigation, archived-link preservation, and high-severity venue warnings.
 - Fixed first-click project board opening, remembered the selected Kanban V2 board per user/workspace, and refreshed card equipment immediately after Warehouse deletion.
-- Rebuilt Dashboard layout persistence with direct drag/resize, deterministic collision reflow, two confirmed reset modes, responsive fallback controls, and the Sprint 5 operational project/task/equipment/location widgets.
 - Fixed Kanban V2 overdue status across Calendar, board/list/details, project statistics, and Dashboard by using one Moscow-timezone rule, excluding completed cards, and refreshing deadline state while views remain open.
 - Fixed equipment return flows to require a storage destination and clear the previous active Location so returned items no longer show stale "Сейчас" data.
 
