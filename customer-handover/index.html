@@ -1623,9 +1623,11 @@ configure, and troubleshoot the product without the dev team present.</p>
   and topics, Warehouse inventory/checkout/kits/settings, customizable Dashboard, estimates,
   connection schemes, monitoring-agent downloads, monitoring, streaming, and the related
   administration workflows.</li>
-<li><strong>Customer result:</strong> the customer independently completed the Week 6 trial and accepted the
-  current product for the reached handover level. Current handover level:
-  <strong>Ready for independent use</strong>. Customer-confirmation status: <strong>Accepted</strong>.</li>
+<li><strong>Customer result:</strong> the customer independently completed the Week 6 trial. The Sprint 5 build
+  was reviewed in a team-led demonstration and described by the customer as a strong working tool
+  for tasks, projects, and Warehouse operations. Current handover level:
+  <strong>Ready for independent use</strong>. Customer-confirmation status:
+  <strong>Accepted with follow-up items</strong>.</li>
 </ul>
 <h2 id="3-installation-and-deployment">3. Installation and Deployment<a class="headerlink" href="#3-installation-and-deployment" title="Permanent link">&para;</a></h2>
 <p><code>team34.ru</code> is the current course-evaluation and test access path. Its domain, VPS/SSH access,
@@ -1677,7 +1679,9 @@ and integration keys if exposed; HTTPS is required in production.</p>
 <li>Known follow-up work: <a href="#7-known-limitations">Section 7</a>, linked where a public issue exists.</li>
 <li>Escalation until transition completes: open a GitHub issue on
   <a href="https://github.com/swp-team-34/streamdesk">swp-team-34/streamdesk</a>, or raise it at a Sprint
-  Review. Direct team support ends at course end (<a href="#9-remaining-actions">Section 9</a>).</li>
+  Review. The team remains available for initial customer-side integration and deployment
+  questions; any ongoing support after transition must be agreed separately
+  (<a href="#9-remaining-actions">Section 9</a>).</li>
 </ul>
 <h2 id="7-known-limitations">7. Known Limitations<a class="headerlink" href="#7-known-limitations" title="Permanent link">&para;</a></h2>
 <p>Current limitations after the Sprint 5 follow-up build:</p>
@@ -1695,7 +1699,7 @@ and integration keys if exposed; HTTPS is required in production.</p>
 <td>Calendar timeline</td>
 <td>First-load initialization and toolbar-period updates are fixed. Progressive adjacent-date buffering and active-scroll rebasing still need follow-up validation under sustained fast scrolling.</td>
 <td><a href="https://github.com/swp-team-34/streamdesk/issues/252">#252</a></td>
-<td>Open follow-up</td>
+<td>Deferred to later maintenance; not a Sprint 5 handover blocker</td>
 </tr>
 <tr>
 <td>Final release</td>
@@ -1723,11 +1727,13 @@ links, Dashboard layouts, workspace isolation, and common UI consistency were ad
 Sprint 5. These resolved items are no longer transition blockers.</p>
 <h2 id="8-handover-status">8. Handover Status<a class="headerlink" href="#8-handover-status" title="Permanent link">&para;</a></h2>
 <p><strong>Reached handover level: Ready for independent use, as of 2026-07-18.</strong></p>
-<p><strong>Customer-confirmation status: Accepted.</strong></p>
-<p>The customer independently used the Week 6 trial, and the agreed Sprint 5 fixes are now present
-in the current <code>main</code> build available at <code>team34.ru</code>. The accepted transition scope covers normal
-product use, company/personal workspace selection, and the documentation required to understand,
-run, verify, and troubleshoot the application. See
+<p><strong>Customer-confirmation status: Accepted with follow-up items.</strong></p>
+<p>The customer independently used the Week 6 trial. During the Sprint 5 meeting, the team
+demonstrated the latest <code>main</code> build available at <code>team34.ru</code>; the customer described it as a
+strong working tool that can already be used for tasks, projects, and Warehouse operations. The
+customer also reviewed the updated handover material and confirmed that it was understandable.
+The accepted transition scope covers normal product use, company/personal workspace selection,
+and the documentation required to understand, run, verify, and troubleshoot the application. See
 <a href="../user-acceptance-tests/">user-acceptance-tests.md</a> and the
 <a href="https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/sprint-review-summary.md">Week 6 review summary</a>.</p>
 <p>The customer remains the intended product owner after handover and can use the public GitHub
@@ -1749,9 +1755,10 @@ the customer intends to deploy the accepted product on a separate customer-owned
 <ul>
 <li>Provision the customer's own VPS, use customer-owned secrets/domain/TLS/backup policy, execute
   the deployment checklist in Section 3, and record an end-to-end health/onboarding/core-workflow
-  verification. Team test-server credentials must not be copied or disclosed.</li>
-<li>Agree on whether <a href="https://github.com/swp-team-34/streamdesk/issues/252">#252</a> is completed by
-  the team before the final release or retained as customer-led maintenance after transition.</li>
+  verification. Team test-server credentials must not be copied or disclosed. The team remains
+  available to assist with the initial integration and deployment.</li>
+<li>Test Warehouse workflows, including scanning, in the customer-owned environment and record any
+  additional feedback discovered during practical use.</li>
 <li>Use the public GitHub issue tracker for future product defects and improvements. The repository
   needs no separate ownership transfer: it is MIT-licensed and remains accessible to the customer
   and university.</li>
@@ -1759,10 +1766,11 @@ the customer intends to deploy the accepted product on a separate customer-owned
 <h2 id="10-documentation-sufficiency">10. Documentation Sufficiency<a class="headerlink" href="#10-documentation-sufficiency" title="Permanent link">&para;</a></h2>
 <p>Current docs (this file, <code>README.md</code>, <a href="../testing/">testing.md</a>,
 <a href="../quality-requirements/">quality-requirements.md</a>, <a href="../architecture/">architecture/README.md</a>,
-<a href="https://swp-team-34.github.io/streamdesk/">hosted site</a>) are accepted as sufficient for the
-reached <strong>Ready for independent use</strong> level. They cover normal access, local/server setup,
+<a href="https://swp-team-34.github.io/streamdesk/">hosted site</a>) cover normal access, local/server setup,
 configuration names, verification, troubleshooting, tests, architecture, and current limitations
-without exposing private credentials.</p>
+without exposing private credentials. The customer reviewed the updated handover material during
+the Sprint 5 meeting and confirmed that it was understandable. The maintained documentation is
+sufficient for the reached <strong>Ready for independent use</strong> level.</p>
 <p>Limited team support is still necessary for final <code>MVP v3</code> release packaging and the first
 customer-owned VPS deployment/recovery exercise. After that exercise, routine operation,
 customer-owned secrets, backups, updates, and future issue prioritization belong to the customer.</p>
