@@ -130,7 +130,7 @@ The user easily and intuitively executed the whole process with no complainings 
 
 - **Scenario ID:** UAT-004A
 - **Title:** Verify equipment destination and optional project/Kanban V2 context
-- **Status:** Ready for execution
+- **Status:** Passed
 - **Related feature:** Warehouse, Locations, Projects, Kanban V2
 
 ### Objective
@@ -197,7 +197,7 @@ All steps are executed with no problems. The coloring is eye-catching enough and
 
 - **Scenario ID:** UAT-006
 - **Title:** Verify Location status visibility, filtering, and threaded note/problem workflows
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Location workspaces, threaded topics, Kanban V2 and project links
 
 ### Objective
@@ -235,7 +235,7 @@ To be filled
 
 - **Scenario ID:** UAT-007
 - **Title:** Verify project-specific Kanban board creation, membership sync, and Task Manager compact sorting UX
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Projects, Task Manager
 
 ### Objective
@@ -270,7 +270,7 @@ To be filled
 
 - **Scenario ID:** UAT-008
 - **Title:** Verify users can drag and drop Dashboard widgets to rearrange their workspace
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Dashboard
 
 ### Objective
@@ -299,7 +299,7 @@ To be filled
 
 - **Scenario ID:** UAT-009
 - **Title:** Verify existing Warehouse and project records save automatically and synchronize globally
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Warehouse, Projects, Global Sync
 
 ### Objective
@@ -331,7 +331,7 @@ To be filled
 
 - **Scenario ID:** UAT-010
 - **Title:** Verify widget resizing via handles, reset options, and new Sprint 5 operational widgets
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Dashboard
 
 ### Objective
@@ -367,13 +367,13 @@ Resize handles work and snap to grid; S/M/L/XL selector is removed. Reset option
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-011 — Verify Equipment Categories, Storage Locations, Kit Expansion, and Physical/Work Context
 
 - **Scenario ID:** UAT-011
 - **Title:** Verify equipment taxonomy maintenance, storage location hierarchy, kit component expansion, and destination/work-context assignment
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Warehouse
 
 ### Objective
@@ -408,13 +408,13 @@ Category and storage-location hierarchies are maintainable with archive/restore,
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-012 — Verify Production Location Editing, Bidirectional Links, and Threaded Discussions
 
 - **Scenario ID:** UAT-012
 - **Title:** Verify production location metadata editing, bidirectional linking with cards/projects, and threaded topic discussions with photos
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Locations
 
 ### Objective
@@ -449,13 +449,13 @@ Location metadata edits persist with auditing. Archiving warns about active link
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-013 — Verify Free Horizontal Scrolling in Calendar Timeline Views
 
 - **Scenario ID:** UAT-013
 - **Title:** Verify free horizontal scrolling and day-boundary snapping in Day, 3 Days, and Week Calendar views
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Calendar
 
 ### Objective
@@ -490,13 +490,13 @@ Day, 3 Days, and Week views support free horizontal navigation through horizonta
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-014 — Verify Project Statistics, Autosave for Projects/Equipment, and Active Workspace Switching
 
 - **Scenario ID:** UAT-014
 - **Title:** Verify detailed project statistics, autosave behavior on edits, and active company/personal workspace switching
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Projects, Global Workspace
 
 ### Objective
@@ -537,13 +537,13 @@ Project statistics show accurate linked metrics across tasks, people, locations,
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-015 — Verify Kanban V2 Workflow, Collaboration, and Equipment Links
 
 - **Scenario ID:** UAT-015
 - **Title:** Verify board persistence, card workflow, collaboration, and synchronized equipment links
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Kanban V2, Warehouse, Projects
 
 ### Objective
@@ -572,13 +572,13 @@ The active board is preserved only within the authorized workspace. Card edits p
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
 
 ## UAT-016 — Verify Safe Warehouse Kit Lifecycle and Equipment History
 
 - **Scenario ID:** UAT-016
 - **Title:** Verify nested kits, safe component operations, storage locations, and equipment activity history
-- **Status:** Draft
+- **Status:** Passed
 - **Related feature:** Warehouse, Equipment, Projects
 
 ### Objective
@@ -608,4 +608,4 @@ Nested kits preserve a valid acyclic hierarchy. Component actions and kit deleti
 
 ### Execution result
 
-To be filled
+All test steps were executed successfully. The customer verified the functionality in the Sprint 5 follow-up build and confirmed the behavior meets expectations without any issues.
