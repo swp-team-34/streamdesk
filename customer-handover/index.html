@@ -1667,20 +1667,20 @@
 
 
 <h1 id="customer-handover">Customer Handover<a class="headerlink" href="#customer-handover" title="Permanent link">&para;</a></h1>
-<p>Current, actual handover state of StreamDesk. Maintained throughout Assignment 6; updated
+<p>Current, actual handover state of StreamDesk. Maintained throughout Assignment 7; updated
 whenever access, deployment, limitations, or transition status change. Summarizes the handover -
 follow the links for detail.</p>
-<p>Last updated: 2026-07-18 (Sprint 5 follow-up build and transition state verified).</p>
+<p>Last updated: 2026-07-19 (final MVP v3 release packaging state).</p>
 <h2 id="1-status-and-scope">1. Status and Scope<a class="headerlink" href="#1-status-and-scope" title="Permanent link">&para;</a></h2>
 <p>StreamDesk is a multi-tenant workflow platform for event/production teams: equipment warehouse,
 task manager, calendar, projects, estimates, connection schemes, and machine monitoring,
 isolated per company.</p>
 <p>Current deployed build: the latest Sprint 5 build from <code>main</code>, available in the
-team-controlled test environment at <strong><a href="https://team34.ru/">team34.ru</a></strong>. The latest formal
-GitHub release is still
-<strong><a href="https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0-rc.1">v3.0.0-rc.1 (Week 6 trial / handover candidate)</a></strong>.
-The final <code>MVP v3</code> SemVer release has not yet been published; Sprint 5 changes remain under
-<code>[Unreleased]</code> in <code>CHANGELOG.md</code>.</p>
+team-controlled test environment at <strong><a href="https://team34.ru/">team34.ru</a></strong>. The latest stable
+formal MVP v3 GitHub release is
+<strong><a href="https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0">v3.0.0</a></strong>.
+Sprint 5 changes are included in <code>v3.0.0</code>; <code>[Unreleased]</code> in <code>CHANGELOG.md</code> is reserved for
+future work after the final MVP v3 release.</p>
 <p>Sprint 5 (<a href="https://github.com/swp-team-34/streamdesk/milestone/5">milestone</a>, Week 7,
 July 13-19) completed the agreed follow-up product work: safer Warehouse kit workflows,
 configurable Warehouse taxonomy and storage, equipment activity and work-context links,
@@ -1689,6 +1689,7 @@ Calendar navigation, configurable Dashboard layouts, active-workspace isolation,
 creation/onboarding recovery, module decomposition, and the shared light/dark UI system.
 See <a href="../roadmap/">roadmap.md</a>, the
 <a href="https://github.com/swp-team-34/streamdesk/blob/main/reports/week6/README.md">Week 6 report</a>,
+the <a href="https://github.com/swp-team-34/streamdesk/blob/main/reports/week7/README.md">Week 7 report</a>,
 and the maintained <a href="../CHANGELOG.md">changelog</a>.</p>
 <p>Scope: the deployed application, source repository, maintained docs, and guidance to run,
 configure, and troubleshoot the product without the dev team present.</p>
@@ -1786,12 +1787,6 @@ and integration keys if exposed; HTTPS is required in production.</p>
 <td>Deferred to later maintenance; not a Sprint 5 handover blocker</td>
 </tr>
 <tr>
-<td>Final release</td>
-<td>Sprint 5 changes are deployed from <code>main</code> but are not yet packaged as the final higher-precedence <code>MVP v3</code> SemVer release.</td>
-<td>Assignment 6 Part 7</td>
-<td>Pending</td>
-</tr>
-<tr>
 <td>Customer-side operation</td>
 <td>The customer-owned VPS deployment is the agreed operating model, but setup and end-to-end verification on that VPS are not yet recorded. The team-controlled <code>team34.ru</code> instance remains the test/evaluation environment.</td>
 <td>Transition action</td>
@@ -1824,14 +1819,10 @@ and the documentation required to understand, run, verify, and troubleshoot the 
 issue tracker to prioritize future product work and maintenance follow-ups.</p>
 <p>The stronger <code>Deployed or operated on customer side</code> level is the agreed next operating step,
 not a completed evidence claim: the current accessible instance remains team-controlled, while
-the customer intends to deploy the accepted product on a separate customer-owned VPS. The final
-<code>MVP v3</code> tag/release is also still pending even though the latest Sprint 5 build is deployed.</p>
+the customer intends to deploy the accepted product on a separate customer-owned VPS.</p>
 <h2 id="9-remaining-actions">9. Remaining Actions<a class="headerlink" href="#9-remaining-actions" title="Permanent link">&para;</a></h2>
-<p><strong>Required to finish Assignment 6 delivery packaging:</strong></p>
+<p><strong>Required to finish Assignment 7 delivery packaging:</strong></p>
 <ul>
-<li>Publish the final higher-precedence <code>MVP v3</code> SemVer release from protected <code>main</code>, move the
-  accepted <code>[Unreleased]</code> changes into the dated release section, and link the Sprint 5 milestone,
-  current access instructions, this handover, the Week 7 report, and sanitized demo evidence.</li>
 <li>Keep <code>team34.ru</code> available as the team-controlled evaluation environment until grading and the
   agreed test period are complete.</li>
 </ul>
@@ -1855,9 +1846,9 @@ configuration names, verification, troubleshooting, tests, architecture, and cur
 without exposing private credentials. The customer reviewed the updated handover material during
 the Sprint 5 meeting and confirmed that it was understandable. The maintained documentation is
 sufficient for the reached <strong>Ready for independent use</strong> level.</p>
-<p>Limited team support is still necessary for final <code>MVP v3</code> release packaging and the first
-customer-owned VPS deployment/recovery exercise. After that exercise, routine operation,
-customer-owned secrets, backups, updates, and future issue prioritization belong to the customer.</p>
+<p>Limited team support is still necessary for the first customer-owned VPS deployment/recovery
+exercise. After that exercise, routine operation, customer-owned secrets, backups, updates, and
+future issue prioritization belong to the customer.</p>
 <h2 id="11-related-documentation">11. Related Documentation<a class="headerlink" href="#11-related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="https://github.com/swp-team-34/streamdesk/blob/main/README.md">README.md</a> - overview, stack, setup.</li>
@@ -1867,6 +1858,7 @@ customer-owned secrets, backups, updates, and future issue prioritization belong
 <li><a href="../architecture/">architecture/README.md</a> - static/dynamic/deployment views, ADRs.</li>
 <li><a href="../user-acceptance-tests/">user-acceptance-tests.md</a></li>
 <li><a href="../definition-of-done/">definition-of-done.md</a></li>
+<li><a href="https://github.com/swp-team-34/streamdesk/blob/main/reports/week7/README.md">Week 7 report</a></li>
 <li><a href="https://swp-team-34.github.io/streamdesk/">Hosted documentation site</a></li>
 <li><code>.env.example</code> - sanitized configuration reference.</li>
 </ul>
