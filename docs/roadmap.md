@@ -30,9 +30,15 @@ This document describes the sprint-by-sprint delivery plan for the project. For 
 - **Focus**: All features modifiation. Completing the product and pre-final verification
 - **Planned Items**: [US-019](https://github.com/swp-team-34/streamdesk/issues/160), [US-018](https://github.com/swp-team-34/streamdesk/issues/159), [US-016](https://github.com/swp-team-34/streamdesk/issues/113), [US-007](https://github.com/swp-team-34/streamdesk/issues/59), [US-004](https://github.com/swp-team-34/streamdesk/issues/56), [#158](https://github.com/swp-team-34/streamdesk/issues/158), [#157](https://github.com/swp-team-34/streamdesk/issues/157), [#156](https://github.com/swp-team-34/streamdesk/issues/156), [#155](https://github.com/swp-team-34/streamdesk/issues/155), [#111](https://github.com/swp-team-34/streamdesk/issues/111)
 
-## Sprint 5: Refining the Product and Work Delivery
-- **Milestone**: [Sprint 5]
+## Sprint 5: Refining the Product and Work Delivery (MVP v3 Final)
+- **Milestone**: [Sprint 5](https://github.com/swp-team-34/streamdesk/milestone/5)
 - **Dates**: July 13, 2026 - July 19, 2026
 - **Sprint Goal**: Refine the product and deliver the work to the customer
-- **Focus**: Completing final tasks elicitated from the customer during the sprint 4 review
-- **Planned Items**: TBD
+- **Focus**: Completing final tasks elicitated from the customer during the sprint 4 review, achieving the MVP v3 state, and transitioning the product for independent customer use by the end of the course.
+- **Planned Items**:
+  - **Architecture & Infrastructure**: [#234](https://github.com/swp-team-34/streamdesk/issues/234), [#233](https://github.com/swp-team-34/streamdesk/issues/233), [#222](https://github.com/swp-team-34/streamdesk/issues/222)
+  - **Workspace & Data Isolation**: [US-042](https://github.com/swp-team-34/streamdesk/issues/251), [US-040](https://github.com/swp-team-34/streamdesk/issues/232), [#231](https://github.com/swp-team-34/streamdesk/issues/231), [#250](https://github.com/swp-team-34/streamdesk/issues/250)
+  - **Warehouse Management**: [US-041](https://github.com/swp-team-34/streamdesk/issues/238), [US-039](https://github.com/swp-team-34/streamdesk/issues/230), [US-038](https://github.com/swp-team-34/streamdesk/issues/223), [US-031](https://github.com/swp-team-34/streamdesk/issues/211), [US-030](https://github.com/swp-team-34/streamdesk/issues/210), [US-029](https://github.com/swp-team-34/streamdesk/issues/209), [US-028](https://github.com/swp-team-34/streamdesk/issues/208), [#219](https://github.com/swp-team-34/streamdesk/issues/219)
+  - **Kanban & Projects**: [US-037](https://github.com/swp-team-34/streamdesk/issues/217), [US-036](https://github.com/swp-team-34/streamdesk/issues/216), [US-035](https://github.com/swp-team-34/streamdesk/issues/215), [US-034](https://github.com/swp-team-34/streamdesk/issues/214), [US-033](https://github.com/swp-team-34/streamdesk/issues/213), [US-032](https://github.com/swp-team-34/streamdesk/issues/212), [US-026](https://github.com/swp-team-34/streamdesk/issues/206), [#220](https://github.com/swp-team-34/streamdesk/issues/220), [#221](https://github.com/swp-team-34/streamdesk/issues/221)
+  - **Locations & Calendar**: [US-027](https://github.com/swp-team-34/streamdesk/issues/207), [US-025](https://github.com/swp-team-34/streamdesk/issues/205), [US-024](https://github.com/swp-team-34/streamdesk/issues/204)
+  - **Dashboard & UI**: [#218](https://github.com/swp-team-34/streamdesk/issues/218), [#253](https://github.com/swp-team-34/streamdesk/issues/253), [#254](https://github.com/swp-team-34/streamdesk/issues/254)
