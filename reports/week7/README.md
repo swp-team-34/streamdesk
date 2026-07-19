@@ -54,8 +54,13 @@
 22. **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
 23. **Public sanitized demo video:** [Link](https://disk.yandex.ru/i/bk_02S8cY8zV4g)
 24. **Demo Day preparation summary:**
+    - Add requirements slide with their prioritisation
+    - Update tests, add coverage percentage
+    - Customer feedback -> our solution interactions
+    - Update dates to actual
+    - Update roadmap to actual
+    - Minor fixes
     - The required Week 7 rehearsal preparation was completed. All team members are prepared to present and participate in Demo Day.
-    - TODO: @TripleA89
 25. **Sprint Review transcript/notes:** [Link](sprint-review-transcript.md)
 26. **Sprint Review summary:** [Link](sprint-review-summary.md)
 27. **Reflection:** [Link](reflection.md)
