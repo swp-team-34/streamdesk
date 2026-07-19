@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by: [ADR-006](ADR-006-split-client-server-architecture.md)
 
 ## Context
 

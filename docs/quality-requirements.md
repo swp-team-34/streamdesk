@@ -43,7 +43,7 @@ This document defines maintained measurable quality requirements for StreamDesk 
 
 **Linked quality requirement tests:** [QRT-003](quality-requirement-tests.md#qrt-003-coverage-gate)
 
-**Linked architecture decisions:** [ADR-003](architecture/adr/ADR-003-unified-monorepo-coverage.md)
+**Linked architecture decisions:** [ADR-006](architecture/adr/ADR-006-split-client-server-architecture.md)
 
 ## QR-004: Calendar date manipulation correctness
 
@@ -55,4 +55,4 @@ This document defines maintained measurable quality requirements for StreamDesk 
 
 **Linked quality requirement tests:** [QRT-004](quality-requirement-tests.md#qrt-004-calendar-date-helper-tests)
 
-**Linked architecture decisions:** [ADR-003](architecture/adr/ADR-003-unified-monorepo-coverage.md)
+**Linked architecture decisions:** [ADR-006](architecture/adr/ADR-006-split-client-server-architecture.md)
