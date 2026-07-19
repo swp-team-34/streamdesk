@@ -50,7 +50,7 @@
 20. **Relevant Week 7 UAT or customer-trial results summary:**
     - Scenarios UAT-006 through UAT-016 (testing new Warehouse logic, Locations, Workspace isolation, and UI features) were executed and marked as Passed.
 ## Release, Demo, and Review Evidence
-21. **Final SemVer release (MVP v3):** [INSERT RELEASE LINK HERE]
+21. **Final SemVer release (MVP v3):** [Link](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0)
 22. **CHANGELOG.md:** [Link](https://github.com/swp-team-34/streamdesk/blob/main/CHANGELOG.md)
 23. **Public sanitized demo video:** [Link](https://disk.yandex.ru/i/bk_02S8cY8zV4g)
 24. **Demo Day preparation summary:**
@@ -83,6 +83,6 @@
 32. **Embedded screenshots from `reports/week7/images/`:**
 
     - Sprint 5 milestone: ![Milestone](images/milestone.png)
-    - Final release: `![Release](images/release.png)` TODO
+    - Final release: ![Release](images/release.png)
     - Final product access/deployment evidence: ![Deployment](images/deployment.png)
     - Example reviewed issue-linked PR/MR: ![PR example (1)](images/pr-example-1.png) ![PR example (2)](images/pr-example-2.png)
