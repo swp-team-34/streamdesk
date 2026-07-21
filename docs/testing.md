@@ -1,27 +1,99 @@
 # Testing
 
-This document describes the current maintained testing and QA evidence for StreamDesk `v3.0.0-rc.1`.
+This document describes the maintained testing and QA evidence for the final StreamDesk `v3.0.0` release.
 
-## Critical Modules and Coverage
+## General Information
 
-| Critical module | Why critical | Target line coverage | Current line coverage | Evidence |
-| --- | --- | ---: | ---: | --- |
-| `client/src/lib/equipment-permissions.ts` | Controls equipment create, edit, and reserve permission decisions for inventory workflows. | 30% | 100% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
-| `client/src/components/protected-route.tsx` | Controls access to protected application areas for anonymous, unauthorized, and authorized users. | 30% | 73.33% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
-| `client/src/lib/task-dates.ts` | Supports calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination. | 30% | 55.71% | Latest successful `Quality` workflow run on `main` (2026-07-11). |
+| Item | Value |
+| --- | --- |
+| Product version | `v3.0.0` |
+| Verification date | 2026-07-21 |
+| Tested commit | `ba7895e0eb94722a09a3696db0d81622f0888ed9` |
+| Final release | [MVP v3 / `v3.0.0`](https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0) |
+| Release tag commit | `5992de1e7c5d8f2dcb9a780011f896de7fa5c382` |
 
-Critical modules are selected by product risk: permission checks, access control, inventory operations, calendar/task scheduling, user data access, and flows that many users depend on.
+The tested commit is the latest `main` commit after final-release documentation merges. No test files, `package.json`, `vitest.config.ts`, workflow files, or maintained testing documents changed between the `v3.0.0` tag commit and the tested commit.
 
-## Automated Test Status
+## Automated Test Types
 
-| Check | Command or workflow | Current purpose | Evidence |
+The automated suite is run by Vitest with the shared configuration in `vitest.config.ts`.
+
+- Unit tests cover model helpers, date/deadline rules, permission helpers, filters, sorting, cache updates, and shared utility behavior.
+- React component tests run in `jsdom` with React Testing Library for protected routing, workspace controls, dashboard, warehouse, Kanban V2, locations, projects, and shared UI controls.
+- Express route integration tests exercise server route handlers with in-process Express apps and mocked/in-memory storage where configured by the tests.
+- HTTP/WebSocket integration tests start temporary HTTP/WebSocket infrastructure for authenticated realtime discussion transport checks.
+- Shared model and utility tests cover shared calendar event types, task deadlines, UI accent values, and UI preferences.
+
+## Covered Areas
+
+The final test suite contains direct automated coverage for:
+
+- authentication routing and protected route rendering;
+- onboarding recovery for pending users;
+- equipment permission decisions;
+- active workspace selection and workspace switch flushing;
+- company and personal workspace isolation in server routes and client cache handling;
+- Calendar date helpers, deadlines, all-day events, timeline buffering, and timeline initialization;
+- Kanban V2 board/card models, card details, filters, labels, custom fields, equipment links, list rows, and board navigation/settings controls;
+- Dashboard layout helpers, operational widgets, status cards, navigation, compact spacing, and scoped layout loading;
+- Warehouse equipment cards, forms, filters, checkout/return flows, pending requests, history/cart sheets, and equipment route behavior;
+- equipment kits, kit composition, extraction, nested kits, active-kit approval, and kit safety routes;
+- Locations and Projects models, dialogs, cards, project task stats, project edit forms, location-topic routes, and project/Kanban links;
+- realtime/WebSocket session rejection, company-isolated subscriptions, and identifier-only delivery to authorized clients;
+- shared UI controls and preferences, including app dialogs, theme provider, StreamSelect, multi-select, date/time/color controls, accent values, and preference routes.
+
+This list only includes areas backed by test files and assertions in the current repository.
+
+## Current Results
+
+| Check | Command or workflow | Result | Evidence |
 | --- | --- | --- | --- |
-| TypeScript check | `npm run check` | Verifies TypeScript type safety across the configured project. | Passed locally on 2026-07-16; CI confirmation pending. |
-| Vitest test suite | `npm test` | Runs unit, component, route, and authenticated WebSocket integration tests across client and server code. | 24 test files and 114 tests passed locally on 2026-07-16; CI confirmation pending. |
-| Coverage | `npm run coverage` | Produces coverage output for configured client, server, and shared TypeScript sources. | 24 test files and 114 tests passed locally on 2026-07-16 with 2.87% line coverage; CI confirmation pending. |
-| Build | `npm run build` | Verifies the production client and server build. | Passed locally on 2026-07-16; CI confirmation pending. |
-| Dependency audit | `npm audit --audit-level=critical` | Checks for critical dependency vulnerabilities as the additional QA gate. | Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain. |
-| Link checking | `Link Check` workflow | Runs Lychee against repository links using `lychee.toml`. | GitHub Actions link-check workflow. |
+| Dependency installation | `npm ci` | Passed on 2026-07-21; npm reported peer/deprecation warnings and 27 non-critical audit findings during install. | Local run on tested commit. |
+| TypeScript check | `npm run check` | Passed. | Local run on tested commit; latest successful [Quality run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162584). |
+| Vitest | `npm test` | Passed: 132 test files, 427 tests. | Local run on tested commit; latest successful [Quality run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162584). |
+| Coverage | `npm run coverage` | Passed: 132 test files, 427 tests; coverage report generated. | Local run on tested commit; latest successful [Quality run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162584). |
+| Build | `npm run build` | Passed; Vite reported existing CSS minification and large chunk warnings. | Local run on tested commit; latest successful [Quality run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162584). |
+| Critical dependency audit | `npm audit --audit-level=critical` | Passed with no critical vulnerabilities; 27 lower-severity findings remain. | Local run on tested commit; latest successful [Quality run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162584). |
+| Whitespace check | `git diff --check` | Passed before editing. | Local run on tested commit. |
+| Encoding check | `python3 scripts/check-encoding.py` | Passed before editing. | Local run on tested commit. |
+| Link check | `Link Check` workflow / Lychee `--config lychee.toml` | Latest workflow passed: 777 total links, 760 successful, 17 excluded, 0 errors. | Latest successful [Link Check run](https://github.com/swp-team-34/streamdesk/actions/runs/29692162581). |
+
+Successful CI evidence is also available for the release tag commit:
+
+- [Quality on `5992de1e7c5d8f2dcb9a780011f896de7fa5c382`](https://github.com/swp-team-34/streamdesk/actions/runs/29688023922)
+- [Link Check on `5992de1e7c5d8f2dcb9a780011f896de7fa5c382`](https://github.com/swp-team-34/streamdesk/actions/runs/29688023919)
+
+## Coverage
+
+Overall coverage from `npm run coverage` on the tested commit:
+
+| Metric | Coverage | Covered / Total |
+| --- | ---: | ---: |
+| Statements | 22.77% | 3699 / 16240 |
+| Branches | 21.82% | 3274 / 14999 |
+| Functions | 23.06% | 1103 / 4782 |
+| Lines | 23.58% | 3405 / 14435 |
+
+Critical-module coverage:
+
+| Module | Statements | Branches | Functions | Lines | Why critical |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `client/src/lib/equipment-permissions.ts` | 100% | 100% | 100% | 100% | Equipment permission decisions. |
+| `client/src/components/protected-route.tsx` | 75% | 60% | 62.5% | 73.33% | Protected application access. |
+| `client/src/lib/task-dates.ts` | 86.76% | 64.51% | 100% | 90.16% | Calendar and deadline date handling. |
+| `client/src/lib/workspace-client.ts` | 100% | 100% | 100% | 100% | Active workspace cache switching. |
+| `client/src/lib/workspace-switch.ts` | 90% | 100% | 100% | 88.88% | Autosave flush before workspace switches. |
+| `client/src/lib/dashboard-layout.ts` | 89.67% | 68.42% | 91.42% | 91.17% | Dashboard layout persistence and collision handling. |
+| `client/src/lib/kanban-board-model.ts` | 100% | 80% | 100% | 100% | Kanban V2 board/card model behavior. |
+| `client/src/lib/equipment-kit-model.ts` | 97.05% | 68.49% | 100% | 100% | Equipment kit composition model behavior. |
+| `client/src/lib/location-model.ts` | 80% | 50% | 100% | 85.71% | Location filtering, archive ordering, and topic counts. |
+| `client/src/lib/project-kanban.ts` | 80% | 50% | 80% | 83.33% | Project/Kanban cache updates. |
+| `client/src/lib/realtime.ts` | 17.44% | 10.22% | 14.28% | 19.44% | Realtime client state helpers; server WebSocket behavior is covered separately by integration tests. |
+| `client/src/components/ui/stream-select.tsx` | 94.44% | 77.41% | 100% | 93.75% | Shared select control behavior. |
+
+No coverage thresholds are configured in `vitest.config.ts`. The `Quality` workflow requires `npm run coverage` to complete, but it does not fail solely because total line coverage is below a numeric threshold.
+
+The high test count does not imply high total line coverage because the coverage include list spans broad client, server, and shared source paths. Several large page components and application shell files are included in coverage but are only lightly covered or not directly rendered by the automated suite.
 
 ## Quality Requirement Test Mapping
 
@@ -34,33 +106,32 @@ Critical modules are selected by product risk: permission checks, access control
 
 Full quality requirement test details are maintained in `docs/quality-requirement-tests.md`.
 
-## Additional QA Checks
+## UAT
 
-The additional QA check beyond Lychee is:
+Automated tests and UAT serve different purposes. The automated suite provides repeatable regression evidence for selected code paths and integration boundaries. UAT records customer-oriented workflow validation and usability observations that are not fully represented by Vitest or route tests.
 
-```bash
-npm audit --audit-level=critical
-```
+UAT scenarios are maintained in [docs/user-acceptance-tests.md](user-acceptance-tests.md). This update does not edit that file. Current documentation inconsistencies found during this review:
 
-Lychee is a link-checking CI gate. It does not count as the additional QA check and does not count as a QRT unless it is directly linked to a measurable quality requirement.
+- `docs/user-acceptance-tests.md` contains scenarios marked `Status: Passed` while the `Execution result` is still `To be filled`.
+- `docs/quality-requirements.md` and `docs/quality-requirement-tests.md` still mention `v3.0.0-rc.1`, while this document now tracks final `v3.0.0` evidence.
 
 ## Link Checking
 
-Lychee runs through `.github/workflows/lychee.yml` on pull requests, pushes to `main`, and manual workflow dispatch.
+Lychee runs through `.github/workflows/lychee.yml` on pull requests, pushes to `main`, and manual workflow dispatch. The workflow uses:
 
-The `lychee.toml` file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission. This document does not claim manual verification of excluded links unless that evidence is recorded in the PR or linked workflow evidence.
+```bash
+lychee --config lychee.toml .
+```
 
-## CI and QA Check Status
+The `lychee.toml` file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission when they are relevant to a change.
 
-- Last checked: 2026-07-11, against `main` at `6b1265f`.
-- Latest successful `Quality` run on `main`: [run from 2026-07-11](https://github.com/swp-team-34/streamdesk/actions/runs/29159929261).
-- Latest successful `Link Check` run on `main`: [run from 2026-07-11](https://github.com/swp-team-34/streamdesk/actions/runs/29159929242).
-- Successful `Quality` test evidence: 12 test files and 48 tests passed.
-- The `Quality` coverage step completed successfully and generated the following report: 2.03% statements, 1.32% branches, 1.65% functions, and 2.04% lines across all included files. The critical-module line coverage was 100% for `equipment-permissions.ts`, 73.33% for `protected-route.tsx`, and 55.71% for `task-dates.ts`.
+## Limitations
 
-## Limitations and Follow-up
+- There is no full browser E2E suite for complete user journeys.
+- Production database integration is not covered by the automated suite.
+- Deployment E2E is not automated.
+- Load and performance testing are not automated.
+- Accessibility testing is limited to component-level behavior where covered by assertions; there is no full accessibility audit suite.
+- Manual testing remains necessary for drag-and-drop behavior, scrolling feel, browser rendering differences, responsive layout review, production environment verification, and other workflows that depend on real browser behavior.
 
-- Full browser end-to-end workflows are not covered.
-- No coverage threshold is configured in `vitest.config.ts`; the successful `Quality` run reports 2.04% line coverage across all included files.
-- The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.
-- Most server route tests invoke handlers with in-process Express and storage. The realtime suite additionally opens a temporary HTTP/WebSocket server to verify session rejection, company isolation, authorized subscriptions, and identifier-only event delivery; full browser and production-database integration remain manual checks.
+This document does not claim that StreamDesk is fully tested. It records the maintained automated and CI evidence available for the final `v3.0.0` release.
