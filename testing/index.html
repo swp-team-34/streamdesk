@@ -1190,10 +1190,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#critical-modules-and-coverage" class="md-nav__link">
+  <a href="#general-information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Critical Modules and Coverage
+        General Information
       
     </span>
   </a>
@@ -1201,10 +1201,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automated-test-status" class="md-nav__link">
+  <a href="#automated-test-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automated Test Status
+        Automated Test Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#covered-areas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Covered Areas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage
       
     </span>
   </a>
@@ -1223,10 +1256,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#additional-qa-checks" class="md-nav__link">
+  <a href="#uat" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Additional QA Checks
+        UAT
       
     </span>
   </a>
@@ -1245,21 +1278,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ci-and-qa-check-status" class="md-nav__link">
+  <a href="#limitations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CI and QA Check Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations-and-follow-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations and Follow-up
+        Limitations
       
     </span>
   </a>
@@ -1482,10 +1504,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#critical-modules-and-coverage" class="md-nav__link">
+  <a href="#general-information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Critical Modules and Coverage
+        General Information
       
     </span>
   </a>
@@ -1493,10 +1515,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automated-test-status" class="md-nav__link">
+  <a href="#automated-test-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automated Test Status
+        Automated Test Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#covered-areas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Covered Areas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage
       
     </span>
   </a>
@@ -1515,10 +1570,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#additional-qa-checks" class="md-nav__link">
+  <a href="#uat" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Additional QA Checks
+        UAT
       
     </span>
   </a>
@@ -1537,21 +1592,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ci-and-qa-check-status" class="md-nav__link">
+  <a href="#limitations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CI and QA Check Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations-and-follow-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations and Follow-up
+        Limitations
       
     </span>
   </a>
@@ -1579,92 +1623,284 @@
 
 
 <h1 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h1>
-<p>This document describes the current maintained testing and QA evidence for StreamDesk <code>v3.0.0-rc.1</code>.</p>
-<h2 id="critical-modules-and-coverage">Critical Modules and Coverage<a class="headerlink" href="#critical-modules-and-coverage" title="Permanent link">&para;</a></h2>
+<p>This document describes the maintained testing and QA evidence for the final StreamDesk <code>v3.0.0</code> release.</p>
+<h2 id="general-information">General Information<a class="headerlink" href="#general-information" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Critical module</th>
-<th>Why critical</th>
-<th style="text-align: right;">Target line coverage</th>
-<th style="text-align: right;">Current line coverage</th>
-<th>Evidence</th>
+<th>Item</th>
+<th>Value</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>client/src/lib/equipment-permissions.ts</code></td>
-<td>Controls equipment create, edit, and reserve permission decisions for inventory workflows.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">100%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
+<td>Product version</td>
+<td><code>v3.0.0</code></td>
 </tr>
 <tr>
-<td><code>client/src/components/protected-route.tsx</code></td>
-<td>Controls access to protected application areas for anonymous, unauthorized, and authorized users.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">73.33%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
+<td>Verification date</td>
+<td>2026-07-21</td>
 </tr>
 <tr>
-<td><code>client/src/lib/task-dates.ts</code></td>
-<td>Supports calendar and task scheduling behavior, including movement, resizing, rounding, and date/time combination.</td>
-<td style="text-align: right;">30%</td>
-<td style="text-align: right;">55.71%</td>
-<td>Latest successful <code>Quality</code> workflow run on <code>main</code> (2026-07-11).</td>
+<td>Tested commit</td>
+<td><code>ba7895e0eb94722a09a3696db0d81622f0888ed9</code></td>
+</tr>
+<tr>
+<td>Final release</td>
+<td><a href="https://github.com/swp-team-34/streamdesk/releases/tag/v3.0.0">MVP v3 / <code>v3.0.0</code></a></td>
+</tr>
+<tr>
+<td>Release tag commit</td>
+<td><code>5992de1e7c5d8f2dcb9a780011f896de7fa5c382</code></td>
 </tr>
 </tbody>
 </table>
-<p>Critical modules are selected by product risk: permission checks, access control, inventory operations, calendar/task scheduling, user data access, and flows that many users depend on.</p>
-<h2 id="automated-test-status">Automated Test Status<a class="headerlink" href="#automated-test-status" title="Permanent link">&para;</a></h2>
+<p>The tested commit is the latest <code>main</code> commit after final-release documentation merges. No test files, <code>package.json</code>, <code>vitest.config.ts</code>, workflow files, or maintained testing documents changed between the <code>v3.0.0</code> tag commit and the tested commit.</p>
+<h2 id="automated-test-types">Automated Test Types<a class="headerlink" href="#automated-test-types" title="Permanent link">&para;</a></h2>
+<p>The automated suite is run by Vitest with the shared configuration in <code>vitest.config.ts</code>.</p>
+<ul>
+<li>Unit tests cover model helpers, date/deadline rules, permission helpers, filters, sorting, cache updates, and shared utility behavior.</li>
+<li>React component tests run in <code>jsdom</code> with React Testing Library for protected routing, workspace controls, dashboard, warehouse, Kanban V2, locations, projects, and shared UI controls.</li>
+<li>Express route integration tests exercise server route handlers with in-process Express apps and mocked/in-memory storage where configured by the tests.</li>
+<li>HTTP/WebSocket integration tests start temporary HTTP/WebSocket infrastructure for authenticated realtime discussion transport checks.</li>
+<li>Shared model and utility tests cover shared calendar event types, task deadlines, UI accent values, and UI preferences.</li>
+</ul>
+<h2 id="covered-areas">Covered Areas<a class="headerlink" href="#covered-areas" title="Permanent link">&para;</a></h2>
+<p>The final test suite contains direct automated coverage for:</p>
+<ul>
+<li>authentication routing and protected route rendering;</li>
+<li>onboarding recovery for pending users;</li>
+<li>equipment permission decisions;</li>
+<li>active workspace selection and workspace switch flushing;</li>
+<li>company and personal workspace isolation in server routes and client cache handling;</li>
+<li>Calendar date helpers, deadlines, all-day events, timeline buffering, and timeline initialization;</li>
+<li>Kanban V2 board/card models, card details, filters, labels, custom fields, equipment links, list rows, and board navigation/settings controls;</li>
+<li>Dashboard layout helpers, operational widgets, status cards, navigation, compact spacing, and scoped layout loading;</li>
+<li>Warehouse equipment cards, forms, filters, checkout/return flows, pending requests, history/cart sheets, and equipment route behavior;</li>
+<li>equipment kits, kit composition, extraction, nested kits, active-kit approval, and kit safety routes;</li>
+<li>Locations and Projects models, dialogs, cards, project task stats, project edit forms, location-topic routes, and project/Kanban links;</li>
+<li>realtime/WebSocket session rejection, company-isolated subscriptions, and identifier-only delivery to authorized clients;</li>
+<li>shared UI controls and preferences, including app dialogs, theme provider, StreamSelect, multi-select, date/time/color controls, accent values, and preference routes.</li>
+</ul>
+<p>This list only includes areas backed by test files and assertions in the current repository.</p>
+<h2 id="current-results">Current Results<a class="headerlink" href="#current-results" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Check</th>
 <th>Command or workflow</th>
-<th>Current purpose</th>
+<th>Result</th>
 <th>Evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>TypeScript check</td>
-<td><code>npm run check</code></td>
-<td>Verifies TypeScript type safety across the configured project.</td>
-<td>Passed locally on 2026-07-16; CI confirmation pending.</td>
+<td>Dependency installation</td>
+<td><code>npm ci</code></td>
+<td>Passed on 2026-07-21; npm reported peer/deprecation warnings and 27 non-critical audit findings during install.</td>
+<td>Local run on tested commit.</td>
 </tr>
 <tr>
-<td>Vitest test suite</td>
+<td>TypeScript check</td>
+<td><code>npm run check</code></td>
+<td>Passed.</td>
+<td>Local run on tested commit; latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162584">Quality run</a>.</td>
+</tr>
+<tr>
+<td>Vitest</td>
 <td><code>npm test</code></td>
-<td>Runs unit, component, route, and authenticated WebSocket integration tests across client and server code.</td>
-<td>24 test files and 114 tests passed locally on 2026-07-16; CI confirmation pending.</td>
+<td>Passed: 132 test files, 427 tests.</td>
+<td>Local run on tested commit; latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162584">Quality run</a>.</td>
 </tr>
 <tr>
 <td>Coverage</td>
 <td><code>npm run coverage</code></td>
-<td>Produces coverage output for configured client, server, and shared TypeScript sources.</td>
-<td>24 test files and 114 tests passed locally on 2026-07-16 with 2.87% line coverage; CI confirmation pending.</td>
+<td>Passed: 132 test files, 427 tests; coverage report generated.</td>
+<td>Local run on tested commit; latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162584">Quality run</a>.</td>
 </tr>
 <tr>
 <td>Build</td>
 <td><code>npm run build</code></td>
-<td>Verifies the production client and server build.</td>
-<td>Passed locally on 2026-07-16; CI confirmation pending.</td>
+<td>Passed; Vite reported existing CSS minification and large chunk warnings.</td>
+<td>Local run on tested commit; latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162584">Quality run</a>.</td>
 </tr>
 <tr>
-<td>Dependency audit</td>
+<td>Critical dependency audit</td>
 <td><code>npm audit --audit-level=critical</code></td>
-<td>Checks for critical dependency vulnerabilities as the additional QA gate.</td>
-<td>Passed locally on 2026-07-16 with no critical findings; non-critical upgrade findings remain.</td>
+<td>Passed with no critical vulnerabilities; 27 lower-severity findings remain.</td>
+<td>Local run on tested commit; latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162584">Quality run</a>.</td>
 </tr>
 <tr>
-<td>Link checking</td>
-<td><code>Link Check</code> workflow</td>
-<td>Runs Lychee against repository links using <code>lychee.toml</code>.</td>
-<td>GitHub Actions link-check workflow.</td>
+<td>Whitespace check</td>
+<td><code>git diff --check</code></td>
+<td>Passed before editing.</td>
+<td>Local run on tested commit.</td>
+</tr>
+<tr>
+<td>Encoding check</td>
+<td><code>python3 scripts/check-encoding.py</code></td>
+<td>Passed before editing.</td>
+<td>Local run on tested commit.</td>
+</tr>
+<tr>
+<td>Link check</td>
+<td><code>Link Check</code> workflow / Lychee <code>--config lychee.toml</code></td>
+<td>Latest workflow passed: 777 total links, 760 successful, 17 excluded, 0 errors.</td>
+<td>Latest successful <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29692162581">Link Check run</a>.</td>
 </tr>
 </tbody>
 </table>
+<p>Successful CI evidence is also available for the release tag commit:</p>
+<ul>
+<li><a href="https://github.com/swp-team-34/streamdesk/actions/runs/29688023922">Quality on <code>5992de1e7c5d8f2dcb9a780011f896de7fa5c382</code></a></li>
+<li><a href="https://github.com/swp-team-34/streamdesk/actions/runs/29688023919">Link Check on <code>5992de1e7c5d8f2dcb9a780011f896de7fa5c382</code></a></li>
+</ul>
+<h2 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h2>
+<p>Overall coverage from <code>npm run coverage</code> on the tested commit:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th style="text-align: right;">Coverage</th>
+<th style="text-align: right;">Covered / Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Statements</td>
+<td style="text-align: right;">22.77%</td>
+<td style="text-align: right;">3699 / 16240</td>
+</tr>
+<tr>
+<td>Branches</td>
+<td style="text-align: right;">21.82%</td>
+<td style="text-align: right;">3274 / 14999</td>
+</tr>
+<tr>
+<td>Functions</td>
+<td style="text-align: right;">23.06%</td>
+<td style="text-align: right;">1103 / 4782</td>
+</tr>
+<tr>
+<td>Lines</td>
+<td style="text-align: right;">23.58%</td>
+<td style="text-align: right;">3405 / 14435</td>
+</tr>
+</tbody>
+</table>
+<p>Critical-module coverage:</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th style="text-align: right;">Statements</th>
+<th style="text-align: right;">Branches</th>
+<th style="text-align: right;">Functions</th>
+<th style="text-align: right;">Lines</th>
+<th>Why critical</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client/src/lib/equipment-permissions.ts</code></td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td>Equipment permission decisions.</td>
+</tr>
+<tr>
+<td><code>client/src/components/protected-route.tsx</code></td>
+<td style="text-align: right;">75%</td>
+<td style="text-align: right;">60%</td>
+<td style="text-align: right;">62.5%</td>
+<td style="text-align: right;">73.33%</td>
+<td>Protected application access.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/task-dates.ts</code></td>
+<td style="text-align: right;">86.76%</td>
+<td style="text-align: right;">64.51%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">90.16%</td>
+<td>Calendar and deadline date handling.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/workspace-client.ts</code></td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td>Active workspace cache switching.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/workspace-switch.ts</code></td>
+<td style="text-align: right;">90%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">88.88%</td>
+<td>Autosave flush before workspace switches.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/dashboard-layout.ts</code></td>
+<td style="text-align: right;">89.67%</td>
+<td style="text-align: right;">68.42%</td>
+<td style="text-align: right;">91.42%</td>
+<td style="text-align: right;">91.17%</td>
+<td>Dashboard layout persistence and collision handling.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/kanban-board-model.ts</code></td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">80%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td>Kanban V2 board/card model behavior.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/equipment-kit-model.ts</code></td>
+<td style="text-align: right;">97.05%</td>
+<td style="text-align: right;">68.49%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td>Equipment kit composition model behavior.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/location-model.ts</code></td>
+<td style="text-align: right;">80%</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">85.71%</td>
+<td>Location filtering, archive ordering, and topic counts.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/project-kanban.ts</code></td>
+<td style="text-align: right;">80%</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;">80%</td>
+<td style="text-align: right;">83.33%</td>
+<td>Project/Kanban cache updates.</td>
+</tr>
+<tr>
+<td><code>client/src/lib/realtime.ts</code></td>
+<td style="text-align: right;">17.44%</td>
+<td style="text-align: right;">10.22%</td>
+<td style="text-align: right;">14.28%</td>
+<td style="text-align: right;">19.44%</td>
+<td>Realtime client state helpers; server WebSocket behavior is covered separately by integration tests.</td>
+</tr>
+<tr>
+<td><code>client/src/components/ui/stream-select.tsx</code></td>
+<td style="text-align: right;">94.44%</td>
+<td style="text-align: right;">77.41%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">93.75%</td>
+<td>Shared select control behavior.</td>
+</tr>
+</tbody>
+</table>
+<p>No coverage thresholds are configured in <code>vitest.config.ts</code>. The <code>Quality</code> workflow requires <code>npm run coverage</code> to complete, but it does not fail solely because total line coverage is below a numeric threshold.</p>
+<p>The high test count does not imply high total line coverage because the coverage include list spans broad client, server, and shared source paths. Several large page components and application shell files are included in coverage but are only lightly covered or not directly rendered by the automated suite.</p>
 <h2 id="quality-requirement-test-mapping">Quality Requirement Test Mapping<a class="headerlink" href="#quality-requirement-test-mapping" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1698,29 +1934,28 @@
 </tbody>
 </table>
 <p>Full quality requirement test details are maintained in <code>docs/quality-requirement-tests.md</code>.</p>
-<h2 id="additional-qa-checks">Additional QA Checks<a class="headerlink" href="#additional-qa-checks" title="Permanent link">&para;</a></h2>
-<p>The additional QA check beyond Lychee is:</p>
-<div class="highlight"><pre><span></span><code>npm<span class="w"> </span>audit<span class="w"> </span>--audit-level<span class="o">=</span>critical
-</code></pre></div>
-<p>Lychee is a link-checking CI gate. It does not count as the additional QA check and does not count as a QRT unless it is directly linked to a measurable quality requirement.</p>
+<h2 id="uat">UAT<a class="headerlink" href="#uat" title="Permanent link">&para;</a></h2>
+<p>Automated tests and UAT serve different purposes. The automated suite provides repeatable regression evidence for selected code paths and integration boundaries. UAT records customer-oriented workflow validation and usability observations that are not fully represented by Vitest or route tests.</p>
+<p>UAT scenarios are maintained in <a href="../user-acceptance-tests/">docs/user-acceptance-tests.md</a>. This update does not edit that file. Current documentation inconsistencies found during this review:</p>
+<ul>
+<li><code>docs/user-acceptance-tests.md</code> contains scenarios marked <code>Status: Passed</code> while the <code>Execution result</code> is still <code>To be filled</code>.</li>
+<li><code>docs/quality-requirements.md</code> and <code>docs/quality-requirement-tests.md</code> still mention <code>v3.0.0-rc.1</code>, while this document now tracks final <code>v3.0.0</code> evidence.</li>
+</ul>
 <h2 id="link-checking">Link Checking<a class="headerlink" href="#link-checking" title="Permanent link">&para;</a></h2>
-<p>Lychee runs through <code>.github/workflows/lychee.yml</code> on pull requests, pushes to <code>main</code>, and manual workflow dispatch.</p>
-<p>The <code>lychee.toml</code> file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission. This document does not claim manual verification of excluded links unless that evidence is recorded in the PR or linked workflow evidence.</p>
-<h2 id="ci-and-qa-check-status">CI and QA Check Status<a class="headerlink" href="#ci-and-qa-check-status" title="Permanent link">&para;</a></h2>
+<p>Lychee runs through <code>.github/workflows/lychee.yml</code> on pull requests, pushes to <code>main</code>, and manual workflow dispatch. The workflow uses:</p>
+<div class="highlight"><pre><span></span><code>lychee<span class="w"> </span>--config<span class="w"> </span>lychee.toml<span class="w"> </span>.
+</code></pre></div>
+<p>The <code>lychee.toml</code> file contains narrow URL and path exclusions. Excluded links must be manually verified and justified before submission when they are relevant to a change.</p>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Last checked: 2026-07-11, against <code>main</code> at <code>6b1265f</code>.</li>
-<li>Latest successful <code>Quality</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929261">run from 2026-07-11</a>.</li>
-<li>Latest successful <code>Link Check</code> run on <code>main</code>: <a href="https://github.com/swp-team-34/streamdesk/actions/runs/29159929242">run from 2026-07-11</a>.</li>
-<li>Successful <code>Quality</code> test evidence: 12 test files and 48 tests passed.</li>
-<li>The <code>Quality</code> coverage step completed successfully and generated the following report: 2.03% statements, 1.32% branches, 1.65% functions, and 2.04% lines across all included files. The critical-module line coverage was 100% for <code>equipment-permissions.ts</code>, 73.33% for <code>protected-route.tsx</code>, and 55.71% for <code>task-dates.ts</code>.</li>
+<li>There is no full browser E2E suite for complete user journeys.</li>
+<li>Production database integration is not covered by the automated suite.</li>
+<li>Deployment E2E is not automated.</li>
+<li>Load and performance testing are not automated.</li>
+<li>Accessibility testing is limited to component-level behavior where covered by assertions; there is no full accessibility audit suite.</li>
+<li>Manual testing remains necessary for drag-and-drop behavior, scrolling feel, browser rendering differences, responsive layout review, production environment verification, and other workflows that depend on real browser behavior.</li>
 </ul>
-<h2 id="limitations-and-follow-up">Limitations and Follow-up<a class="headerlink" href="#limitations-and-follow-up" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Full browser end-to-end workflows are not covered.</li>
-<li>No coverage threshold is configured in <code>vitest.config.ts</code>; the successful <code>Quality</code> run reports 2.04% line coverage across all included files.</li>
-<li>The 2026-07-11 CI coverage output reports zero line coverage for several major client areas, including the client root, authentication context, hooks, forms, layout, and feature UI components.</li>
-<li>Most server route tests invoke handlers with in-process Express and storage. The realtime suite additionally opens a temporary HTTP/WebSocket server to verify session rejection, company isolation, authorized subscriptions, and identifier-only event delivery; full browser and production-database integration remain manual checks.</li>
-</ul>
+<p>This document does not claim that StreamDesk is fully tested. It records the maintained automated and CI evidence available for the final <code>v3.0.0</code> release.</p>
 
 
 
